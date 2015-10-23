@@ -93,6 +93,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
+#include "gromacs/externalpotential/externalpotentialutil.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
@@ -694,6 +695,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_hw_info_t            *hwinfo       = NULL;
     /* The master rank decides early on bUseGPU and broadcasts this later */
     gmx_bool                  bUseGPU            = FALSE;
+    ExternalPotentialUtil     external_potentials;
 
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
@@ -1316,6 +1318,14 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
             /* Initialize enforced rotation code */
             init_rot(fplog, inputrec, nfile, fnm, cr, state->x, box, mtop, oenv,
                      bVerbose, Flags);
+        }
+
+        if (inputrec->bExternalPotential)
+        {
+            /* Initialize the external potentials */
+            external_potentials.init_external_potentials(fplog, inputrec, nfile, fnm,
+                mtop, state->x, box, cr, oenv, Flags, bVerbose);
+
         }
 
         if (inputrec->eSwapCoords != eswapNO)

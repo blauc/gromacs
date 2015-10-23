@@ -49,6 +49,8 @@
 #include "gromacs/topology/symtab.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/externalpotential/externalpotentialregistration.h"
 
 #define   block_bc(cr,   d) gmx_bcast(     sizeof(d),     &(d), (cr))
 /* Probably the test for (nr) > 0 in the next macro is only needed
@@ -493,6 +495,22 @@ static void bc_pull_group(const t_commrec *cr, t_pull_group *pgrp)
     }
 }
 
+static void bc_externalpotential(const t_commrec *cr, t_ext_pot *pot)
+{
+    char * filename;
+    ExternalPotentialRegistration external_potential_registry;
+    block_bc(cr, *pot);
+    snew_bc(cr, pot->filenames, external_potential_registry.number_methods());
+
+    for (size_t p = 0; p < external_potential_registry.number_methods(); p++)
+    {
+        filename= pot->filenames[p];
+        snew_bc(cr, filename, STRLEN);
+        nblock_bc(cr, STRLEN, filename);
+    }
+
+}
+
 static void bc_pull(const t_commrec *cr, pull_params_t *pull)
 {
     int g;
@@ -686,6 +704,11 @@ static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
     if (inputrec->bSimTemp)
     {
         bc_simtempvals(cr, inputrec->simtempvals, inputrec->fepvals->n_lambda);
+    }
+    if (inputrec->bExternalPotential)
+    {
+        snew_bc(cr, inputrec->external_potential, 1);
+        bc_externalpotential(cr, inputrec->external_potential);
     }
     if (inputrec->bPull)
     {

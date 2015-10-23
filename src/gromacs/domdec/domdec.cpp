@@ -91,6 +91,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
+#include "gromacs/externalpotential/externalpotentialutil.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/block.h"
@@ -9135,6 +9136,8 @@ void dd_partition_system(FILE                *fplog,
     ivec               ncells_old = {0, 0, 0}, ncells_new = {0, 0, 0}, np;
     real               grid_density;
     char               sbuf[22];
+    ExternalPotentialUtil external_potentials;
+
 
     wallcycle_start(wcycle, ewcDOMDEC);
 
@@ -9666,6 +9669,13 @@ void dd_partition_system(FILE                *fplog,
         /* Update the local groups needed for ion swapping */
         dd_make_local_swap_groups(dd, ir->swap);
     }
+
+    if (ir->bExternalPotential)
+    {
+        /* Make a selection of the local atoms for density fitting */
+        external_potentials.dd_make_local_groups(dd, ir->external_potential);
+    }
+
 
     /* Update the local atoms to be communicated via the IMD protocol if bIMD is TRUE. */
     dd_make_local_IMD_atoms(ir->bIMD, dd, ir->imd);

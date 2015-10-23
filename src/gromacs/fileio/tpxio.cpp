@@ -62,6 +62,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/externalpotential/externalpotentialregistration.h"
 
 #define TPX_TAG_RELEASE  "release"
 
@@ -95,6 +96,7 @@ enum tpxv {
     tpxv_PullCoordTypeGeom,                                  /**< add pull type and geometry per group and flat-bottom */
     tpxv_PullGeomDirRel,                                     /**< add pull geometry direction-relative */
     tpxv_IntermolecularBondeds,                              /**< permit inter-molecular bonded interactions in the topology */
+    tpxv_ExternalPotential,                                  /**< apply external potential from external potential modules */
     tpxv_Count                                               /**< the total number of tpxv versions */
 };
 
@@ -780,6 +782,43 @@ static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead)
     {
         gmx_fio_do_int(fio, swap->nanions[j]);
         gmx_fio_do_int(fio, swap->ncations[j]);
+    }
+
+}
+
+static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_input, gmx_bool bRead){
+
+    char      buf[STRLEN];
+    ExternalPotentialRegistration external_potential_registry;
+
+    fprintf(stderr, "%s filenames for external potential.\n", bRead? "Reading" : "Writing");
+
+    if (bRead)
+    {
+        snew(external_potential_input->basepath,STRLEN);
+        gmx_fio_do_string(fio, external_potential_input->basepath);
+        snew(external_potential_input->filenames, external_potential_registry.number_methods());
+        snew(external_potential_input->indexfilenames, external_potential_registry.number_methods());
+        for (size_t i = 0; (i < external_potential_registry.number_methods()); i++)
+        {
+            gmx_fio_do_string(fio, buf);
+            snew(external_potential_input->filenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
+            external_potential_input->filenames[i] = gmx_strdup(buf);
+            gmx_fio_do_string(fio, buf);
+            snew(external_potential_input->indexfilenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
+            external_potential_input->indexfilenames[i] = gmx_strdup(buf);
+
+        }
+
+    }
+    else
+    {
+        gmx_fio_do_string(fio, external_potential_input->basepath);
+        for (size_t i = 0; i < external_potential_registry.number_methods(); i++)
+        {
+            gmx_fio_do_string(fio, external_potential_input->filenames[i]);
+            gmx_fio_do_string(fio, external_potential_input->indexfilenames[i]);
+        }
     }
 
 }
@@ -1556,6 +1595,23 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
     else
     {
         ir->bRot = FALSE;
+    }
+
+    /* External Potentials */
+    if (file_version >= tpxv_ExternalPotential){
+        gmx_fio_do_gmx_bool(fio, ir->bExternalPotential);
+        if (ir->bExternalPotential == TRUE)
+        {
+            if (bRead)
+            {
+                  snew(ir->external_potential,1);
+            }
+            do_external_potential(fio, ir->external_potential, bRead);
+        }
+    }
+    else
+    {
+        ir->external_potential = NULL;
     }
 
     /* Interactive molecular dynamics */

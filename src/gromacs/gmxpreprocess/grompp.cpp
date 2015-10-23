@@ -2031,6 +2031,12 @@ int gmx_grompp(int argc, char *argv[])
         }
     }
 
+    if (ir->bExternalPotential)
+    {
+/*        ExternalPotentialUtil external_potential_util;
+        external_potential_util.set_external_potential();*/
+    }
+
     if (ir->bPull)
     {
         set_pull_init(ir, sys, state->x, state->box, state->lambda[efptMASS], oenv);

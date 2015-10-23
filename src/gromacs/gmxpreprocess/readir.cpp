@@ -66,6 +66,7 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/externalpotential/externalpotentialutil.h"
 
 #define MAXPTR 254
 #define NOGID  255
@@ -2121,6 +2122,20 @@ void get_ir(const char *mdparin, const char *mdparout,
     STYPE ("wall-density",  is->wall_density,  NULL);
     RTYPE ("wall-ewald-zfac", ir->wall_ewald_zfac, 3);
 
+    /* External Potential has only yes/no option in mdp file */
+    /* Other options are given in the respective input files */
+    /* given as parameters to grompp */
+    CCTYPE("EXTERNAL POTENTIAL(S)");
+    EETYPE("external-potential", ir->bExternalPotential, yesno_names);
+    if (ir->bExternalPotential)
+    {
+        snew(ir->external_potential,1);
+        ExternalPotentialUtil external_potential_util;
+
+        external_potential_util.set_external_potential(&ninp, &inp, ir->external_potential);
+    }
+
+
     /* COM pulling */
     CCTYPE("COM PULLING");
     EETYPE("pull",          ir->bPull, yesno_names);
@@ -3554,6 +3569,9 @@ void do_index(const char* mdparin, const char *ndx,
     {
         make_rotation_groups(ir->rot, is->rot_grp, grps, gnames);
     }
+
+    // For the external potential, index groups are not put into the tpr file,
+    // but stored in an indexfile outside.
 
     if (ir->eSwapCoords != eswapNO)
     {

@@ -44,6 +44,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <list>
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/essentialdynamics/edsam.h"
@@ -88,6 +89,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
+#include "gromacs/externalpotential/externalpotentialutil.h"
 #include "gromacs/timing/gpu_timing.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
@@ -744,6 +746,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     rvec                vzero, box_diag;
     float               cycles_pme, cycles_force, cycles_wait_gpu;
     nonbonded_verlet_t *nbv;
+    ExternalPotentialUtil external_potentials;
 
     cycles_force    = 0;
     cycles_wait_gpu = 0;
@@ -1112,6 +1115,15 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         do_rotation(cr, inputrec, box, x, t, step, wcycle, bNS);
         wallcycle_stop(wcycle, ewcROT);
     }
+
+    if (inputrec->bExternalPotential)
+    {
+        /* External potentials have a common cycle counter - with no effect so far. */
+        wallcycle_start(wcycle, ewcEXTPOT);
+        external_potentials.do_external_potentials(cr, inputrec, box, x, t, step, wcycle, bNS);
+        wallcycle_stop(wcycle, ewcEXTPOT);
+    }
+
 
     /* Start the force cycle counter.
      * This counter is stopped after do_force_lowlevel.
@@ -1486,6 +1498,15 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcROTadd);
     }
 
+    /* Add the forces and potential energy from external potentials (if any) */
+    if (inputrec->bExternalPotential)
+    {
+        wallcycle_start(wcycle, ewcEXTPOTadd);
+        enerd->term[F_EXTPOT] += external_potentials.add_ext_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
+        wallcycle_stop(wcycle, ewcEXTPOTadd);
+    }
+
+
     /* Add forces from interactive molecular dynamics (IMD), if bIMD == TRUE. */
     IMD_apply_forces(inputrec->bIMD, inputrec->imd, cr, f, wcycle);
 
@@ -1532,6 +1553,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     gmx_bool   bDoAdressWF;
     t_pbc      pbc;
     float      cycles_pme, cycles_force;
+    ExternalPotentialUtil external_potentials;
 
     start  = 0;
     homenr = mdatoms->homenr;
@@ -1767,6 +1789,14 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcROT);
     }
 
+    if (inputrec->bExternalPotential)
+    {
+        /* External potentials have a common cycle counter - with no effect so far. */
+        wallcycle_start(wcycle, ewcEXTPOT);
+        external_potentials.do_external_potentials(cr, inputrec, box, x, t, step, wcycle, bNS);
+        wallcycle_stop(wcycle, ewcEXTPOT);
+    }
+
     /* Start the force cycle counter.
      * This counter is stopped after do_force_lowlevel.
      * No parallel communication should occur while this counter is running,
@@ -1945,6 +1975,14 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         wallcycle_start(wcycle, ewcROTadd);
         enerd->term[F_COM_PULL] += add_rot_forces(inputrec->rot, f, cr, step, t);
         wallcycle_stop(wcycle, ewcROTadd);
+    }
+
+    /* Add the forces and potential energy from external potentials (if any) */
+    if (inputrec->bExternalPotential)
+    {
+        wallcycle_start(wcycle, ewcEXTPOTadd);
+        enerd->term[F_EXTPOT] += external_potentials.add_ext_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
+        wallcycle_stop(wcycle, ewcEXTPOTadd);
     }
 
     /* Add forces from interactive molecular dynamics (IMD), if bIMD == TRUE. */

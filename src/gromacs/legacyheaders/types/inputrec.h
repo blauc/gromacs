@@ -245,6 +245,20 @@ typedef struct {
     gmx_enfrot_t enfrot;     /* Stores non-inputrec enforced rotation data    */
 } t_rot;
 
+/* Abstract type for non-inpurec external potential classes, defined in externalpotentialutil.h */
+typedef struct gmx_ext_pot t_gmx_ext_pot;
+
+/*! \brief
+ * The external potential information which will be available during the
+ * simulation run. Carries the data from grompp to mdrun.
+ */
+typedef struct ext_pot {
+    char * basepath;
+    char **filenames; //< To keep the interface as basic as possible, store only filenames for external potential input data
+    char **indexfilenames; //< Indexing the atoms that will be subject to an external potential is so generic that this file will be provided by default
+    t_gmx_ext_pot *extpot;//< The external potential classes containing also the non-inputrec data.
+} t_ext_pot;
+
 /* Abstract type for IMD only defined in IMD.c */
 typedef struct gmx_IMD *t_gmx_IMD;
 
@@ -416,6 +430,8 @@ typedef struct {
     int             wall_atomtype[2];        /* The atom type for walls                      */
     real            wall_density[2];         /* Number density for walls                     */
     real            wall_ewald_zfac;         /* Scaling factor for the box for Ewald         */
+    gmx_bool        bExternalPotential;      /* Apply an external potential in the simulation*/
+    t_ext_pot      *external_potential;      /* Container for external potential variables   */
     gmx_bool        bPull;                   /* Do we do COM pulling?                        */
     pull_params_t  *pull;                    /* The data for center of mass pulling          */
     struct pull_t  *pull_work;               /* The COM pull force calculation data structure; TODO this pointer should live somewhere else */

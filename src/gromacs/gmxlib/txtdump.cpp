@@ -53,6 +53,7 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/externalpotential/externalpotentialregistration.h"
 
 int pr_indent(FILE *fp, int n)
 {
@@ -819,6 +820,19 @@ static void pr_rot(FILE *fp, int indent, t_rot *rot)
     }
 }
 
+static void pr_externalpotential(FILE *fp, int indent, t_ext_pot * pot)
+{
+
+    ExternalPotentialRegistration external_potential_registry;
+
+    PS("external-potential-path", pot->basepath);
+    for (size_t p = 0; p < external_potential_registry.number_methods(); p++)
+    {
+        PS(external_potential_registry.name(p).c_str(), pot->filenames[p]);
+    }
+
+}
+
 
 static void pr_swap(FILE *fp, int indent, t_swapcoords *swap)
 {
@@ -1044,6 +1058,12 @@ void pr_inputrec(FILE *fp, int indent, const char *title, t_inputrec *ir,
         if (ir->bRot)
         {
             pr_rot(fp, indent, ir->rot);
+        }
+
+        PS("external-potential", EBOOL(ir->bExternalPotential));
+        if (ir->bExternalPotential)
+        {
+            pr_externalpotential(fp, indent, ir->external_potential);
         }
 
         /* INTERACTIVE MD */

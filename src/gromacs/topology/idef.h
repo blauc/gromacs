@@ -132,6 +132,7 @@ enum {
     F_VSITE4FDN,
     F_VSITEN,
     F_COM_PULL,
+    F_EXTPOT,           /* Energy contribution from external potentials */
     F_EQM,
     F_EPOT,
     F_EKIN,
