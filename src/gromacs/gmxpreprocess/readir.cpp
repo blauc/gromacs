@@ -90,6 +90,7 @@ typedef struct t_inputrec_strings
     char   lambda_weights[STRLEN];
     char **pull_grp;
     char **rot_grp;
+    char **ext_pot;
     char   anneal[STRLEN], anneal_npoints[STRLEN],
            anneal_time[STRLEN], anneal_temp[STRLEN];
     char   QMmethod[STRLEN], QMbasis[STRLEN], QMcharge[STRLEN], QMmult[STRLEN],
@@ -164,7 +165,7 @@ static void GetSimTemps(int ntemps, t_simtemp *simtemp, double *temperature_lamb
         }
         else if (simtemp->eSimTempScale == esimtempEXPONENTIAL)
         {
-            simtemp->temperatures[i] = simtemp->simtemp_low + (simtemp->simtemp_high-simtemp->simtemp_low)*(gmx_expm1(temperature_lambdas[i])/gmx_expm1(1.0));
+            simtemp->temperatures[i] = simtemp->simtemp_low + (simtemp->simtemp_high-simtemp->simtemp_low)*(std::expm1(temperature_lambdas[i])/std::expm1(1.0));
         }
         else
         {
@@ -203,7 +204,7 @@ static void check_nst(const char *desc_nst, int nst,
 
 static gmx_bool ir_NVE(const t_inputrec *ir)
 {
-    return ((ir->eI == eiMD || EI_VV(ir->eI)) && ir->etc == etcNO);
+    return (EI_MD(ir->eI) && ir->etc == etcNO);
 }
 
 static int lcd(int n1, int n2)
@@ -465,8 +466,20 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     }
 
     /* GENERAL INTEGRATOR STUFF */
-    if (!(ir->eI == eiMD || EI_VV(ir->eI)))
+    if (!EI_MD(ir->eI))
     {
+        if (ir->etc != etcNO)
+        {
+            if (EI_RANDOM(ir->eI))
+            {
+                sprintf(warn_buf, "Setting tcoupl from '%s' to 'no'. %s handles temperature coupling implicitly. See the documentation for more information on which parameters affect temperature for %s.", etcoupl_names[ir->etc], ei_names[ir->eI], ei_names[ir->eI]);
+            }
+            else
+            {
+                sprintf(warn_buf, "Setting tcoupl from '%s' to 'no'. Temperature coupling does not apply to %s.", etcoupl_names[ir->etc], ei_names[ir->eI]);
+            }
+            warning_note(wi, warn_buf);
+        }
         ir->etc = etcNO;
     }
     if (ir->eI == eiVVAK)
@@ -476,6 +489,11 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     }
     if (!EI_DYNAMICS(ir->eI))
     {
+        if (ir->epc != epcNO)
+        {
+            sprintf(warn_buf, "Setting pcoupl from '%s' to 'no'. Pressure coupling does not apply to %s.", epcoupl_names[ir->epc], ei_names[ir->eI]);
+            warning_note(wi, warn_buf);
+        }
         ir->epc = epcNO;
     }
     if (EI_DYNAMICS(ir->eI))
@@ -1114,11 +1132,11 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     {
         /* reaction field (at the cut-off) */
 
-        if (ir->coulombtype == eelRF_ZERO)
+        if (ir->coulombtype == eelRF_ZERO && ir->epsilon_rf != 0)
         {
             sprintf(warn_buf, "With coulombtype = %s, epsilon-rf must be 0, assuming you meant epsilon_rf=0",
                     eel_names[ir->coulombtype]);
-            CHECK(ir->epsilon_rf != 0);
+            warning(wi, warn_buf);
             ir->epsilon_rf = 0.0;
         }
 
@@ -2122,17 +2140,14 @@ void get_ir(const char *mdparin, const char *mdparout,
     STYPE ("wall-density",  is->wall_density,  NULL);
     RTYPE ("wall-ewald-zfac", ir->wall_ewald_zfac, 3);
 
-    /* External Potential has only yes/no option in mdp file */
-    /* Other options are given in the respective input files */
-    /* given as parameters to grompp */
+    /* External Potential */
     CCTYPE("EXTERNAL POTENTIAL(S)");
     EETYPE("external-potential", ir->bExternalPotential, yesno_names);
     if (ir->bExternalPotential)
     {
         snew(ir->external_potential,1);
         ExternalPotentialUtil external_potential_util;
-
-        external_potential_util.set_external_potential(&ninp, &inp, ir->external_potential);
+        is->ext_pot = external_potential_util.set_external_potential(&ninp, &inp, ir->external_potential);
     }
 
 
@@ -2259,6 +2274,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     STYPE ("E-z",     is->efield_z,   NULL);
     STYPE ("E-zt",    is->efield_zt,  NULL);
 
+    /* Ion/water position swapping ("computational electrophysiology") */
     CCTYPE("Ion/water position swapping for computational electrophysiology setups");
     CTYPE("Swap positions along direction: no, X, Y, Z");
     EETYPE("swapcoords", ir->eSwapCoords, eSwapTypes_names);
@@ -2297,6 +2313,19 @@ void get_ir(const char *mdparin, const char *mdparout,
         ITYPE("cationsA", ir->swap->ncations[0], -1);
         ITYPE("anionsB", ir->swap->nanions[1], -1);
         ITYPE("cationsB", ir->swap->ncations[1], -1);
+
+        CTYPE("By default (i.e. bulk offset = 0.0), ion/water exchanges happen between layers");
+        CTYPE("at maximum distance (= bulk concentration) to the split group layers. However,");
+        CTYPE("an offset b (-1.0 < b < +1.0) can be specified to offset the bulk layer from the middle at 0.0");
+        CTYPE("towards one of the compartment-partitioning layers (at +/- 1.0).");
+        RTYPE("bulk-offsetA", ir->swap->bulkOffset[0], 0.0);
+        RTYPE("bulk-offsetB", ir->swap->bulkOffset[1], 0.0);
+        if (!(ir->swap->bulkOffset[0] > -1.0 && ir->swap->bulkOffset[0] < 1.0)
+            || !(ir->swap->bulkOffset[1] > -1.0 && ir->swap->bulkOffset[1] < 1.0) )
+        {
+            warning_error(wi, "Bulk layer offsets must be > -1.0 and < 1.0 !");
+        }
+
         CTYPE("Start to swap ions if threshold difference to requested count is reached");
         RTYPE("threshold", ir->swap->threshold, 1.0);
     }
@@ -3570,8 +3599,11 @@ void do_index(const char* mdparin, const char *ndx,
         make_rotation_groups(ir->rot, is->rot_grp, grps, gnames);
     }
 
-    // For the external potential, index groups are not put into the tpr file,
-    // but stored in an indexfile outside.
+    if (ir->bExternalPotential)
+    {
+        ExternalPotentialUtil external_potential_utils;
+        external_potential_utils.make_groups(ir->external_potential, is->ext_pot ,grps, gnames);
+    }
 
     if (ir->eSwapCoords != eswapNO)
     {

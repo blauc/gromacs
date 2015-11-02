@@ -232,9 +232,9 @@ static void find_tetra_order_grid(t_topology top, int ePBC,
         *skmean += skmol[i];
 
         /* Compute sliced stuff in x y z*/
-        slindex_x = gmx_nint((1+x[i][XX]/box[XX][XX])*nslicex) % nslicex;
-        slindex_y = gmx_nint((1+x[i][YY]/box[YY][YY])*nslicey) % nslicey;
-        slindex_z = gmx_nint((1+x[i][ZZ]/box[ZZ][ZZ])*nslicez) % nslicez;
+        slindex_x = static_cast<int>(std::round((1+x[i][XX]/box[XX][XX])*nslicex)) % nslicex;
+        slindex_y = static_cast<int>(std::round((1+x[i][YY]/box[YY][YY])*nslicey)) % nslicey;
+        slindex_z = static_cast<int>(std::round((1+x[i][ZZ]/box[ZZ][ZZ])*nslicez)) % nslicez;
         sggrid[slindex_x][slindex_y][slindex_z] += sgmol[i];
         skgrid[slindex_x][slindex_y][slindex_z] += skmol[i];
         (sl_count[slindex_x][slindex_y][slindex_z])++;
@@ -274,7 +274,7 @@ static void find_tetra_order_grid(t_topology top, int ePBC,
 static void calc_tetra_order_interface(const char *fnNDX, const char *fnTPS, const char *fnTRX, real binw, int tblock,
                                        int *nframes,  int *nslicex, int *nslicey,
                                        real sgang1, real sgang2, real ****intfpos,
-                                       output_env_t oenv)
+                                       gmx_output_env_t *oenv)
 {
     FILE         *fpsg   = NULL, *fpsk = NULL;
     t_topology    top;
@@ -632,10 +632,10 @@ int gmx_hydorder(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     /*Filenames*/
-    const char  *ndxfnm, *tpsfnm, *trxfnm;
-    char       **spectra, **intfn, **raw;
-    int          nfspect, nfxpm, nfraw;
-    output_env_t oenv;
+    const char       *ndxfnm, *tpsfnm, *trxfnm;
+    char            **spectra, **intfn, **raw;
+    int               nfspect, nfxpm, nfraw;
+    gmx_output_env_t *oenv;
 
     if (!parse_common_args(&argc, argv, PCA_CAN_VIEW | PCA_CAN_TIME,
                            NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv))

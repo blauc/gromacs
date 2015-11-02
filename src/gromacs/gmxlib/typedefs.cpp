@@ -43,6 +43,7 @@
 
 #include <algorithm>
 
+#include "gromacs/gmxlib/energyhistory.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/random.h"
@@ -66,89 +67,6 @@ int gmx_int64_to_int(gmx_int64_t step, const char *warn)
     }
 
     return i;
-}
-
-void init_inputrec(t_inputrec *ir)
-{
-    std::memset(ir, 0, sizeof(*ir));
-    snew(ir->fepvals, 1);
-    snew(ir->expandedvals, 1);
-    snew(ir->simtempvals, 1);
-}
-
-static void done_pull_group(t_pull_group *pgrp)
-{
-    if (pgrp->nat > 0)
-    {
-        sfree(pgrp->ind);
-        sfree(pgrp->weight);
-    }
-}
-
-static void done_pull_params(pull_params_t *pull)
-{
-    int i;
-
-    for (i = 0; i < pull->ngroup+1; i++)
-    {
-        done_pull_group(pull->group);
-    }
-
-    sfree(pull->group);
-    sfree(pull->coord);
-}
-
-void done_inputrec(t_inputrec *ir)
-{
-    int m;
-
-    for (m = 0; (m < DIM); m++)
-    {
-        if (ir->ex[m].a)
-        {
-            sfree(ir->ex[m].a);
-        }
-        if (ir->ex[m].phi)
-        {
-            sfree(ir->ex[m].phi);
-        }
-        if (ir->et[m].a)
-        {
-            sfree(ir->et[m].a);
-        }
-        if (ir->et[m].phi)
-        {
-            sfree(ir->et[m].phi);
-        }
-    }
-
-    sfree(ir->opts.nrdf);
-    sfree(ir->opts.ref_t);
-    sfree(ir->opts.annealing);
-    sfree(ir->opts.anneal_npoints);
-    sfree(ir->opts.anneal_time);
-    sfree(ir->opts.anneal_temp);
-    sfree(ir->opts.tau_t);
-    sfree(ir->opts.acc);
-    sfree(ir->opts.nFreeze);
-    sfree(ir->opts.QMmethod);
-    sfree(ir->opts.QMbasis);
-    sfree(ir->opts.QMcharge);
-    sfree(ir->opts.QMmult);
-    sfree(ir->opts.bSH);
-    sfree(ir->opts.CASorbitals);
-    sfree(ir->opts.CASelectrons);
-    sfree(ir->opts.SAon);
-    sfree(ir->opts.SAoff);
-    sfree(ir->opts.SAsteps);
-    sfree(ir->opts.bOPT);
-    sfree(ir->opts.bTS);
-
-    if (ir->pull)
-    {
-        done_pull_params(ir->pull);
-        sfree(ir->pull);
-    }
 }
 
 static void zero_history(history_t *hist)
@@ -207,48 +125,6 @@ static void init_swapstate(swapstate_t *swapstate)
     swapstate->xc_old_whole[eChan1]   = NULL;
     swapstate->xc_old_whole_p[eChan0] = NULL;
     swapstate->xc_old_whole_p[eChan1] = NULL;
-}
-
-void init_energyhistory(energyhistory_t * enerhist)
-{
-    enerhist->nener = 0;
-
-    enerhist->ener_ave     = NULL;
-    enerhist->ener_sum     = NULL;
-    enerhist->ener_sum_sim = NULL;
-    enerhist->dht          = NULL;
-
-    enerhist->nsteps     = 0;
-    enerhist->nsum       = 0;
-    enerhist->nsteps_sim = 0;
-    enerhist->nsum_sim   = 0;
-
-    enerhist->dht = NULL;
-}
-
-static void done_delta_h_history(delta_h_history_t *dht)
-{
-    int i;
-
-    for (i = 0; i < dht->nndh; i++)
-    {
-        sfree(dht->dh[i]);
-    }
-    sfree(dht->dh);
-    sfree(dht->ndh);
-}
-
-void done_energyhistory(energyhistory_t * enerhist)
-{
-    sfree(enerhist->ener_ave);
-    sfree(enerhist->ener_sum);
-    sfree(enerhist->ener_sum_sim);
-
-    if (enerhist->dht != NULL)
-    {
-        done_delta_h_history(enerhist->dht);
-        sfree(enerhist->dht);
-    }
 }
 
 void init_gtc_state(t_state *state, int ngtc, int nnhpres, int nhchainlength)
@@ -340,7 +216,8 @@ void init_state(t_state *state, int natoms, int ngtc, int nnhpres, int nhchainle
     state->cg_p = NULL;
     zero_history(&state->hist);
     zero_ekinstate(&state->ekinstate);
-    init_energyhistory(&state->enerhist);
+    snew(state->enerhist, 1);
+    init_energyhistory(state->enerhist);
     init_df_history(&state->dfhist, nlambda);
     init_swapstate(&state->swapstate);
     state->ddp_count       = 0;
@@ -402,68 +279,6 @@ t_state *serial_init_local_state(t_state *state_global)
     }
 
     return state_local;
-}
-
-static void do_box_rel(t_inputrec *ir, matrix box_rel, matrix b, gmx_bool bInit)
-{
-    int d, d2;
-
-    for (d = YY; d <= ZZ; d++)
-    {
-        for (d2 = XX; d2 <= (ir->epct == epctSEMIISOTROPIC ? YY : ZZ); d2++)
-        {
-            /* We need to check if this box component is deformed
-             * or if deformation of another component might cause
-             * changes in this component due to box corrections.
-             */
-            if (ir->deform[d][d2] == 0 &&
-                !(d == ZZ && d2 == XX && ir->deform[d][YY] != 0 &&
-                  (b[YY][d2] != 0 || ir->deform[YY][d2] != 0)))
-            {
-                if (bInit)
-                {
-                    box_rel[d][d2] = b[d][d2]/b[XX][XX];
-                }
-                else
-                {
-                    b[d][d2] = b[XX][XX]*box_rel[d][d2];
-                }
-            }
-        }
-    }
-}
-
-void set_box_rel(t_inputrec *ir, t_state *state)
-{
-    /* Make sure the box obeys the restrictions before we fix the ratios */
-    correct_box(NULL, 0, state->box, NULL);
-
-    clear_mat(state->box_rel);
-
-    if (PRESERVE_SHAPE(*ir))
-    {
-        do_box_rel(ir, state->box_rel, state->box, TRUE);
-    }
-}
-
-void preserve_box_shape(t_inputrec *ir, matrix box_rel, matrix b)
-{
-    if (PRESERVE_SHAPE(*ir))
-    {
-        do_box_rel(ir, box_rel, b, FALSE);
-    }
-}
-
-real max_cutoff(real cutoff1, real cutoff2)
-{
-    if (cutoff1 == 0 || cutoff2 == 0)
-    {
-        return 0;
-    }
-    else
-    {
-        return std::max(cutoff1, cutoff2);
-    }
 }
 
 void init_df_history(df_history_t *dfhist, int nlambda)

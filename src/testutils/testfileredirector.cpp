@@ -43,12 +43,11 @@
 
 #include "testfileredirector.h"
 
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <boost/shared_ptr.hpp>
 
 #include "gromacs/utility/stringstream.h"
 
@@ -76,9 +75,16 @@ void TestFileInputRedirector::addExistingFile(const char *filename)
     existingFiles_.insert(filename);
 }
 
-bool TestFileInputRedirector::fileExists(const char *filename) const
+bool TestFileInputRedirector::fileExists(const char            *filename,
+                                         File::NotFoundHandler  onNotFound) const
 {
-    return existingFiles_.count(filename) > 0;
+    if (existingFiles_.count(filename) == 0)
+    {
+        File::NotFoundInfo info(filename, "File not present in test", NULL, false, 0);
+        onNotFound(info);
+        return false;
+    }
+    return true;
 }
 
 /********************************************************************
@@ -88,7 +94,7 @@ bool TestFileInputRedirector::fileExists(const char *filename) const
 class TestFileOutputRedirector::Impl
 {
     public:
-        typedef boost::shared_ptr<StringOutputStream> StringStreamPointer;
+        typedef std::shared_ptr<StringOutputStream> StringStreamPointer;
         typedef std::pair<std::string, StringStreamPointer> FileListEntry;
 
         StringStreamPointer         stdoutStream_;

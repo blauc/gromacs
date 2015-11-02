@@ -394,8 +394,7 @@ class Sasa : public TrajectoryAnalysisModule
 };
 
 Sasa::Sasa()
-    : TrajectoryAnalysisModule(SasaInfo::name, SasaInfo::shortDescription),
-      solsize_(0.14), ndots_(24), dgsDefault_(0), bIncludeSolute_(true), top_(NULL)
+    : solsize_(0.14), ndots_(24), dgsDefault_(0), bIncludeSolute_(true), top_(NULL)
 {
     //minarea_ = 0.5;
     registerAnalysisDataset(&area_, "area");
@@ -485,10 +484,10 @@ Sasa::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *settin
     // The calculation group uses dynamicMask() so that the coordinates
     // match a static array of VdW radii.
     options->addOption(SelectionOption("surface").store(&surfaceSel_)
-                           .required().onlyAtoms().dynamicMask()
+                           .required().onlySortedAtoms().dynamicMask()
                            .description("Surface calculation selection"));
     options->addOption(SelectionOption("output").storeVector(&outputSel_)
-                           .onlyAtoms().multiValue()
+                           .onlySortedAtoms().multiValue()
                            .description("Output selection(s)"));
 
     // Atom names etc. are required for the VdW radii lookup.
@@ -672,17 +671,18 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
         }
         {
             AnalysisDataAverageModulePointer avem(new AnalysisDataAverageModule);
-            int prevResind = -1;
-            int row        = 0;
+            int nextRow = 0;
             for (int i = 0; i < surfaceSel_.posCount(); ++i)
             {
-                const int atomIndex     = surfaceSel_.position(i).atomIndices()[0];
-                const int residueIndex  = atoms.atom[atomIndex].resind;
-                if (residueIndex != prevResind)
+                const int residueGroup = surfaceSel_.position(i).mappedId();
+                if (residueGroup >= nextRow)
                 {
-                    avem->setXAxisValue(row, atoms.resinfo[residueIndex].nr);
-                    prevResind = residueIndex;
-                    ++row;
+                    GMX_ASSERT(residueGroup == nextRow,
+                               "Inconsistent (non-uniformly increasing) residue grouping");
+                    const int atomIndex    = surfaceSel_.position(i).atomIndices()[0];
+                    const int residueIndex = atoms.atom[atomIndex].resind;
+                    avem->setXAxisValue(nextRow, atoms.resinfo[residueIndex].nr);
+                    ++nextRow;
                 }
             }
             residueArea_.addModule(avem);

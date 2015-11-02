@@ -215,7 +215,7 @@ static real wSsolid(real nu, real beta)
     }
     else
     {
-        return bhn/gmx_expm1(bhn) - gmx_log1p(-std::exp(-bhn));
+        return bhn/std::expm1(bhn) - std::log1p(-std::exp(-bhn));
     }
 }
 
@@ -243,7 +243,7 @@ static real wEsolid(real nu, real beta)
     }
     else
     {
-        return bhn/2 + bhn/gmx_expm1(bhn)-1;
+        return bhn/2 + bhn/std::expm1(bhn)-1;
     }
 }
 
@@ -276,7 +276,7 @@ int gmx_dos(int argc, char *argv[])
     int                 nV, nframes, n_alloc, i, j, fftcode, Nmol, Natom;
     double              rho, dt, Vsum, V, tmass, dostot, dos2;
     real              **c1, **dos, mi, beta, bfac, *nu, *tt, stddev, c1j;
-    output_env_t        oenv;
+    gmx_output_env_t   *oenv;
     gmx_fft_t           fft;
     double              cP, DiffCoeff, Delta, f, y, z, sigHS, Shs, Sig, DoS0, recip_fac;
     double              wCdiff, wSdiff, wAdiff, wEdiff;

@@ -54,7 +54,6 @@
 #include "gromacs/gmxlib/ocl_tools/oclutils.h"
 #include "gromacs/legacyheaders/types/force_flags.h"
 #include "gromacs/legacyheaders/types/hw_info.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
@@ -1003,7 +1002,6 @@ void nbnxn_gpu_launch_cpyback(gmx_nbnxn_ocl_t               *nb,
  * transfers to finish.
  */
 void nbnxn_gpu_wait_for_gpu(gmx_nbnxn_ocl_t *nb,
-                            const nbnxn_atomdata_t gmx_unused *nbatom,
                             int flags, int aloc,
                             real *e_lj, real *e_el, rvec *fshift)
 {

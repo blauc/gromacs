@@ -46,11 +46,9 @@
 #include <cctype>
 #include <cstdio>
 
+#include <memory>
 #include <string>
 #include <vector>
-
-#include <boost/scoped_ptr.hpp>
-#include <boost/shared_ptr.hpp>
 
 #include "gromacs/fileio/trx.h"
 #include "gromacs/onlinehelp/helpmanager.h"
@@ -329,13 +327,13 @@ void printHelp(TextWriter *writer, gmx_ana_selcollection_t *sc,
 SelectionList runParser(yyscan_t scanner, TextInputStream *inputStream,
                         bool bInteractive, int maxnr, const std::string &context)
 {
-    boost::shared_ptr<void>  scannerGuard(scanner, &_gmx_sel_free_lexer);
+    std::shared_ptr<void>    scannerGuard(scanner, &_gmx_sel_free_lexer);
     gmx_ana_selcollection_t *sc   = _gmx_sel_lexer_selcollection(scanner);
     gmx_ana_indexgrps_t     *grps = _gmx_sel_lexer_indexgrps(scanner);
 
     size_t                   oldCount = sc->sel.size();
     {
-        boost::shared_ptr<_gmx_sel_yypstate> parserState(
+        std::shared_ptr<_gmx_sel_yypstate> parserState(
                 _gmx_sel_yypstate_new(), &_gmx_sel_yypstate_delete);
         if (bInteractive)
         {
@@ -495,28 +493,18 @@ SelectionCollection::~SelectionCollection()
 
 
 void
-SelectionCollection::initOptions(IOptionsContainer *options)
+SelectionCollection::initOptions(IOptionsContainer   *options,
+                                 SelectionTypeOption  selectionTypeOption)
 {
     const char * const debug_levels[]
         = { "no", "basic", "compile", "eval", "full" };
-
-    bool bAllowNonAtomOutput = false;
-    SelectionDataList::const_iterator iter;
-    for (iter = impl_->sc_.sel.begin(); iter != impl_->sc_.sel.end(); ++iter)
-    {
-        const internal::SelectionData &sel = **iter;
-        if (!sel.hasFlag(efSelection_OnlyAtoms))
-        {
-            bAllowNonAtomOutput = true;
-        }
-    }
 
     const char *const *postypes = PositionCalculationCollection::typeEnumValues;
     options->addOption(StringOption("selrpos")
                            .enumValueFromNullTerminatedArray(postypes)
                            .store(&impl_->rpost_).defaultValue(postypes[0])
                            .description("Selection reference positions"));
-    if (bAllowNonAtomOutput)
+    if (selectionTypeOption == IncludeSelectionTypeOption)
     {
         options->addOption(StringOption("seltype")
                                .enumValueFromNullTerminatedArray(postypes)
@@ -529,10 +517,8 @@ SelectionCollection::initOptions(IOptionsContainer *options)
     }
     GMX_RELEASE_ASSERT(impl_->debugLevel_ >= 0 && impl_->debugLevel_ <= 4,
                        "Debug level out of range");
-    options->addOption(StringOption("seldebug").hidden(impl_->debugLevel_ == 0)
-                           .enumValue(debug_levels)
-                           .defaultValue(debug_levels[impl_->debugLevel_])
-                           .storeEnumIndex(&impl_->debugLevel_)
+    options->addOption(EnumIntOption("seldebug").hidden(impl_->debugLevel_ == 0)
+                           .enumValue(debug_levels).store(&impl_->debugLevel_)
                            .description("Print out selection trees for debugging"));
 }
 
@@ -668,6 +654,23 @@ SelectionCollection::requiresTopology() const
     return false;
 }
 
+
+bool
+SelectionCollection::requiresIndexGroups() const
+{
+    SelectionTreeElementPointer sel = impl_->sc_.root;
+    while (sel)
+    {
+        if (sel->requiresIndexGroups())
+        {
+            return true;
+        }
+        sel = sel->next;
+    }
+    return false;
+}
+
+
 SelectionList
 SelectionCollection::parseFromStdin(int count, bool bInteractive,
                                     const std::string &context)
@@ -677,6 +680,23 @@ SelectionCollection::parseFromStdin(int count, bool bInteractive,
                             context);
 }
 
+namespace
+{
+
+//! Helper function to initialize status writer for interactive selection parsing.
+std::unique_ptr<TextWriter> initStatusWriter(TextOutputStream *statusStream)
+{
+    std::unique_ptr<TextWriter> statusWriter;
+    if (statusStream != NULL)
+    {
+        statusWriter.reset(new TextWriter(statusStream));
+        statusWriter->wrapperSettings().setLineLength(78);
+    }
+    return std::move(statusWriter);
+}
+
+}   // namespace
+
 SelectionList
 SelectionCollection::parseInteractive(int                count,
                                       TextInputStream   *inputStream,
@@ -685,12 +705,8 @@ SelectionCollection::parseInteractive(int                count,
 {
     yyscan_t scanner;
 
-    boost::scoped_ptr<TextWriter> statusWriter;
-    if (statusStream != NULL)
-    {
-        statusWriter.reset(new TextWriter(statusStream));
-        statusWriter->wrapperSettings().setLineLength(78);
-    }
+    const std::unique_ptr<TextWriter> statusWriter(
+            initStatusWriter(statusStream));
     _gmx_sel_init_lexer(&scanner, &impl_->sc_, statusWriter.get(),
                         count, impl_->bExternalGroupsSet_, impl_->grps_);
     return runParser(scanner, inputStream, true, count, context);
@@ -784,6 +800,18 @@ SelectionCollection::compile()
                             "This is not allowed in this context.",
                             sel.selectionText());
                 GMX_THROW(InvalidInputError(message));
+            }
+            if (sel.hasFlag(efSelection_OnlySorted))
+            {
+                if (!sel.hasSortedAtomIndices())
+                {
+                    const std::string message = formatString(
+                                "Selection '%s' does not evaluate to atoms in an "
+                                "ascending (sorted) order. "
+                                "This is not allowed in this context.",
+                                sel.selectionText());
+                    GMX_THROW(InvalidInputError(message));
+                }
             }
         }
         if (sel.hasFlag(efSelection_DisallowEmpty))

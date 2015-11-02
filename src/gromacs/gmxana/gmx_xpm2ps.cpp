@@ -148,8 +148,8 @@ void get_params(const char *mpin, const char *mpout, t_psrec *psr)
     RTYPE("ticklinewidth",  psr->ticklinewidth,  psr->linewidth);
     RTYPE("zerolinewidth",  psr->zerolinewidth,  psr->ticklinewidth);
     ETYPE("x-lineat0value", psr->X.lineatzero,   colors);
-    RTYPE("x-major",        psr->X.major,        NOTSET);
-    RTYPE("x-minor",        psr->X.minor,        NOTSET);
+    RTYPE("x-major",        psr->X.major,        1);
+    RTYPE("x-minor",        psr->X.minor,        1);
     RTYPE("x-firstmajor",   psr->X.offset,       0.0);
     ETYPE("x-majorat0",     psr->X.first,        gmx_bools);
     RTYPE("x-majorticklen", psr->X.majorticklen, 8.0);
@@ -1385,7 +1385,7 @@ void rainbow_mat(gmx_bool bBlue, int nmat, t_matrix mat[])
 
 int gmx_xpm2ps(int argc, char *argv[])
 {
-    const char     *desc[] = {
+    const char       *desc[] = {
         "[THISMODULE] makes a beautiful color plot of an XPixelMap file.",
         "Labels and axis can be displayed, when they are supplied",
         "in the correct matrix format.",
@@ -1428,14 +1428,14 @@ int gmx_xpm2ps(int argc, char *argv[])
         "the [TT]-xpm[tt] option."
     };
 
-    output_env_t    oenv;
-    const char     *fn, *epsfile = NULL, *xpmfile = NULL;
-    int             i, nmat, nmat2, etitle, elegend, ediag, erainbow, ecombine;
-    t_matrix       *mat = NULL, *mat2 = NULL;
-    gmx_bool        bTitle, bTitleOnce, bDiag, bFirstDiag, bGrad;
-    static gmx_bool bFrame = TRUE, bZeroLine = FALSE, bYonce = FALSE;
-    static real     size   = 400, boxx = 0, boxy = 0, cmin = 0, cmax = 0;
-    static rvec     grad   = {0, 0, 0};
+    gmx_output_env_t *oenv;
+    const char       *fn, *epsfile = NULL, *xpmfile = NULL;
+    int               i, nmat, nmat2, etitle, elegend, ediag, erainbow, ecombine;
+    t_matrix         *mat = NULL, *mat2 = NULL;
+    gmx_bool          bTitle, bTitleOnce, bDiag, bFirstDiag, bGrad;
+    static gmx_bool   bFrame = TRUE, bZeroLine = FALSE, bYonce = FALSE;
+    static real       size   = 400, boxx = 0, boxy = 0, cmin = 0, cmax = 0;
+    static rvec       grad   = {0, 0, 0};
     enum                    {
         etSel, etTop, etOnce, etYlabel, etNone, etNR
     };

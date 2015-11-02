@@ -49,10 +49,12 @@
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
 #include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/inputrec.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/boxutilities.h"
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/symtab.h"
@@ -97,6 +99,7 @@ enum tpxv {
     tpxv_PullGeomDirRel,                                     /**< add pull geometry direction-relative */
     tpxv_IntermolecularBondeds,                              /**< permit inter-molecular bonded interactions in the topology */
     tpxv_ExternalPotential,                                  /**< apply external potential from external potential modules */
+    tpxv_CompElWithSwapLayerOffset,                          /**< added parameters for improved CompEl setups */
     tpxv_Count                                               /**< the total number of tpxv versions */
 };
 
@@ -740,7 +743,7 @@ static void do_rot(t_fileio *fio, t_rot *rot, gmx_bool bRead)
 }
 
 
-static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead)
+static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead, int file_version)
 {
     int j;
 
@@ -784,6 +787,14 @@ static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead)
         gmx_fio_do_int(fio, swap->ncations[j]);
     }
 
+    if (file_version >= tpxv_CompElWithSwapLayerOffset)
+    {
+        for (j = 0; j < eCompNR; j++)
+        {
+            gmx_fio_do_real(fio, swap->bulkOffset[j]);
+        }
+    }
+
 }
 
 static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_input, gmx_bool bRead){
@@ -793,21 +804,32 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
 
     fprintf(stderr, "%s filenames for external potential.\n", bRead? "Reading" : "Writing");
 
+    gmx_fio_do_int(fio, external_potential_input->number_external_potentials);
+
     if (bRead)
     {
         snew(external_potential_input->basepath,STRLEN);
         gmx_fio_do_string(fio, external_potential_input->basepath);
         snew(external_potential_input->filenames, external_potential_registry.number_methods());
-        snew(external_potential_input->indexfilenames, external_potential_registry.number_methods());
+        snew(external_potential_input->outputfilenames, external_potential_registry.number_methods());
         for (size_t i = 0; (i < external_potential_registry.number_methods()); i++)
         {
             gmx_fio_do_string(fio, buf);
             snew(external_potential_input->filenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
             external_potential_input->filenames[i] = gmx_strdup(buf);
             gmx_fio_do_string(fio, buf);
-            snew(external_potential_input->indexfilenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
-            external_potential_input->indexfilenames[i] = gmx_strdup(buf);
+            snew(external_potential_input->outputfilenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
+            external_potential_input->outputfilenames[i] = gmx_strdup(buf);
+        }
 
+        snew(external_potential_input->nat,external_potential_input->number_external_potentials);
+        snew(external_potential_input->ind,external_potential_input->number_external_potentials);
+
+        for (int i = 0; i < external_potential_input->number_external_potentials; i++) {
+
+            gmx_fio_do_int(fio,external_potential_input->nat[i]);
+            snew(external_potential_input->ind[i],external_potential_input->nat[i]);
+            gmx_fio_ndo_int(fio,external_potential_input->ind[i],external_potential_input->nat[i]);
         }
 
     }
@@ -817,8 +839,14 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
         for (size_t i = 0; i < external_potential_registry.number_methods(); i++)
         {
             gmx_fio_do_string(fio, external_potential_input->filenames[i]);
-            gmx_fio_do_string(fio, external_potential_input->indexfilenames[i]);
+            gmx_fio_do_string(fio, external_potential_input->outputfilenames[i]);
         }
+
+        for (int i = 0; i < external_potential_input->number_external_potentials; i++) {
+            gmx_fio_do_int(fio,external_potential_input->nat[i]);
+            gmx_fio_ndo_int(fio,external_potential_input->ind[i],external_potential_input->nat[i]);
+        }
+
     }
 
 }
@@ -1801,7 +1829,7 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
             {
                 snew(ir->swap, 1);
             }
-            do_swapcoords(fio, ir->swap, bRead);
+            do_swapcoords(fio, ir->swap, bRead, file_version);
         }
     }
 
@@ -2451,7 +2479,7 @@ static void do_atom(t_fileio *fio, t_atom *atom, int ngrp, gmx_bool bRead,
     }
     else if (bRead)
     {
-        atom->atomnumber = NOTSET;
+        atom->atomnumber = 0;
     }
     if (file_version < 23)
     {

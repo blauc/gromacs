@@ -98,6 +98,8 @@ class TextOutputStream;
  *
  * At any point, requiresTopology() can be called to see whether the
  * information provided so far requires loading the topology.
+ * Similarly, requiresIndexGroups() tells whether external index groups are
+ * requires.
  * printTree() can be used to print the internal representation of the
  * selections (mostly useful for debugging).
  *
@@ -111,6 +113,21 @@ class TextOutputStream;
 class SelectionCollection
 {
     public:
+        //! Flag for initOptions() to select how to behave with -seltype option.
+        enum SelectionTypeOption
+        {
+            /*! \brief
+             * Add the option for the user to select default value for
+             * setOutputPosType().
+             */
+            IncludeSelectionTypeOption,
+            /*! \brief
+             * Do not add the option, selections will always select atoms by
+             * default.
+             */
+            AlwaysAtomSelections
+        };
+
         /*! \brief
          * Creates an empty selection collection.
          *
@@ -123,13 +140,15 @@ class SelectionCollection
          * Initializes options for setting global properties on the collection.
          *
          * \param[in,out] options Options object to initialize.
+         * \param[in]     selectionTypeOption
+         *     Whether to add option to influence setOutputPosType().
          * \throws        std::bad_alloc if out of memory.
          *
          * Adds options to \p options that can be used to set the default
          * position types (see setReferencePosType() and setOutputPosType())
          * and debugging flags.
          */
-        void initOptions(IOptionsContainer *options);
+        void initOptions(IOptionsContainer *options, SelectionTypeOption selectionTypeOption);
 
         /*! \brief
          * Sets the default reference position handling for a selection
@@ -197,6 +216,16 @@ class SelectionCollection
          * Does not throw.
          */
         bool requiresTopology() const;
+        /*! \brief
+         * Returns true if the collection requires external index groups.
+         *
+         * \returns true if any selection has an unresolved index group reference.
+         *
+         * The return value is `false` after setIndexGroups() has been called.
+         *
+         * Does not throw.
+         */
+        bool requiresIndexGroups() const;
         /*! \brief
          * Sets the topology for the collection.
          *

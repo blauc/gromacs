@@ -163,6 +163,7 @@ typedef struct {
 } t_noe_gr;
 
 typedef struct {
+    bool  set;
     int   rnr;
     char *nname;
     char *rname;
@@ -195,6 +196,7 @@ static int read_equiv(const char *eq_fn, t_equiv ***equivptr)
             {
                 /* this is not efficient, but I'm lazy (again) */
                 srenew(equiv[neq], na+1);
+                equiv[neq][na].set   = true;
                 equiv[neq][na].rnr   = resnr-1;
                 equiv[neq][na].rname = gmx_strdup(resname);
                 equiv[neq][na].aname = gmx_strdup(atomname);
@@ -208,7 +210,8 @@ static int read_equiv(const char *eq_fn, t_equiv ***equivptr)
         }
         /* make empty element as flag for end of array */
         srenew(equiv[neq], na+1);
-        equiv[neq][na].rnr   = NOTSET;
+        equiv[neq][na].set   = false;
+        equiv[neq][na].rnr   = 0;
         equiv[neq][na].rname = NULL;
         equiv[neq][na].aname = NULL;
 
@@ -230,7 +233,7 @@ static void dump_equiv(FILE *out, int neq, t_equiv **equiv)
     for (i = 0; i < neq; i++)
     {
         fprintf(out, "%s", equiv[i][0].nname);
-        for (j = 0; equiv[i][j].rnr != NOTSET; j++)
+        for (j = 0; equiv[i][j].set; j++)
         {
             fprintf(out, " %d %s %s",
                     equiv[i][j].rnr, equiv[i][j].rname, equiv[i][j].aname);
@@ -251,7 +254,7 @@ static gmx_bool is_equiv(int neq, t_equiv **equiv, char **nname,
     for (i = 0; i < neq && !bFound; i++)
     {
         /* find first atom */
-        for (j = 0; equiv[i][j].rnr != NOTSET && !bFound; j++)
+        for (j = 0; equiv[i][j].set && !bFound; j++)
         {
             bFound = ( equiv[i][j].rnr == rnr1 &&
                        std::strcmp(equiv[i][j].rname, rname1) == 0 &&
@@ -261,7 +264,7 @@ static gmx_bool is_equiv(int neq, t_equiv **equiv, char **nname,
         {
             /* find second atom */
             bFound = FALSE;
-            for (j = 0; equiv[i][j].rnr != NOTSET && !bFound; j++)
+            for (j = 0; equiv[i][j].set && !bFound; j++)
             {
                 bFound = ( equiv[i][j].rnr == rnr2 &&
                            std::strcmp(equiv[i][j].rname, rname2) == 0 &&
@@ -629,7 +632,7 @@ real rms_diff(int natom, real **d, real **d_r)
 
 int gmx_rmsdist(int argc, char *argv[])
 {
-    const char     *desc[] = {
+    const char       *desc[] = {
         "[THISMODULE] computes the root mean square deviation of atom distances,",
         "which has the advantage that no fit is needed like in standard RMS",
         "deviation as computed by [gmx-rms].",
@@ -653,36 +656,36 @@ int gmx_rmsdist(int argc, char *argv[])
 
     };
 
-    int             i, teller;
-    real            t;
+    int               i, teller;
+    real              t;
 
-    t_topology      top;
-    int             ePBC;
-    t_atoms        *atoms;
-    matrix          box;
-    rvec           *x;
-    FILE           *fp;
+    t_topology        top;
+    int               ePBC;
+    t_atoms          *atoms;
+    matrix            box;
+    rvec             *x;
+    FILE             *fp;
 
-    t_trxstatus    *status;
-    int             isize, gnr = 0;
-    atom_id        *index, *noe_index;
-    char           *grpname;
-    real          **d_r, **d, **dtot, **dtot2, **mean, **rms, **rmsc, *resnr;
-    real          **dtot1_3 = NULL, **dtot1_6 = NULL;
-    real            rmsnow, meanmax, rmsmax, rmscmax;
-    real            max1_3, max1_6;
-    t_noe_gr       *noe_gr = NULL;
-    t_noe         **noe    = NULL;
-    t_rgb           rlo, rhi;
-    gmx_bool        bRMS, bScale, bMean, bNOE, bNMR3, bNMR6, bNMR;
+    t_trxstatus      *status;
+    int               isize, gnr = 0;
+    atom_id          *index, *noe_index;
+    char             *grpname;
+    real            **d_r, **d, **dtot, **dtot2, **mean, **rms, **rmsc, *resnr;
+    real            **dtot1_3 = NULL, **dtot1_6 = NULL;
+    real              rmsnow, meanmax, rmsmax, rmscmax;
+    real              max1_3, max1_6;
+    t_noe_gr         *noe_gr = NULL;
+    t_noe           **noe    = NULL;
+    t_rgb             rlo, rhi;
+    gmx_bool          bRMS, bScale, bMean, bNOE, bNMR3, bNMR6, bNMR;
 
-    static int      nlevels  = 40;
-    static real     scalemax = -1.0;
-    static gmx_bool bSumH    = TRUE;
-    static gmx_bool bPBC     = TRUE;
-    output_env_t    oenv;
+    static int        nlevels  = 40;
+    static real       scalemax = -1.0;
+    static gmx_bool   bSumH    = TRUE;
+    static gmx_bool   bPBC     = TRUE;
+    gmx_output_env_t *oenv;
 
-    t_pargs         pa[] = {
+    t_pargs           pa[] = {
         { "-nlevels",   FALSE, etINT,  {&nlevels},
           "Discretize RMS in this number of levels" },
         { "-max",   FALSE, etREAL, {&scalemax},
@@ -692,7 +695,7 @@ int gmx_rmsdist(int argc, char *argv[])
         { "-pbc",   FALSE, etBOOL, {&bPBC},
           "Use periodic boundary conditions when computing distances" }
     };
-    t_filenm        fnm[] = {
+    t_filenm          fnm[] = {
         { efTRX, "-f",   NULL,       ffREAD },
         { efTPS, NULL,   NULL,       ffREAD },
         { efNDX, NULL,   NULL,       ffOPTRD },

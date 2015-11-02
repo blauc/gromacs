@@ -44,10 +44,10 @@
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxlib/calcgrid.h"
+#include "gromacs/gmxlib/main.h"
 #include "gromacs/gmxlib/readinp.h"
 #include "gromacs/legacyheaders/checkpoint.h"
 #include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/main.h"
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/legacyheaders/types/commrec.h"
@@ -949,7 +949,7 @@ static void estimate_PME_error(t_inputinfo *info, t_state *state,
     if (MASTER(cr))
     {
         calc_q2all(mtop, &(info->q2all), &(info->q2allnr));
-        info->ewald_rtol[0] = gmx_erfc(info->rcoulomb[0]*info->ewald_beta[0]);
+        info->ewald_rtol[0] = std::erfc(info->rcoulomb[0]*info->ewald_beta[0]);
         /* Write some info to log file */
         fprintf(fp_out, "Box volume              : %g nm^3\n", info->volume);
         fprintf(fp_out, "Number of charged atoms : %d (total atoms %d)\n", ncharges, info->natoms);
@@ -1055,7 +1055,7 @@ static void estimate_PME_error(t_inputinfo *info, t_state *state,
             }
         }
 
-        info->ewald_rtol[0] = gmx_erfc(info->rcoulomb[0]*info->ewald_beta[0]);
+        info->ewald_rtol[0] = std::erfc(info->rcoulomb[0]*info->ewald_beta[0]);
 
         if (MASTER(cr))
         {
@@ -1105,15 +1105,15 @@ int gmx_pme_error(int argc, char *argv[])
     int             seed     = 0;
 
 
-    static t_filenm fnm[] = {
+    static t_filenm   fnm[] = {
         { efTPR, "-s",     NULL,    ffREAD },
         { efOUT, "-o",    "error",  ffWRITE },
         { efTPR, "-so",   "tuned",  ffOPTWR }
     };
 
-    output_env_t    oenv = NULL;
+    gmx_output_env_t *oenv = NULL;
 
-    t_pargs         pa[] = {
+    t_pargs           pa[] = {
         { "-beta",     FALSE, etREAL, {&user_beta},
           "If positive, overwrite ewald_beta from [REF].tpr[ref] file with this value" },
         { "-tune",     FALSE, etBOOL, {&bTUNE},

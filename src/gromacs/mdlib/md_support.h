@@ -37,9 +37,9 @@
 #ifndef GMX_MDLIB_MD_SUPPORT_H
 #define GMX_MDLIB_MD_SUPPORT_H
 
-#include "gromacs/legacyheaders/sim_util.h"
 #include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/vcm.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdlib/vcm.h"
 #include "gromacs/timing/wallcycle.h"
 
 struct gmx_constr;
@@ -50,8 +50,6 @@ struct t_trxframe;
  * passed to compute_globals in md.c and global_stat.
  */
 
-/* We are rerunning the simulation */
-#define CGLO_RERUNMD        (1<<1)
 /* we are computing the kinetic energy from average velocities */
 #define CGLO_EKINAVEVEL     (1<<2)
 /* we are removing the center of mass momenta */

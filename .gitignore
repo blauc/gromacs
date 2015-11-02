@@ -18,3 +18,6 @@ Testing
 tags
 .atom*
 .tags*
+*.pch
+*.gch
+.clang_complete

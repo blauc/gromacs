@@ -50,7 +50,6 @@
 #include "gromacs/analysisdata/datamodulemanager.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
-#include "gromacs/utility/uniqueptr.h"
 
 #include "dataproxy.h"
 
@@ -177,7 +176,7 @@ AbstractAnalysisData::addColumnModule(int col, int span,
 {
     GMX_RELEASE_ASSERT(col >= 0 && span >= 1,
                        "Invalid columns specified for a column module");
-    boost::shared_ptr<AnalysisDataProxy> proxy(
+    std::shared_ptr<AnalysisDataProxy> proxy(
             new AnalysisDataProxy(col, span, this));
     proxy->addModule(module);
     addModule(proxy);

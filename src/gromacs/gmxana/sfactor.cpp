@@ -52,6 +52,7 @@
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/topology/atom_id.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
@@ -442,7 +443,7 @@ extern int do_scattering_intensity (const char* fnTPS, const char* fnNDX,
                                     const char* fnXVG, const char *fnTRX,
                                     const char* fnDAT,
                                     real start_q, real end_q,
-                                    real energy, int ng, const output_env_t oenv)
+                                    real energy, int ng, const gmx_output_env_t *oenv)
 {
     int                     i, *isize, flags = TRX_READ_X, **index_atp;
     t_trxstatus            *status;
@@ -551,7 +552,7 @@ extern int do_scattering_intensity (const char* fnTPS, const char* fnNDX,
 
 
 extern void save_data (structure_factor_t *sft, const char *file, int ngrps,
-                       real start_q, real end_q, const output_env_t oenv)
+                       real start_q, real end_q, const gmx_output_env_t *oenv)
 {
 
     FILE             *fp;

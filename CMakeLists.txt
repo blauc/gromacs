@@ -357,9 +357,6 @@ check_include_files(regex.h      HAVE_POSIX_REGEX)
 # as selections won't be fully functional.
 
 include(CheckCXXSymbolExists)
-check_cxx_symbol_exists(posix_memalign    stdlib.h     HAVE_POSIX_MEMALIGN)
-check_cxx_symbol_exists(memalign          stdlib.h     HAVE_MEMALIGN)
-check_cxx_symbol_exists(_aligned_malloc   stdlib.h     HAVE__ALIGNED_MALLOC)
 check_cxx_symbol_exists(gettimeofday      sys/time.h   HAVE_GETTIMEOFDAY)
 check_cxx_symbol_exists(sysconf           unistd.h     HAVE_SYSCONF)
 check_cxx_symbol_exists(nice              unistd.h     HAVE_NICE)
@@ -379,6 +376,17 @@ check_library_exists(m feenableexcept "" HAVE_FEENABLEEXCEPT)
 
 include(TestSchedAffinity)
 test_sched_affinity(HAVE_SCHED_AFFINITY)
+
+# Aligned memory allocation. We need to check for both mm_malloc(),
+# posix_memalign(), memalign(), and on windows also _aligned_malloc()
+include(gmxTestMMMalloc)
+gmx_test_mm_malloc(HAVE__MM_MALLOC)
+check_cxx_symbol_exists(posix_memalign    stdlib.h     HAVE_POSIX_MEMALIGN)
+check_cxx_symbol_exists(memalign          stdlib.h     HAVE_MEMALIGN)
+if(MSVC)
+    # No need to waste time on this test on platforms where it will never be true
+    check_cxx_symbol_exists(_aligned_malloc   stdlib.h     HAVE__ALIGNED_MALLOC)
+endif()
 
 include(TestBigEndian)
 test_big_endian(GMX_INTEGER_BIG_ENDIAN)
@@ -522,14 +530,22 @@ if(NOT DEFINED GMX_EXTERNAL_BOOST OR GMX_EXTERNAL_BOOST)
     find_package(Boost 1.44.0)
     if(Boost_FOUND AND Boost_VERSION VERSION_LESS "104400")
         set(Boost_FOUND FALSE)
+        set(Boost_Reason "Boost >= 1.44 not found.")
+    endif()
+    # clang with some older versions of boost fail to work with C++11
+    if(CMAKE_CXX_COMPILER_ID MATCHES Clang AND
+        (Boost_VERSION VERSION_EQUAL 104601 OR Boost_VERSION VERSION_EQUAL 104700))
+        set(Boost_FOUND FALSE)
+        set(Boost_Reason "Boost 1.46.1 and 1.47.0 do not work with Clang.")
     endif()
     # Print the notification only on first run, when determining the default
     if(NOT DEFINED GMX_EXTERNAL_BOOST AND NOT Boost_FOUND)
-        message("Boost >= 1.44 not found. Using minimal internal version. "
+        message("${Boost_Reason} Using minimal internal version. "
                 "This may cause trouble if you plan on compiling/linking other "
                 "software that uses Boost against GROMACS.")
     endif()
 endif()
+
 option(GMX_EXTERNAL_BOOST "Use external Boost instead of minimal built-in version"
        ${Boost_FOUND})
 if(GMX_EXTERNAL_BOOST AND NOT Boost_FOUND)
@@ -586,11 +602,6 @@ if(GMX_USE_RDTSCP)
     set(HAVE_RDTSCP 1)
 endif()
 
-include(gmxTestFloatFormat)
-gmx_test_float_format(GMX_FLOAT_FORMAT_IEEE754
-                      GMX_IEEE754_BIG_ENDIAN_BYTE_ORDER
-                      GMX_IEEE754_BIG_ENDIAN_WORD_ORDER)
-
 include(gmxTestLargeFiles)
 gmx_test_large_files(GMX_LARGEFILES)
 
@@ -600,28 +611,12 @@ gmx_test_sigusr1(HAVE_SIGUSR1)
 include(gmxTestPipes)
 gmx_test_pipes(HAVE_PIPES)
 
-include(gmxTestIsfinite)
-gmx_test_isfinite(HAVE_ISFINITE)
-gmx_test__isfinite(HAVE__ISFINITE)
-gmx_test__finite(HAVE__FINITE)
-
 include(gmxTestCXX11)
 gmx_test_cxx11(GMX_CXX11_SUPPORTED GMX_CXX11_FLAGS)
-include(CMakeDependentOption)
-# clang with some older versions of boost fail to work with C++11
-if(CMAKE_CXX_COMPILER_ID MATCHES Clang AND
-    (Boost_VERSION VERSION_EQUAL 104601 OR Boost_VERSION VERSION_EQUAL 104700))
-    set(CLANG_AND_OLD_EXTERNAL_BOOST TRUE)
+if(NOT GMX_CXX11_SUPPORTED)
+    message(FATAL_ERROR "This version of GROMACS requires C++11. Please use a newer compiler or use the GROMACS 5.1.x release. Note it might be sufficient to instruct the compiler to use a newer STL version. See the installation guide for details.")
 endif()
-# nvcc does not support C++11 flags, so with GPUs we prefer to skip C++11 flags
-# entirely to keep the compilation environment uniform.
-cmake_dependent_option(GMX_CXX11
-    "Use C++11 features"
-    ON "GMX_CXX11_SUPPORTED AND NOT GMX_GPU AND NOT CLANG_AND_OLD_EXTERNAL_BOOST" OFF)
-mark_as_advanced(GMX_CXX11)
-if(GMX_CXX11)
-    set(EXTRA_CXX_FLAGS "${EXTRA_CXX_FLAGS} ${GMX_CXX11_FLAGS}")
-endif()
+set(EXTRA_CXX_FLAGS "${EXTRA_CXX_FLAGS} ${GMX_CXX11_FLAGS}")
 
 # Now we can test for CXX11_REGEX include file
 check_include_file_cxx(regex     HAVE_CXX11_REGEX)

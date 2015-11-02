@@ -36,6 +36,8 @@
  * \brief
  * Functionality for writing tests that can produce their own reference data.
  *
+ * See \ref page_refdata for more details.
+ *
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \inlibraryapi
  * \ingroup module_testutils
@@ -44,9 +46,8 @@
 #define GMX_TESTUTILS_REFDATA_H
 
 #include <iterator>
+#include <memory>
 #include <string>
-
-#include <boost/shared_ptr.hpp>
 
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/classhelpers.h"
@@ -86,6 +87,13 @@ enum ReferenceDataMode
      */
     erefdataCreateMissing,
     /*! \brief
+     * Update reference data that does not pass comparison.
+     *
+     * Tests utilizing reference data should always pass in this mode unless
+     * there is an I/O error.
+     */
+    erefdataUpdateChanged,
+    /*! \brief
      * Update reference data, overwriting old data.
      *
      * Tests utilizing reference data should always pass in this mode unless
@@ -116,6 +124,8 @@ class TestReferenceDataImpl;
 
 /*! \libinternal \brief
  * Handles creation of and comparison to test reference data.
+ *
+ * See \ref page_refdata for an overview of the functionality.
  *
  * This class provides functionality to use the same code to generate reference
  * data and then on later runs compare the results of the code against that
@@ -188,9 +198,6 @@ class TestReferenceData
          */
         ~TestReferenceData();
 
-        //! Returns true if reference data is currently being written.
-        bool isWriteMode() const;
-
         /*! \brief
          * Returns a root-level checker object for comparisons.
          *
@@ -199,7 +206,7 @@ class TestReferenceData
         TestReferenceChecker rootChecker();
 
     private:
-        boost::shared_ptr<internal::TestReferenceDataImpl> impl_;
+        std::shared_ptr<internal::TestReferenceDataImpl> impl_;
 
         GMX_DISALLOW_COPY_AND_ASSIGN(TestReferenceData);
 };
@@ -229,16 +236,31 @@ class TestReferenceChecker
 {
     public:
         /*! \brief
-         * Creates a deep copy of the other checker.
+         * Creates a checker that cannot be used for checking.
+         *
+         * Attempting to call the check methods generates an assert.
+         * It is possible to check whether the checker is initialized by
+         * calling isValid().
+         * This constructor exists to allow declaring checker variables that
+         * will receive their value later without resorting to dynamic
+         * allocation.
          */
-        TestReferenceChecker(const TestReferenceChecker &other);
+        TestReferenceChecker();
+        //! Creates a deep copy of the other checker.
+        explicit TestReferenceChecker(const TestReferenceChecker &other);
+        //! Moves the checker.
+        TestReferenceChecker(TestReferenceChecker &&other);
         ~TestReferenceChecker();
 
+        //! Prevents implicit copying during assignment.
+        TestReferenceChecker &operator=(const TestReferenceChecker &) = delete;
         //! Assigns a test reference checker.
-        TestReferenceChecker &operator=(const TestReferenceChecker &other);
+        TestReferenceChecker &operator=(TestReferenceChecker &&other);
 
-        //! Returns true if reference data is currently being written.
-        bool isWriteMode() const;
+        //! Returns whether the checker is initialized.
+        bool isValid() const;
+        //! Allows testing whether the checker is initialized directly with if.
+        explicit operator bool() const { return isValid(); }
 
         /*! \brief
          * Sets the tolerance for floating-point comparisons.
@@ -263,7 +285,7 @@ class TestReferenceChecker
          * present, otherwise checks that the data item is absent.
          * If the check fails, a non-fatal Google Test assertion is generated.
          *
-         * If isWriteMode() returns true, the check always succeeds and the
+         * If reference data is being written, the check always succeeds and the
          * return value is \p bPresent.
          *
          * The main use of this method is to assign meaning for missing
@@ -306,7 +328,7 @@ class TestReferenceChecker
          * formatted output, and attempts to make the output XML such that it
          * is easier to edit by hand to set the desired output formatting.
          */
-        void checkStringBlock(const std::string &value, const char *id);
+        void checkTextBlock(const std::string &value, const char *id);
         //! Check a single integer value.
         void checkInteger(int value, const char *id);
         //! Check a single int64 value.
@@ -327,6 +349,8 @@ class TestReferenceChecker
         void checkVector(const float value[3], const char *id);
         //! Check a vector of three double-precision floating point values.
         void checkVector(const double value[3], const char *id);
+        //! Check a single floating-point value from a string.
+        void checkRealFromString(const std::string &value, const char *id);
 
         /*! \name Overloaded versions of simple checker methods
          *

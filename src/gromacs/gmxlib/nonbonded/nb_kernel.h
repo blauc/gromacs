@@ -35,16 +35,20 @@
 #ifndef _nb_kernel_h_
 #define _nb_kernel_h_
 
+#include "gromacs/legacyheaders/types/forcerec.h"
+#include "gromacs/legacyheaders/types/mdatom.h"
+#include "gromacs/legacyheaders/types/nblist.h"
+#include "gromacs/legacyheaders/types/nrnb.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/utility/real.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 #if 0
 } /* fixes auto-indentation problems */
 #endif
-
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/simple.h"
 
 /* Structure to collect kernel data not available in forcerec or mdatoms structures.
  * This is only used inside the nonbonded module.

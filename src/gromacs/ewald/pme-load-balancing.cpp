@@ -57,13 +57,12 @@
 #include "gromacs/domdec/domdec_network.h"
 #include "gromacs/gmxlib/calcgrid.h"
 #include "gromacs/gmxlib/md_logging.h"
-#include "gromacs/legacyheaders/force.h"
 #include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/sim_util.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/forcerec.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
+#include "gromacs/mdlib/sim_util.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/cstringutil.h"
@@ -801,7 +800,7 @@ pme_load_balance(pme_load_balancing_t      *pme_lb,
     /* TODO: centralize the code that sets the potentials shifts */
     if (ic->coulomb_modifier == eintmodPOTSHIFT)
     {
-        ic->sh_ewald = gmx_erfc(ic->ewaldcoeff_q*ic->rcoulomb);
+        ic->sh_ewald = std::erfc(ic->ewaldcoeff_q*ic->rcoulomb);
     }
     if (EVDW_PME(ic->vdwtype))
     {

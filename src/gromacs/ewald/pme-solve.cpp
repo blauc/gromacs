@@ -39,17 +39,18 @@
 
 #include "pme-solve.h"
 
-#include <math.h>
+#include <cmath>
 
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/simd/simd_math.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "pme-internal.h"
 
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
 /* Turn on arbitrary width SIMD intrinsics for PME solve */
 #    define PME_SIMD_SOLVE
 #endif
@@ -125,7 +126,11 @@ void pme_init_all_work(struct pme_solve_work_t **work, int nthread, int nkx)
 #pragma omp parallel for num_threads(nthread) schedule(static)
     for (thread = 0; thread < nthread; thread++)
     {
-        realloc_work(&((*work)[thread]), nkx);
+        try
+        {
+            realloc_work(&((*work)[thread]), nkx);
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 }
 
@@ -274,7 +279,7 @@ gmx_inline static void calc_exponentials_lj(int start, int end, real *r, real *t
     for (kx = start; kx < end; kx++)
     {
         mk       = tmp2[kx];
-        tmp2[kx] = sqrt(M_PI)*mk*gmx_erfc(mk);
+        tmp2[kx] = sqrt(M_PI)*mk*std::erfc(mk);
     }
 }
 #endif

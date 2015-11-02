@@ -57,6 +57,8 @@
 #include <boost/exception/exception.hpp>
 #include <boost/exception/info.hpp>
 
+#include "gromacs/utility/basedefinitions.h"
+
 namespace gmx
 {
 
@@ -473,9 +475,13 @@ void formatExceptionMessageToWriter(TextWriter           *writer,
 int processExceptionAtExit(const std::exception &ex);
 
 /*! \brief
- * Converts an exception into a return code.
+ * Helper function for terminating the program on an exception.
+ *
+ * \param[in] ex  Exception that is the cause for terminating the program.
+ *
+ * Does not throw, and does not return.
  */
-int translateException(const std::exception &ex);
+gmx_noreturn void processExceptionAsFatalError(const std::exception &ex);
 
 /*! \brief
  * Macro for catching exceptions at C++ -> C boundary.
@@ -501,8 +507,7 @@ int translateException(const std::exception &ex);
  */
 #define GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR \
     catch (const std::exception &ex) { \
-        ::gmx::printFatalErrorMessage(stderr, ex); \
-        ::std::exit(::gmx::processExceptionAtExit(ex)); \
+        ::gmx::processExceptionAsFatalError(ex); \
     }
 
 //! \}

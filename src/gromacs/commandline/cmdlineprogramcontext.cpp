@@ -54,8 +54,6 @@
 #include <string>
 #include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
 #include "buildinfo.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
@@ -149,7 +147,7 @@ std::string findFullBinaryPath(const std::string            &invokedName,
         {
             const std::string &dir      = i->empty() ? env.getWorkingDirectory() : *i;
             std::string        testPath = Path::join(dir, searchName);
-            if (File::exists(testPath))
+            if (File::exists(testPath, File::returnFalseOnError))
             {
                 return testPath;
             }
@@ -330,7 +328,7 @@ CommandLineProgramContext::Impl::Impl()
 
 CommandLineProgramContext::Impl::Impl(int argc, const char *const argv[],
                                       ExecutableEnvironmentPointer env)
-    : executableEnv_(env), bSourceLayout_(false)
+    : executableEnv_(std::move(env)), bSourceLayout_(false)
 {
     invokedName_ = (argc != 0 ? argv[0] : "");
     programName_ = Path::getFilename(invokedName_);
@@ -379,7 +377,7 @@ CommandLineProgramContext::CommandLineProgramContext(
 
 CommandLineProgramContext::CommandLineProgramContext(
         int argc, const char *const argv[], ExecutableEnvironmentPointer env)
-    : impl_(new Impl(argc, argv, env))
+    : impl_(new Impl(argc, argv, move(env)))
 {
 }
 

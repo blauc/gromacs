@@ -43,13 +43,14 @@
 
 #include "analysissettings.h"
 
+#include "gromacs/commandline/cmdlineoptionsmodule.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/utility/stringutil.h"
 
 #include "analysissettings-impl.h"
 
@@ -73,10 +74,17 @@ TrajectoryAnalysisSettings::~TrajectoryAnalysisSettings()
 }
 
 
-const TimeUnitManager &
-TrajectoryAnalysisSettings::timeUnitManager() const
+void TrajectoryAnalysisSettings::setOptionsModuleSettings(
+        ICommandLineOptionsModuleSettings *settings)
 {
-    return impl_->timeUnitManager;
+    impl_->optionsModuleSettings_ = settings;
+}
+
+
+TimeUnit
+TrajectoryAnalysisSettings::timeUnit() const
+{
+    return impl_->timeUnit;
 }
 
 
@@ -163,16 +171,12 @@ TrajectoryAnalysisSettings::setFrameFlags(int frflags)
     impl_->frflags = frflags;
 }
 
-const std::string &
-TrajectoryAnalysisSettings::helpText() const
-{
-    return impl_->helpText_;
-}
-
 void
 TrajectoryAnalysisSettings::setHelpText(const ConstArrayRef<const char *> &help)
 {
-    impl_->helpText_ = joinStrings(help, "\n");
+    GMX_RELEASE_ASSERT(impl_->optionsModuleSettings_ != nullptr,
+                       "setHelpText() called in invalid context");
+    impl_->optionsModuleSettings_->setHelpText(help);
 }
 
 

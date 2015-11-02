@@ -61,6 +61,7 @@ extern "C" {
 struct gmx_pme_t;
 struct nonbonded_verlet_t;
 struct bonded_threading_t;
+struct t_nblist;
 
 /* Structure describing the data in a single table */
 typedef struct
@@ -71,7 +72,6 @@ typedef struct
     real                        r;           /* range of the table */
     int                         n;           /* n+1 is the number of table points */
     real                        scale;       /* distance (nm) between two table points */
-    real                        scale_exp;   /* distance for exponential part of VdW table, not always used */
     real *                      data;        /* the actual table data */
 
     /* Some information about the table layout. This can also be derived from the interpolation

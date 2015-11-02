@@ -36,43 +36,61 @@
 
 #include "read-conformation.h"
 
+#include <vector>
+
 #include "gromacs/fileio/confio.h"
 #include "gromacs/topology/atomprop.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/scoped_cptr.h"
 #include "gromacs/utility/smalloc.h"
 
-real *makeExclusionDistances(const t_atoms *a, gmx_atomprop_t aps,
-                             real defaultDistance, real scaleFactor)
-{
-    int   i;
-    real *exclusionDistances;
+using gmx::RVec;
 
-    snew(exclusionDistances, a->nr);
-    /* initialise arrays with distances usually based on van der Waals
-       radii */
-    for (i = 0; (i < a->nr); i++)
+std::vector<real>
+makeExclusionDistances(const t_atoms *a, gmx_atomprop_t aps,
+                       real defaultDistance, real scaleFactor)
+{
+    std::vector<real> exclusionDistances;
+
+    exclusionDistances.reserve(a->nr);
+    for (int i = 0; i < a->nr; ++i)
     {
+        real value;
         if (!gmx_atomprop_query(aps, epropVDW,
                                 *(a->resinfo[a->atom[i].resind].name),
-                                *(a->atomname[i]), &(exclusionDistances[i])))
+                                *(a->atomname[i]), &value))
         {
-            exclusionDistances[i] = defaultDistance;
+            value = defaultDistance;
         }
         else
         {
-            exclusionDistances[i] *= scaleFactor;
+            value *= scaleFactor;
         }
+        exclusionDistances.push_back(value);
     }
     return exclusionDistances;
 }
 
-void readConformation(const char *confin, t_topology *top, rvec **x, rvec **v,
+void readConformation(const char *confin, t_topology *top,
+                      std::vector<RVec> *x, std::vector<RVec> *v,
                       int *ePBC, matrix box, const char *statusTitle)
 {
-    fprintf(stderr, "Reading %s configuration%s\n", statusTitle, v ? " and velocities" : "");
-    read_tps_conf(confin, top, ePBC, x, v, box, FALSE);
+    fprintf(stderr, "Reading %s configuration%s\n", statusTitle,
+            v ? " and velocities" : "");
+    rvec                   *x_tmp = NULL, *v_tmp = NULL;
+    read_tps_conf(confin, top, ePBC, x ? &x_tmp : NULL, v ? &v_tmp : NULL, box, FALSE);
+    gmx::scoped_guard_sfree xguard(x_tmp);
+    gmx::scoped_guard_sfree vguard(v_tmp);
+    if (x && x_tmp)
+    {
+        *x = std::vector<RVec>(x_tmp, x_tmp + top->atoms.nr);
+    }
+    if (v && v_tmp)
+    {
+        *v = std::vector<RVec>(v_tmp, v_tmp + top->atoms.nr);
+    }
     fprintf(stderr, "%s\nContaining %d atoms in %d residues\n",
             *top->name, top->atoms.nr, top->atoms.nres);
 }

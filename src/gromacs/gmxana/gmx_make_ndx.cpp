@@ -59,8 +59,9 @@
  */
 #define MAXNAMES 1024
 #define NAME_LEN 1024
+static const int NOTSET = -92637;
 
-gmx_bool bCase = FALSE;
+gmx_bool         bCase = FALSE;
 
 static int or_groups(atom_id nr1, atom_id *at1, atom_id nr2, atom_id *at2,
                      atom_id *nr, atom_id *at)
@@ -290,7 +291,7 @@ static gmx_bool parse_string(char **string, int *nr, int ngrps, char **grpname)
         }
     }
 
-    return (*nr) != NOTSET;
+    return (*nr) != -1;
 }
 
 static int select_atomnumbers(char **string, t_atoms *atoms, atom_id n1,
@@ -1539,20 +1540,20 @@ int gmx_make_ndx(int argc, char *argv[])
     };
 #define NPA asize(pa)
 
-    output_env_t oenv;
-    int          nndxin;
-    const char  *stxfile;
-    char       **ndxinfiles;
-    const char  *ndxoutfile;
-    gmx_bool     bNatoms;
-    int          i, j;
-    t_atoms     *atoms;
-    rvec        *x, *v;
-    int          ePBC;
-    matrix       box;
-    t_blocka    *block, *block2;
-    char       **gnames, **gnames2;
-    t_filenm     fnm[] = {
+    gmx_output_env_t *oenv;
+    int               nndxin;
+    const char       *stxfile;
+    char            **ndxinfiles;
+    const char       *ndxoutfile;
+    gmx_bool          bNatoms;
+    int               i, j;
+    t_atoms          *atoms;
+    rvec             *x, *v;
+    int               ePBC;
+    matrix            box;
+    t_blocka         *block, *block2;
+    char            **gnames, **gnames2;
+    t_filenm          fnm[] = {
         { efSTX, "-f", NULL,     ffOPTRD  },
         { efNDX, "-n", NULL,     ffOPTRDMULT },
         { efNDX, "-o", NULL,     ffWRITE }

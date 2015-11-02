@@ -101,7 +101,7 @@ class TextReader
          *
          * This constructor is provided for convenience for cases where the
          * stream is not allocated with `new` and/or not managed by a
-         * boost::shared_ptr (e.g., if the stream is an object on the stack).
+         * std::shared_ptr (e.g., if the stream is an object on the stack).
          */
         explicit TextReader(TextInputStream *stream);
         /*! \brief
@@ -148,6 +148,14 @@ class TextReader
          * \see readLine()
          */
         bool readLineTrimmed(std::string *line);
+
+        /*! \brief
+         * Reads all remaining lines from the stream as a single string.
+         *
+         * \returns   Full contents of the stream (from the current point to
+         *     the end).
+         */
+        std::string readAll();
 
         /*! \brief
          * Closes the underlying stream.

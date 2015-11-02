@@ -48,6 +48,7 @@
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
 #include "gromacs/gmxpreprocess/hackblock.h"
 #include "gromacs/gmxpreprocess/nm2type.h"
+#include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pdb2top.h"
 #include "gromacs/gmxpreprocess/toppush.h"
 #include "gromacs/legacyheaders/copyrite.h"
@@ -455,7 +456,7 @@ int gmx_x2top(int argc, char *argv[])
     t_symtab           symtab;
     real               qtot, mtot;
     char               n2t[STRLEN];
-    output_env_t       oenv;
+    gmx_output_env_t  *oenv;
 
     t_filenm           fnm[] = {
         { efSTX, "-f", "conf", ffREAD  },

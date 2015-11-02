@@ -61,6 +61,7 @@
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/gmxlib/disre.h"
+#include "gromacs/gmxlib/main.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/orires.h"
 #include "gromacs/gmxlib/sighandler.h"
@@ -72,8 +73,6 @@
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/gmx_thread_affinity.h"
 #include "gromacs/legacyheaders/inputrec.h"
-#include "gromacs/legacyheaders/main.h"
-#include "gromacs/legacyheaders/mdrun.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/txtdump.h"
@@ -86,6 +85,7 @@
 #include "gromacs/mdlib/integrator.h"
 #include "gromacs/mdlib/md_support.h"
 #include "gromacs/mdlib/mdatoms.h"
+#include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/minimize.h"
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/qmmm.h"
@@ -130,38 +130,38 @@ tMPI_Thread_mutex_t deform_init_box_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 
 struct mdrunner_arglist
 {
-    gmx_hw_opt_t    hw_opt;
-    FILE           *fplog;
-    t_commrec      *cr;
-    int             nfile;
-    const t_filenm *fnm;
-    output_env_t    oenv;
-    gmx_bool        bVerbose;
-    gmx_bool        bCompact;
-    int             nstglobalcomm;
-    ivec            ddxyz;
-    int             dd_node_order;
-    real            rdd;
-    real            rconstr;
-    const char     *dddlb_opt;
-    real            dlb_scale;
-    const char     *ddcsx;
-    const char     *ddcsy;
-    const char     *ddcsz;
-    const char     *nbpu_opt;
-    int             nstlist_cmdline;
-    gmx_int64_t     nsteps_cmdline;
-    int             nstepout;
-    int             resetstep;
-    int             nmultisim;
-    int             repl_ex_nst;
-    int             repl_ex_nex;
-    int             repl_ex_seed;
-    real            pforce;
-    real            cpt_period;
-    real            max_hours;
-    int             imdport;
-    unsigned long   Flags;
+    gmx_hw_opt_t            hw_opt;
+    FILE                   *fplog;
+    t_commrec              *cr;
+    int                     nfile;
+    const t_filenm         *fnm;
+    const gmx_output_env_t *oenv;
+    gmx_bool                bVerbose;
+    gmx_bool                bCompact;
+    int                     nstglobalcomm;
+    ivec                    ddxyz;
+    int                     dd_node_order;
+    real                    rdd;
+    real                    rconstr;
+    const char             *dddlb_opt;
+    real                    dlb_scale;
+    const char             *ddcsx;
+    const char             *ddcsy;
+    const char             *ddcsz;
+    const char             *nbpu_opt;
+    int                     nstlist_cmdline;
+    gmx_int64_t             nsteps_cmdline;
+    int                     nstepout;
+    int                     resetstep;
+    int                     nmultisim;
+    int                     repl_ex_nst;
+    int                     repl_ex_nex;
+    int                     repl_ex_seed;
+    real                    pforce;
+    real                    cpt_period;
+    real                    max_hours;
+    int                     imdport;
+    unsigned long           Flags;
 };
 
 
@@ -170,34 +170,39 @@ struct mdrunner_arglist
    a commrec. */
 static void mdrunner_start_fn(void *arg)
 {
-    struct mdrunner_arglist *mda = (struct mdrunner_arglist*)arg;
-    struct mdrunner_arglist  mc  = *mda; /* copy the arg list to make sure
-                                            that it's thread-local. This doesn't
-                                            copy pointed-to items, of course,
-                                            but those are all const. */
-    t_commrec *cr;                       /* we need a local version of this */
-    FILE      *fplog = NULL;
-    t_filenm  *fnm;
-
-    fnm = dup_tfn(mc.nfile, mc.fnm);
-
-    cr = reinitialize_commrec_for_this_thread(mc.cr);
-
-    if (MASTER(cr))
+    try
     {
-        fplog = mc.fplog;
-    }
+        struct mdrunner_arglist *mda = (struct mdrunner_arglist*)arg;
+        struct mdrunner_arglist  mc  = *mda; /* copy the arg list to make sure
+                                                that it's thread-local. This doesn't
+                                                copy pointed-to items, of course,
+                                                but those are all const. */
+        t_commrec *cr;                       /* we need a local version of this */
+        FILE      *fplog = NULL;
+        t_filenm  *fnm;
 
-    gmx::mdrunner(&mc.hw_opt, fplog, cr, mc.nfile, fnm, mc.oenv,
-                  mc.bVerbose, mc.bCompact, mc.nstglobalcomm,
-                  mc.ddxyz, mc.dd_node_order, mc.rdd,
-                  mc.rconstr, mc.dddlb_opt, mc.dlb_scale,
-                  mc.ddcsx, mc.ddcsy, mc.ddcsz,
-                  mc.nbpu_opt, mc.nstlist_cmdline,
-                  mc.nsteps_cmdline, mc.nstepout, mc.resetstep,
-                  mc.nmultisim, mc.repl_ex_nst, mc.repl_ex_nex, mc.repl_ex_seed, mc.pforce,
-                  mc.cpt_period, mc.max_hours, mc.imdport, mc.Flags);
+        fnm = dup_tfn(mc.nfile, mc.fnm);
+
+        cr = reinitialize_commrec_for_this_thread(mc.cr);
+
+        if (MASTER(cr))
+        {
+            fplog = mc.fplog;
+        }
+
+        gmx::mdrunner(&mc.hw_opt, fplog, cr, mc.nfile, fnm, mc.oenv,
+                      mc.bVerbose, mc.bCompact, mc.nstglobalcomm,
+                      mc.ddxyz, mc.dd_node_order, mc.rdd,
+                      mc.rconstr, mc.dddlb_opt, mc.dlb_scale,
+                      mc.ddcsx, mc.ddcsy, mc.ddcsz,
+                      mc.nbpu_opt, mc.nstlist_cmdline,
+                      mc.nsteps_cmdline, mc.nstepout, mc.resetstep,
+                      mc.nmultisim, mc.repl_ex_nst, mc.repl_ex_nex, mc.repl_ex_seed, mc.pforce,
+                      mc.cpt_period, mc.max_hours, mc.imdport, mc.Flags);
+    }
+    GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 }
+
 
 /* called by mdrunner() to start a specific number of threads (including
    the main thread) for thread-parallel runs. This in turn calls mdrunner()
@@ -205,7 +210,7 @@ static void mdrunner_start_fn(void *arg)
    All options besides nthreads are the same as for mdrunner(). */
 static t_commrec *mdrunner_start_threads(gmx_hw_opt_t *hw_opt,
                                          FILE *fplog, t_commrec *cr, int nfile,
-                                         const t_filenm fnm[], const output_env_t oenv, gmx_bool bVerbose,
+                                         const t_filenm fnm[], const gmx_output_env_t *oenv, gmx_bool bVerbose,
                                          gmx_bool bCompact, int nstglobalcomm,
                                          ivec ddxyz, int dd_node_order, real rdd, real rconstr,
                                          const char *dddlb_opt, real dlb_scale,
@@ -655,7 +660,7 @@ static integrator_t *my_integrator(unsigned int ei)
 
 int mdrunner(gmx_hw_opt_t *hw_opt,
              FILE *fplog, t_commrec *cr, int nfile,
-             const t_filenm fnm[], const output_env_t oenv, gmx_bool bVerbose,
+             const t_filenm fnm[], const gmx_output_env_t *oenv, gmx_bool bVerbose,
              gmx_bool bCompact, int nstglobalcomm,
              ivec ddxyz, int dd_node_order, real rdd, real rconstr,
              const char *dddlb_opt, real dlb_scale,
@@ -666,7 +671,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
              int repl_ex_seed, real pforce, real cpt_period, real max_hours,
              int imdport, unsigned long Flags)
 {
-    gmx_bool                  bForceUseGPU, bTryUseGPU, bRerunMD, bCantUseGPU;
+    gmx_bool                  bForceUseGPU, bTryUseGPU, bRerunMD;
     t_inputrec               *inputrec;
     t_state                  *state = NULL;
     matrix                    box;
@@ -690,7 +695,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_int64_t               reset_counters;
     gmx_edsam_t               ed           = NULL;
     int                       nthreads_pme = 1;
-    int                       nthreads_pp  = 1;
     gmx_membed_t             *membed       = NULL;
     gmx_hw_info_t            *hwinfo       = NULL;
     /* The master rank decides early on bUseGPU and broadcasts this later */
@@ -710,17 +714,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     bRerunMD     = (Flags & MD_RERUN);
     bForceUseGPU = (strncmp(nbpu_opt, "gpu", 3) == 0);
     bTryUseGPU   = (strncmp(nbpu_opt, "auto", 4) == 0) || bForceUseGPU;
-    /* Rerun execution time is dominated by I/O and pair search, so
-     * GPUs are not very useful, plus they do not support more than
-     * one energy group. Don't select them when they can't be used,
-     * unless the user requested it, then fatal_error is called later.
-     *
-     * TODO it would be nice to notify the user that if this check
-     * causes GPUs not to be used that this is what is happening, and
-     * why, but that will be easier to do after some future
-     * cleanup. */
-    bCantUseGPU = bRerunMD && (inputrec->opts.ngener > 1);
-    bTryUseGPU  = bTryUseGPU && !(bCantUseGPU && !bForceUseGPU);
 
     /* Detect hardware, gather information. This is an operation that is
      * global for this process (MPI rank). */
@@ -731,6 +724,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     if (fplog != NULL)
     {
         /* Print references after all software/hardware printing */
+        please_cite(fplog, "Abraham2015");
         please_cite(fplog, "Pall2015");
         please_cite(fplog, "Pronk2013");
         please_cite(fplog, "Hess2008b");
@@ -757,7 +751,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
              * update the message text and the content of nbnxn_acceleration_supported.
              */
             if (bUseGPU &&
-                !nbnxn_acceleration_supported(fplog, cr, inputrec, bUseGPU))
+                !nbnxn_gpu_acceleration_supported(fplog, cr, inputrec, bRerunMD))
             {
                 /* Fallback message printed by nbnxn_acceleration_supported */
                 if (bForceUseGPU)
@@ -832,7 +826,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         hw_opt->nthreads_tmpi = get_nthreads_mpi(hwinfo,
                                                  hw_opt,
                                                  inputrec, mtop,
-                                                 cr, fplog);
+                                                 cr, fplog, bUseGPU);
 
         if (hw_opt->nthreads_tmpi > 1)
         {
@@ -1143,13 +1137,9 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
        PME: env variable should be read only on one node to make sure it is
        identical everywhere;
      */
-    /* TODO nthreads_pp is only used for pinning threads.
-     * This is a temporary solution until we have a hw topology library.
-     */
-    nthreads_pp  = gmx_omp_nthreads_get(emntNonbonded);
     nthreads_pme = gmx_omp_nthreads_get(emntPME);
 
-    wcycle = wallcycle_init(fplog, resetstep, cr, nthreads_pp, nthreads_pme);
+    wcycle = wallcycle_init(fplog, resetstep, cr);
 
     if (PAR(cr))
     {
@@ -1169,7 +1159,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fr          = mk_forcerec();
         fr->hwinfo  = hwinfo;
         fr->gpu_opt = &hw_opt->gpu_opt;
-        init_forcerec(fplog, oenv, fr, fcd, inputrec, mtop, cr, box,
+        init_forcerec(fplog, fr, fcd, inputrec, mtop, cr, box,
                       opt2fn("-table", nfile, fnm),
                       opt2fn("-tabletf", nfile, fnm),
                       opt2fn("-tablep", nfile, fnm),
@@ -1177,11 +1167,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                       nbpu_opt,
                       FALSE,
                       pforce);
-
-        /* version for PCA_NOT_READ_NODE (see md.c) */
-        /*init_forcerec(fplog,fr,fcd,inputrec,mtop,cr,box,FALSE,
-           "nofile","nofile","nofile","nofile",FALSE,pforce);
-         */
 
         /* Initialize QM-MM */
         if (fr->bQMMM)
@@ -1323,9 +1308,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (inputrec->bExternalPotential)
         {
             /* Initialize the external potentials */
-            external_potentials.init_external_potentials(fplog, inputrec, nfile, fnm,
-                mtop, state->x, box, cr, oenv, Flags, bVerbose);
-
+            external_potentials.init_external_potentials(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
         }
 
         if (inputrec->eSwapCoords != eswapNO)
@@ -1396,9 +1379,9 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     /* Free GPU memory and context */
     free_gpu_resources(fr, cr, &hwinfo->gpu_info, fr ? fr->gpu_opt : NULL);
 
-    if (opt2bSet("-membed", nfile, fnm))
+    if (membed != nullptr)
     {
-        sfree(membed);
+        free_membed(membed);
     }
 
     gmx_hardware_info_free(hwinfo);

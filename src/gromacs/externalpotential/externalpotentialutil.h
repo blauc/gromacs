@@ -1,192 +1,127 @@
 #ifndef _externalpotentialutil_h_
 #define _externalpotentialutil_h_
 
-#include "gromacs/externalpotential/externalpotentialregistration.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/gmxlib/readinp.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/fileio/oenv.h"
 #include "gromacs/timing/wallcycle.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/futil.h"
-#include "gromacs/utility/exceptions.h"
-#include <iostream>
-#include <string>
+#include "gromacs/legacyheaders/inputrec.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/readinp.h"
+
 #include <vector>
+#include <string>
 
 /*! \brief
  * Structure that keeps non-inputrecord data for external potentials.
  */
+
+ class ExternalPotential;
+
 typedef struct gmx_ext_pot
 {
-  std::vector<ExternalPotential*> potentials;
+    std::vector<ExternalPotential*> potentials;
 }t_gmx_ext_pot;
 
+class ExternalPotentialData;
+
+/*! \brief
+ * Manage iterations over external potentials.
+ */
 class ExternalPotentialUtil
 {
     public:
-      /*! \brief
-       * Set the input stream (file names) for the external potential in grompp.
-       * TODO: generalise input possiblities
-       * TODO: enforce input consistency (eg. MD5-checksums)
-       */
-        void set_external_potential(int *ninp_p, t_inpfile **inp_p,
-                                           t_ext_pot * ep)
-        {
-            int ninp;
-            const char *tmp;//< for STYPE macro
-            t_inpfile *inp;
-            ninp=*ninp_p;
-            inp=*inp_p;
-            ExternalPotentialRegistration external_potentials_registry;
 
-            CTYPE("Where to look for the external potential files");
-            snew(ep->basepath, STRLEN);
-            STYPE("external-potential-path", ep->basepath, "./");
-            fprintf(stderr,"Basepath %s ", ep->basepath);
-            CTYPE("An auto-generated list of external potential types. Input files seperated by "" : "" .");
-
-            snew(ep->filenames,external_potentials_registry.number_methods());
-            snew(ep->indexfilenames,external_potentials_registry.number_methods());
-
-            for (size_t i = 0; i < external_potentials_registry.number_methods(); i++) {
-                snew(ep->filenames[i],STRLEN);
-                snew(ep->indexfilenames[i],STRLEN);
-                STYPE((external_potentials_registry.name(i)+"-input").c_str(),ep->filenames[i],NULL);
-                STYPE((external_potentials_registry.name(i)+"-index").c_str(),ep->indexfilenames[i],NULL);
-            }
-
-            *ninp_p   = ninp;
-            *inp_p    = inp;
-
-            return;
-
-        };
-
-        void do_external_potentials(
-          t_commrec      *cr,
-          t_inputrec     *ir,
-          matrix          box,
-          rvec            x[],
-          real            t,
-          gmx_int64_t     step,
-          gmx_wallcycle_t wcycle,
-          gmx_bool        bNS)
-        {
-              for (std::vector<ExternalPotential*>::iterator it =
-                  ir->external_potential->extpot->potentials.begin();
-                  it != ir->external_potential->extpot->potentials.end(); it++)
-              {
-                  (*it)->do_potential(cr, ir, box, x, t, step, wcycle, bNS);
-              }
-              return;
-        };
-
-
-        real add_ext_forces(
-          t_gmx_ext_pot * extpot,
-          rvec f[],
-          tensor vir,
-          t_commrec *cr,
-          gmx_int64_t step,
-          real t)
-        {
-
-              real result=0;
-              for (std::vector<ExternalPotential*>::iterator it =
-                  extpot->potentials.begin();
-                  it != extpot->potentials.end(); it++)
-              {
-                   result+= (*it)->potential();
-                  (*it)->add_forces(f, vir, cr, step, t);
-              }
-              return result;
-        };
-
-        std::vector<std::string> split_string(char * names)
-        {
-            std::stringstream iss(names);
-            std::string single_name;
-            std::vector<std::string> result;
-            while( std::getline(iss,single_name,':') ){
-                result.push_back(single_name);
-            }
-            return result;
-        }
         /*! \brief
-        * Read the external potential type from an input file and throw errors if
-        * the potential type is not known or the given file is not readable.
-        *
-        * To instantiate the corresponding external potential class,
-        * gromacs learns about the type of potential in the first eight characters
-        * in the external potential input files
-        *
-        * TODO: Parse info from input-files in xml format.
-        */
-        void init_external_potentials(FILE *fplog, t_inputrec *ir, int nfile,
-            const t_filenm fnm[], gmx_mtop_t *mtop, rvec *x, matrix box,
-            t_commrec *cr, const output_env_t oenv, unsigned long Flags,
-            gmx_bool bVerbose)
-        {
+         * Set the filenames and indexgroup names for all external potentials in grompp.
+         *
+         * \param[in] ninp_p mdp number of input parameters for STYPE-macro magic
+         * \param[in] inp_p mdp input parameters for STYPE-macro magic
+         * \param[in] ep all external potential data that goes into the input-record
+         * \result groupnames for all types of external potentials
+         * TODO: enforce input consistency (eg. by writing checksums of input files to the .tpr file / inputrecord)
+         */
+        char ** set_external_potential(int *ninp_p, t_inpfile **inp_p, t_ext_pot * ep );
 
-            ExternalPotentialRegistration external_potential_registry;
-            snew(ir->external_potential->extpot,1);
+        /*! \brief
+         * Generate an index group per applied external potential during pre-processing in grompp.
+         *
+         * \param[in] ext_pot all external potential data that goes into the input-record
+         * \param[in] group_name the index group names of the external potentials
+         * \param[in] groups the indexgroups as read by grompp
+         * \param[in] all_group_names the group names as read by grompp
+         */
+        void make_groups(t_ext_pot *ext_pot, char **group_name, t_blocka *groups, char **all_group_names);
 
-            std::vector<std::string> current_index_filename;
+        /*! \brief
+         * Trigger calculation of external potentials in the respective external potential module classes.
+         * \TODO: this calculation could be triggered in parallel for all external potentials
+         *
+         * \param[in] cr Communication record
+         * \TODO: create own communicators for all external potentials
+         * \param[in] ir Input record
+         * \result potential_ and force_ will be updated in all experimental input modules, if applied at this step.
+         */
+        void do_external_potentials( t_commrec *cr, t_inputrec *ir, matrix box, rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, gmx_bool bNS);
 
-            std::string complete_input_filename;
-            std::string complete_index_filename;
+        /*! \brief
+         * Add the forces from the external potentials to the overall force in this simulation step.
+         * \TODO: implement \lambda-value reading for weighting the external potentials
+         * \TODO: implement exponential averaging for forces; make that default
+         *
+         * \param[in] extpot The external potential structure
+         * \param[in,out] f The updated forces
+         * \param[in,out] vir The updated virial
+         * \result contribution to the total potential from external potentials, updated force and virial
+         */
+        real add_ext_forces( t_gmx_ext_pot * extpot, rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step, real t);
 
-            for (size_t i = 0; i < external_potential_registry.number_methods(); i++)
-            {
+        /*! \brief
+         * Initialize the external potentials during the run (see runner.cpp).
+         *
+         * Check input consistency, test if files are read/writable,
+         * setup coordinate communication and index groups
+         *
+         * \TODO: Parse info from input-files in xml/json format?.
+         * \TODO: Check input file consistency with checksums.
+         */
+        void init_external_potentials( FILE *fplog, t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, t_commrec *cr, const gmx_output_env_t *oenv, unsigned long Flags, gmx_bool bVerbose );
 
-                current_index_filename=split_string(ir->external_potential->indexfilenames[i]);
+        /*! \brief
+         * Keep the local indices in all applied potentials up-to-date after domain decomposition.
+         *
+         * Is called whenever the system is partioned.
+         * \param[in] dd the domain decomposition data
+         * \param[in,out] the external potentials
+         *
+         * \result updated num_atoms_loc_, ind_loc_ and nalloc_loc_,
+         */
+        void dd_make_local_groups( gmx_domdec_t *dd, t_ext_pot *external_potential );
 
+    private:
 
-                for (auto&& inputfile : split_string(ir->external_potential->filenames[i]))
-                {
+        ExternalPotentialData* init_data_(int nat, int * ind, t_commrec * cr, t_inputrec *ir, FILE * fplog, std::string inputfilename, std::string outputfilename, rvec x[], matrix box, gmx_mtop_t *mtop, bool bVerbose, const gmx_output_env_t * oenv,
+                                          unsigned long Flags);
 
-                    complete_input_filename=std::string(ir->external_potential->basepath)+'/'+inputfile;
-                    if (current_index_filename.size()>0){
-                        complete_index_filename=std::string(ir->external_potential->basepath)+'/'+current_index_filename.front();
-                        current_index_filename.erase(current_index_filename.begin(),current_index_filename.begin());
-                    }
+        /*! \brief
+         * Checks if the number of inputfile arguments matches the number of outputilfe matches groupnames
+         * (Arguments can be empty, but should be present) */
+        bool matching_number_of_inputs_(std::string filenames, std::string output, std::string groupnames);
+        int nr_colons_in_string_(std::string s);
 
-                    if (! gmx_fexist( complete_input_filename.c_str() ) )
-                    {
-                        GMX_THROW(gmx::FileIOError("Cannot open external input file " + complete_input_filename + " ."));
-                    };
+        /*! \brief
+         * Throw errors if input is inconsistent
+         */
+        void throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current);
+        /*! \brief
+         * Helper function, that splits a string at a token
+         * \TODO: allow multiple tokens
+         */
+        std::vector<std::string> split_string_at_token_(char * names, char token);
 
-                    if (! gmx_fexist( complete_index_filename.c_str() ) )
-                    {
-                        GMX_THROW(gmx::FileIOError("Cannot open external index file " + complete_index_filename + " ."));
-                    };
-
-                    ir->external_potential->extpot->potentials.push_back(
-                        external_potential_registry.init(
-                            i, complete_input_filename.c_str() ,complete_index_filename.c_str(),
-                            fplog, ir, nfile, fnm, mtop, x, box, cr,
-                            oenv, Flags, bVerbose)
-                        );
-                }
-
-            }
-
-            fprintf(stderr,"\nDone initializing external potentials. Initalized %lu external potential(s).\n", ir->external_potential->extpot->potentials.size());
-            return;
-        };
-
-        void dd_make_local_groups(
-            gmx_domdec_t *dd, t_ext_pot *external_potential
-        )
-        {
-            for (std::vector<ExternalPotential*>::iterator it =
-                external_potential->extpot->potentials.begin();
-                it != external_potential->extpot->potentials.end(); it++)
-            {
-                (*it)->dd_make_local_groups(dd);
-            }
-            return;
-        }
+        /*! \brief
+         * An exeption throwing search_string, analogue to the one in readir.cpp */
+        int search_string_(const char *s, int ng, char *gn[]);
 
 };
 

@@ -177,7 +177,7 @@ static int pdbf_comp(const void *a, const void *b)
 }
 
 static void analyse_em_all(int npdb, t_pdbfile *pdbf[], const char *edocked,
-                           const char *efree, const output_env_t oenv)
+                           const char *efree, const gmx_output_env_t *oenv)
 {
     FILE *fp;
     int   i;
@@ -212,10 +212,8 @@ static void clust_stat(FILE *fp, int start, int end, t_pdbfile *pdbf[])
     fprintf(fp, "  <%12s> = %8.3f (+/- %6.3f)\n", etitles[FALSE], aver, sigma);
     gmx_stats_get_ase(ef, &aver, &sigma, NULL);
     fprintf(fp, "  <%12s> = %8.3f (+/- %6.3f)\n", etitles[TRUE], aver, sigma);
-    gmx_stats_done(ed);
-    gmx_stats_done(ef);
-    sfree(ed);
-    sfree(ef);
+    gmx_stats_free(ed);
+    gmx_stats_free(ef);
 }
 
 static real rmsd_dist(t_pdbfile *pa, t_pdbfile *pb, gmx_bool bRMSD)
@@ -336,7 +334,7 @@ static void cluster_em_all(FILE *fp, int npdb, t_pdbfile *pdbf[],
 
 int gmx_anadock(int argc, char *argv[])
 {
-    const char     *desc[] = {
+    const char       *desc[] = {
         "[THISMODULE] analyses the results of an Autodock run and clusters the",
         "structures together, based on distance or RMSD. The docked energy",
         "and free energy estimates are analysed, and for each cluster the",
@@ -345,17 +343,17 @@ int gmx_anadock(int argc, char *argv[])
         "using [gmx-cluster] and then sort the clusters on either lowest",
         "energy or average energy."
     };
-    t_filenm        fnm[] = {
+    t_filenm          fnm[] = {
         { efPDB, "-f", NULL,       ffREAD  },
         { efXVG, "-od", "edocked", ffWRITE },
         { efXVG, "-of", "efree",   ffWRITE },
         { efLOG, "-g",  "anadock", ffWRITE }
     };
-    output_env_t    oenv;
+    gmx_output_env_t *oenv;
 #define NFILE asize(fnm)
-    static gmx_bool bFree  = FALSE, bRMS = TRUE;
-    static real     cutoff = 0.2;
-    t_pargs         pa[]   = {
+    static gmx_bool   bFree  = FALSE, bRMS = TRUE;
+    static real       cutoff = 0.2;
+    t_pargs           pa[]   = {
         { "-free",   FALSE, etBOOL, {&bFree},
           "Use Free energy estimate from autodock for sorting the classes" },
         { "-rms",    FALSE, etBOOL, {&bRMS},

@@ -73,6 +73,10 @@ struct gmx_grppairener_t;
 struct gmx_multisim_t;
 struct t_fcdata;
 struct t_forcerec;
+struct t_inputrec;
+struct t_lambda;
+struct t_mdatoms;
+struct t_nrnb;
 
 #ifdef __cplusplus
 extern "C" {

@@ -167,8 +167,7 @@ class PairDistance : public TrajectoryAnalysisModule
 };
 
 PairDistance::PairDistance()
-    : TrajectoryAnalysisModule(PairDistanceInfo::name, PairDistanceInfo::shortDescription),
-      cutoff_(0.0), distanceType_(eDistanceType_Min),
+    : cutoff_(0.0), distanceType_(eDistanceType_Min),
       refGroupType_(eGroupType_All), selGroupType_(eGroupType_All),
       refGroupCount_(0), maxGroupCount_(0), initialDist2_(0.0), cutoff2_(0.0)
 {
@@ -222,14 +221,14 @@ PairDistance::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings
 
     options->addOption(DoubleOption("cutoff").store(&cutoff_)
                            .description("Maximum distance to consider"));
-    options->addOption(StringOption("type").storeEnumIndex(&distanceType_)
-                           .defaultEnumIndex(0).enumValue(c_distanceTypes)
+    options->addOption(EnumIntOption("type").store(&distanceType_)
+                           .enumValue(c_distanceTypes)
                            .description("Type of distances to calculate"));
-    options->addOption(StringOption("refgrouping").storeEnumIndex(&refGroupType_)
-                           .defaultEnumIndex(0).enumValue(c_groupTypes)
+    options->addOption(EnumIntOption("refgrouping").store(&refGroupType_)
+                           .enumValue(c_groupTypes)
                            .description("Grouping of -ref positions to compute the min/max over"));
-    options->addOption(StringOption("selgrouping").storeEnumIndex(&selGroupType_)
-                           .defaultEnumIndex(0).enumValue(c_groupTypes)
+    options->addOption(EnumIntOption("selgrouping").store(&selGroupType_)
+                           .enumValue(c_groupTypes)
                            .description("Grouping of -sel positions to compute the min/max over"));
 
     options->addOption(SelectionOption("ref").store(&refSel_).required()

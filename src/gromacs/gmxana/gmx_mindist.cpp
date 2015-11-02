@@ -142,7 +142,7 @@ static void periodic_dist(int ePBC,
 static void periodic_mindist_plot(const char *trxfn, const char *outfn,
                                   t_topology *top, int ePBC,
                                   int n, atom_id index[], gmx_bool bSplit,
-                                  const output_env_t oenv)
+                                  const gmx_output_env_t *oenv)
 {
     FILE        *out;
     const char  *leg[5] = { "min per.", "max int.", "box1", "box2", "box3" };
@@ -330,7 +330,7 @@ void dist_plot(const char *fn, const char *afile, const char *dfile,
                int ng, atom_id *index[], int gnx[], char *grpn[], gmx_bool bSplit,
                gmx_bool bMin, int nres, atom_id *residue, gmx_bool bPBC, int ePBC,
                gmx_bool bGroup, gmx_bool bEachResEachTime, gmx_bool bPrintResName,
-               const output_env_t oenv)
+               const gmx_output_env_t *oenv)
 {
     FILE            *atm, *dist, *num;
     t_trxstatus     *trxout;
@@ -598,20 +598,21 @@ void dist_plot(const char *fn, const char *afile, const char *dfile,
 int find_residues(t_atoms *atoms, int n, atom_id index[], atom_id **resindex)
 {
     int  i;
-    int  nres = 0, resnr, presnr;
+    int  nres      = 0, resnr, presnr = 0;
+    bool presFound = false;
     int *residx;
 
     /* build index of first atom numbers for each residue */
-    presnr = NOTSET;
     snew(residx, atoms->nres+1);
     for (i = 0; i < n; i++)
     {
         resnr = atoms->atom[index[i]].resind;
-        if (resnr != presnr)
+        if (!presFound || resnr != presnr)
         {
             residx[nres] = i;
             nres++;
-            presnr = resnr;
+            presnr    = resnr;
+            presFound = true;
         }
     }
     if (debug)
@@ -643,7 +644,7 @@ void dump_res(FILE *out, int nres, atom_id *resindex, atom_id index[])
 
 int gmx_mindist(int argc, char *argv[])
 {
-    const char     *desc[] = {
+    const char       *desc[] = {
         "[THISMODULE] computes the distance between one group and a number of",
         "other groups. Both the minimum distance",
         "(between any pair of atoms from the respective groups)",
@@ -663,12 +664,12 @@ int gmx_mindist(int argc, char *argv[])
         "Also [gmx-distance] and [gmx-pairdist] calculate distances."
     };
 
-    static gmx_bool bMat             = FALSE, bPI = FALSE, bSplit = FALSE, bMax = FALSE, bPBC = TRUE;
-    static gmx_bool bGroup           = FALSE;
-    static real     rcutoff          = 0.6;
-    static int      ng               = 1;
-    static gmx_bool bEachResEachTime = FALSE, bPrintResName = FALSE;
-    t_pargs         pa[]             = {
+    static gmx_bool   bMat             = FALSE, bPI = FALSE, bSplit = FALSE, bMax = FALSE, bPBC = TRUE;
+    static gmx_bool   bGroup           = FALSE;
+    static real       rcutoff          = 0.6;
+    static int        ng               = 1;
+    static gmx_bool   bEachResEachTime = FALSE, bPrintResName = FALSE;
+    t_pargs           pa[]             = {
         { "-matrix", FALSE, etBOOL, {&bMat},
           "Calculate half a matrix of group-group distances" },
         { "-max",    FALSE, etBOOL, {&bMax},
@@ -690,19 +691,19 @@ int gmx_mindist(int argc, char *argv[])
         { "-printresname",  FALSE, etBOOL, {&bPrintResName},
           "Write residue names" }
     };
-    output_env_t    oenv;
-    t_topology     *top  = NULL;
-    int             ePBC = -1;
-    rvec           *x;
-    matrix          box;
-    gmx_bool        bTop = FALSE;
+    gmx_output_env_t *oenv;
+    t_topology       *top  = NULL;
+    int               ePBC = -1;
+    rvec             *x;
+    matrix            box;
+    gmx_bool          bTop = FALSE;
 
-    int             i, nres = 0;
-    const char     *trxfnm, *tpsfnm, *ndxfnm, *distfnm, *numfnm, *atmfnm, *oxfnm, *resfnm;
-    char          **grpname;
-    int            *gnx;
-    atom_id       **index, *residues = NULL;
-    t_filenm        fnm[] = {
+    int               i, nres = 0;
+    const char       *trxfnm, *tpsfnm, *ndxfnm, *distfnm, *numfnm, *atmfnm, *oxfnm, *resfnm;
+    char            **grpname;
+    int              *gnx;
+    atom_id         **index, *residues = NULL;
+    t_filenm          fnm[] = {
         { efTRX, "-f",  NULL,      ffREAD },
         { efTPS,  NULL, NULL,      ffOPTRD },
         { efNDX,  NULL, NULL,      ffOPTRD },

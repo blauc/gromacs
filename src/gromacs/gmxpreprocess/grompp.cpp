@@ -62,8 +62,8 @@
 #include "gromacs/gmxpreprocess/gen_maxwell_velocities.h"
 #include "gromacs/gmxpreprocess/gpp_atomtype.h"
 #include "gromacs/gmxpreprocess/grompp-impl.h"
+#include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/readir.h"
-#include "gromacs/gmxpreprocess/sortwater.h"
 #include "gromacs/gmxpreprocess/tomorse.h"
 #include "gromacs/gmxpreprocess/topio.h"
 #include "gromacs/gmxpreprocess/toputil.h"
@@ -77,6 +77,7 @@
 #include "gromacs/mdlib/calc_verletbuf.h"
 #include "gromacs/mdlib/compute_io.h"
 #include "gromacs/mdlib/perf_est.h"
+#include "gromacs/pbcutil/boxutilities.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/random.h"
 #include "gromacs/topology/mtop_util.h"
@@ -716,7 +717,7 @@ static void cont_status(const char *slog, const char *ener,
                         gmx_bool bNeedVel, gmx_bool bGenVel, real fr_time,
                         t_inputrec *ir, t_state *state,
                         gmx_mtop_t *sys,
-                        const output_env_t oenv)
+                        const gmx_output_env_t *oenv)
 /* If fr_time == -1 read the last frame available which is complete */
 {
     gmx_bool     bReadVel;
@@ -1520,7 +1521,7 @@ int gmx_grompp(int argc, char *argv[])
     int                ntype;
     gmx_bool           bNeedVel, bGenVel;
     gmx_bool           have_atomnumber;
-    output_env_t       oenv;
+    gmx_output_env_t  *oenv;
     gmx_bool           bVerbose = FALSE;
     warninp_t          wi;
     char               warn_buf[STRLEN];

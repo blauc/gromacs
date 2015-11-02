@@ -37,6 +37,7 @@
 #include "gmxpre.h"
 
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 
@@ -44,9 +45,9 @@
 #include "gromacs/fileio/confio.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/legacyheaders/force.h"
-#include "gromacs/legacyheaders/mdrun.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdlib/mdrun.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/random.h"
 #include "gromacs/topology/index.h"
@@ -241,8 +242,7 @@ static void update_topol(const char *topinout, int p_num, int n_num,
     printf("\nProcessing topology\n");
     fpin  = gmx_ffopen(topinout, "r");
     std::strncpy(temporary_filename, "temp.topXXXXXX", STRLEN);
-    gmx_tmpnam(temporary_filename);
-    fpout = gmx_ffopen(temporary_filename, "w");
+    fpout = gmx_fopen_temporary(temporary_filename);
 
     line       = 0;
     bMolecules = FALSE;
@@ -335,10 +335,8 @@ static void update_topol(const char *topinout, int p_num, int n_num,
         }
     }
     gmx_ffclose(fpout);
-    /* use gmx_ffopen to generate backup of topinout */
-    fpout = gmx_ffopen(topinout, "w");
-    gmx_ffclose(fpout);
-    rename(temporary_filename, topinout);
+    make_backup(topinout);
+    gmx_file_rename(temporary_filename, topinout);
 }
 
 int gmx_genion(int argc, char *argv[])
@@ -391,7 +389,7 @@ int gmx_genion(int argc, char *argv[])
     char              *grpname;
     gmx_bool          *bSet;
     int                i, nw, nwa, nsa, nsalt, iqtot;
-    output_env_t       oenv;
+    gmx_output_env_t  *oenv;
     gmx_rng_t          rng;
     t_filenm           fnm[] = {
         { efTPR, NULL,  NULL,      ffREAD  },
@@ -428,14 +426,14 @@ int gmx_genion(int argc, char *argv[])
     {
         qtot += atoms.atom[i].q;
     }
-    iqtot = gmx_nint(qtot);
+    iqtot = std::round(qtot);
 
 
     if (conc > 0)
     {
         /* Compute number of ions to be added */
         vol   = det(box);
-        nsalt = gmx_nint(conc*vol*AVOGADRO/1e24);
+        nsalt = std::round(conc*vol*AVOGADRO/1e24);
         p_num = abs(nsalt*n_q);
         n_num = abs(nsalt*p_q);
     }

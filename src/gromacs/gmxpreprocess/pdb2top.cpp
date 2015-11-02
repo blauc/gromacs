@@ -57,6 +57,7 @@
 #include "gromacs/gmxpreprocess/gen_vsite.h"
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
 #include "gromacs/gmxpreprocess/h_db.h"
+#include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pgutil.h"
 #include "gromacs/gmxpreprocess/resall.h"
 #include "gromacs/gmxpreprocess/topdirs.h"
@@ -122,7 +123,7 @@ gmx_bool is_int(double x)
     {
         x = -x;
     }
-    ix = gmx_nint(x);
+    ix = std::round(x);
 
     return (fabs(x-ix) < tol);
 }
@@ -217,7 +218,7 @@ choose_ff_impl(const char *ffsel,
                                     fflib_forcefield_doc()));
             // TODO: Just try to open the file with a method that does not
             // throw/bail out with a fatal error instead of multiple checks.
-            if (gmx::File::exists(docFileName))
+            if (gmx::File::exists(docFileName, gmx::File::returnFalseOnError))
             {
                 // TODO: Use a C++ API without such an intermediate/fixed-length buffer.
                 char  buf[STRLEN];

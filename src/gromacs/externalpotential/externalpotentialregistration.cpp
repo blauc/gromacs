@@ -1,56 +1,44 @@
-//
-// void ExternalPotentialRegistration::init(
-//     const char *typestring,
-//     FILE * inputfile,
-//     FILE *fplog,
-//     t_inputrec *ir,
-//     int nfile,
-//     const t_filenm fnm[],
-//     gmx_mtop_t *mtop,
-//     rvec *x,
-//     matrix box,
-//     t_commrec *cr,
-//     const output_env_t oenv,
-//     unsigned long Flags,
-    // gmx_bool bVerbose){
-    //
-    //     char error_msg[STRLEN];
-    //     this->registered_potential_ = NULL;
-    //     this->success_ = false;
-    //     this->known_method_=false;
-    //
-    //     if (gmx_strncasecmp_min("CRYOEM3D",typestring,STRLENTYPE))
-    //     {
-    //         init_instance<DensityFitting>(inputfile, fplog, ir,
-    //             nfile, fnm, mtop, x, box,cr, oenv, Flags, bVerbose);
-    //     };
-    //
-    //     if (gmx_strncasecmp_min("PULLING ",typestring,STRLENTYPE))
-    //     {
-    //         init_instance<Pulling>(inputfile, fplog, ir,
-    //             nfile, fnm, mtop, x, box,cr, oenv, Flags, bVerbose);
-    //     };
-    //
-    //     if(!this->known_method_)
-    //     {
-    //         sprintf(error_msg,"Cannot recognise ""%s"" method in first eight characters of the given input file.", typestring);
-    //
-    //     }
-    //
-    //     if(!this->success_)
-    //     {
-    //         sprintf(error_msg,"Recognised ""%s"", but failed to initialise external potential.", typestring);
-    //         gmx_error("input",error_msg);
-    //     }
-    //
-    //
-    // };
+#include "gmxpre.h"
 
-// ExternalPotential* ExternalPotentialRegistration::registered_potential(){
-//     ExternalPotential* result;
-//     result=registered_potential_;
-//     this->success_ = false;
-//     this->known_method_ = false;
-//     this->registered_potential_ = NULL;
-//     return result;
-// };
+#include "externalpotentialregistration.h"
+
+/* include the user-provided modules */
+#include "modules/densityfitting/densityfitting.h"
+#include "modules/pulling/pulling.h"
+
+
+ExternalPotentialRegistration::ExternalPotentialRegistration(){
+    register_<DensityFittingInfo>();
+    register_<PullingInfo>();
+}
+
+
+ExternalPotential* ExternalPotentialRegistration::init(
+        size_t                 method,
+        ExternalPotentialData *data
+        )
+{
+    return methods_[method]->create(data);
+};
+
+size_t ExternalPotentialRegistration::number_methods()
+{
+    return methods_.size();
+};
+
+std::string ExternalPotentialRegistration::name(size_t method_nr)
+{
+
+    return std::string((methods_[method_nr])->name());
+    GMX_THROW(gmx::InconsistentInputError("Cannot name method."));
+};
+
+std::vector<std::string> ExternalPotentialRegistration::names()
+{
+    std::vector<std::string> result;
+    for (auto &&method : methods_)
+    {
+        result.push_back(std::string(method->name()));
+    }
+    return result;
+}

@@ -46,7 +46,8 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include <boost/scoped_ptr.hpp>
+#include <memory>
+
 #include <gmock/gmock.h>
 
 #include "buildinfo.h"
@@ -58,7 +59,6 @@
 #include "gromacs/math/utilities.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/options.h"
-#include "gromacs/utility/errorcodes.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/filestream.h"
 #include "gromacs/utility/futil.h"
@@ -149,7 +149,8 @@ void printHelp(const Options &options)
 }
 
 //! Global program context instance for test binaries.
-boost::scoped_ptr<TestProgramContext> g_testContext;
+// Never releases ownership.
+std::unique_ptr<TestProgramContext> g_testContext;
 
 }       // namespace
 
@@ -219,7 +220,6 @@ void initTestUtils(const char *dataPath, const char *tempPath, int *argc, char *
             TestFileManager::setInputDataDirectory(
                     Path::join(sourceRoot, dataPath));
         }
-        setFatalErrorHandler(NULL);
     }
     catch (const std::exception &ex)
     {

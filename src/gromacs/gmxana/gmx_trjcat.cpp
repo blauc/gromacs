@@ -72,7 +72,7 @@
 
 static void scan_trj_files(char **fnms, int nfiles, real *readtime,
                            real *timestep, atom_id imax,
-                           const output_env_t oenv)
+                           const gmx_output_env_t *oenv)
 {
     /* Check start time of all files */
     int          i, natoms = 0;
@@ -179,7 +179,7 @@ static void sort_files(char **fnms, real *settime, int nfile)
 
 static void edit_files(char **fnms, int nfiles, real *readtime, real *timestep,
                        real *settime, int *cont_type, gmx_bool bSetTime,
-                       gmx_bool bSort, const output_env_t oenv)
+                       gmx_bool bSort, const gmx_output_env_t *oenv)
 {
     int      i;
     gmx_bool ok;
@@ -310,7 +310,7 @@ static void edit_files(char **fnms, int nfiles, real *readtime, real *timestep,
 
 static void do_demux(int nset, char *fnms[], char *fnms_out[], int nval,
                      real **value, real *time, real dt_remd, int isize,
-                     atom_id index[], real dt, const output_env_t oenv)
+                     atom_id index[], real dt, const gmx_output_env_t *oenv)
 {
     int           i, j, k, natoms, nnn;
     t_trxstatus **fp_in, **fp_out;
@@ -352,7 +352,7 @@ static void do_demux(int nset, char *fnms[], char *fnms_out[], int nval,
         fp_out[i] = open_trx(fnms_out[i], "w");
     }
     k = 0;
-    if (gmx_nint(time[k] - t) != 0)
+    if (std::round(time[k] - t) != 0)
     {
         gmx_fatal(FARGS, "First time in demuxing table does not match trajectories");
     }
@@ -372,7 +372,7 @@ static void do_demux(int nset, char *fnms[], char *fnms_out[], int nval,
         }
         for (i = 0; (i < nset); i++)
         {
-            j = gmx_nint(value[i][k]);
+            j = std::round(value[i][k]);
             range_check(j, 0, nset);
             if (bSet[j])
             {
@@ -474,25 +474,26 @@ int gmx_trjcat(int argc, char *argv[])
           { &bCat }, "Do not discard double time frames" }
     };
 #define npargs asize(pa)
-    int          ftpin, i, frame, frame_out;
-    t_trxstatus *status, *trxout = NULL;
-    real         t_corr;
-    t_trxframe   fr, frout;
-    char       **fnms, **fnms_out, *out_file;
-    int          n_append;
-    gmx_bool     bNewFile, bIndex, bWrite;
-    int          nfile_in, nfile_out, *cont_type;
-    real        *readtime, *timest, *settime;
-    real         first_time = 0, lasttime = NOTSET, last_ok_t = -1, timestep;
-    real         last_frame_time, searchtime;
-    int          isize = 0, j;
-    atom_id     *index = NULL, imax;
-    char        *grpname;
-    real       **val = NULL, *t = NULL, dt_remd;
-    int          n, nset, ftpout = -1, prevEndStep = 0, filetype;
-    gmx_off_t    fpos;
-    output_env_t oenv;
-    t_filenm     fnm[] =
+    int               ftpin, i, frame, frame_out;
+    t_trxstatus      *status, *trxout = NULL;
+    real              t_corr;
+    t_trxframe        fr, frout;
+    char            **fnms, **fnms_out, *out_file;
+    int               n_append;
+    gmx_bool          bNewFile, bIndex, bWrite;
+    int               nfile_in, nfile_out, *cont_type;
+    real             *readtime, *timest, *settime;
+    real              first_time  = 0, lasttime, last_ok_t = -1, timestep;
+    gmx_bool          lastTimeSet = FALSE;
+    real              last_frame_time, searchtime;
+    int               isize = 0, j;
+    atom_id          *index = NULL, imax;
+    char             *grpname;
+    real            **val = NULL, *t = NULL, dt_remd;
+    int               n, nset, ftpout = -1, prevEndStep = 0, filetype;
+    gmx_off_t         fpos;
+    gmx_output_env_t *oenv;
+    t_filenm          fnm[] =
     {
         { efTRX, "-f", NULL, ffRDMULT },
         { efTRO, "-o", NULL, ffWRMULT },
@@ -541,7 +542,7 @@ int gmx_trjcat(int argc, char *argv[])
                 fprintf(debug, "%10g", t[i]);
                 for (j = 0; (j < nset); j++)
                 {
-                    fprintf(debug, "  %3d", gmx_nint(val[j][i]));
+                    fprintf(debug, "  %3d", static_cast<int>(std::round(val[j][i])));
                 }
                 fprintf(debug, "\n");
             }
@@ -701,6 +702,7 @@ int gmx_trjcat(int argc, char *argv[])
                     }
                     lasttime = fr.time;
                 }
+                lastTimeSet     = TRUE;
                 bKeepLastAppend = TRUE;
                 close_trj(status);
                 trxout = open_trx(out_file, "a");
@@ -735,8 +737,9 @@ int gmx_trjcat(int argc, char *argv[])
                     gmx_fatal(FARGS, "Error seeking: attempted to seek to %f but got %f.",
                               searchtime, fr.time);
                 }
-                lasttime = fr.time;
-                fpos     = gmx_fio_ftell(stfio);
+                lasttime    = fr.time;
+                lastTimeSet = TRUE;
+                fpos        = gmx_fio_ftell(stfio);
                 close_trj(status);
                 trxout = open_trx(out_file, "r+");
                 if (gmx_fio_seek(trx_get_fileio(trxout), fpos))
@@ -744,7 +747,10 @@ int gmx_trjcat(int argc, char *argv[])
                     gmx_fatal(FARGS, "Error seeking to append position.");
                 }
             }
-            printf("\n Will append after %f \n", lasttime);
+            if (lastTimeSet)
+            {
+                printf("\n Will append after %f \n", lasttime);
+            }
             frout = fr;
         }
         /* Lets stitch up some files */
@@ -827,11 +833,13 @@ int gmx_trjcat(int argc, char *argv[])
 
             bNewFile = TRUE;
 
-            printf("\n");
-            if (lasttime != NOTSET)
+            if (!lastTimeSet)
             {
-                printf("lasttime %g\n", lasttime);
+                lasttime    = 0;
+                lastTimeSet = true;
             }
+            printf("\n");
+            printf("lasttime %g\n", lasttime);
 
             do
             {
@@ -873,7 +881,8 @@ int gmx_trjcat(int argc, char *argv[])
                     {
                         first_time = frout.time;
                     }
-                    lasttime = frout.time;
+                    lasttime    = frout.time;
+                    lastTimeSet = TRUE;
                     if (dt == 0 || bRmod(frout.time, first_time, dt))
                     {
                         frame_out++;

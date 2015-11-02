@@ -59,6 +59,7 @@
 #include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/legacyheaders/types/force_flags.h"
 #include "gromacs/legacyheaders/types/forcerec.h"
+#include "gromacs/legacyheaders/types/inputrec.h"
 #include "gromacs/listed-forces/bonded.h"
 #include "gromacs/listed-forces/position-restraints.h"
 #include "gromacs/math/vec.h"
@@ -66,6 +67,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/timing/wallcycle.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -158,33 +160,37 @@ reduce_thread_force_buffer(int n, rvec *f,
 #pragma omp parallel for num_threads(nthreads) schedule(static)
     for (b = 0; b < nblock; b++)
     {
-        rvec *fp[MAX_BONDED_THREADS];
-        int   nfb, ft, fb;
-        int   a0, a1, a;
+        try
+        {
+            rvec *fp[MAX_BONDED_THREADS];
+            int   nfb, ft, fb;
+            int   a0, a1, a;
 
-        /* Determine which threads contribute to this block */
-        nfb = 0;
-        for (ft = 1; ft < nthreads; ft++)
-        {
-            if (bitmask_is_set(f_t[ft].red_mask, b))
+            /* Determine which threads contribute to this block */
+            nfb = 0;
+            for (ft = 1; ft < nthreads; ft++)
             {
-                fp[nfb++] = f_t[ft].f;
-            }
-        }
-        if (nfb > 0)
-        {
-            /* Reduce force buffers for threads that contribute */
-            a0 =  b   *block_size;
-            a1 = (b+1)*block_size;
-            a1 = std::min(a1, n);
-            for (a = a0; a < a1; a++)
-            {
-                for (fb = 0; fb < nfb; fb++)
+                if (bitmask_is_set(f_t[ft].red_mask, b))
                 {
-                    rvec_inc(f[a], fp[fb][a]);
+                    fp[nfb++] = f_t[ft].f;
+                }
+            }
+            if (nfb > 0)
+            {
+                /* Reduce force buffers for threads that contribute */
+                a0 =  b   *block_size;
+                a1 = (b+1)*block_size;
+                a1 = std::min(a1, n);
+                for (a = a0; a < a1; a++)
+                {
+                    for (fb = 0; fb < nfb; fb++)
+                    {
+                        rvec_inc(f[a], fp[fb][a]);
+                    }
                 }
             }
         }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 }
 
@@ -262,14 +268,14 @@ calc_one_bond(int thread,
               gmx_bool bCalcEnerVir,
               int *global_atom_index)
 {
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
     gmx_bool bUseSIMD;
     /* MSVC 2010 produces buggy SIMD PBC code, disable SIMD for MSVC <= 2010 */
-#if defined _MSC_VER && _MSC_VER < 1700 && !defined(__ICL)
+#    if defined _MSC_VER && _MSC_VER < 1700 && !defined(__ICL)
     bUseSIMD = FALSE;
-#else
+#    else
     bUseSIMD = fr->use_simd_kernels;
-#endif
+#    endif
 #endif
 
     int      nat1, nbonds, efptFTYPE;
@@ -307,7 +313,7 @@ calc_one_bond(int thread,
                           pbc, g, lambda[efptFTYPE], &(dvdl[efptFTYPE]),
                           md, fcd, global_atom_index);
         }
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
         else if (ftype == F_ANGLES && bUseSIMD &&
                  !bCalcEnerVir && fr->efep == efepNO)
         {
@@ -324,7 +330,7 @@ calc_one_bond(int thread,
                  !bCalcEnerVir && fr->efep == efepNO)
         {
             /* No energies, shift forces, dvdl */
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
             if (bUseSIMD)
             {
                 pdihs_noener_simd(nbn, idef->il[ftype].iatoms+nb0,
@@ -344,7 +350,7 @@ calc_one_bond(int thread,
             }
             v = 0;
         }
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
         else if (ftype == F_RBDIHS && bUseSIMD &&
                  !bCalcEnerVir && fr->efep == efepNO)
         {
@@ -495,45 +501,49 @@ void calc_listed(const struct gmx_multisim_t *ms,
 #pragma omp parallel for num_threads(bt->nthreads) schedule(static)
     for (thread = 0; thread < bt->nthreads; thread++)
     {
-        int                ftype;
-        real              *epot, v;
-        /* thread stuff */
-        rvec              *ft, *fshift;
-        real              *dvdlt;
-        gmx_grppairener_t *grpp;
+        try
+        {
+            int                ftype;
+            real              *epot, v;
+            /* thread stuff */
+            rvec              *ft, *fshift;
+            real              *dvdlt;
+            gmx_grppairener_t *grpp;
 
-        if (thread == 0)
-        {
-            ft     = f;
-            fshift = fr->fshift;
-            epot   = enerd->term;
-            grpp   = &enerd->grpp;
-            dvdlt  = dvdl;
-        }
-        else
-        {
-            zero_thread_forces(&bt->f_t[thread], fr->natoms_force,
-                               bt->red_nblock, 1<<bt->red_ashift);
-
-            ft     = bt->f_t[thread].f;
-            fshift = bt->f_t[thread].fshift;
-            epot   = bt->f_t[thread].ener;
-            grpp   = &bt->f_t[thread].grpp;
-            dvdlt  = bt->f_t[thread].dvdl;
-        }
-        /* Loop over all bonded force types to calculate the bonded forces */
-        for (ftype = 0; (ftype < F_NRE); ftype++)
-        {
-            if (idef->il[ftype].nr > 0 && ftype_is_bonded_potential(ftype))
+            if (thread == 0)
             {
-                v = calc_one_bond(thread, ftype, idef, x,
-                                  ft, fshift, fr, pbc_null, g, grpp,
-                                  nrnb, lambda, dvdlt,
-                                  md, fcd, bCalcEnerVir,
-                                  global_atom_index);
-                epot[ftype] += v;
+                ft     = f;
+                fshift = fr->fshift;
+                epot   = enerd->term;
+                grpp   = &enerd->grpp;
+                dvdlt  = dvdl;
+            }
+            else
+            {
+                zero_thread_forces(&bt->f_t[thread], fr->natoms_force,
+                                   bt->red_nblock, 1<<bt->red_ashift);
+
+                ft     = bt->f_t[thread].f;
+                fshift = bt->f_t[thread].fshift;
+                epot   = bt->f_t[thread].ener;
+                grpp   = &bt->f_t[thread].grpp;
+                dvdlt  = bt->f_t[thread].dvdl;
+            }
+            /* Loop over all bonded force types to calculate the bonded forces */
+            for (ftype = 0; (ftype < F_NRE); ftype++)
+            {
+                if (idef->il[ftype].nr > 0 && ftype_is_bonded_potential(ftype))
+                {
+                    v = calc_one_bond(thread, ftype, idef, x,
+                                      ft, fshift, fr, pbc_null, g, grpp,
+                                      nrnb, lambda, dvdlt,
+                                      md, fcd, bCalcEnerVir,
+                                      global_atom_index);
+                    epot[ftype] += v;
+                }
             }
         }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
     wallcycle_sub_stop(wcycle, ewcsLISTED);
 

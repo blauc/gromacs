@@ -40,20 +40,21 @@
 #include "config.h"
 
 #include <assert.h>
-#include <math.h>
 #include <stdlib.h>
+
+#include <cmath>
 
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
-#include "gromacs/legacyheaders/mdrun.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/constr.h"
+#include "gromacs/mdlib/mdrun.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pbcutil/pbc-simd.h"
 #include "gromacs/simd/simd.h"
@@ -63,17 +64,18 @@
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/bitmask.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/smalloc.h"
 
 /* MSVC 2010 produces buggy SIMD PBC code, disable SIMD for MSVC <= 2010 */
-#if defined GMX_SIMD_HAVE_REAL && !(defined _MSC_VER && _MSC_VER < 1700) && !defined(__ICL)
-#define LINCS_SIMD
+#if GMX_SIMD_HAVE_REAL && !(defined _MSC_VER && _MSC_VER < 1700) && !defined(__ICL)
+#    define LINCS_SIMD
 #endif
 
 
-#if defined(GMX_SIMD_X86_AVX_256) || defined(GMX_SIMD_X86_AVX2_256)
+#if GMX_SIMD_X86_AVX_256 || GMX_SIMD_X86_AVX2_256
 
 // This was originally work-in-progress for augmenting the SIMD module with
 // masked load/store operations. Instead, that turned into and extended SIMD
@@ -134,7 +136,7 @@ gmx_hack_simd_transpose_to_simd4_r(gmx_simd_double_t   row0,
 }
 
 
-#    ifdef GMX_SIMD_X86_AVX_GCC_MASKLOAD_BUG
+#    if GMX_SIMD_X86_AVX_GCC_MASKLOAD_BUG
 #        define gmx_hack_simd4_load3_r(mem)      _mm256_maskload_pd((mem), _mm_castsi128_ps(_mm256_set_epi32(0, 0, -1, -1, -1, -1, -1, -1)))
 #        define gmx_hack_simd4_store3_r(mem, x)   _mm256_maskstore_pd((mem), _mm_castsi128_ps(_mm256_set_epi32(0, 0, -1, -1, -1, -1, -1, -1)), (x))
 #    else
@@ -194,7 +196,7 @@ gmx_hack_simd_transpose_to_simd4_r(gmx_simd_float_t   row0,
     a[6] = _mm256_extractf128_ps(row2, 1);
     a[7] = _mm256_extractf128_ps(row3, 1);
 }
-#ifdef GMX_SIMD_X86_AVX_GCC_MASKLOAD_BUG
+#if GMX_SIMD_X86_AVX_GCC_MASKLOAD_BUG
 #        define gmx_hack_simd4_load3_r(mem)      _mm_maskload_ps((mem), _mm_castsi256_pd(_mm_set_epi32(0, -1, -1, -1)))
 #        define gmx_hack_simd4_store3_r(mem, x)   _mm_maskstore_ps((mem), _mm_castsi256_pd(_mm_set_epi32(0, -1, -1, -1)), (x))
 #else
@@ -206,7 +208,7 @@ gmx_hack_simd_transpose_to_simd4_r(gmx_simd_float_t   row0,
 
 #endif /* AVX */
 
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
 /*! \brief Store differences between indexed rvecs in SIMD registers.
  *
  * Returns SIMD register with the difference vectors:
@@ -227,7 +229,7 @@ gmx_hack_simd_gather_rvec_dist_pair_index(const rvec      *v,
                                           gmx_simd_real_t *dy,
                                           gmx_simd_real_t *dz)
 {
-#if defined(GMX_SIMD_X86_AVX_256) || defined(GMX_SIMD_X86_AVX2_256)
+#if GMX_SIMD_X86_AVX_256 || GMX_SIMD_X86_AVX2_256
     int              i;
     gmx_simd4_real_t d[GMX_SIMD_REAL_WIDTH];
     gmx_simd_real_t  tmp;
@@ -279,7 +281,7 @@ gmx_simd_store_vec_to_rvec(gmx_simd_real_t  x,
                            real gmx_unused *buf,
                            rvec            *v)
 {
-#if defined(GMX_SIMD_X86_AVX_256) || defined(GMX_SIMD_X86_AVX2_256)
+#if GMX_SIMD_X86_AVX_256 || GMX_SIMD_X86_AVX2_256
     int              i;
     gmx_simd4_real_t s4[GMX_SIMD_REAL_WIDTH];
     gmx_simd_real_t  zero = gmx_simd_setzero_r();
@@ -1458,8 +1460,12 @@ void set_lincs_matrix(struct gmx_lincsdata *li, real *invmass, real lambda)
 #pragma omp parallel for reduction(+: ntriangle, ncc_triangle) num_threads(li->ntask) schedule(static)
     for (th = 0; th < li->ntask; th++)
     {
-        set_lincs_matrix_task(li, &li->task[th], invmass, &ncc_triangle);
-        ntriangle = li->task[th].ntriangle;
+        try
+        {
+            set_lincs_matrix_task(li, &li->task[th], invmass, &ncc_triangle);
+            ntriangle = li->task[th].ntriangle;
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
     li->ntriangle    = ntriangle;
     li->ncc_triangle = ncc_triangle;
@@ -1674,9 +1680,13 @@ gmx_lincsdata_t init_lincs(FILE *fplog, const gmx_mtop_t *mtop,
 #pragma omp parallel for num_threads(li->ntask)
     for (th = 0; th < li->ntask; th++)
     {
-        /* Per thread SIMD load buffer for loading 2 simd_width rvecs */
-        snew_aligned(li->task[th].simd_buf, 2*simd_width*DIM,
-                     align_bytes);
+        try
+        {
+            /* Per thread SIMD load buffer for loading 2 simd_width rvecs */
+            snew_aligned(li->task[th].simd_buf, 2*simd_width*DIM,
+                         align_bytes);
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 
     if (bPLINCS || li->ncg_triangle > 0)
@@ -1753,40 +1763,44 @@ static void lincs_thread_setup(struct gmx_lincsdata *li, int natoms)
 #pragma omp parallel for num_threads(li->ntask) schedule(static)
     for (th = 0; th < li->ntask; th++)
     {
-        lincs_task_t  *li_task;
-        gmx_bitmask_t  mask;
-        int            b;
-
-        li_task = &li->task[th];
-
-        if (li_task->b1 - li_task->b0 > li_task->ind_nalloc)
+        try
         {
-            li_task->ind_nalloc = over_alloc_large(li_task->b1-li_task->b0);
-            srenew(li_task->ind, li_task->ind_nalloc);
-            srenew(li_task->ind_r, li_task->ind_nalloc);
-        }
+            lincs_task_t  *li_task;
+            gmx_bitmask_t  mask;
+            int            b;
 
-        bitmask_init_low_bits(&mask, th);
+            li_task = &li->task[th];
 
-        li_task->nind   = 0;
-        li_task->nind_r = 0;
-        for (b = li_task->b0; b < li_task->b1; b++)
-        {
-            /* We let the constraint with the lowest thread index
-             * operate on atoms with constraints from multiple threads.
-             */
-            if (bitmask_is_disjoint(atf[li->bla[b*2]], mask) &&
-                bitmask_is_disjoint(atf[li->bla[b*2+1]], mask))
+            if (li_task->b1 - li_task->b0 > li_task->ind_nalloc)
             {
-                /* Add the constraint to the local atom update index */
-                li_task->ind[li_task->nind++] = b;
+                li_task->ind_nalloc = over_alloc_large(li_task->b1-li_task->b0);
+                srenew(li_task->ind, li_task->ind_nalloc);
+                srenew(li_task->ind_r, li_task->ind_nalloc);
             }
-            else
+
+            bitmask_init_low_bits(&mask, th);
+
+            li_task->nind   = 0;
+            li_task->nind_r = 0;
+            for (b = li_task->b0; b < li_task->b1; b++)
             {
-                /* Add the constraint to the rest block */
-                li_task->ind_r[li_task->nind_r++] = b;
+                /* We let the constraint with the lowest thread index
+                 * operate on atoms with constraints from multiple threads.
+                 */
+                if (bitmask_is_disjoint(atf[li->bla[b*2]], mask) &&
+                    bitmask_is_disjoint(atf[li->bla[b*2+1]], mask))
+                {
+                    /* Add the constraint to the local atom update index */
+                    li_task->ind[li_task->nind++] = b;
+                }
+                else
+                {
+                    /* Add the constraint to the rest block */
+                    li_task->ind_r[li_task->nind_r++] = b;
+                }
             }
         }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 
     /* We need to copy all constraints which have not be assigned
@@ -2309,20 +2323,24 @@ void set_lincs(const t_idef         *idef,
 #pragma omp parallel for num_threads(li->ntask) schedule(static)
     for (th = 0; th < li->ntask; th++)
     {
-        lincs_task_t *li_task;
-
-        li_task = &li->task[th];
-
-        if (li->ncg_triangle > 0 &&
-            li_task->b1 - li_task->b0 > li_task->tri_alloc)
+        try
         {
-            /* This is allocating too much, but it is difficult to improve */
-            li_task->tri_alloc = over_alloc_dd(li_task->b1 - li_task->b0);
-            srenew(li_task->triangle, li_task->tri_alloc);
-            srenew(li_task->tri_bits, li_task->tri_alloc);
-        }
+            lincs_task_t *li_task;
 
-        set_matrix_indices(li, li_task, &at2con, bSortMatrix);
+            li_task = &li->task[th];
+
+            if (li->ncg_triangle > 0 &&
+                li_task->b1 - li_task->b0 > li_task->tri_alloc)
+            {
+                /* This is allocating too much, but it is difficult to improve */
+                li_task->tri_alloc = over_alloc_dd(li_task->b1 - li_task->b0);
+                srenew(li_task->triangle, li_task->tri_alloc);
+                srenew(li_task->tri_bits, li_task->tri_alloc);
+            }
+
+            set_matrix_indices(li, li_task, &at2con, bSortMatrix);
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 
     done_blocka(&at2con);
@@ -2420,7 +2438,7 @@ static void lincs_warning(FILE *fplog,
             {
                 fprintf(fplog, "%s", buf);
             }
-            if (!gmx_isfinite(d1))
+            if (!std::isfinite(d1))
             {
                 gmx_fatal(FARGS, "Bond length not finite.");
             }
@@ -2604,16 +2622,20 @@ gmx_bool constrain_lincs(FILE *fplog, gmx_bool bLog, gmx_bool bEner,
         /* The OpenMP parallel region of constrain_lincs for coords */
 #pragma omp parallel num_threads(lincsd->ntask)
         {
-            int th = gmx_omp_get_thread_num();
+            try
+            {
+                int th = gmx_omp_get_thread_num();
 
-            clear_mat(lincsd->task[th].vir_r_m_dr);
+                clear_mat(lincsd->task[th].vir_r_m_dr);
 
-            do_lincs(x, xprime, box, pbc, lincsd, th,
-                     md->invmass, cr,
-                     bCalcDHDL,
-                     ir->LincsWarnAngle, &bWarn,
-                     invdt, v, bCalcVir,
-                     th == 0 ? vir_r_m_dr : lincsd->task[th].vir_r_m_dr);
+                do_lincs(x, xprime, box, pbc, lincsd, th,
+                         md->invmass, cr,
+                         bCalcDHDL,
+                         ir->LincsWarnAngle, &bWarn,
+                         invdt, v, bCalcVir,
+                         th == 0 ? vir_r_m_dr : lincsd->task[th].vir_r_m_dr);
+            }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
 
         if (bLog && fplog && lincsd->nc > 0)
@@ -2705,11 +2727,15 @@ gmx_bool constrain_lincs(FILE *fplog, gmx_bool bLog, gmx_bool bEner,
         /* The OpenMP parallel region of constrain_lincs for derivatives */
 #pragma omp parallel num_threads(lincsd->ntask)
         {
-            int th = gmx_omp_get_thread_num();
+            try
+            {
+                int th = gmx_omp_get_thread_num();
 
-            do_lincsp(x, xprime, min_proj, pbc, lincsd, th,
-                      md->invmass, econq, bCalcDHDL,
-                      bCalcVir, th == 0 ? vir_r_m_dr : lincsd->task[th].vir_r_m_dr);
+                do_lincsp(x, xprime, min_proj, pbc, lincsd, th,
+                          md->invmass, econq, bCalcDHDL,
+                          bCalcVir, th == 0 ? vir_r_m_dr : lincsd->task[th].vir_r_m_dr);
+            }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
     }
 

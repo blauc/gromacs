@@ -58,24 +58,19 @@
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/mtxio.h"
-#include "gromacs/fileio/trajectory_writing.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/imd/imd.h"
 #include "gromacs/legacyheaders/force.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
-#include "gromacs/legacyheaders/mdebin.h"
-#include "gromacs/legacyheaders/mdrun.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/ns.h"
-#include "gromacs/legacyheaders/sim_util.h"
-#include "gromacs/legacyheaders/tgroup.h"
 #include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/update.h"
 #include "gromacs/legacyheaders/vsite.h"
 #include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/legacyheaders/types/inputrec.h"
 #include "gromacs/linearalgebra/sparsematrix.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/vec.h"
@@ -83,12 +78,19 @@
 #include "gromacs/mdlib/forcerec.h"
 #include "gromacs/mdlib/md_support.h"
 #include "gromacs/mdlib/mdatoms.h"
+#include "gromacs/mdlib/mdebin.h"
+#include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdlib/tgroup.h"
+#include "gromacs/mdlib/trajectory_writing.h"
+#include "gromacs/mdlib/update.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -633,21 +635,25 @@ static void do_em_step(t_commrec *cr, t_inputrec *ir, t_mdatoms *md,
 #pragma omp for schedule(static) nowait
         for (i = start; i < end; i++)
         {
-            if (md->cFREEZE)
+            try
             {
-                gf = md->cFREEZE[i];
-            }
-            for (m = 0; m < DIM; m++)
-            {
-                if (ir->opts.nFreeze[gf][m])
+                if (md->cFREEZE)
                 {
-                    x2[i][m] = x1[i][m];
+                    gf = md->cFREEZE[i];
                 }
-                else
+                for (m = 0; m < DIM; m++)
                 {
-                    x2[i][m] = x1[i][m] + a*f[i][m];
+                    if (ir->opts.nFreeze[gf][m])
+                    {
+                        x2[i][m] = x1[i][m];
+                    }
+                    else
+                    {
+                        x2[i][m] = x1[i][m] + a*f[i][m];
+                    }
                 }
             }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
 
         if (s2->flags & (1<<estCGP))
@@ -658,6 +664,7 @@ static void do_em_step(t_commrec *cr, t_inputrec *ir, t_mdatoms *md,
 #pragma omp for schedule(static) nowait
             for (i = start; i < end; i++)
             {
+                // Trivial OpenMP block that does not throw
                 copy_rvec(x1[i], x2[i]);
             }
         }
@@ -669,7 +676,11 @@ static void do_em_step(t_commrec *cr, t_inputrec *ir, t_mdatoms *md,
             {
 #pragma omp barrier
                 s2->cg_gl_nalloc = s1->cg_gl_nalloc;
-                srenew(s2->cg_gl, s2->cg_gl_nalloc);
+                try
+                {
+                    srenew(s2->cg_gl, s2->cg_gl_nalloc);
+                }
+                GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 #pragma omp barrier
             }
             s2->ncg_gl = s1->ncg_gl;
@@ -975,7 +986,7 @@ namespace gmx
 /*! \brief Do conjugate gradients minimization
     \copydoc integrator_t(FILE *fplog, t_commrec *cr,
                           int nfile, const t_filenm fnm[],
-                          const output_env_t oenv, gmx_bool bVerbose,
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
                           gmx_bool bCompact, int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
@@ -995,7 +1006,7 @@ namespace gmx
  */
 double do_cg(FILE *fplog, t_commrec *cr,
              int nfile, const t_filenm fnm[],
-             const output_env_t gmx_unused oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
+             const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
              int gmx_unused nstglobalcomm,
              gmx_vsite_t *vsite, gmx_constr_t constr,
              int gmx_unused stepout,
@@ -1083,7 +1094,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
                    mdatoms->tmass, enerd, &s_min->s, inputrec->fepvals, inputrec->expandedvals, s_min->s.box,
                    NULL, NULL, vir, pres, NULL, mu_tot, constr);
 
-        print_ebin_header(fplog, step, step, s_min->s.lambda[efptFEP]);
+        print_ebin_header(fplog, step, step);
         print_ebin(mdoutf_get_fp_ene(outf), TRUE, FALSE, FALSE, fplog, step, step, eprNORMAL,
                    TRUE, mdebin, fcd, &(top_global->groups), &(inputrec->opts));
     }
@@ -1520,7 +1531,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
 
             if (do_log)
             {
-                print_ebin_header(fplog, step, step, s_min->s.lambda[efptFEP]);
+                print_ebin_header(fplog, step, step);
             }
             print_ebin(mdoutf_get_fp_ene(outf), do_ene, FALSE, FALSE,
                        do_log ? fplog : NULL, step, step, eprNORMAL,
@@ -1566,7 +1577,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
         if (!do_log)
         {
             /* Write final value to log since we didn't do anything the last step */
-            print_ebin_header(fplog, step, step, s_min->s.lambda[efptFEP]);
+            print_ebin_header(fplog, step, step);
         }
         if (!do_ene || !do_log)
         {
@@ -1622,7 +1633,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
 /*! \brief Do L-BFGS conjugate gradients minimization
     \copydoc integrator_t(FILE *fplog, t_commrec *cr,
                           int nfile, const t_filenm fnm[],
-                          const output_env_t oenv, gmx_bool bVerbose,
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
                           gmx_bool bCompact, int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
@@ -1642,7 +1653,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
  */
 double do_lbfgs(FILE *fplog, t_commrec *cr,
                 int nfile, const t_filenm fnm[],
-                const output_env_t gmx_unused oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
+                const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
                 int gmx_unused nstglobalcomm,
                 gmx_vsite_t *vsite, gmx_constr_t constr,
                 int gmx_unused stepout,
@@ -1809,7 +1820,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
                    mdatoms->tmass, enerd, state_global, inputrec->fepvals, inputrec->expandedvals, state_global->box,
                    NULL, NULL, vir, pres, NULL, mu_tot, constr);
 
-        print_ebin_header(fplog, step, step, state_global->lambda[efptFEP]);
+        print_ebin_header(fplog, step, step);
         print_ebin(mdoutf_get_fp_ene(outf), TRUE, FALSE, FALSE, fplog, step, step, eprNORMAL,
                    TRUE, mdebin, fcd, &(top_global->groups), &(inputrec->opts));
     }
@@ -2355,7 +2366,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
             do_ene = do_per_step(step, inputrec->nstenergy);
             if (do_log)
             {
-                print_ebin_header(fplog, step, step, state_global->lambda[efptFEP]);
+                print_ebin_header(fplog, step, step);
             }
             print_ebin(mdoutf_get_fp_ene(outf), do_ene, FALSE, FALSE,
                        do_log ? fplog : NULL, step, step, eprNORMAL,
@@ -2401,7 +2412,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
      */
     if (!do_log) /* Write final value to log since we didn't do anythin last step */
     {
-        print_ebin_header(fplog, step, step, state_global->lambda[efptFEP]);
+        print_ebin_header(fplog, step, step);
     }
     if (!do_ene || !do_log) /* Write final energy file entries */
     {
@@ -2451,7 +2462,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
 /*! \brief Do steepest descents minimization
     \copydoc integrator_t(FILE *fplog, t_commrec *cr,
                           int nfile, const t_filenm fnm[],
-                          const output_env_t oenv, gmx_bool bVerbose,
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
                           gmx_bool bCompact, int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
@@ -2471,7 +2482,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
  */
 double do_steep(FILE *fplog, t_commrec *cr,
                 int nfile, const t_filenm fnm[],
-                const output_env_t gmx_unused oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
+                const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
                 int gmx_unused nstglobalcomm,
                 gmx_vsite_t *vsite, gmx_constr_t constr,
                 int gmx_unused stepout,
@@ -2568,7 +2579,7 @@ double do_steep(FILE *fplog, t_commrec *cr,
 
         if (MASTER(cr))
         {
-            print_ebin_header(fplog, count, count, s_try->s.lambda[efptFEP]);
+            print_ebin_header(fplog, count, count);
         }
 
         if (count == 0)
@@ -2710,7 +2721,7 @@ double do_steep(FILE *fplog, t_commrec *cr,
 /*! \brief Do normal modes analysis
     \copydoc integrator_t(FILE *fplog, t_commrec *cr,
                           int nfile, const t_filenm fnm[],
-                          const output_env_t oenv, gmx_bool bVerbose,
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
                           gmx_bool bCompact, int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
@@ -2730,7 +2741,7 @@ double do_steep(FILE *fplog, t_commrec *cr,
  */
 double do_nm(FILE *fplog, t_commrec *cr,
              int nfile, const t_filenm fnm[],
-             const output_env_t gmx_unused oenv, gmx_bool bVerbose, gmx_bool gmx_unused  bCompact,
+             const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose, gmx_bool gmx_unused  bCompact,
              int gmx_unused nstglobalcomm,
              gmx_vsite_t *vsite, gmx_constr_t constr,
              int gmx_unused stepout,
