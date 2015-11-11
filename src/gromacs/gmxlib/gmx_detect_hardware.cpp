@@ -58,19 +58,20 @@
 
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/gmx_cpuid.h"
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/legacyheaders/types/hw_info.h"
 #include "gromacs/utility/arrayref.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/sysinfo.h"
@@ -304,12 +305,14 @@ check_use_of_rdtscp_on_this_cpu(FILE                *fplog,
 
     bCpuHasRdtscp = gmx_cpuid_feature(hwinfo->cpuid_info, GMX_CPUID_FEATURE_X86_RDTSCP);
 
+    const char *programName = gmx::getProgramContext().displayName();
+
     if (!bCpuHasRdtscp && bBinaryUsesRdtscp)
     {
         gmx_fatal(FARGS, "The %s executable was compiled to use the rdtscp CPU instruction. "
                   "However, this is not supported by the current hardware and continuing would lead to a crash. "
                   "Please rebuild GROMACS with the GMX_USE_RDTSCP=OFF CMake option.",
-                  ShortProgram());
+                  programName);
     }
 
     if (bCpuHasRdtscp && !bBinaryUsesRdtscp)
@@ -318,7 +321,7 @@ check_use_of_rdtscp_on_this_cpu(FILE                *fplog,
                       "%s was configured to use. This might affect your simulation\n"
                       "speed as accurate timings are needed for load-balancing.\n"
                       "Please consider rebuilding %s with the GMX_USE_RDTSCP=ON CMake option.\n",
-                      ShortProgram(), ShortProgram());
+                      programName, programName);
     }
 }
 
@@ -422,6 +425,8 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
         sprintf(gpu_comp_plural, "%s", (ngpu_comp > 1) ? "s" : "");
         sprintf(gpu_use_plural,  "%s", (ngpu_use > 1) ? "s" : "");
 
+        const char *programName = gmx::getProgramContext().displayName();
+
         /* number of tMPI threads auto-adjusted */
         if (btMPI && bNthreadsAuto)
         {
@@ -434,7 +439,7 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
                           "%s requires one PP tread-MPI thread per GPU; use fewer GPUs.",
                           ngpu_use, gpu_use_plural,
                           npppn, th_or_proc_plural,
-                          ShortProgram());
+                          programName);
             }
 
             if (!hw_opt->gpu_opt.bUserSet && npppn < ngpu_comp)
@@ -446,7 +451,7 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
                               "      %s can use one GPU per PP tread-MPI thread, so only %d GPU%s will be used.\n",
                               ngpu_comp, gpu_comp_plural,
                               npppn, th_or_proc_plural,
-                              ShortProgram(), npppn,
+                              programName, npppn,
                               npppn > 1 ? "s" : "");
             }
         }
@@ -459,7 +464,7 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
                           "Incorrect launch configuration: mismatching number of PP %s%s and GPUs%s.\n"
                           "%s was started with %d PP %s%s%s, but you provided %d GPU%s.",
                           th_or_proc, btMPI ? "s" : "es", pernode,
-                          ShortProgram(), npppn, th_or_proc,
+                          programName, npppn, th_or_proc,
                           th_or_proc_plural, pernode,
                           ngpu_use, gpu_use_plural);
             }
@@ -473,7 +478,7 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
                               "NOTE: potentially sub-optimal launch configuration, %s started with less\n"
                               "      PP %s%s%s than GPU%s available.\n"
                               "      Each PP %s can use only one GPU, %d GPU%s%s will be used.\n",
-                              ShortProgram(), th_or_proc,
+                              programName, th_or_proc,
                               th_or_proc_plural, pernode, gpu_comp_plural,
                               th_or_proc, npppn, gpu_use_plural, pernode);
             }
@@ -504,7 +509,7 @@ void gmx_check_hw_runconf_consistency(FILE                *fplog,
                               "Incorrect launch configuration: mismatching number of PP %s%s and GPUs%s.\n"
                               "%s was started with %d PP %s%s%s, but only %d GPU%s %s.",
                               th_or_proc, btMPI ? "s" : "es", pernode,
-                              ShortProgram(), npppn, th_or_proc,
+                              programName, npppn, th_or_proc,
                               th_or_proc_plural, pernode,
                               ngpu_use, gpu_use_plural, reasonForLimit.c_str());
                 }
@@ -1158,7 +1163,8 @@ void gmx_parse_gpu_ids(gmx_gpu_opt_t *gpu_opt)
 
     if (gpu_opt->gpu_id != NULL && !bGPUBinary)
     {
-        gmx_fatal(FARGS, "GPU ID string set, but %s was compiled without GPU support!", ShortProgram());
+        gmx_fatal(FARGS, "GPU ID string set, but %s was compiled without GPU support!",
+                  gmx::getProgramContext().displayName());
     }
 
     env = getenv("GMX_GPU_ID");
@@ -1210,7 +1216,8 @@ void gmx_select_gpu_ids(FILE *fplog, const t_commrec *cr,
      * explicitly (-nb gpu) or implicitly (gpu ID passed) requested. */
     if (bForceUseGPU && !bGPUBinary)
     {
-        gmx_fatal(FARGS, "GPU acceleration requested, but %s was compiled without GPU support!", ShortProgram());
+        gmx_fatal(FARGS, "GPU acceleration requested, but %s was compiled without GPU support!",
+                  gmx::getProgramContext().displayName());
     }
 
     if (!(cr->duty & DUTY_PP))

@@ -47,8 +47,8 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
@@ -387,8 +387,9 @@ static const int simd_width = GMX_SIMD_REAL_WIDTH;
 #else
 static const int simd_width = 1;
 #endif
-/* We can't use small memory alignments on many systems, so use min 64 bytes*/
-static const int align_bytes = std::max<int>(64, simd_width*sizeof(real));
+/* Align to 128 bytes, consistent with the current implementation of
+   AlignedAllocator, which currently forces 128 byte alignment. */
+static const int align_bytes = 128;
 
 real *lincs_rmsd_data(struct gmx_lincsdata *lincsd)
 {

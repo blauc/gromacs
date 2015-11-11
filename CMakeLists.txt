@@ -461,7 +461,7 @@ mark_as_advanced(GMX_EXTRAE)
 if (GMX_EXTRAE)
   find_package(EXTRAE)
   if(EXTRAE_FOUND)
-    include_directories(${EXTRAE_INCLUDE_DIR})
+    include_directories(SYSTEM ${EXTRAE_INCLUDE_DIR})
     set(HAVE_EXTRAE 1)
   else()
     message(FATAL_ERROR "EXTRAE library was not found. Please add the correct path to CMAKE_PREFIX_PATH")
@@ -478,7 +478,7 @@ if (GMX_X11)
                 "Set GMX_X11=OFF to compile without X11 support. "
                 "gmx view will not be available.")
     endif()
-    include_directories(${X11_INCLUDE_DIR})
+    include_directories(SYSTEM ${X11_INCLUDE_DIR})
 endif()
 
 include(ThreadMPI)
@@ -519,40 +519,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") #Work-around for cmake bug #10837
     if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Intel" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "-isystem ")
     endif()
-endif()
-
-# Detect boost unless GMX_EXTERNAL_BOOST is explicitly OFF
-# Used for default if GMX_EXTERNAL_BOOST is not defined (first CMake pass)
-if(NOT DEFINED GMX_EXTERNAL_BOOST OR GMX_EXTERNAL_BOOST)
-    if(DEFINED Boost_INCLUDE_DIR)
-        set(Boost_FIND_QUIETLY TRUE)
-    endif()
-    find_package(Boost 1.44.0)
-    if(Boost_FOUND AND Boost_VERSION VERSION_LESS "104400")
-        set(Boost_FOUND FALSE)
-        set(Boost_Reason "Boost >= 1.44 not found.")
-    endif()
-    # clang with some older versions of boost fail to work with C++11
-    if(CMAKE_CXX_COMPILER_ID MATCHES Clang AND
-        (Boost_VERSION VERSION_EQUAL 104601 OR Boost_VERSION VERSION_EQUAL 104700))
-        set(Boost_FOUND FALSE)
-        set(Boost_Reason "Boost 1.46.1 and 1.47.0 do not work with Clang.")
-    endif()
-    # Print the notification only on first run, when determining the default
-    if(NOT DEFINED GMX_EXTERNAL_BOOST AND NOT Boost_FOUND)
-        message("${Boost_Reason} Using minimal internal version. "
-                "This may cause trouble if you plan on compiling/linking other "
-                "software that uses Boost against GROMACS.")
-    endif()
-endif()
-
-option(GMX_EXTERNAL_BOOST "Use external Boost instead of minimal built-in version"
-       ${Boost_FOUND})
-if(GMX_EXTERNAL_BOOST AND NOT Boost_FOUND)
-    message(FATAL_ERROR
-        "Boost >= 1.44 not found. "
-        "You can set GMX_EXTERNAL_BOOST=OFF to compile against minimal "
-        "version of Boost included with GROMACS.")
 endif()
 
 if(NOT DEFINED GMX_BUILD_UNITTESTS AND NOT HAVE_LIBXML2)
@@ -841,30 +807,13 @@ endif()
 #Simpler to always install.
 install(FILES COPYING DESTINATION ${DATA_INSTALL_DIR} COMPONENT data)
 
-if(GMX_EXTERNAL_BOOST)
-    include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-    list(APPEND INSTALLED_HEADER_INCLUDE_DIRS ${Boost_INCLUDE_DIRS})
-else()
-    include_directories(BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/src/external/boost)
-    list(APPEND INSTALLED_HEADER_INCLUDE_DIRS ${INCL_INSTALL_DIR}/gromacs/external/boost)
-    list(APPEND INSTALLED_HEADED_DEFINITIONS "-DBOOST_NO_TYPEID")
-    # typeid not supported for minimal internal version
-    # (would add significant amount of code)
-    add_definitions(-DBOOST_NO_TYPEID)
-    if (NOT GMX_BUILD_MDRUN_ONLY)
-        install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/external/boost/boost
-                DESTINATION ${INCL_INSTALL_DIR}/gromacs/external/boost
-                COMPONENT development)
-    endif()
-endif()
-
 if (GMX_BUILD_FOR_COVERAGE)
     # Code heavy with asserts makes conditional coverage close to useless metric,
     # as by design most of the false branches are impossible to trigger in
     # correctly functioning code.  And the benefit of testing those that could
     # be triggered by using an API against its specification isn't usually
     # worth the effort.
-    add_definitions(-DNDEBUG -DBOOST_DISABLE_ASSERTS -DGMX_DISABLE_ASSERTS)
+    add_definitions(-DNDEBUG -DGMX_DISABLE_ASSERTS)
 endif()
 
 if (BUILD_TESTING)

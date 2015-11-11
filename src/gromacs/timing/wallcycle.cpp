@@ -422,6 +422,11 @@ static void subtract_cycles(wallcc_t *wcc, int ewc_main, int ewc_sub)
 
 void wallcycle_scale_by_num_threads(gmx_wallcycle_t wc, bool isPmeRank, int nthreads_pp, int nthreads_pme)
 {
+    if (wc == NULL)
+    {
+        return;
+    }
+
     for (int i = 0; i < ewcNR; i++)
     {
         if (is_pme_counter(i) || (i == ewcRUN && isPmeRank))
@@ -483,6 +488,10 @@ WallcycleCounts wallcycle_sum(t_commrec *cr, gmx_wallcycle_t wc)
 
     if (wc == NULL)
     {
+        /* Default construction of std::array of non-class T can leave
+           the values indeterminate, just like a C array, and icc
+           warns about it. */
+        cycles_sum.fill(0);
         return cycles_sum;
     }
 

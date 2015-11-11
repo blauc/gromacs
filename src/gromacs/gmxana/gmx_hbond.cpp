@@ -63,12 +63,14 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/index.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
 
@@ -950,7 +952,7 @@ static void build_grid(t_hbdata *hb, rvec x[], rvec xshell,
             {
                 gmx_fatal(FARGS, "Your computational box has shrunk too much.\n"
                           "%s can not handle this situation, sorry.\n",
-                          ShortProgram());
+                          gmx::getProgramContext().displayName());
             }
         }
         else

@@ -38,14 +38,8 @@
 
 #include "gromacs/legacyheaders/names.h"
 
-#include "gromacs/legacyheaders/typedefs.h"
 
 /* note: these arrays should correspond to enums in include/types/enums.h */
-
-const char *epbc_names[epbcNR+1] =
-{
-    "xyz", "no", "xy", "screw", NULL
-};
 
 const char *ens_names[ensNR+1] =
 {

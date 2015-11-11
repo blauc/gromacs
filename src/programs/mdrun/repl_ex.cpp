@@ -69,23 +69,23 @@ const char *erename[ereNR] = { "temperature", "lambda", "end_single_marker", "te
 
 typedef struct gmx_repl_ex
 {
-    int       repl;
-    int       nrepl;
-    real      temp;
-    int       type;
-    real    **q;
-    gmx_bool  bNPT;
-    real     *pres;
-    int      *ind;
-    int      *allswaps;
-    int       nst;
-    int       nex;
-    int       seed;
-    int       nattempt[2];
-    real     *prob_sum;
-    int     **nmoves;
-    int      *nexchange;
-    gmx_rng_t rng;
+    int       repl;        /* replica ID */
+    int       nrepl;       /* total number of replica */
+    real      temp;        /* temperature */
+    int       type;        /* replica exchange type from ere enum */
+    real    **q;           /* quantity, e.g. temperature or lambda; first index is ere, second index is replica ID */
+    gmx_bool  bNPT;        /* use constant pressure and temperature */
+    real     *pres;        /* replica pressures */
+    int      *ind;         /* replica indices */
+    int      *allswaps;    /* used for keeping track of all the replica swaps */
+    int       nst;         /* replica exchange interval (number of steps) */
+    int       nex;         /* number of exchanges per interval */
+    int       seed;        /* random seed */
+    int       nattempt[2]; /* number of even and odd replica change attempts */
+    real     *prob_sum;    /* sum of probabilities */
+    int     **nmoves;      /* number of moves between replicas i and j */
+    int      *nexchange;   /* i-th element of the array is the number of exchanges between replica i-1 and i */
+    gmx_rng_t rng;         /* random number generator */
 
     /* these are helper arrays for replica exchange; allocated here so they
        don't have to be allocated each time */
@@ -393,7 +393,7 @@ gmx_repl_ex_t init_replica_exchange(FILE *fplog,
     {
         snew(re->nmoves[i], re->nrepl);
     }
-    fprintf(fplog, "Replica exchange information below: x=exchange, pr=probability\n");
+    fprintf(fplog, "Replica exchange information below: ex and x = exchange, pr = probability\n");
 
     /* generate space for the helper functions so we don't have to snew each time */
 
@@ -1204,8 +1204,7 @@ cyclic_decomposition(const int *destinations,
 }
 
 static void
-compute_exchange_order(FILE     *fplog,
-                       int     **cyclic,
+compute_exchange_order(int     **cyclic,
                        int     **order,
                        const int nrepl,
                        const int maxswap)
@@ -1233,10 +1232,10 @@ compute_exchange_order(FILE     *fplog,
 
     if (debug)
     {
-        fprintf(fplog, "Replica Exchange Order\n");
+        fprintf(debug, "Replica Exchange Order\n");
         for (i = 0; i < nrepl; i++)
         {
-            fprintf(fplog, "Replica %d:", i);
+            fprintf(debug, "Replica %d:", i);
             for (j = 0; j < maxswap; j++)
             {
                 if (order[i][j] < 0)
@@ -1245,15 +1244,14 @@ compute_exchange_order(FILE     *fplog,
                 }
                 fprintf(debug, "%2d", order[i][j]);
             }
-            fprintf(fplog, "\n");
+            fprintf(debug, "\n");
         }
-        fflush(fplog);
+        fflush(debug);
     }
 }
 
 static void
-prepare_to_do_exchange(FILE               *fplog,
-                       struct gmx_repl_ex *re,
+prepare_to_do_exchange(struct gmx_repl_ex *re,
                        const int           replica_id,
                        int                *maxswap,
                        gmx_bool           *bThisReplicaExchanged)
@@ -1291,7 +1289,7 @@ prepare_to_do_exchange(FILE               *fplog,
 
         /* Now translate the decomposition into a replica exchange
          * order at each step. */
-        compute_exchange_order(fplog, re->cyclic, re->order, re->nrepl, *maxswap);
+        compute_exchange_order(re->cyclic, re->order, re->nrepl, *maxswap);
 
         /* Did this replica do any exchange at any point? */
         for (j = 0; j < *maxswap; j++)
@@ -1323,7 +1321,7 @@ gmx_bool replica_exchange(FILE *fplog, const t_commrec *cr, struct gmx_repl_ex *
     {
         replica_id  = re->repl;
         test_for_replica_exchange(fplog, cr->ms, re, enerd, det(state_local->box), step, time);
-        prepare_to_do_exchange(fplog, re, replica_id, &maxswap, &bThisReplicaExchanged);
+        prepare_to_do_exchange(re, replica_id, &maxswap, &bThisReplicaExchanged);
     }
     /* Do intra-simulation broadcast so all processors belonging to
      * each simulation know whether they need to participate in

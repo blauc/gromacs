@@ -37,7 +37,7 @@
 /* This file is completely threadsafe - keep it that way! */
 #include "gmxpre.h"
 
-#include "gromacs/legacyheaders/nsgrid.h"
+#include "nsgrid.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +49,6 @@
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"

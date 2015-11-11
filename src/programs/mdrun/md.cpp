@@ -53,16 +53,11 @@
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/gmxlib/energyhistory.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/sighandler.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/force.h"
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/ns.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/vsite.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
@@ -81,6 +76,7 @@
 #include "gromacs/mdlib/compute_io.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/ebin.h"
+#include "gromacs/mdlib/force.h"
 #include "gromacs/mdlib/forcerec.h"
 #include "gromacs/mdlib/md_support.h"
 #include "gromacs/mdlib/mdatoms.h"
@@ -90,12 +86,17 @@
 #include "gromacs/mdlib/mdrun_signalling.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
+#include "gromacs/mdlib/ns.h"
 #include "gromacs/mdlib/shellfc.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdlib/tgroup.h"
 #include "gromacs/mdlib/trajectory_writing.h"
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vcm.h"
+#include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/df_history.h"
+#include "gromacs/mdtypes/energyhistory.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
@@ -551,6 +552,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             {
                 gmx_fatal(FARGS, "nstexpanded should be divisible by nstcalclr");
             }
+            nstfep = gmx_greatest_common_divisor(ir->expandedvals->nstexpanded, nstfep);
         }
         if (repl_ex_nst > 0)
         {
@@ -1183,6 +1185,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                 | (bTemp ? CGLO_TEMPERATURE : 0)
                                 | (bPres ? CGLO_PRESSURE : 0)
                                 | (bPres ? CGLO_CONSTRAINT : 0)
+                                | (bStopCM ? CGLO_STOPCM : 0)
                                 | CGLO_SCALEEKIN
                                 );
                 /* explanation of above:
@@ -1777,7 +1780,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                  * until after load balancing completes,
                  * e.g. https://gerrit.gromacs.org/#/c/4964/2 */
                 gmx_fatal(FARGS, "PME tuning was still active when attempting to "
-                          "reset mdrun counters at step " GMX_PRId64 ". Try "
+                          "reset mdrun counters at step %" GMX_PRId64 ". Try "
                           "resetting counters later in the run, e.g. with gmx "
                           "mdrun -resetstep.", step);
             }

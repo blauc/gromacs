@@ -48,18 +48,19 @@
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/inputrec.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/boxutilities.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/arraysize.h"
+#include "gromacs/utility/baseversion.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -3195,7 +3196,7 @@ static void do_tpxheader(t_fileio *fio, gmx_bool bRead, t_tpxheader *tpx,
     }
     else
     {
-        gmx_fio_write_string(fio, GromacsVersion());
+        gmx_fio_write_string(fio, gmx_version());
         bDouble = (precision == sizeof(double));
         gmx_fio_setprecision(fio, bDouble);
         gmx_fio_do_int(fio, precision);
