@@ -65,7 +65,7 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/externalpotential/externalpotentialutil.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #define MAXPTR 254
 #define NOGID  255
@@ -2138,7 +2138,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     if (ir->bExternalPotential)
     {
         snew(ir->external_potential,1);
-        ExternalPotentialUtil external_potential_util;
+        ExternalPotentialManager external_potential_util;
         is->ext_pot = external_potential_util.set_external_potential(&ninp, &inp, ir->external_potential);
     }
 
@@ -3565,7 +3565,7 @@ void do_index(const char* mdparin, const char *ndx,
 
     if (ir->bExternalPotential)
     {
-        ExternalPotentialUtil external_potential_utils;
+        ExternalPotentialManager external_potential_utils;
         external_potential_utils.make_groups(ir->external_potential, is->ext_pot ,grps, gnames);
     }
 

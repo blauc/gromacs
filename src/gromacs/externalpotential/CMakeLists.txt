@@ -3,7 +3,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${EXTERNALPOTENTIALMODULE_SOURCES} 
 
 gmx_install_headers(
     externalpotential.h
-    externalpotentialutil.h
+    externalpotentialmanager.h
     externalpotentialregistration.h
     )
 

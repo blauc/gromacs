@@ -53,7 +53,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/cstringutil.h"
-#include "gromacs/externalpotential/externalpotentialutil.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #define   block_bc(cr,   d) gmx_bcast(     sizeof(d),     &(d), (cr))
 /* Probably the test for (nr) > 0 in the next macro is only needed
@@ -500,7 +500,7 @@ static void bc_pull_group(const t_commrec *cr, t_pull_group *pgrp)
 
 static void bc_externalpotential(const t_commrec *cr, t_ext_pot *pot)
 {
-    ExternalPotentialUtil external_potential_manager;
+    ExternalPotentialManager external_potential_manager;
     external_potential_manager.broadcast_inputrecord_data(cr, pot);
 }
 

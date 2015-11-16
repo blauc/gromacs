@@ -31,6 +31,7 @@ void Pulling::do_potential(
     gmx_int64_t     step,
     gmx_wallcycle_t wcycle,
     gmx_bool        bNS){
+
         (void) cr;
         (void) ir;
         (void) box;
@@ -39,19 +40,5 @@ void Pulling::do_potential(
         (void) step;
         (void) wcycle;
         (void) bNS;
-};
 
-void Pulling::add_forces(
-    rvec f[],
-    tensor vir,
-    t_commrec *cr,
-    gmx_int64_t step,
-    real t,
-    real *V_total){
-        (void) f;
-        (void) vir;
-        (void) cr;
-        (void) step;
-        (void) t;
-        (void) V_total;
-    };
+};

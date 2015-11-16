@@ -40,20 +40,5 @@ void DensityFitting::do_potential(
     (void) step;
     (void) wcycle;
     (void) bNS;
-};
 
-void DensityFitting::add_forces(
-        rvec        f[],
-        tensor      vir,
-        t_commrec  *cr,
-        gmx_int64_t step,
-        real        t,
-        real       *V_total)
-{
-    (void) f;
-    (void) vir;
-    (void) cr;
-    (void) step;
-    (void) t;
-    (void) V_total;
 };

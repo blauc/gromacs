@@ -1,36 +1,109 @@
 #include "externalpotential.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/network.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdlib/groupcoord.h"
-#include "gromacs/legacyheaders/types/inputrec.h"
+#include "gromacs/mdtypes/inputrec.h"
 
 #include <memory>
 
+/*! \brief
+ *  Read all generic data for experimental input modules on the master node
+ */
+class ExternalPotential::Impl
+{
+    public:
+        Impl(
+            struct ext_pot_ir * ep_ir,
+            t_commrec * cr,
+            t_inputrec * ir,
+            const gmx_mtop_t* mtop,
+            rvec x[],
+            matrix box,
+            FILE               *input_file,
+            FILE               *output_file,
+            FILE               *fplog,
+            gmx_bool            bVerbose,
+            const gmx_output_env_t *oenv,
+            unsigned long Flags
+);
+
+        real reduce_potential_virial(t_commrec * cr);
+        void dd_make_local_groups( gmx_domdec_t *dd);
+        rvec * x_assembled(gmx_int64_t step, t_commrec *cr, rvec *x, matrix box, int group_index);
+        bool do_this_step(int step);
+        void add_forces(rvec f[], real w);
+
+    private:
+        gmx_int64_t             nst_apply_; /**< every how many steps to apply */
+        real                    potential_; /**< the (local) contribution to the potential */
+        tensor                  virial_;
+
+        real                   *mpi_inbuf_;
+        real                   *mpi_outbuf_;
+
+        FILE                   *input_file_;
+        FILE                   *output_file_;
+        FILE                   *logfile_;
+
+        gmx_bool                bVerbose_; /**< -v flag from command line                      */
+        unsigned long           Flags_;
+        const gmx_output_env_t *oenv_;
+
+        class Group;
+        std::vector<std::unique_ptr<ExternalPotential::Impl::Group>> atom_groups_;
+};
+
+class ExternalPotential::Impl::Group
+{
+    public:
+        Group(t_inputrec * ir,t_commrec * cr,const gmx_mtop_t * mtop,size_t              nat,
+        int            *ind,
+        rvec               *x, matrix box);
+        void make_local_group_indices(gmx_domdec_t *dd);
+        void communicate_positions_all_to_all(t_commrec *cr, rvec *x, matrix box);
+        rvec * x_assembled(gmx_int64_t step, t_commrec *cr, rvec *x, matrix box);
+        void add_forces(rvec f[],real w);
+
+    private:
+        rvec         *x_assembled_;     /**< the atoms of the ind_ group, made whole, using x_assembled_old_ as reference*/
+        rvec         *x_assembled_old_; /**< the whole atoms from the ind group from the previous step as reference */
+        ivec         *x_shifts_;        /**< helper for making the molecule whole */
+        ivec         *extra_shifts_;    /**< helper variables to assemble a whole molecule,*/
+
+        int           num_atoms_;       /**< Number of atoms that are influenced by the external potential. */
+        int          *ind_;             /**< Global indices of the atoms.                */
+
+        int           num_atoms_loc_;   /**< Part of the atoms that are local; set by make_local_group_indices. */
+        int          *ind_loc_;         /**< Local indices of the external potential atoms; set by make_local_group_indices.*/
+        int           nalloc_loc_;      /**< keep memory allocated; set by make_local_group_indices.*/
+        rvec         *f_loc_;           /**< the forces from external potential on the local node */
+        real         *weight_loc_;      /**< Weights for the local indices */
+        int          *coll_ind_;        /**< the whole atom number array */
+        gmx_bool      bUpdateShifts_;   /**< perfom the coordinate shifts in neighboursearching steps */
+        gmx_int64_t   last_comm_step_;  /**< the last time, coordinates were communicated all to all */
+
+};
+
+
 void ExternalPotential::dd_make_local_groups( gmx_domdec_t *dd)
 {
-    data_->dd_make_local_groups(dd);
+    impl_->dd_make_local_groups(dd);
 };
 
 
 
-void ExternalPotentialData::dd_make_local_groups( gmx_domdec_t *dd)
+void ExternalPotential::Impl::dd_make_local_groups( gmx_domdec_t *dd)
 {
     for ( auto && grp : atom_groups_ ) {
         grp->make_local_group_indices(dd);
     }
 };
 
-real ExternalPotential::summed_potential(t_commrec *cr)
-{
-    return data_->summed_potential_on_ranks(cr);
-};
-
-
-rvec* ExternalPotentialData::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], matrix box, int group_index)
+rvec* ExternalPotential::Impl::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], matrix box, int group_index)
 {
     return atom_groups_[group_index]->x_assembled(step, cr, x, box);
 };
@@ -38,28 +111,29 @@ rvec* ExternalPotentialData::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x
 
 rvec* ExternalPotential::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], matrix box, int group_index)
 {
-    return data_->x_assembled(step, cr, x, box, group_index);
+    return impl_->x_assembled(step, cr, x, box, group_index);
 };
 
 std::string ExternalPotentialInfo::name(){return name_; };
 std::string ExternalPotentialInfo::shortDescription(){return shortDescription_; };
 
 
-ExternalPotentialGroup::ExternalPotentialGroup(
+ExternalPotential::Impl::Group::Group(
     t_inputrec * ir,
     t_commrec * cr,
     const gmx_mtop_t* mtop,
     size_t              nat,
-    atom_id            *ind,
+    int            *ind,
     rvec               x[],
 matrix box):
-     num_atoms_(nat),      ind_(ind)
+     num_atoms_(nat), ind_(ind)
 {
 
     /* To be able to make the density fitting molecule whole: */
     /* the whole molecule is stored as x_assembled_old and serves as first reference on what defines a whole molecule */
     rvec *x_pbc            = NULL;
     rvec *x_assembled_old_ = NULL;
+    snew(x_assembled_old_, num_atoms_);
 
     if (MASTER(cr))
     {
@@ -67,7 +141,7 @@ matrix box):
         snew(x_pbc, mtop->natoms); /* There ... */
         m_rveccopy(mtop->natoms, x, x_pbc);
         do_pbc_first_mtop(NULL, ir->ePBC, box, mtop, x_pbc);
-        for (atom_id i = 0; i < num_atoms_; i++)
+        for (int i = 0; i < num_atoms_; i++)
         {
             copy_rvec(x_pbc[ind[i]], x_assembled_old_[i]);
         }
@@ -80,7 +154,7 @@ matrix box):
 
 };
 
-ExternalPotentialData::ExternalPotentialData(
+ExternalPotential::Impl::Impl(
     struct ext_pot_ir *ep_ir,
     t_commrec * cr,
     t_inputrec * ir,
@@ -104,15 +178,15 @@ ExternalPotentialData::ExternalPotentialData(
 {
     for (int i = 0; i < ep_ir->number_index_groups ; i++) {
         atom_groups_.push_back(
-            ExternalPotentialGroupPointer(
-                new ExternalPotentialGroup(ir, cr, mtop,ep_ir->nat[i],ep_ir->ind[i],x,box)
+            std::unique_ptr<ExternalPotential::Impl::Group>(
+                new ExternalPotential::Impl::Group(ir, cr, mtop,ep_ir->nat[i],ep_ir->ind[i],x,box)
             )
         );
-    }
+    };
 };
 
 
-void ExternalPotentialGroup::make_local_group_indices(gmx_domdec_t *dd)
+void ExternalPotential::Impl::Group::make_local_group_indices(gmx_domdec_t *dd)
 {
     dd_make_local_group_indices(dd->ga2la, num_atoms_, ind_,
                                 &num_atoms_loc_, &ind_loc_, &nalloc_loc_, coll_ind_);
@@ -123,7 +197,7 @@ void ExternalPotentialGroup::make_local_group_indices(gmx_domdec_t *dd)
 };
 
 
-rvec * ExternalPotentialGroup::x_assembled(gmx_int64_t step, t_commrec * cr, rvec * x, matrix box)
+rvec * ExternalPotential::Impl::Group::x_assembled(gmx_int64_t step, t_commrec * cr, rvec * x, matrix box)
 {
     if (step == last_comm_step_)
     {
@@ -136,8 +210,18 @@ rvec * ExternalPotentialGroup::x_assembled(gmx_int64_t step, t_commrec * cr, rve
     }
 };
 
+void ExternalPotential::Impl::Group::add_forces(rvec f[],real w)
+{
+        for (int l = 0; l < num_atoms_loc_; l++)
+        {
+            /* Get the right index of the local force, since typically not all local
+            * atoms are subject to density fitting forces */
+            /* Add to local force */
+            rvec_inc(f[ind_loc_[l]], f_loc_[l]);
+        }
+};
 
-void ExternalPotentialGroup::communicate_positions_all_to_all(
+void ExternalPotential::Impl::Group::communicate_positions_all_to_all(
     t_commrec  *cr,
     rvec       *x,
     matrix      box    )
@@ -146,8 +230,39 @@ void ExternalPotentialGroup::communicate_positions_all_to_all(
     bUpdateShifts_ = false;
 };
 
-double ExternalPotentialData::summed_potential_on_ranks(t_commrec * cr)
+void ExternalPotential::Impl::add_forces(rvec f[], real total_weight)
 {
-    gmx_sumd(1, &potential_, cr);
+    for ( auto && group : atom_groups_)
+    {
+        group->add_forces(f,total_weight);
+    }
+}
+
+real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
+{
+
+#ifdef GMX_MPI
+    MPI_Reduce(mpi_inbuf_, mpi_outbuf_, mpi_buf_size_, GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr), cr->mpi_comm_mygroup);
+#endif
     return potential_;
+};
+
+real ExternalPotential::potential()
+{
+    impl_->reduce_potential_virial(cr);
+
+}
+
+void ExternalPotential::add_forces( rvec f[], tensor vir, t_commrec *cr,
+    gmx_int64_t step, real t, real * V_total, real weight)
+{
+    if (impl_->do_this_step(step))
+    {
+        impl_->add_forces(f, weight);
+    }
+};
+
+bool ExternalPotential::Impl::do_this_step(int step)
+{
+    return (step % nst_apply_ == 0 );
 };

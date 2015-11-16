@@ -90,7 +90,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
-#include "gromacs/externalpotential/externalpotentialutil.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/timing/gpu_timing.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
@@ -756,7 +756,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     rvec                vzero, box_diag;
     float               cycles_pme, cycles_force, cycles_wait_gpu;
     nonbonded_verlet_t *nbv;
-    ExternalPotentialUtil external_potentials;
+    ExternalPotentialManager external_potentials;
 
     cycles_force    = 0;
     cycles_wait_gpu = 0;
@@ -1130,7 +1130,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        external_potentials.do_external_potentials(cr, inputrec, box, x, t, step, wcycle, bNS);
+        external_potentials.do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 
@@ -1511,7 +1511,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     if (inputrec->bExternalPotential)
     {
         wallcycle_start(wcycle, ewcEXTPOTadd);
-        enerd->term[F_EXTPOT] += external_potentials.add_ext_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
+        enerd->term[F_EXTPOT] += external_potentials.add_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
         wallcycle_stop(wcycle, ewcEXTPOTadd);
     }
 
@@ -1560,7 +1560,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     gmx_bool   bStateChanged, bNS, bFillGrid, bCalcCGCM;
     gmx_bool   bDoLongRangeNS, bDoForces, bSepLRF;
     float      cycles_pme, cycles_force;
-    ExternalPotentialUtil external_potentials;
+    ExternalPotentialManager external_potentials;
 
     start  = 0;
     homenr = mdatoms->homenr;
@@ -1770,7 +1770,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        external_potentials.do_external_potentials(cr, inputrec, box, x, t, step, wcycle, bNS);
+        external_potentials.do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 
@@ -1951,7 +1951,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     if (inputrec->bExternalPotential)
     {
         wallcycle_start(wcycle, ewcEXTPOTadd);
-        enerd->term[F_EXTPOT] += external_potentials.add_ext_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
+        enerd->term[F_EXTPOT] += external_potentials.add_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
         wallcycle_stop(wcycle, ewcEXTPOTadd);
     }
 

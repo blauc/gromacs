@@ -79,7 +79,7 @@
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/fileio/xvgr.h
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/swap/enums.h
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/externalpotential/externalpotential.h
-/home/cblau/Projects/external_potential/gromacs/src/gromacs/externalpotential/externalpotentialutil.h
+/home/cblau/Projects/external_potential/gromacs/src/gromacs/externalpotential/externalpotentialmanager.h
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/externalpotential/externalpotentialregistration.h
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/legacyheaders/gmx_detect_hardware.h
 /home/cblau/Projects/external_potential/gromacs/src/gromacs/legacyheaders/network.h

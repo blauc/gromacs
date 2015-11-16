@@ -20,7 +20,7 @@ ExternalPotential* ExternalPotentialRegistration::init(
         ExternalPotentialDataPointer data
         )
 {
-    return methods_[method]->create(data);
+   return methods_[method]->create(data);
 };
 
 size_t ExternalPotentialRegistration::number_methods()

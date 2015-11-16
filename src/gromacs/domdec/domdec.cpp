@@ -89,7 +89,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
-#include "gromacs/externalpotential/externalpotentialutil.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/block.h"
@@ -9142,7 +9142,7 @@ void dd_partition_system(FILE                *fplog,
     ivec               ncells_old = {0, 0, 0}, ncells_new = {0, 0, 0}, np;
     real               grid_density;
     char               sbuf[22];
-    ExternalPotentialUtil external_potentials;
+    ExternalPotentialManager external_potentials;
 
 
     wallcycle_start(wcycle, ewcDOMDEC);

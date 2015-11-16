@@ -252,7 +252,7 @@ typedef struct t_rot {
     gmx_enfrot_t enfrot;     /* Stores non-inputrec enforced rotation data    */
 } t_rot;
 
-/* Abstract type for non-inpurec external potential classes, defined in externalpotentialutil.h */
+/* Abstract type for non-inpurec external potential classes, defined in externalpotentialmanager.h */
 typedef struct gmx_ext_pot t_gmx_ext_pot;
 
 typedef struct ext_pot_ir{
