@@ -40,17 +40,17 @@
 
 #include <cmath>
 
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/gmxlib/main.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/network.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/legacyheaders/types/mdatom.h"
-#include "gromacs/legacyheaders/types/state.h"
 #include "gromacs/linearalgebra/nrjac.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -615,7 +615,7 @@ real orires(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
             const t_mdatoms gmx_unused *md, t_fcdata *fcd,
             int gmx_unused *global_atom_index)
 {
-    atom_id             ai, aj;
+    int                 ai, aj;
     int                 fa, d, i, type, ex, power, ki = CENTRAL;
     ivec                dt;
     real                r2, invr, invr2, fc, smooth_fc, dev, devins, pfac;

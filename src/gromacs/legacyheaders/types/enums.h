@@ -40,6 +40,19 @@
 
 /* note: these enums should correspond to the names in gmxlib/names.c */
 
+/*! \brief The two compartments for CompEL setups. */
+enum eCompartment {
+    eCompA, eCompB, eCompNR
+};
+
+/*! \brief The channels that define with their COM the compartment boundaries in CompEL setups.
+ *
+ * In principle one could also use modified setups with more than two channels.
+ */
+enum eChannel {
+    eChan0, eChan1, eChanNR
+};
+
 enum {
     etcNO, etcBERENDSEN, etcNOSEHOOVER, etcYES, etcANDERSEN, etcANDERSENMASSIVE, etcVRESCALE, etcNR
 }; /* yes is an alias for berendsen */
@@ -308,6 +321,14 @@ enum eSwaptype {
     eswapNO, eswapX, eswapY, eswapZ, eSwapTypesNR
 };
 
+/* These are just the fixed groups we need for any setup. In t_swap's grp
+ * entry after that follows the variable number of swap groups.
+ */
+enum {
+    eGrpSplit0, eGrpSplit1, eGrpSolvent, eSwapFixedGrpNR
+};
+
+
 /* QMMM */
 enum {
     eQMmethodAM1, eQMmethodPM3, eQMmethodRHF,
@@ -334,18 +355,6 @@ enum {
 enum {
     efbposresZERO, efbposresSPHERE, efbposresCYLINDER, efbposresX, efbposresY, efbposresZ,
     efbposresCYLINDERX, efbposresCYLINDERY, efbposresCYLINDERZ, efbposresNR
-};
-
-enum {
-    eAdressOff, eAdressConst, eAdressXSplit, eAdressSphere, eAdressNR
-};
-
-enum {
-    eAdressICOff, eAdressICThermoForce, eAdressICNR
-};
-
-enum {
-    eAdressSITEcom, eAdressSITEcog, eAdressSITEatom, eAdressSITEatomatom, eAdressSITENR
 };
 
 
@@ -432,7 +441,6 @@ enum gmx_nblist_interaction_type
 {
     GMX_NBLIST_INTERACTION_STANDARD,
     GMX_NBLIST_INTERACTION_FREE_ENERGY,
-    GMX_NBLIST_INTERACTION_ADRESS,
     GMX_NBLIST_INTERACTION_NR
 };
 

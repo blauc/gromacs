@@ -38,21 +38,24 @@
 
 /* This file is completely threadsafe - please keep it that way! */
 
-#include "gromacs/legacyheaders/txtdump.h"
+#include "txtdump.h"
 
 #include <cstdio>
 #include <cstdlib>
 
 #include <algorithm>
 
+#include "gromacs/fileio/tpxio.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/snprintf.h"
 #include "gromacs/externalpotential/externalpotentialregistration.h"
 
 int pr_indent(FILE *fp, int n)
@@ -842,20 +845,36 @@ static void pr_externalpotential(FILE *fp, int indent, t_ext_pot * pot)
 
 static void pr_swap(FILE *fp, int indent, t_swapcoords *swap)
 {
-    int  j;
     char str[STRLEN];
+
+    /* Enums for better readability of the code */
+    enum {
+        eCompA = 0, eCompB
+    };
 
 
     PI("swap-frequency", swap->nstswap);
-    for (j = 0; j < 2; j++)
+
+    /* The split groups that define the compartments */
+    for (int j = 0; j < 2; j++)
     {
-        sprintf(str, "massw_split%d", j);
+        snprintf(str, STRLEN, "massw_split%d", j);
         PS(str, EBOOL(swap->massw_split[j]));
-        sprintf(str, "split atoms group %d", j);
-        pr_ivec_block(fp, indent, str, swap->ind_split[j], swap->nat_split[j], TRUE);
+        snprintf(str, STRLEN, "split atoms group %d", j);
+        pr_ivec_block(fp, indent, str, swap->grp[j].ind, swap->grp[j].nat, TRUE);
     }
-    pr_ivec_block(fp, indent, "swap atoms", swap->ind, swap->nat, TRUE);
-    pr_ivec_block(fp, indent, "solvent atoms", swap->ind_sol, swap->nat_sol, TRUE);
+
+    /* The solvent group */
+    snprintf(str, STRLEN, "solvent group %s", swap->grp[eGrpSolvent].molname);
+    pr_ivec_block(fp, indent, str, swap->grp[eGrpSolvent].ind, swap->grp[eGrpSolvent].nat, TRUE);
+
+    /* Now print the indices for all the ion groups: */
+    for (int ig = eSwapFixedGrpNR; ig < swap->ngrp; ig++)
+    {
+        snprintf(str, STRLEN, "ion group %s", swap->grp[ig].molname);
+        pr_ivec_block(fp, indent, str, swap->grp[ig].ind, swap->grp[ig].nat, TRUE);
+    }
+
     PR("cyl0-r", swap->cyl0r);
     PR("cyl0-up", swap->cyl0u);
     PR("cyl0-down", swap->cyl0l);
@@ -863,19 +882,20 @@ static void pr_swap(FILE *fp, int indent, t_swapcoords *swap)
     PR("cyl1-up", swap->cyl1u);
     PR("cyl1-down", swap->cyl1l);
     PI("coupl-steps", swap->nAverage);
-    for (j = 0; j < 2; j++)
+
+    /* Print the requested ion counts for both compartments */
+    for (int ic = eCompA; ic <= eCompB; ic++)
     {
-        sprintf(str, "anions%c", j+'A');
-        PI(str, swap->nanions[j]);
-        sprintf(str, "cations%c", j+'A');
-        PI(str, swap->ncations[j]);
+        for (int ig = eSwapFixedGrpNR; ig < swap->ngrp; ig++)
+        {
+            snprintf(str, STRLEN, "%s-in-%c", swap->grp[ig].molname, 'A'+ic);
+            PI(str, swap->grp[ig].nmolReq[ic]);
+        }
     }
-    for (j = 0; j < 2; j++)
-    {
-        sprintf(str, "bulk-offset%c", j+'A');
-        PR(str, swap->bulkOffset[j]);
-    }
+
     PR("threshold", swap->threshold);
+    PR("bulk-offsetA", swap->bulkOffset[eCompA]);
+    PR("bulk-offsetB", swap->bulkOffset[eCompB]);
 }
 
 
@@ -1131,21 +1151,6 @@ void pr_inputrec(FILE *fp, int indent, const char *title, t_inputrec *ir,
         if (ir->eSwapCoords != eswapNO)
         {
             pr_swap(fp, indent, ir->swap);
-        }
-
-        /* AdResS PARAMETERS */
-        PS("adress", EBOOL(ir->bAdress));
-        if (ir->bAdress)
-        {
-            PS("adress-type", EADRESSTYPE(ir->adress->type));
-            PR("adress-const-wf", ir->adress->const_wf);
-            PR("adress-ex-width", ir->adress->ex_width);
-            PR("adress-hy-width", ir->adress->hy_width);
-            PR("adress-ex-forcecap", ir->adress->ex_forcecap);
-            PS("adress-interface-correction", EADRESSICTYPE(ir->adress->icor));
-            PS("adress-site", EADRESSSITETYPE(ir->adress->site));
-            pr_rvec(fp, indent, "adress-reference-coords", ir->adress->refs, DIM, TRUE);
-            PS("adress-do-hybridpairs", EBOOL(ir->adress->do_hybridpairs));
         }
 
         /* USER-DEFINED THINGIES */

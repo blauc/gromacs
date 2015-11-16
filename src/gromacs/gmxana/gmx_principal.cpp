@@ -42,11 +42,11 @@
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/gstat.h"
 #include "gromacs/gmxana/princ.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/rmpbc.h"
 #include "gromacs/topology/index.h"
@@ -60,7 +60,7 @@
 void
 calc_principal_axes(t_topology *   top,
                     rvec *         x,
-                    atom_id *      index,
+                    int     *      index,
                     int            n,
                     matrix         axes,
                     rvec           inertia)
@@ -95,7 +95,7 @@ int gmx_principal(int argc, char *argv[])
     int               natoms;
     char             *grpname;
     int               i, gnx;
-    atom_id          *index;
+    int              *index;
     rvec              moi;
     FILE        *     axis1;
     FILE        *     axis2;

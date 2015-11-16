@@ -42,14 +42,15 @@
 #include <cstring>
 
 #include <algorithm>
+#include <string>
 
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/trx.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/coolstuff.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -461,14 +462,13 @@ static void write_hconf_box(FILE *out, int pr, matrix box)
 }
 
 void write_hconf_indexed_p(FILE *out, const char *title, t_atoms *atoms,
-                           int nx, const atom_id index[], int pr,
+                           int nx, const int index[], int pr,
                            rvec *x, rvec *v, matrix box)
 {
     char resnm[6], nm[6], format[100];
     int  ai, i, resind, resnr;
 
-    bromacs(format, 99);
-    fprintf(out, "%s\n", (title && title[0]) ? title : format);
+    fprintf(out, "%s\n", (title && title[0]) ? title : gmx::bromacs().c_str());
     fprintf(out, "%5d\n", nx);
 
     make_hconf_format(pr, v != NULL, format);
@@ -527,8 +527,7 @@ void write_hconf_mtop(FILE *out, const char *title, gmx_mtop_t *mtop, int pr,
     t_atom                 *atom;
     char                   *atomname, *resname;
 
-    bromacs(format, 99);
-    fprintf(out, "%s\n", (title && title[0]) ? title : format);
+    fprintf(out, "%s\n", (title && title[0]) ? title : gmx::bromacs().c_str());
     fprintf(out, "%5d\n", mtop->natoms);
 
     make_hconf_format(pr, v != NULL, format);
@@ -561,7 +560,7 @@ void write_hconf_mtop(FILE *out, const char *title, gmx_mtop_t *mtop, int pr,
 void write_hconf_p(FILE *out, const char *title, t_atoms *atoms, int pr,
                    rvec *x, rvec *v, matrix box)
 {
-    atom_id *aa;
+    int     *aa;
     int      i;
 
     snew(aa, atoms->nr);

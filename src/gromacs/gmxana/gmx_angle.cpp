@@ -44,11 +44,11 @@
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/commandline/viewit.h"
 #include "gromacs/correlationfunctions/autocorr.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/trrio.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/gstat.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/index.h"
@@ -153,7 +153,7 @@ int gmx_g_angle(int argc, char *argv[])
     FILE              *out;
     real               dt;
     int                isize;
-    atom_id           *index;
+    int               *index;
     char              *grpname;
     real               maxang, S2, norm_fac, maxstat;
     unsigned long      mode;

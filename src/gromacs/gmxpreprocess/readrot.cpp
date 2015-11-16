@@ -37,10 +37,11 @@
 #include "gmxpre.h"
 
 #include "gromacs/fileio/trrio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxpreprocess/readir.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"

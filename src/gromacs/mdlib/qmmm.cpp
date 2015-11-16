@@ -50,10 +50,10 @@
 #include <algorithm>
 
 #include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/txtdump.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/mdatom.h"
 #include "gromacs/math/units.h"
@@ -133,20 +133,6 @@ static int struct_comp(const void *a, const void *b)
     return (int)(((t_j_particle *)a)->j)-(int)(((t_j_particle *)b)->j);
 
 } /* struct_comp */
-
-static int int_comp(const void *a, const void *b)
-{
-
-    return (*(int *)a) - (*(int *)b);
-
-} /* int_comp */
-
-static int QMlayer_comp(const void *a, const void *b)
-{
-
-    return (int)(((t_QMrec *)a)->nrQMatoms)-(int)(((t_QMrec *)b)->nrQMatoms);
-
-} /* QMlayer_comp */
 
 real call_QMroutine(t_commrec gmx_unused *cr, t_forcerec gmx_unused *fr, t_QMrec gmx_unused *qm,
                     t_MMrec gmx_unused *mm, rvec gmx_unused f[], rvec gmx_unused fshift[])
@@ -471,7 +457,7 @@ void init_QMMMrec(t_commrec  *cr,
      */
 
     gmx_groups_t            *groups;
-    atom_id                 *qm_arr = NULL, vsite, ai, aj;
+    int                     *qm_arr = NULL, vsite, ai, aj;
     int                      qm_max = 0, qm_nr = 0, i, j, jmax, k, l, nrvsite2 = 0;
     t_QMMMrec               *qr;
     t_MMrec                 *mm;

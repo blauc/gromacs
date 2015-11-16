@@ -45,13 +45,13 @@
 #include "gromacs/correlationfunctions/integrate.h"
 #include "gromacs/fft/fft.h"
 #include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -66,7 +66,7 @@ enum {
     VACF, MVACF, DOS, DOS_SOLID, DOS_DIFF, DOS_CP, DOS_S, DOS_A, DOS_E, DOS_NR
 };
 
-static int calcMoleculesInIndexGroup(t_block *mols, int natoms, atom_id *index, int nindex)
+static int calcMoleculesInIndexGroup(t_block *mols, int natoms, int *index, int nindex)
 {
     int   i    = 0;
     int   mol  = 0;
@@ -281,7 +281,7 @@ int gmx_dos(int argc, char *argv[])
     double              cP, DiffCoeff, Delta, f, y, z, sigHS, Shs, Sig, DoS0, recip_fac;
     double              wCdiff, wSdiff, wAdiff, wEdiff;
     int                 grpNatoms;
-    atom_id            *index;
+    int                *index;
     char               *grpname;
     double              invNormalize;
     gmx_bool            normalizeAutocorrelation;

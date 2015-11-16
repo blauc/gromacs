@@ -60,8 +60,8 @@
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/gmxlib/main.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/readinp.h"
-#include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdrunutility/handlerestart.h"
@@ -237,7 +237,6 @@ int gmx_mdrun(int argc, char *argv[])
         { efXVG, "-dhdl",   "dhdl",     ffOPTWR },
         { efXVG, "-field",  "field",    ffOPTWR },
         { efXVG, "-table",  "table",    ffOPTRD },
-        { efXVG, "-tabletf", "tabletf",    ffOPTRD },
         { efXVG, "-tablep", "tablep",   ffOPTRD },
         { efXVG, "-tableb", "table",    ffOPTRD },
         { efTRX, "-rerun",  "rerun",    ffOPTRD },

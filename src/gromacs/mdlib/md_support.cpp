@@ -44,6 +44,7 @@
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/gmxlib/md_logging.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
@@ -263,9 +264,11 @@ real compute_conserved_from_auxiliary(t_inputrec *ir, t_state *state, t_extmass 
     return quantity;
 }
 
+/* TODO Specialize this routine into init-time and loop-time versions?
+   e.g. bReadEkin is only true when restoring from checkpoint */
 void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inputrec *ir,
                      t_forcerec *fr, gmx_ekindata_t *ekind,
-                     t_state *state, t_state *state_global, t_mdatoms *mdatoms,
+                     t_state *state, t_mdatoms *mdatoms,
                      t_nrnb *nrnb, t_vcm *vcm, gmx_wallcycle_t wcycle,
                      gmx_enerdata_t *enerd, tensor force_vir, tensor shake_vir, tensor total_vir,
                      tensor pres, rvec mu_tot, gmx_constr_t constr,
@@ -309,17 +312,10 @@ void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inpu
         {
             accumulate_u(cr, &(ir->opts), ekind);
         }
-        debug_gmx();
-        if (bReadEkin)
-        {
-            restore_ekinstate_from_state(cr, ekind, &state_global->ekinstate);
-        }
-        else
+        if (!bReadEkin)
         {
             calc_ke_part(state, &(ir->opts), mdatoms, ekind, nrnb, bEkinAveVel);
         }
-
-        debug_gmx();
     }
 
     /* Calculate center of mass velocity if necessary, also parallellized */

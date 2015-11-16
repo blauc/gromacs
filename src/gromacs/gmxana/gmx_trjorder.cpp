@@ -44,9 +44,9 @@
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pbcutil/rmpbc.h"
@@ -58,7 +58,7 @@
 #include "gromacs/utility/smalloc.h"
 
 typedef struct {
-    atom_id i;
+    int     i;
     real    d2;
 } t_order;
 
@@ -137,7 +137,7 @@ int gmx_trjorder(int argc, char *argv[])
     int               natoms, nwat, ncut;
     char            **grpname;
     int               i, j, d, *isize, isize_ref = 0, isize_sol;
-    atom_id           sa, sr, *swi, **index, *ind_ref = NULL, *ind_sol;
+    int               sa, sr, *swi, **index, *ind_ref = NULL, *ind_sol;
     gmx_output_env_t *oenv;
     t_filenm          fnm[] = {
         { efTRX, "-f", NULL, ffREAD  },

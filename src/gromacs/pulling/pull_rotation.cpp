@@ -47,26 +47,23 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/ga2la.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/xvgr.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/gmx_ga2la.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/txtdump.h"
-#include "gromacs/legacyheaders/types/inputrec.h"
 #include "gromacs/linearalgebra/nrjac.h"
-#include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/cyclecounter.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/fatalerror.h"
-#include "gromacs/utility/futil.h"
 #include "gromacs/utility/qsort_threadsafe.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -132,15 +129,15 @@ typedef struct gmx_enfrot
 /* Global enforced rotation data for a single rotation group                  */
 typedef struct gmx_enfrotgrp
 {
-    real     degangle;      /* Rotation angle in degrees                      */
-    matrix   rotmat;        /* Rotation matrix                                */
-    atom_id *ind_loc;       /* Local rotation indices                         */
-    int      nat_loc;       /* Number of local group atoms                    */
-    int      nalloc_loc;    /* Allocation size for ind_loc and weight_loc     */
+    real     degangle;   /* Rotation angle in degrees                      */
+    matrix   rotmat;     /* Rotation matrix                                */
+    int     *ind_loc;    /* Local rotation indices                         */
+    int      nat_loc;    /* Number of local group atoms                    */
+    int      nalloc_loc; /* Allocation size for ind_loc and weight_loc     */
 
-    real     V;             /* Rotation potential for this rotation group     */
-    rvec    *f_rot_loc;     /* Array to store the forces on the local atoms
-                               resulting from enforced rotation potential     */
+    real     V;          /* Rotation potential for this rotation group     */
+    rvec    *f_rot_loc;  /* Array to store the forces on the local atoms
+                            resulting from enforced rotation potential     */
 
     /* Collective coordinates for the whole rotation group */
     real  *xc_ref_length;   /* Length of each x_rotref vector after x_rotref

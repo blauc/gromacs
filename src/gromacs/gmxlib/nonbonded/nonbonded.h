@@ -1,7 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
+ * Copyright (c) 2001-2004, The GROMACS development team.
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,41 +34,46 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \file
- * \brief
- * Enumerated types used in the "Computational Electrophysiology" module.
- *
- * The following enums are mainly used for indexing arrays and when
- * looping over the available ions, channels, or compartments. This hopefully
- * adds to the code's readability because it makes clear which object is dealt
- * with in a block of code.
- *
- * \author Carsten Kutzner <ckutzne@gwdg.de>
- * \inlibraryapi
- * \ingroup module_swap
- */
-#ifndef GMX_SWAP_ENUMS_H
-#define GMX_SWAP_ENUMS_H
+#ifndef GMX_GMXLIB_NONBONDED_NONBONDED_H
+#define GMX_GMXLIB_NONBONDED_NONBONDED_H
 
-/*! \brief The two compartments for CompEL setups. */
-enum eCompartment {
-    eCompA, eCompB, eCompNR
-};
+#include <stdio.h>
 
-/*! \brief The positive and negative ions CompEL setups.
- *
- * Future versions of the protocol might consider more than two types of ions.
- */
-enum eIontype {
-    eIonNEG, eIonPOS, eIonNR
-};
+#include "gromacs/legacyheaders/types/forcerec.h"
+#include "gromacs/legacyheaders/types/mdatom.h"
+#include "gromacs/legacyheaders/types/nblist.h"
+#include "gromacs/legacyheaders/types/nrnb.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/utility/basedefinitions.h"
 
-/*! \brief The channels that define with their COM the compartment boundaries in CompEL setups.
- *
- * In principle one could also use modified setups with more than two channels.
- */
-enum eChannel {
-    eChan0, eChan1, eChanNR
-};
+void
+gmx_nonbonded_setup(t_forcerec *fr,
+                    gmx_bool    bGenericKernelOnly);
+
+
+
+
+
+void
+gmx_nonbonded_set_kernel_pointers(FILE *       fplog,
+                                  t_nblist *   nl,
+                                  gmx_bool     bElecAndVdwSwitchDiffers);
+
+
+
+#define GMX_NONBONDED_DO_LR             (1<<0)
+#define GMX_NONBONDED_DO_FORCE          (1<<1)
+#define GMX_NONBONDED_DO_SHIFTFORCE     (1<<2)
+#define GMX_NONBONDED_DO_FOREIGNLAMBDA  (1<<3)
+#define GMX_NONBONDED_DO_POTENTIAL      (1<<4)
+#define GMX_NONBONDED_DO_SR             (1<<5)
+
+void
+do_nonbonded(t_forcerec *fr,
+             rvec x[], rvec f_shortrange[], rvec f_longrange[], t_mdatoms *md, t_blocka *excl,
+             gmx_grppairener_t *grppener,
+             t_nrnb *nrnb, real *lambda, real dvdlambda[],
+             int nls, int eNL, int flags);
 
 #endif

@@ -41,8 +41,8 @@
 
 #include "gromacs/fileio/enxio.h"
 #include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/state.h"
 #include "gromacs/mdlib/ebin.h"
+#include "gromacs/mdtypes/state.h"
 
 struct gmx_constr;
 struct gmx_ekindata_t;
@@ -81,9 +81,6 @@ typedef struct t_mdebin {
     gmx_bool            bMTTK;
     gmx_bool            bMu; /* true if dipole is calculated */
     gmx_bool            bDiagPres;
-    gmx_bool            bVir;
-    gmx_bool            bPress;
-    gmx_bool            bSurft;
     int                 f_nre;
     int                 epc;
     real                ref_p;

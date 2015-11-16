@@ -48,10 +48,10 @@
 #include "gromacs/fileio/strdb.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/princ.h"
 #include "gromacs/gmxlib/conformation-utilities.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -87,7 +87,7 @@ real calc_mass(t_atoms *atoms, gmx_bool bGetMass, gmx_atomprop_t aps)
     return tmass;
 }
 
-real calc_geom(int isize, atom_id *index, rvec *x, rvec geom_center, rvec minval,
+real calc_geom(int isize, int *index, rvec *x, rvec geom_center, rvec minval,
                rvec maxval, gmx_bool bDiam)
 {
     real  diam2, d;
@@ -704,7 +704,7 @@ int gmx_editconf(int argc, char *argv[])
     t_topology       *top     = NULL;
     char             *grpname, *sgrpname, *agrpname;
     int               isize, ssize, asize;
-    atom_id          *index, *sindex, *aindex;
+    int              *index, *sindex, *aindex;
     rvec             *x, *v, gc, rmin, rmax, size;
     int               ePBC;
     matrix            box, rotmatrix, trans;
@@ -952,7 +952,7 @@ int gmx_editconf(int argc, char *argv[])
 
     if (bOrient)
     {
-        atom_id *index;
+        int     *index;
         char    *grpnames;
 
         /* Get a group for principal component analysis */

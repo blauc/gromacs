@@ -53,12 +53,12 @@
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxlib/calcgrid.h"
 #include "gromacs/gmxlib/readinp.h"
-#include "gromacs/legacyheaders/inputrec.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/perf_est.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/utility/arraysize.h"
@@ -2256,7 +2256,6 @@ int gmx_tune_pme(int argc, char *argv[])
         { efXVG, "-dhdl",   "dhdl",     ffOPTWR },
         { efXVG, "-field",  "field",    ffOPTWR },
         { efXVG, "-table",  "table",    ffOPTRD },
-        { efXVG, "-tabletf", "tabletf",   ffOPTRD },
         { efXVG, "-tablep", "tablep",   ffOPTRD },
         { efXVG, "-tableb", "table",    ffOPTRD },
         { efTRX, "-rerun",  "rerun",    ffOPTRD },

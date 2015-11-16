@@ -47,8 +47,8 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
@@ -950,8 +950,7 @@ calc_dr_x_xp_simd(int                       b0,
         gmx_simd_store_r(sol + bs, rhs_S);
     }
 }
-#endif /* LINCS_SIMD */
-
+#else
 /* Determine the distances and right-hand side for the next iteration */
 static void calc_dist_iter(int                       b0,
                            int                       b1,
@@ -1000,6 +999,7 @@ static void calc_dist_iter(int                       b0,
         sol[b]  = mvb;
     } /* 20*ncons flops */
 }
+#endif
 
 #ifdef LINCS_SIMD
 /* As the function above, but using SIMD intrinsics */
@@ -2751,7 +2751,7 @@ gmx_bool constrain_lincs(FILE *fplog, gmx_bool bLog, gmx_bool bEner,
         {
             dhdlambda += lincsd->task[th].dhdlambda;
         }
-        if (econqCoord)
+        if (econq == econqCoord)
         {
             /* dhdlambda contains dH/dlambda*dt^2, correct for this */
             /* TODO This should probably use invdt, so that sd integrator scaling works properly */

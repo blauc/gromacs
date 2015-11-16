@@ -54,6 +54,7 @@
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/calcgrid.h"
 #include "gromacs/gmxlib/splitter.h"
 #include "gromacs/gmxlib/warninp.h"
@@ -69,13 +70,12 @@
 #include "gromacs/gmxpreprocess/toputil.h"
 #include "gromacs/gmxpreprocess/vsite_parm.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/genborn.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
 #include "gromacs/mdlib/compute_io.h"
+#include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/perf_est.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/boxutilities.h"
@@ -1708,15 +1708,6 @@ int gmx_grompp(int argc, char *argv[])
                       "for QM/MM. The good news is that it is easy to add - put the atom number as\n"
                       "an integer just before the mass column in ffXXXnb.itp.\n"
                       "NB: United atoms have the same atom numbers as normal ones.\n\n");
-    }
-
-    if (ir->bAdress)
-    {
-        if ((ir->adress->const_wf > 1) || (ir->adress->const_wf < 0))
-        {
-            warning_error(wi, "AdResS contant weighting function should be between 0 and 1\n\n");
-        }
-        /** TODO check size of ex+hy width against box size */
     }
 
     /* Check for errors in the input now, since they might cause problems

@@ -44,7 +44,7 @@
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
-#include "gromacs/legacyheaders/network.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
@@ -616,7 +616,7 @@ static void spread_vsite3(t_iatom ia[], real a, real b,
                           t_pbc *pbc, t_graph *g)
 {
     rvec    fi, fj, fk, dx;
-    atom_id av, ai, aj, ak;
+    int     av, ai, aj, ak;
     ivec    di;
     int     siv, sij, sik;
 
@@ -906,7 +906,7 @@ static void spread_vsite3OUT(t_iatom ia[], real a, real b, real c,
 {
     rvec    xvi, xij, xik, fv, fj, fk;
     real    cfx, cfy, cfz;
-    atom_id av, ai, aj, ak;
+    int     av, ai, aj, ak;
     ivec    di;
     int     svi, sji, ski;
 
@@ -996,7 +996,7 @@ static void spread_vsite4FD(t_iatom ia[], real a, real b, real c,
 {
     real    d, invl, fproj, a1;
     rvec    xvi, xij, xjk, xjl, xix, fv, temp;
-    atom_id av, ai, aj, ak, al;
+    int     av, ai, aj, ak, al;
     ivec    di;
     int     svi, sji, skj, slj, m;
 

@@ -1,9 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009 Christoph Junghans, Brad Lambeth.
- * Copyright (c) 2011 Christoph Junghans, Sebastian Fritsch.
- * Copyright (c) 2011,2012,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,23 +32,26 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \libinternal \file
+ * \brief Functionality for printing cool strings
+ *
+ * \inlibraryapi
+ * \ingroup module_utility
+ */
+#ifndef GMX_UTILITY_COOLSTUFF_H
+#define GMX_UTILITY_COOLSTUFF_H
 
-#ifndef _nb_generic_adress_h_
-#define _nb_generic_adress_h_
+#include <string>
 
-#include "gromacs/gmxlib/nonbonded/nb_kernel.h"
-#include "gromacs/legacyheaders/types/mdatom.h"
-#include "gromacs/legacyheaders/types/nblist.h"
-#include "gromacs/legacyheaders/types/nrnb.h"
-#include "gromacs/math/vectypes.h"
+namespace gmx
+{
 
-void
-gmx_nb_generic_adress_kernel(t_nblist *                nlist,
-                             rvec *                    xx,
-                             rvec *                    ff,
-                             t_forcerec *              fr,
-                             t_mdatoms *               mdatoms,
-                             nb_kernel_data_t *        kernel_data,
-                             t_nrnb *                  nrnb);
+//! Return a cool definition for the acronym GROMACS
+std::string bromacs();
+
+//! Return a string with a cool quote
+std::string getCoolQuote();
+
+}
 
 #endif

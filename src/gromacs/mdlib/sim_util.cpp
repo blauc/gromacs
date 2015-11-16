@@ -51,20 +51,19 @@
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
+#include "gromacs/fileio/copyrite.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/disre.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/orires.h"
 #include "gromacs/gmxlib/nonbonded/nb_free_energy.h"
 #include "gromacs/gmxlib/nonbonded/nb_kernel.h"
+#include "gromacs/gmxlib/nonbonded/nonbonded.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/genborn.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/nonbonded.h"
 #include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/listed-forces/bonded.h"
 #include "gromacs/math/units.h"
@@ -73,6 +72,7 @@
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/force.h"
 #include "gromacs/mdlib/forcerec.h"
+#include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_atomdata.h"
@@ -102,7 +102,6 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/sysinfo.h"
 
-#include "adress.h"
 #include "nbnxn_gpu.h"
 
 void print_time(FILE                     *out,
@@ -1560,8 +1559,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     double     mu[2*DIM];
     gmx_bool   bStateChanged, bNS, bFillGrid, bCalcCGCM;
     gmx_bool   bDoLongRangeNS, bDoForces, bSepLRF;
-    gmx_bool   bDoAdressWF;
-    t_pbc      pbc;
     float      cycles_pme, cycles_force;
     ExternalPotentialUtil external_potentials;
 
@@ -1594,9 +1591,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     bDoForces      = (flags & GMX_FORCE_FORCES);
     bSepLRF        = ((inputrec->nstcalclr > 1) && bDoForces &&
                       (flags & GMX_FORCE_SEPLRF) && (flags & GMX_FORCE_DO_LR));
-
-    /* should probably move this to the forcerec since it doesn't change */
-    bDoAdressWF   = ((fr->adress_type != eAdressOff));
 
     if (bStateChanged)
     {
@@ -1694,33 +1688,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         wallcycle_start(wcycle, ewcMOVEX);
         dd_move_x(cr->dd, box, x);
         wallcycle_stop(wcycle, ewcMOVEX);
-    }
-
-    /* update adress weight beforehand */
-    if (bStateChanged && bDoAdressWF)
-    {
-        /* need pbc for adress weight calculation with pbc_dx */
-        set_pbc(&pbc, inputrec->ePBC, box);
-        if (fr->adress_site == eAdressSITEcog)
-        {
-            update_adress_weights_cog(top->idef.iparams, top->idef.il, x, fr, mdatoms,
-                                      inputrec->ePBC == epbcNONE ? NULL : &pbc);
-        }
-        else if (fr->adress_site == eAdressSITEcom)
-        {
-            update_adress_weights_com(fplog, cg0, cg1, &(top->cgs), x, fr, mdatoms,
-                                      inputrec->ePBC == epbcNONE ? NULL : &pbc);
-        }
-        else if (fr->adress_site == eAdressSITEatomatom)
-        {
-            update_adress_weights_atom_per_atom(cg0, cg1, &(top->cgs), x, fr, mdatoms,
-                                                inputrec->ePBC == epbcNONE ? NULL : &pbc);
-        }
-        else
-        {
-            update_adress_weights_atom(cg0, cg1, &(top->cgs), x, fr, mdatoms,
-                                       inputrec->ePBC == epbcNONE ? NULL : &pbc);
-        }
     }
 
     if (NEED_MUTOT(*inputrec))
@@ -1908,13 +1875,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
             calc_f_el(MASTER(cr) ? field : NULL,
                       start, homenr, mdatoms->chargeA, fr->f_novirsum,
                       inputrec->ex, inputrec->et, t);
-        }
-
-        if (bDoAdressWF && fr->adress_icor == eAdressICThermoForce)
-        {
-            /* Compute thermodynamic force in hybrid AdResS region */
-            adress_thermo_force(start, homenr, x, fr->f_novirsum, fr, mdatoms,
-                                inputrec->ePBC == epbcNONE ? NULL : &pbc);
         }
 
         /* Communicate the forces */
@@ -2871,15 +2831,8 @@ void init_md(FILE *fplog,
                               mtop, ir, mdoutf_get_fp_dhdl(*outf));
     }
 
-    if (ir->bAdress)
-    {
-        please_cite(fplog, "Fritsch12");
-        please_cite(fplog, "Junghans10");
-    }
     /* Initiate variables */
     clear_mat(force_vir);
     clear_mat(shake_vir);
     clear_rvec(mu_tot);
-
-    debug_gmx();
 }

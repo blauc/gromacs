@@ -58,23 +58,22 @@
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/checkpoint.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trx.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/disre.h"
+#include "gromacs/gmxlib/gmx_detect_hardware.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/gmxlib/main.h"
 #include "gromacs/gmxlib/md_logging.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/orires.h"
 #include "gromacs/gmxlib/sighandler.h"
 #include "gromacs/gmxlib/thread_affinity.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/gmx_detect_hardware.h"
-#include "gromacs/legacyheaders/inputrec.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
@@ -89,6 +88,7 @@
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/tpi.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
@@ -1161,7 +1161,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fr->gpu_opt = &hw_opt->gpu_opt;
         init_forcerec(fplog, fr, fcd, inputrec, mtop, cr, box,
                       opt2fn("-table", nfile, fnm),
-                      opt2fn("-tabletf", nfile, fnm),
                       opt2fn("-tablep", nfile, fnm),
                       opt2fn("-tableb", nfile, fnm),
                       nbpu_opt,

@@ -47,13 +47,13 @@
 
 #include <algorithm>
 
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/gmxlib/main.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/network.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
-#include "gromacs/legacyheaders/types/state.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -267,7 +267,7 @@ void calc_disres_R_6(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                      const rvec x[], const t_pbc *pbc,
                      t_fcdata *fcd, history_t *hist)
 {
-    atom_id         ai, aj;
+    int             ai, aj;
     int             fa, res, pair;
     int             type, npair, np;
     rvec            dx;
@@ -377,7 +377,7 @@ real ta_disres(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
     const real      sixth       = 1.0/6.0;
     const real      seven_three = 7.0/3.0;
 
-    atom_id         ai, aj;
+    int             ai, aj;
     int             fa, res, npair, p, pair, ki = CENTRAL, m;
     int             type;
     rvec            dx;

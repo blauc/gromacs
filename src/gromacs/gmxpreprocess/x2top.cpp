@@ -42,7 +42,9 @@
 
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/readinp.h"
 #include "gromacs/gmxpreprocess/gen_ad.h"
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
@@ -51,9 +53,7 @@
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pdb2top.h"
 #include "gromacs/gmxpreprocess/toppush.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/listed-forces/bonded.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
@@ -99,21 +99,6 @@ static gmx_bool is_bond(int nnm, t_nm2type nmt[], char *ai, char *aj, real blen)
         }
     }
     return FALSE;
-}
-
-static int get_atype(char *nm)
-{
-    int i, aai = NATP-1;
-
-    for (i = 0; (i < NATP-1); i++)
-    {
-        if (nm[0] == atp[i])
-        {
-            aai = i;
-            break;
-        }
-    }
-    return aai;
 }
 
 void mk_bonds(int nnm, t_nm2type nmt[],

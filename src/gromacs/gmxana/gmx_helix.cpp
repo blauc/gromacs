@@ -44,12 +44,12 @@
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/fitahx.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/gstat.h"
 #include "gromacs/gmxana/hxprops.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/rmpbc.h"
@@ -146,7 +146,7 @@ int gmx_helix(int argc, char *argv[])
     int               natoms, nres;
     t_bb             *bb;
     int               i, j, nall, nbb, nca, teller;
-    atom_id          *bbindex, *caindex, *allindex;
+    int              *bbindex, *caindex, *allindex;
     t_topology       *top;
     int               ePBC;
     rvec             *x, *xref;

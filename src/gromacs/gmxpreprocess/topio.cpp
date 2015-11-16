@@ -49,6 +49,7 @@
 #include <sys/types.h>
 
 #include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/warninp.h"
 #include "gromacs/gmxpreprocess/gmxcpp.h"
 #include "gromacs/gmxpreprocess/gpp_bond_atomtype.h"
@@ -59,12 +60,12 @@
 #include "gromacs/gmxpreprocess/topshake.h"
 #include "gromacs/gmxpreprocess/toputil.h"
 #include "gromacs/gmxpreprocess/vsite_parm.h"
-#include "gromacs/legacyheaders/genborn.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
+#include "gromacs/mdlib/genborn.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/topology/topology.h"
@@ -1175,7 +1176,7 @@ static void generate_qmexcl_moltype(gmx_moltype_t *molt, unsigned char *grpnr,
      */
     int
         i, j, l, k = 0, jmax, qm_max = 0, qm_nr = 0, nratoms = 0, link_nr = 0, link_max = 0;
-    atom_id
+    int
        *qm_arr = NULL, *link_arr = NULL, a1, a2, a3, a4, ftype = 0;
     t_blocka
         qmexcl;

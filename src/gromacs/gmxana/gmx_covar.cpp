@@ -43,10 +43,10 @@
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/matio.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/eigio.h"
 #include "gromacs/gmxana/gmx_ana.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/linearalgebra/eigensolver.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
@@ -129,7 +129,7 @@ int gmx_covar(int argc, char *argv[])
     const char       *asciifile, *xpmfile, *xpmafile;
     char              str[STRLEN], *fitname, *ananame;
     int               d, dj, nfit;
-    atom_id          *index, *ifit;
+    int              *index, *ifit;
     gmx_bool          bDiffMass1, bDiffMass2;
     char              timebuf[STRLEN];
     t_rgb             rlo, rmi, rhi;

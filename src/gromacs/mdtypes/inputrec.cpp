@@ -36,7 +36,7 @@
  */
 #include "gmxpre.h"
 
-#include "gromacs/legacyheaders/inputrec.h"
+#include "inputrec.h"
 
 #include <cstring>
 

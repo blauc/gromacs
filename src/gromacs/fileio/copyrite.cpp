@@ -36,20 +36,24 @@
  */
 #include "gmxpre.h"
 
-#include "gromacs/legacyheaders/copyrite.h"
+#include "copyrite.h"
 
 #include "config.h"
 
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <ctime>
 
 #include <algorithm>
+
+#if GMX_FFT_FFTW3
+// Needed for construction of the FFT library description string
+#include <fftw3.h>
+#endif
 
 #ifdef HAVE_LIBMKL
 #include <mkl.h>
 #endif
+
 #if HAVE_EXTRAE
 #include <extrae_user_events.h>
 #endif
@@ -57,109 +61,14 @@
 /* This file is completely threadsafe - keep it that way! */
 
 #include "buildinfo.h"
-#include "gromacs/fft/fft.h"
-#include "gromacs/fileio/strdb.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/random/random.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/baseversion.h"
 #include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
-
-static gmx_bool be_cool(void)
-{
-    /* Yes, it is bad to check the environment variable every call,
-     * but we dont call this routine often, and it avoids using
-     * a mutex for locking the variable...
-     */
-#if GMX_COOL_QUOTES
-    return (getenv("GMX_NO_QUOTES") == NULL);
-#else
-    /*be uncool*/
-    return FALSE;
-#endif
-}
-
-static void pukeit(const char *db, const char *defstring, char *retstring,
-                   int retsize, int *cqnum)
-{
-    FILE     *fp;
-    char    **help;
-    int       i, nhlp;
-    gmx_rng_t rng;
-
-    if (be_cool() && ((fp = low_libopen(db, FALSE)) != NULL))
-    {
-        nhlp = fget_lines(fp, &help);
-        /* for libraries we can use the low-level close routines */
-        gmx_ffclose(fp);
-        rng    = gmx_rng_init(gmx_rng_make_seed());
-        *cqnum = static_cast<int>(nhlp*gmx_rng_uniform_real(rng));
-        gmx_rng_destroy(rng);
-        if (std::strlen(help[*cqnum]) >= STRLEN)
-        {
-            help[*cqnum][STRLEN-1] = '\0';
-        }
-        std::strncpy(retstring, help[*cqnum], retsize);
-        for (i = 0; (i < nhlp); i++)
-        {
-            sfree(help[i]);
-        }
-        sfree(help);
-    }
-    else
-    {
-        *cqnum = -1;
-        std::strncpy(retstring, defstring, retsize);
-    }
-}
-
-void bromacs(char *retstring, int retsize)
-{
-    int dum;
-
-    pukeit("bromacs.dat",
-           "Groningen Machine for Chemical Simulation",
-           retstring, retsize, &dum);
-}
-
-void cool_quote(char *retstring, int retsize, int *cqnum)
-{
-    char *tmpstr;
-    char *ptr;
-    int   tmpcq, *p;
-
-    if (cqnum != NULL)
-    {
-        p = cqnum;
-    }
-    else
-    {
-        p = &tmpcq;
-    }
-
-    /* protect audience from explicit lyrics */
-    snew(tmpstr, retsize+1);
-    pukeit("gurgle.dat", "Thanx for Using GROMACS - Have a Nice Day",
-           tmpstr, retsize-2, p);
-
-    if ((ptr = std::strchr(tmpstr, '_')) != NULL)
-    {
-        *ptr = '\0';
-        ptr++;
-        sprintf(retstring, "\"%s\" %s", tmpstr, ptr);
-    }
-    else
-    {
-        std::strcpy(retstring, tmpstr);
-    }
-    sfree(tmpstr);
-}
 
 static int centeringOffset(int width, int length)
 {
@@ -182,7 +91,6 @@ static void printCopyright(FILE *fp)
         "Aldert van Buuren",
         "Rudi van Drunen",
         "Anton Feenstra",
-        "Sebastian Fritsch",
         "Gerrit Groenhof",
         "Christoph Junghans",
         "Anca Hamuraru",
@@ -522,16 +430,6 @@ void please_cite(FILE *fp, const char *key)
           "Driving Forces for Adsorption of Amphiphilic Peptides to Air-Water Interface",
           "J. Phys. Chem. B",
           114, 2010, "11093" },
-        { "Fritsch12",
-          "S. Fritsch, C. Junghans and K. Kremer",
-          "Adaptive molecular simulation study on structure formation of toluene around C60 using Gromacs",
-          "J. Chem. Theo. Comp.",
-          8, 2012, "398" },
-        { "Junghans10",
-          "C. Junghans and S. Poblete",
-          "A reference implementation of the adaptive resolution scheme in ESPResSo",
-          "Comp. Phys. Comm.",
-          181, 2010, "1449" },
         { "Wang2010",
           "H. Wang, F. Dommert, C.Holm",
           "Optimizing working parameters of the smooth particle mesh Ewald algorithm in terms of accuracy and efficiency",
@@ -638,6 +536,31 @@ void please_cite(FILE *fp, const char *key)
 
 extern void gmx_print_version_info_cuda_gpu(FILE *fp);
 
+// Construct a string that describes the library that provides FFT support to this build
+static const char *getFftDescriptionString()
+{
+// Define the FFT description string
+#if GMX_FFT_FFTW3
+#  ifdef GMX_NATIVE_WINDOWS
+    // Don't buy trouble
+    return "fftw3";
+#  else
+    // Use the version string provided by libfftw3
+#    if GMX_DOUBLE
+    return fftw_version;
+#    else
+    return fftwf_version;
+#    endif
+#  endif
+#endif
+#if GMX_FFT_MKL
+    return "Intel MKL";
+#endif
+#if GMX_FFT_FFTPACK
+    return "fftpack (built-in)";
+#endif
+};
+
 static void gmx_print_version_info(FILE *fp)
 {
     fprintf(fp, "GROMACS version:    %s\n", gmx_version());
@@ -686,7 +609,7 @@ static void gmx_print_version_info(FILE *fp)
 #define gmx_stringify(x) gmx_stringify2(x)
     fprintf(fp, "invsqrt routine:    %s\n", gmx_stringify(gmx_invsqrt_impl(x)));
     fprintf(fp, "SIMD instructions:  %s\n", GMX_SIMD_STRING);
-    fprintf(fp, "FFT library:        %s\n", gmx_fft_get_version_info());
+    fprintf(fp, "FFT library:        %s\n", getFftDescriptionString());
 #ifdef HAVE_RDTSCP
     fprintf(fp, "RDTSCP usage:       enabled\n");
 #else

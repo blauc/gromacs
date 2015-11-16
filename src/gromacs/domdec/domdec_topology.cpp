@@ -53,11 +53,11 @@
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
+#include "gromacs/domdec/ga2la.h"
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
-#include "gromacs/legacyheaders/gmx_ga2la.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
@@ -522,7 +522,7 @@ static int low_make_reverse_ilist(const t_ilist *il_mt,
     int            ftype, nral, i, j, nlink, link;
     const t_ilist *il;
     t_iatom       *ia;
-    atom_id        a;
+    int            a;
     int            nint;
     gmx_bool       bVSite;
 

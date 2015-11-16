@@ -42,13 +42,13 @@
 #include <time.h>
 
 #include "gromacs/fileio/confio.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxpreprocess/calch.h"
 #include "gromacs/gmxpreprocess/h_db.h"
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pgutil.h"
 #include "gromacs/gmxpreprocess/resall.h"
 #include "gromacs/gmxpreprocess/ter_db.h"
-#include "gromacs/legacyheaders/network.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/utility/cstringutil.h"
@@ -63,8 +63,8 @@ static void copy_atom(t_atoms *atoms1, int a1, t_atoms *atoms2, int a2)
     *atoms2->atomname[a2] = gmx_strdup(*atoms1->atomname[a1]);
 }
 
-static atom_id pdbasearch_atom(const char *name, int resind, t_atoms *pdba,
-                               const char *searchtype, gmx_bool bAllowMissing)
+static int pdbasearch_atom(const char *name, int resind, t_atoms *pdba,
+                           const char *searchtype, gmx_bool bAllowMissing)
 {
     int  i;
 
@@ -596,7 +596,6 @@ static int add_h_low(t_atoms **pdbaptr, rvec *xptr[],
                     srenew(newpdba->atom, natoms+nadd);
                     srenew(newpdba->atomname, natoms+nadd);
                 }
-                debug_gmx();
             }
             if (debug)
             {
@@ -627,7 +626,6 @@ static int add_h_low(t_atoms **pdbaptr, rvec *xptr[],
                             srenew(newpdba->atom, natoms+nadd);
                             srenew(newpdba->atomname, natoms+nadd);
                         }
-                        debug_gmx();
                     }
                     if (bUpdate_pdba)
                     {

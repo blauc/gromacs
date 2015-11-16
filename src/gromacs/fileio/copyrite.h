@@ -34,24 +34,10 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _copyrite_h
-#define _copyrite_h
+#ifndef GMX_FILEIO_COPYRITE_H
+#define GMX_FILEIO_COPYRITE_H
 
 #include <cstdio>
-
-/* For both bromacs() and cool_quote() you have to provide a pointer to
- * a string of reasonable length (say 256) and the string length. This
- * is necessary to make the routines threadsafe and avoid allocating
- * a new string each time. The retstring pointer will be the return value.
- */
-void
-bromacs(char *retstring, int retsize);
-
-/* For cool_quote, the number of the quote used will be returned in cqnum
- * if it is non-NULL.
- */
-void
-cool_quote(char *retstring, int retsize, int *cqnum);
 
 void
 please_cite(FILE *fp, const char *key);
@@ -62,7 +48,7 @@ namespace gmx
 
 class IProgramContext;
 
-/*! \brief
+/*! \libinternal\brief
  * Settings for printBinaryInformation().
  *
  * This class is used to specify what printBinaryInformation() prints.

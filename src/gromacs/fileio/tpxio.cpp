@@ -44,14 +44,15 @@
 #include <cstring>
 
 #include <algorithm>
+#include <vector>
 
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
-#include "gromacs/legacyheaders/inputrec.h"
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/boxutilities.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -102,6 +103,8 @@ enum tpxv {
     tpxv_IntermolecularBondeds,                              /**< permit inter-molecular bonded interactions in the topology */
     tpxv_ExternalPotential,                                  /**< apply external potential from external potential modules */
     tpxv_CompElWithSwapLayerOffset,                          /**< added parameters for improved CompEl setups */
+    tpxv_CompElPolyatomicIonsAndMultipleIonTypes,            /**< CompEl now can handle polyatomic ions and more than two types of ions */
+    tpxv_RemoveAdress,                                       /**< removed support for AdResS */
     tpxv_Count                                               /**< the total number of tpxv versions */
 };
 
@@ -745,56 +748,127 @@ static void do_rot(t_fileio *fio, t_rot *rot, gmx_bool bRead)
 }
 
 
-static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead, int file_version)
+static void do_swapgroup(t_fileio *fio, t_swapGroup *g, gmx_bool bRead)
 {
-    int j;
 
-    gmx_fio_do_int(fio, swap->nat);
-    gmx_fio_do_int(fio, swap->nat_sol);
-    for (j = 0; j < 2; j++)
-    {
-        gmx_fio_do_int(fio, swap->nat_split[j]);
-        gmx_fio_do_int(fio, swap->massw_split[j]);
-    }
-    gmx_fio_do_int(fio, swap->nstswap);
-    gmx_fio_do_int(fio, swap->nAverage);
-    gmx_fio_do_real(fio, swap->threshold);
-    gmx_fio_do_real(fio, swap->cyl0r);
-    gmx_fio_do_real(fio, swap->cyl0u);
-    gmx_fio_do_real(fio, swap->cyl0l);
-    gmx_fio_do_real(fio, swap->cyl1r);
-    gmx_fio_do_real(fio, swap->cyl1u);
-    gmx_fio_do_real(fio, swap->cyl1l);
-
+    /* Name of the group or molecule */
     if (bRead)
     {
-        snew(swap->ind, swap->nat);
-        snew(swap->ind_sol, swap->nat_sol);
-        for (j = 0; j < 2; j++)
+        char buf[STRLEN];
+
+        gmx_fio_do_string(fio, buf);
+        g->molname = gmx_strdup(buf);
+    }
+    else
+    {
+        gmx_fio_do_string(fio, g->molname);
+    }
+
+    /* Number of atoms in the group */
+    gmx_fio_do_int(fio, g->nat);
+
+    /* The group's atom indices */
+    if (bRead)
+    {
+        snew(g->ind, g->nat);
+    }
+    gmx_fio_ndo_int(fio, g->ind, g->nat);
+
+    /* Requested counts for compartments A and B */
+    gmx_fio_ndo_int(fio, g->nmolReq, eCompNR);
+}
+
+static void do_swapcoords_tpx(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead, int file_version)
+{
+    /* Enums for better readability of the code */
+    enum {
+        eCompA = 0, eCompB
+    };
+    enum {
+        eChannel0 = 0, eChannel1
+    };
+
+
+    if (file_version >= tpxv_CompElPolyatomicIonsAndMultipleIonTypes)
+    {
+        /* The total number of swap groups is the sum of the fixed groups
+         * (split0, split1, solvent), and the user-defined groups (2+ types of ions)
+         */
+        gmx_fio_do_int(fio, swap->ngrp);
+        if (bRead)
         {
-            snew(swap->ind_split[j], swap->nat_split[j]);
+            snew(swap->grp, swap->ngrp);
         }
+        for (int ig = 0; ig < swap->ngrp; ig++)
+        {
+            do_swapgroup(fio, &swap->grp[ig], bRead);
+        }
+        gmx_fio_do_int(fio, swap->massw_split[eChannel0]);
+        gmx_fio_do_int(fio, swap->massw_split[eChannel1]);
+        gmx_fio_do_int(fio, swap->nstswap);
+        gmx_fio_do_int(fio, swap->nAverage);
+        gmx_fio_do_real(fio, swap->threshold);
+        gmx_fio_do_real(fio, swap->cyl0r);
+        gmx_fio_do_real(fio, swap->cyl0u);
+        gmx_fio_do_real(fio, swap->cyl0l);
+        gmx_fio_do_real(fio, swap->cyl1r);
+        gmx_fio_do_real(fio, swap->cyl1u);
+        gmx_fio_do_real(fio, swap->cyl1l);
     }
-
-    gmx_fio_ndo_int(fio, swap->ind, swap->nat);
-    gmx_fio_ndo_int(fio, swap->ind_sol, swap->nat_sol);
-    for (j = 0; j < 2; j++)
+    else
     {
-        gmx_fio_ndo_int(fio, swap->ind_split[j], swap->nat_split[j]);
-    }
+        /*** Support reading older CompEl .tpr files ***/
 
-    for (j = 0; j < eCompNR; j++)
-    {
-        gmx_fio_do_int(fio, swap->nanions[j]);
-        gmx_fio_do_int(fio, swap->ncations[j]);
-    }
+        /* In the original CompEl .tpr files, we always have 5 groups: */
+        swap->ngrp = 5;
+        snew(swap->grp, swap->ngrp);
+
+        swap->grp[eGrpSplit0 ].molname = gmx_strdup("split0" );  // group 0: split0
+        swap->grp[eGrpSplit1 ].molname = gmx_strdup("split1" );  // group 1: split1
+        swap->grp[eGrpSolvent].molname = gmx_strdup("solvent");  // group 2: solvent
+        swap->grp[3          ].molname = gmx_strdup("anions" );  // group 3: anions
+        swap->grp[4          ].molname = gmx_strdup("cations");  // group 4: cations
+
+        gmx_fio_do_int(fio, swap->grp[3].nat);
+        gmx_fio_do_int(fio, swap->grp[eGrpSolvent].nat);
+        gmx_fio_do_int(fio, swap->grp[eGrpSplit0].nat);
+        gmx_fio_do_int(fio, swap->massw_split[eChannel0]);
+        gmx_fio_do_int(fio, swap->grp[eGrpSplit1].nat);
+        gmx_fio_do_int(fio, swap->massw_split[eChannel1]);
+        gmx_fio_do_int(fio, swap->nstswap);
+        gmx_fio_do_int(fio, swap->nAverage);
+        gmx_fio_do_real(fio, swap->threshold);
+        gmx_fio_do_real(fio, swap->cyl0r);
+        gmx_fio_do_real(fio, swap->cyl0u);
+        gmx_fio_do_real(fio, swap->cyl0l);
+        gmx_fio_do_real(fio, swap->cyl1r);
+        gmx_fio_do_real(fio, swap->cyl1u);
+        gmx_fio_do_real(fio, swap->cyl1l);
+
+        // The order[] array keeps compatibility with older .tpr files
+        // by reading in the groups in the classic order
+        {
+            const int order[4] = {3, eGrpSolvent, eGrpSplit0, eGrpSplit1 };
+
+            for (int ig = 0; ig < 4; ig++)
+            {
+                int g = order[ig];
+                snew(swap->grp[g].ind, swap->grp[g].nat);
+                gmx_fio_ndo_int(fio, swap->grp[g].ind, swap->grp[g].nat);
+            }
+        }
+
+        for (int j = eCompA; j <= eCompB; j++)
+        {
+            gmx_fio_do_int(fio, swap->grp[3].nmolReq[j]); // group 3 = anions
+            gmx_fio_do_int(fio, swap->grp[4].nmolReq[j]); // group 4 = cations
+        }
+    }                                                     /* End support reading older CompEl .tpr files */
 
     if (file_version >= tpxv_CompElWithSwapLayerOffset)
     {
-        for (j = 0; j < eCompNR; j++)
-        {
-            gmx_fio_do_real(fio, swap->bulkOffset[j]);
-        }
+        gmx_fio_do_real(fio, swap->bulkOffset[eCompA]);
+        gmx_fio_do_real(fio, swap->bulkOffset[eCompB]);
     }
 
 }
@@ -1528,43 +1602,37 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
     gmx_fio_do_real(fio, ir->userreal3);
     gmx_fio_do_real(fio, ir->userreal4);
 
-    /* AdResS stuff */
-    if (file_version >= 77)
+    /* AdResS is removed, but we need to be able to read old files,
+       and let mdrun refuse to run them */
+    if (file_version >= 77 && file_version < tpxv_RemoveAdress)
     {
         gmx_fio_do_gmx_bool(fio, ir->bAdress);
         if (ir->bAdress)
         {
-            if (bRead)
-            {
-                snew(ir->adress, 1);
-            }
-            gmx_fio_do_int(fio, ir->adress->type);
-            gmx_fio_do_real(fio, ir->adress->const_wf);
-            gmx_fio_do_real(fio, ir->adress->ex_width);
-            gmx_fio_do_real(fio, ir->adress->hy_width);
-            gmx_fio_do_int(fio, ir->adress->icor);
-            gmx_fio_do_int(fio, ir->adress->site);
-            gmx_fio_do_rvec(fio, ir->adress->refs);
-            gmx_fio_do_int(fio, ir->adress->n_tf_grps);
-            gmx_fio_do_real(fio, ir->adress->ex_forcecap);
-            gmx_fio_do_int(fio, ir->adress->n_energy_grps);
-            gmx_fio_do_int(fio, ir->adress->do_hybridpairs);
+            int  idum, numThermoForceGroups, numEnergyGroups;
+            real rdum;
+            rvec rvecdum;
+            gmx_fio_do_int(fio, idum);
+            gmx_fio_do_real(fio, rdum);
+            gmx_fio_do_real(fio, rdum);
+            gmx_fio_do_real(fio, rdum);
+            gmx_fio_do_int(fio, idum);
+            gmx_fio_do_int(fio, idum);
+            gmx_fio_do_rvec(fio, rvecdum);
+            gmx_fio_do_int(fio, numThermoForceGroups);
+            gmx_fio_do_real(fio, rdum);
+            gmx_fio_do_int(fio, numEnergyGroups);
+            gmx_fio_do_int(fio, idum);
 
-            if (bRead)
+            if (numThermoForceGroups > 0)
             {
-                snew(ir->adress->tf_table_index, ir->adress->n_tf_grps);
+                std::vector<int> idumn(numThermoForceGroups);
+                gmx_fio_ndo_int(fio, idumn.data(), idumn.size());
             }
-            if (ir->adress->n_tf_grps > 0)
+            if (numEnergyGroups > 0)
             {
-                gmx_fio_ndo_int(fio, ir->adress->tf_table_index, ir->adress->n_tf_grps);
-            }
-            if (bRead)
-            {
-                snew(ir->adress->group_explicit, ir->adress->n_energy_grps);
-            }
-            if (ir->adress->n_energy_grps > 0)
-            {
-                gmx_fio_ndo_int(fio, ir->adress->group_explicit, ir->adress->n_energy_grps);
+                std::vector<int> idumn(numEnergyGroups);
+                gmx_fio_ndo_int(fio, idumn.data(), idumn.size());
             }
         }
     }
@@ -1825,7 +1893,7 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
             {
                 snew(ir->swap, 1);
             }
-            do_swapcoords(fio, ir->swap, bRead, file_version);
+            do_swapcoords_tpx(fio, ir->swap, bRead, file_version);
         }
     }
 

@@ -56,15 +56,17 @@
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
 #include "gromacs/fileio/trx.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xdr_datatype.h"
 #include "gromacs/fileio/xdrf.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/utility/baseversion.h"
 #include "gromacs/utility/cstringutil.h"
@@ -172,10 +174,10 @@ static const char *st_names(int cptp, int ecpt)
 {
     switch (cptp)
     {
-        case cptpEST: return est_names [ecpt]; break;
-        case cptpEEKS: return eeks_names[ecpt]; break;
-        case cptpEENH: return eenh_names[ecpt]; break;
-        case cptpEDFH: return edfh_names[ecpt]; break;
+        case cptpEST: return est_names [ecpt];
+        case cptpEEKS: return eeks_names[ecpt];
+        case cptpEENH: return eenh_names[ecpt];
+        case cptpEDFH: return edfh_names[ecpt];
     }
 
     return NULL;
@@ -1034,9 +1036,8 @@ static int do_cpt_ekinstate(XDR *xd, int fflags, ekinstate_t *ekins,
 
 static int do_cpt_swapstate(XDR *xd, gmx_bool bRead, swapstate_t *swapstate, FILE *list)
 {
-    int ii, ic, j;
     int ret              = 0;
-    int swap_cpt_version = 1;
+    int swap_cpt_version = 2;
 
 
     if (eswapNO == swapstate->eSwapCoords)
@@ -1047,64 +1048,79 @@ static int do_cpt_swapstate(XDR *xd, gmx_bool bRead, swapstate_t *swapstate, FIL
     swapstate->bFromCpt = bRead;
 
     do_cpt_int_err(xd, "swap checkpoint version", &swap_cpt_version, list);
+    if (bRead && swap_cpt_version < 2)
+    {
+        gmx_fatal(FARGS, "Cannot read checkpoint files that were written with old versions"
+                  "of the ion/water position swapping protocol.\n");
+    }
+
     do_cpt_int_err(xd, "swap coupling steps", &swapstate->nAverage, list);
 
     /* When reading, init_swapcoords has not been called yet,
      * so we have to allocate memory first. */
-
-    for (ic = 0; ic < eCompNR; ic++)
+    do_cpt_int_err(xd, "number of ion types", &swapstate->nIonTypes, list);
+    if (bRead)
     {
-        for (ii = 0; ii < eIonNR; ii++)
+        snew(swapstate->ionType, swapstate->nIonTypes);
+    }
+
+    for (int ic = 0; ic < eCompNR; ic++)
+    {
+        for (int ii = 0; ii < swapstate->nIonTypes; ii++)
         {
-            if (bRead)
-            {
-                do_cpt_int_err(xd, "swap requested atoms", &swapstate->nat_req[ic][ii], list);
-            }
-            else
-            {
-                do_cpt_int_err(xd, "swap requested atoms p", swapstate->nat_req_p[ic][ii], list);
-            }
+            swapstateIons_t *gs = &swapstate->ionType[ii];
 
             if (bRead)
             {
-                do_cpt_int_err(xd, "swap influx netto", &swapstate->inflow_netto[ic][ii], list);
+                do_cpt_int_err(xd, "swap requested atoms", &gs->nMolReq[ic], list);
             }
             else
             {
-                do_cpt_int_err(xd, "swap influx netto p", swapstate->inflow_netto_p[ic][ii], list);
+                do_cpt_int_err(xd, "swap requested atoms p", gs->nMolReq_p[ic], list);
             }
 
-            if (bRead && (NULL == swapstate->nat_past[ic][ii]) )
+            if (bRead)
             {
-                snew(swapstate->nat_past[ic][ii], swapstate->nAverage);
+                do_cpt_int_err(xd, "swap influx net", &gs->inflow_net[ic], list);
+            }
+            else
+            {
+                do_cpt_int_err(xd, "swap influx net p", gs->inflow_net_p[ic], list);
             }
 
-            for (j = 0; j < swapstate->nAverage; j++)
+            if (bRead && (NULL == gs->nMolPast[ic]) )
+            {
+                snew(gs->nMolPast[ic], swapstate->nAverage);
+            }
+
+            for (int j = 0; j < swapstate->nAverage; j++)
             {
                 if (bRead)
                 {
-                    do_cpt_int_err(xd, "swap past atom counts", &swapstate->nat_past[ic][ii][j], list);
+                    do_cpt_int_err(xd, "swap past atom counts", &gs->nMolPast[ic][j], list);
                 }
                 else
                 {
-                    do_cpt_int_err(xd, "swap past atom counts p", &swapstate->nat_past_p[ic][ii][j], list);
+                    do_cpt_int_err(xd, "swap past atom counts p", &gs->nMolPast_p[ic][j], list);
                 }
             }
         }
     }
 
     /* Ion flux per channel */
-    for (ic = 0; ic < eChanNR; ic++)
+    for (int ic = 0; ic < eChanNR; ic++)
     {
-        for (ii = 0; ii < eIonNR; ii++)
+        for (int ii = 0; ii < swapstate->nIonTypes; ii++)
         {
+            swapstateIons_t *gs = &swapstate->ionType[ii];
+
             if (bRead)
             {
-                do_cpt_int_err(xd, "channel flux", &swapstate->fluxfromAtoB[ic][ii], list);
+                do_cpt_int_err(xd, "channel flux A->B", &gs->fluxfromAtoB[ic], list);
             }
             else
             {
-                do_cpt_int_err(xd, "channel flux p", swapstate->fluxfromAtoB_p[ic][ii], list);
+                do_cpt_int_err(xd, "channel flux A->B p", gs->fluxfromAtoB_p[ic], list);
             }
         }
     }
@@ -1112,21 +1128,29 @@ static int do_cpt_swapstate(XDR *xd, gmx_bool bRead, swapstate_t *swapstate, FIL
     /* Ion flux leakage */
     if (bRead)
     {
-        snew(swapstate->fluxleak, 1);
+        do_cpt_int_err(xd, "flux leakage", &swapstate->fluxleak, list);
     }
-    do_cpt_int_err(xd, "flux leakage", swapstate->fluxleak, list);
+    else
+    {
+        do_cpt_int_err(xd, "flux leakage", swapstate->fluxleak_p, list);
+    }
 
     /* Ion history */
-    do_cpt_int_err(xd, "number of ions", &swapstate->nions, list);
-
-    if (bRead)
+    for (int ii = 0; ii < swapstate->nIonTypes; ii++)
     {
-        snew(swapstate->channel_label, swapstate->nions);
-        snew(swapstate->comp_from, swapstate->nions);
-    }
+        swapstateIons_t *gs = &swapstate->ionType[ii];
 
-    do_cpt_u_chars(xd, "channel history", swapstate->nions, swapstate->channel_label, list);
-    do_cpt_u_chars(xd, "domain history", swapstate->nions, swapstate->comp_from, list);
+        do_cpt_int_err(xd, "number of ions", &gs->nMol, list);
+
+        if (bRead)
+        {
+            snew(gs->channel_label, gs->nMol);
+            snew(gs->comp_from, gs->nMol);
+        }
+
+        do_cpt_u_chars(xd, "channel history", gs->nMol, gs->channel_label, list);
+        do_cpt_u_chars(xd, "domain history", gs->nMol, gs->comp_from, list);
+    }
 
     /* Save the last known whole positions to checkpoint
      * file to be able to also make multimeric channels whole in PBC */

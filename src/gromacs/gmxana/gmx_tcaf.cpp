@@ -47,10 +47,10 @@
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/gstat.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -310,7 +310,7 @@ int gmx_tcaf(int argc, char *argv[])
     matrix            box;
     gmx_bool          bTop;
     int               gnx;
-    atom_id          *index, *atndx = NULL, at;
+    int              *index, *atndx = NULL, at;
     char             *grpname;
     char              title[256];
     real              t0, t1, dt, m, mtot, sysmass, rho, sx, cx;

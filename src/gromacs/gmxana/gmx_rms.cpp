@@ -44,13 +44,13 @@
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/commandline/viewit.h"
 #include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/matio.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/cmat.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/gmxana/princ.h"
-#include "gromacs/legacyheaders/copyrite.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
@@ -62,7 +62,7 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
 
-static void norm_princ(t_atoms *atoms, int isize, atom_id *index, int natoms,
+static void norm_princ(t_atoms *atoms, int isize, int *index, int natoms,
                        rvec *x)
 {
     int  i, m;
@@ -247,7 +247,7 @@ int gmx_rms(int argc, char *argv[])
     gmx_bool          bA1, bA2, bPrev, bTop, *bInMat = NULL;
     int               ifit, *irms, ibond = 0, *ind_bond1 = NULL, *ind_bond2 = NULL, n_ind_m =
         0;
-    atom_id          *ind_fit, **ind_rms, *ind_m = NULL, *rev_ind_m = NULL, *ind_rms_m =
+    int              *ind_fit, **ind_rms, *ind_m = NULL, *rev_ind_m = NULL, *ind_rms_m =
         NULL;
     char             *gn_fit, **gn_rms;
     t_rgb             rlo, rhi;

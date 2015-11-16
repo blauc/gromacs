@@ -34,15 +34,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _inputrec_h_
-#define _inputrec_h_
-
-#include <stdio.h>
+/*! \brief
+ * Declares inputrec data structure and utilities.
+ *
+ * \inpublicapi
+ * \ingroup module_mdtypes
+ */
+#ifndef GMX_MDTYPES_INPUTREC_H
+#define GMX_MDTYPES_INPUTREC_H
 
 #include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/swap/enums.h"
-#include "gromacs/topology/atom_id.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
@@ -50,11 +52,13 @@
 extern "C" {
 #endif
 
-
 typedef struct {
-    int   n;    /* Number of terms				*/
-    real *a;    /* Coeffients (V / nm )                     */
-    real *phi;  /* Phase angles					*/
+    //! Number of terms
+    int   n;
+    //! Coeffients (V / nm)
+    real *a;
+    //! Phase angles
+    real *phi;
 } t_cosines;
 
 typedef struct {
@@ -103,10 +107,10 @@ typedef struct t_grpopts {
 
 typedef struct {
     int         nat;        /* Number of atoms in the pull group */
-    atom_id    *ind;        /* The global atoms numbers */
+    int        *ind;        /* The global atoms numbers */
     int         nweight;    /* The number of weights (0 or nat) */
     real       *weight;     /* Weights (use all 1 when weight==NULL) */
-    atom_id     pbcatom;    /* The reference atom for pbc (global number) */
+    int         pbcatom;    /* The reference atom for pbc (global number) */
 } t_pull_group;
 
 typedef struct {
@@ -220,7 +224,7 @@ typedef struct {
     int         eType;             /* Rotation type for this group                  */
     int         bMassW;            /* Use mass-weighed positions?                   */
     int         nat;               /* Number of atoms in the group                  */
-    atom_id    *ind;               /* The global atoms numbers                      */
+    int        *ind;               /* The global atoms numbers                      */
     rvec       *x_ref;             /* The reference positions                       */
     rvec        vec;               /* The normalized rotation vector                */
     real        rate;              /* Rate of rotation (degree/ps)                  */
@@ -279,37 +283,38 @@ struct t_gmx_IMD;
 
 typedef struct t_IMD {
     int               nat;   /* Number of interactive atoms                   */
-    atom_id          *ind;   /* The global indices of the interactive atoms   */
+    int              *ind;   /* The global indices of the interactive atoms   */
     struct t_gmx_IMD *setup; /* Stores non-inputrec IMD data                  */
 } t_IMD;
 
 /* Abstract types for position swapping only defined in swapcoords.cpp */
 typedef struct t_swap *gmx_swapcoords_t;
 
-typedef struct t_swapcoords {
-    int              nstswap;             /* Every how many steps a swap is attempted?    */
-    int              nat;                 /* Number of atoms in the ion group             */
-    int              nat_split[2];        /* Number of atoms in the split group           */
-    int              nat_sol;             /* Number of atoms in the solvent group         */
-    atom_id         *ind;                 /* The global ion group atoms numbers           */
-    atom_id         *ind_split[2];        /* Split groups for compartment partitioning    */
-    atom_id         *ind_sol;             /* The global solvent group atom numbers        */
-    gmx_bool         massw_split[2];      /* Use mass-weighted positions in split group?  */
-    real             cyl0r, cyl1r;        /* Split cylinders defined by radius, upper and */
-    real             cyl0u, cyl1u;        /* ... lower extension. The split cylinders de- */
-    real             cyl0l, cyl1l;        /* ... fine the channels and are each anchored  */
-                                          /* ... in the center of the split group         */
-    int              nanions[eCompNR];    /* Requested number of anions and               */
-    int              nAverage;            /* Coupling constant (nr of swap attempt steps) */
-    real             threshold;           /* Ion counts may deviate from the requested
-                                             values by +-threshold before a swap is done  */
-    int              ncations[eCompNR];   /* ... cations for both compartments            */
-    real             bulkOffset[eCompNR]; /* Offset of the swap layer (='bulk') w.r.t.
-                                             the compartment-defining layers              */
-    gmx_swapcoords_t si_priv;             /* swap private data accessible in
-                                           * swapcoords.cpp                               */
-} t_swapcoords;
+typedef struct t_swapGroup {
+    char            *molname;             /* Name of the swap group, e.g. NA, CL, SOL       */
+    int              nat;                 /* Number of atoms in this group                  */
+    int             *ind;                 /* The global ion group atoms numbers             */
+    int              nmolReq[eCompNR];    /* Requested number of molecules of this type
+                                             per compartment                                */
+} t_swapGroup;
 
+typedef struct t_swapcoords {
+    int               nstswap;             /* Every how many steps a swap is attempted?    */
+    gmx_bool          massw_split[2];      /* Use mass-weighted positions in split group?  */
+    real              cyl0r, cyl1r;        /* Split cylinders defined by radius, upper and */
+    real              cyl0u, cyl1u;        /* ... lower extension. The split cylinders de- */
+    real              cyl0l, cyl1l;        /* ... fine the channels and are each anchored  */
+                                           /* ... in the center of the split group         */
+    int               nAverage;            /* Coupling constant (nr of swap attempt steps) */
+    real              threshold;           /* Ion counts may deviate from the requested
+                                              values by +-threshold before a swap is done  */
+    real              bulkOffset[eCompNR]; /* Offset of the swap layer (='bulk') w.r.t.
+                                              the compartment-defining layers              */
+    int               ngrp;                /* Number of groups to be controlled            */
+    t_swapGroup      *grp;                 /* All swap groups, including split and solvent */
+    gmx_swapcoords_t  si_priv;             /* swap private data accessible in
+                                            * swapcoords.cpp                               */
+} t_swapcoords;
 
 typedef struct t_adress {
     int      type;           /* type of AdResS simulation                    */
@@ -476,9 +481,9 @@ typedef struct t_inputrec {
     int             QMconstraints; /* constraints on QM bonds                      */
     int             QMMMscheme;    /* Scheme: ONIOM or normal                      */
     real            scalefactor;   /* factor for scaling the MM charges in QM calc.*/
-                                   /* parameter needed for AdResS simulation       */
-    gmx_bool        bAdress;       /* Is AdResS enabled ? */
-    t_adress       *adress;        /* The data for adress simulations */
+
+    /* Fields for removed features go here (better caching) */
+    gmx_bool        bAdress;
 } t_inputrec;
 
 #define DEFORM(ir) ((ir).deform[XX][XX] != 0 || (ir).deform[YY][YY] != 0 || (ir).deform[ZZ][ZZ] != 0 || (ir).deform[YY][XX] != 0 || (ir).deform[ZZ][XX] != 0 || (ir).deform[ZZ][YY] != 0)
@@ -501,9 +506,60 @@ typedef struct t_inputrec {
 
 #define IR_NPH_TROTTER(ir) ((((ir)->eI == eiVV) || ((ir)->eI == eiVVAK)) && (((ir)->epc == epcMTTK) && (!(((ir)->etc == etcNOSEHOOVER)))))
 
+int ir_optimal_nstcalcenergy(const t_inputrec *ir);
+
+int tcouple_min_integration_steps(int etc);
+
+int ir_optimal_nsttcouple(const t_inputrec *ir);
+
+int pcouple_min_integration_steps(int epc);
+
+int ir_optimal_nstpcouple(const t_inputrec *ir);
+
+/* Returns if the Coulomb force or potential is switched to zero */
+gmx_bool ir_coulomb_switched(const t_inputrec *ir);
+
+/* Returns if the Coulomb interactions are zero beyond the rcoulomb.
+ * Note: always returns TRUE for the Verlet cut-off scheme.
+ */
+gmx_bool ir_coulomb_is_zero_at_cutoff(const t_inputrec *ir);
+
+/* As ir_coulomb_is_zero_at_cutoff, but also returns TRUE for user tabulated
+ * interactions, since these might be zero beyond rcoulomb.
+ */
+gmx_bool ir_coulomb_might_be_zero_at_cutoff(const t_inputrec *ir);
+
+/* Returns if the Van der Waals force or potential is switched to zero */
+gmx_bool ir_vdw_switched(const t_inputrec *ir);
+
+/* Returns if the Van der Waals interactions are zero beyond the rvdw.
+ * Note: always returns TRUE for the Verlet cut-off scheme.
+ */
+gmx_bool ir_vdw_is_zero_at_cutoff(const t_inputrec *ir);
+
+/* As ir_vdw_is_zero_at_cutoff, but also returns TRUE for user tabulated
+ * interactions, since these might be zero beyond rvdw.
+ */
+gmx_bool ir_vdw_might_be_zero_at_cutoff(const t_inputrec *ir);
+
+/*! \brief Initiate input record structure
+ *
+ * Initialiazes all the arrays and pointers to NULL.
+ *
+ * \param[in] ir Inputrec must be pre-allocated
+ */
+void init_inputrec(t_inputrec *ir);
+
+/*! \brief Free memory from input record.
+ *
+ * All arrays and pointers will be freed.
+ *
+ * \param[in] ir The data structure
+ */
+void done_inputrec(t_inputrec *ir);
+
 #ifdef __cplusplus
 }
 #endif
 
-
-#endif
+#endif /* GMX_MDTYPES_INPUTREC_H */

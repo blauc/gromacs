@@ -49,7 +49,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 
-gmx_bool gmx_mpi_initialized(void)
+bool gmx_mpi_initialized()
 {
 #ifndef GMX_MPI
     return 0;
@@ -61,7 +61,7 @@ gmx_bool gmx_mpi_initialized(void)
 #endif
 }
 
-int gmx_node_num(void)
+int gmx_node_num()
 {
 #ifndef GMX_MPI
     return 1;
@@ -78,7 +78,7 @@ int gmx_node_num(void)
 #endif
 }
 
-int gmx_node_rank(void)
+int gmx_node_rank()
 {
 #ifndef GMX_MPI
     return 0;
@@ -95,40 +95,6 @@ int gmx_node_rank(void)
 #endif
 }
 
-static int mpi_hostname_hash(void)
-{
-    int hash_int;
-
-#ifndef GMX_LIB_MPI
-    /* We have a single physical node */
-    hash_int = 0;
-#else
-    int  resultlen;
-    char mpi_hostname[MPI_MAX_PROCESSOR_NAME];
-
-    /* This procedure can only differentiate nodes with different names.
-     * Architectures where different physical nodes have identical names,
-     * such as IBM Blue Gene, should use an architecture specific solution.
-     */
-    MPI_Get_processor_name(mpi_hostname, &resultlen);
-
-    /* The string hash function returns an unsigned int. We cast to an int.
-     * Negative numbers are converted to positive by setting the sign bit to 0.
-     * This makes the hash one bit smaller.
-     * A 63-bit hash (with 64-bit int) should be enough for unique node hashes,
-     * even on a million node machine. 31 bits might not be enough though!
-     */
-    hash_int =
-        (int)gmx_string_fullhash_func(mpi_hostname, gmx_string_hash_init);
-    if (hash_int < 0)
-    {
-        hash_int -= INT_MIN;
-    }
-#endif
-
-    return hash_int;
-}
-
 #if defined GMX_LIB_MPI && defined GMX_TARGET_BGQ
 #ifdef __clang__
 /* IBM's declaration of this function in
@@ -141,7 +107,7 @@ static uint64_t Kernel_GetJobID();
 #endif
 #include <spi/include/kernel/location.h>
 
-static int bgq_nodenum(void)
+static int bgq_nodenum()
 {
     int           hostnum;
     Personality_t personality;
@@ -153,7 +119,7 @@ static int bgq_nodenum(void)
        threads, so 0 <= T <= 63 (but the maximum value of T depends on
        the confituration of ranks and OpenMP threads per
        node). However, T is irrelevant for computing a suitable return
-       value for gmx_hostname_num().
+       value for gmx_physicalnode_id_hash().
      */
     hostnum  = personality.Network_Config.Acoord;
     hostnum *= personality.Network_Config.Bnodes;
@@ -191,26 +157,53 @@ static int bgq_nodenum(void)
 }
 #endif
 
-int gmx_physicalnode_id_hash(void)
+static int mpi_hostname_hash()
 {
-    int hash;
+    int hash_int;
 
-#ifndef GMX_MPI
-    hash = 0;
+#ifdef GMX_TARGET_BGQ
+    hash_int = bgq_nodenum();
+#elif defined GMX_LIB_MPI
+    int  resultlen;
+    char mpi_hostname[MPI_MAX_PROCESSOR_NAME];
+
+    /* This procedure can only differentiate nodes with different names.
+     * Architectures where different physical nodes have identical names,
+     * such as IBM Blue Gene, should use an architecture specific solution.
+     */
+    MPI_Get_processor_name(mpi_hostname, &resultlen);
+
+    /* The string hash function returns an unsigned int. We cast to an int.
+     * Negative numbers are converted to positive by setting the sign bit to 0.
+     * This makes the hash one bit smaller.
+     * A 63-bit hash (with 64-bit int) should be enough for unique node hashes,
+     * even on a million node machine. 31 bits might not be enough though!
+     */
+    hash_int = static_cast<int>(gmx_string_fullhash_func(mpi_hostname, gmx_string_hash_init));
+    if (hash_int < 0)
+    {
+        hash_int -= INT_MIN;
+    }
 #else
-#ifdef GMX_THREAD_MPI
+
     /* thread-MPI currently puts the thread number in the process name,
      * we might want to change this, as this is inconsistent with what
      * most MPI implementations would do when running on a single node.
      */
-    hash = 0;
-#else
-#ifdef GMX_TARGET_BGQ
-    hash = bgq_nodenum();
-#else
+    hash_int = 0;
+#endif
+
+    return hash_int;
+}
+
+int gmx_physicalnode_id_hash(void)
+{
+    int hash;
+
+#ifdef GMX_MPI
     hash = mpi_hostname_hash();
-#endif
-#endif
+#else
+    hash = 0;
 #endif
 
     if (debug)
@@ -219,6 +212,16 @@ int gmx_physicalnode_id_hash(void)
     }
 
     return hash;
+}
+
+void gmx_broadcast_world(int size, void *buffer)
+{
+#ifdef GMX_MPI
+    MPI_Bcast(buffer, size, MPI_BYTE, 0, MPI_COMM_WORLD);
+#else
+    GMX_UNUSED_VALUE(size);
+    GMX_UNUSED_VALUE(buffer);
+#endif
 }
 
 #ifdef GMX_LIB_MPI

@@ -232,6 +232,11 @@ const char *eSwapTypes_names[eSwapTypesNR+1] = {
     "no", "X", "Y", "Z", NULL
 };
 
+const char *eSwapFixedGrp_names[eSwapFixedGrpNR+1] = {
+    "Split0", "Split1", "Solvent", NULL
+};
+
+
 const char *eQMmethod_names[eQMmethodNR+1] = {
     "AM1", "PM3", "RHF",
     "UHF", "DFT", "B3LYP", "MP2", "CASSCF", "B3LYPLAN",
@@ -253,24 +258,12 @@ const char *eMultentOpt_names[eMultentOptNR+1] = {
     "multiple_entries", "no", "use_last", NULL
 };
 
-const char *eAdresstype_names[eAdressNR+1] = {
-    "off", "constant", "xsplit", "sphere", NULL
-};
-
-const char *eAdressICtype_names[eAdressICNR+1] = {
-    "off", "thermoforce", NULL
-};
-
-const char *eAdressSITEtype_names[eAdressSITENR+1] = {
-    "com", "cog", "atom", "atomperatom", NULL
-};
-
 const char *gmx_nblist_geometry_names[GMX_NBLIST_GEOMETRY_NR+1] = {
     "Particle-Particle", "Water3-Particle", "Water3-Water3", "Water4-Particle", "Water4-Water4", "CG-CG", NULL
 };
 
 const char *gmx_nblist_interaction_names[GMX_NBLIST_INTERACTION_NR+1] = {
-    "Standard", "Free_Energy", "Adress", NULL
+    "Standard", "Free_Energy", NULL
 };
 
 const char *gmx_nbkernel_elec_names[GMX_NBKERNEL_ELEC_NR+1] =
