@@ -66,6 +66,7 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/externalpotential/externalpotentialregistration.h"
+#include "gromacs/externalpotential/externalpotentialutil.h"
 
 #define TPX_TAG_RELEASE  "release"
 
@@ -800,8 +801,7 @@ static void do_swapcoords(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead, int
 
 static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_input, gmx_bool bRead){
 
-    char      buf[STRLEN];
-    ExternalPotentialRegistration external_potential_registry;
+    t_ext_pot_ir *curr_ir;
 
     fprintf(stderr, "%s filenames for external potential.\n", bRead? "Reading" : "Writing");
 
@@ -810,46 +810,41 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
     if (bRead)
     {
         snew(external_potential_input->basepath,STRLEN);
-        gmx_fio_do_string(fio, external_potential_input->basepath);
-        snew(external_potential_input->filenames, external_potential_registry.number_methods());
-        snew(external_potential_input->outputfilenames, external_potential_registry.number_methods());
-        for (size_t i = 0; (i < external_potential_registry.number_methods()); i++)
-        {
-            gmx_fio_do_string(fio, buf);
-            snew(external_potential_input->filenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
-            external_potential_input->filenames[i] = gmx_strdup(buf);
-            gmx_fio_do_string(fio, buf);
-            snew(external_potential_input->outputfilenames[i], STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
-            external_potential_input->outputfilenames[i] = gmx_strdup(buf);
-        }
-
-        snew(external_potential_input->nat,external_potential_input->number_external_potentials);
-        snew(external_potential_input->ind,external_potential_input->number_external_potentials);
-
-        for (int i = 0; i < external_potential_input->number_external_potentials; i++) {
-
-            gmx_fio_do_int(fio,external_potential_input->nat[i]);
-            snew(external_potential_input->ind[i],external_potential_input->nat[i]);
-            gmx_fio_ndo_int(fio,external_potential_input->ind[i],external_potential_input->nat[i]);
-        }
-
+        snew(external_potential_input->inputrec_data, external_potential_input->number_external_potentials);
     }
-    else
+
+    gmx_fio_do_string(fio, external_potential_input->basepath);
+
+    for (int i = 0; (i <  external_potential_input->number_external_potentials); i++)
     {
-        gmx_fio_do_string(fio, external_potential_input->basepath);
-        for (size_t i = 0; i < external_potential_registry.number_methods(); i++)
-        {
-            gmx_fio_do_string(fio, external_potential_input->filenames[i]);
-            gmx_fio_do_string(fio, external_potential_input->outputfilenames[i]);
+        curr_ir=external_potential_input->inputrec_data[i];
+        if(bRead){
+            snew(curr_ir,1);
+            snew(curr_ir->inputfilename, STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
+            snew(curr_ir->outputfilename, STRLEN);//TODO:STRLEN characters might not be enough, if there are a lot of input files
         }
 
-        for (int i = 0; i < external_potential_input->number_external_potentials; i++) {
-            gmx_fio_do_int(fio,external_potential_input->nat[i]);
-            gmx_fio_ndo_int(fio,external_potential_input->ind[i],external_potential_input->nat[i]);
+        gmx_fio_do_int(fio,curr_ir->method);
+        gmx_fio_do_string(fio, curr_ir->inputfilename);
+        gmx_fio_do_string(fio, curr_ir->outputfilename);
+
+        gmx_fio_do_int(fio,curr_ir->number_index_groups);
+
+        if(bRead){
+            snew(curr_ir->nat,curr_ir->number_index_groups);
+            snew(curr_ir->ind,curr_ir->number_index_groups);
         }
 
+
+        for (int j = 0; j < curr_ir->number_index_groups; j++) {
+            gmx_fio_do_int(fio,curr_ir->nat[j]);
+            if (bRead)
+            {
+                snew(curr_ir->ind[j],curr_ir->nat[j]);
+            }
+            gmx_fio_ndo_int(fio,curr_ir->ind[j],curr_ir->nat[j]);
+        }
     }
-
 }
 
 

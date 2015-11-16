@@ -1,13 +1,57 @@
 #include "gmxpre.h"
 #include "pulling.h"
 
-std::string PullingInfo::name_=std::string("pulling");
-std::string PullingInfo::shortDescription_=std::string("do pulling");
 
-ExternalPotential* PullingInfo::create(ExternalPotentialData *data)
+PullingInfo::PullingInfo(){
+    name_=std::string("pulling");
+    shortDescription_=std::string("do pulling");
+};
+
+ExternalPotential* PullingInfo::create(ExternalPotentialDataPointer data)
 {
     return (ExternalPotential*)(new Pulling(data));
 }
 
-std::string PullingInfo::name(){return name_;};
-std::string PullingInfo::shortDescription(){return shortDescription_;};
+
+Pulling::Pulling(ExternalPotentialDataPointer data)
+{
+ (void) data;
+};
+
+Pulling::~Pulling()
+{
+};
+
+void Pulling::do_potential(
+    t_commrec      *cr,
+    t_inputrec     *ir,
+    matrix          box,
+    rvec            x[],
+    real            t,
+    gmx_int64_t     step,
+    gmx_wallcycle_t wcycle,
+    gmx_bool        bNS){
+        (void) cr;
+        (void) ir;
+        (void) box;
+        (void) x;
+        (void) t;
+        (void) step;
+        (void) wcycle;
+        (void) bNS;
+};
+
+void Pulling::add_forces(
+    rvec f[],
+    tensor vir,
+    t_commrec *cr,
+    gmx_int64_t step,
+    real t,
+    real *V_total){
+        (void) f;
+        (void) vir;
+        (void) cr;
+        (void) step;
+        (void) t;
+        (void) V_total;
+    };

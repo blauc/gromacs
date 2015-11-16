@@ -1,16 +1,29 @@
 #ifndef _externalpotentialutil_h_
 #define _externalpotentialutil_h_
 
-#include "gromacs/topology/block.h"
-#include "gromacs/topology/topology.h"
-#include "gromacs/fileio/oenv.h"
-#include "gromacs/timing/wallcycle.h"
-#include "gromacs/legacyheaders/inputrec.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/gmxlib/readinp.h"
+#include "gromacs/legacyheaders/types/inputrec.h"
+
+
+
+struct ext_pot;
+struct t_blocka;
+struct t_commrec;
+struct t_inputrec;
+struct gmx_ext_pot;
+struct gmx_output_env_t;
+struct gmx_mtop_t;
+struct gmx_domdec_t;
+struct gmx_wallcycle;
+
 
 #include <vector>
 #include <string>
+#include <memory>
+
 
 /*! \brief
  * Structure that keeps non-inputrecord data for external potentials.
@@ -23,7 +36,9 @@ typedef struct gmx_ext_pot
     std::vector<ExternalPotential*> potentials;
 }t_gmx_ext_pot;
 
+
 class ExternalPotentialData;
+typedef std::shared_ptr<ExternalPotentialData> ExternalPotentialDataPointer;
 
 /*! \brief
  * Manage iterations over external potentials.
@@ -41,7 +56,7 @@ class ExternalPotentialUtil
          * \result groupnames for all types of external potentials
          * TODO: enforce input consistency (eg. by writing checksums of input files to the .tpr file / inputrecord)
          */
-        char ** set_external_potential(int *ninp_p, t_inpfile **inp_p, t_ext_pot * ep );
+        char ** set_external_potential(int *ninp_p, t_inpfile **inp_p, struct ext_pot * ep );
 
         /*! \brief
          * Generate an index group per applied external potential during pre-processing in grompp.
@@ -51,7 +66,7 @@ class ExternalPotentialUtil
          * \param[in] groups the indexgroups as read by grompp
          * \param[in] all_group_names the group names as read by grompp
          */
-        void make_groups(t_ext_pot *ext_pot, char **group_name, t_blocka *groups, char **all_group_names);
+        void make_groups(struct ext_pot *ep, char **group_name, t_blocka *groups, char **all_group_names);
 
         /*! \brief
          * Trigger calculation of external potentials in the respective external potential module classes.
@@ -62,7 +77,7 @@ class ExternalPotentialUtil
          * \param[in] ir Input record
          * \result potential_ and force_ will be updated in all experimental input modules, if applied at this step.
          */
-        void do_external_potentials( t_commrec *cr, t_inputrec *ir, matrix box, rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, gmx_bool bNS);
+        void do_external_potentials( t_commrec *cr, t_inputrec *ir, matrix box, rvec x[], real t, gmx_int64_t step, gmx_wallcycle* wcycle, gmx_bool bNS);
 
         /*! \brief
          * Add the forces from the external potentials to the overall force in this simulation step.
@@ -74,7 +89,7 @@ class ExternalPotentialUtil
          * \param[in,out] vir The updated virial
          * \result contribution to the total potential from external potentials, updated force and virial
          */
-        real add_ext_forces( t_gmx_ext_pot * extpot, rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step, real t);
+        real add_ext_forces( struct gmx_ext_pot * extpot, rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step, real t);
 
         /*! \brief
          * Initialize the external potentials during the run (see runner.cpp).
@@ -96,11 +111,13 @@ class ExternalPotentialUtil
          *
          * \result updated num_atoms_loc_, ind_loc_ and nalloc_loc_,
          */
-        void dd_make_local_groups( gmx_domdec_t *dd, t_ext_pot *external_potential );
+        void dd_make_local_groups( gmx_domdec_t *dd, struct ext_pot *external_potential );
+
+        void broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential);
 
     private:
 
-        ExternalPotentialData* init_data_(int nat, int * ind, t_commrec * cr, t_inputrec *ir, FILE * fplog, std::string inputfilename, std::string outputfilename, rvec x[], matrix box, gmx_mtop_t *mtop, bool bVerbose, const gmx_output_env_t * oenv,
+        ExternalPotentialDataPointer init_data_(t_ext_pot_ir *grp, t_commrec * cr, t_inputrec *ir, FILE * fplog, std::string basepath, rvec x[], matrix box, gmx_mtop_t *mtop, bool bVerbose, const gmx_output_env_t * oenv,
                                           unsigned long Flags);
 
         /*! \brief
@@ -122,6 +139,13 @@ class ExternalPotentialUtil
         /*! \brief
          * An exeption throwing search_string, analogue to the one in readir.cpp */
         int search_string_(const char *s, int ng, char *gn[]);
+
+        /*! \brief
+         * Return vector with non-empty, non-whitespace containing string.
+         *
+         * E.g. "a, \t \n fs  g \n" is returned as {"a,","fs","g"}
+         */
+        std::vector<std::string> split_string_at_whitespace_(std::string s);
 
 };
 

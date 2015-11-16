@@ -5,12 +5,15 @@
 #ifndef _externalpotentialregistration_h_
 #define _externalpotentialregistration_h_
 
-#include "externalpotential.h"
+class ExternalPotential;
+class ExternalPotentialData;
+class ExternalPotentialInfo;
 
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/exceptions.h"
 #include <string>
+#include <vector>
+#include <memory>
 
+typedef std::shared_ptr<ExternalPotentialData> ExternalPotentialDataPointer;
 
 /*! \brief
  * This class registers the external potentials by generating a pointer to each impemented external potential.
@@ -20,7 +23,7 @@
 class ExternalPotentialRegistration {
     public:
         ExternalPotentialRegistration();
-        ExternalPotential* init(size_t method, ExternalPotentialData *data);
+        ExternalPotential* init(size_t method, ExternalPotentialDataPointer data);
         size_t number_methods();
         size_t method_id(std::string methodstring);
         std::string name(size_t method_nr);

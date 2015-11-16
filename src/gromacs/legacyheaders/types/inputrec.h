@@ -251,18 +251,27 @@ typedef struct t_rot {
 /* Abstract type for non-inpurec external potential classes, defined in externalpotentialutil.h */
 typedef struct gmx_ext_pot t_gmx_ext_pot;
 
+typedef struct ext_pot_ir{
+
+    int    method;         /*< The method identifier                            */
+    int    number_index_groups;
+
+    char  *inputfilename;  /*< Filenames for external potential input data      */
+    char  *outputfilename; /*< Filename for diagnostic output for external
+                            potential during simulation                         */
+    int   *nat;            /*< Number of atoms subject to an external potential */
+    int  **ind;            /*< Indices of atoms subject to an external potential*/
+} t_ext_pot_ir;
+
 /*! \brief
  * The external potential information which will be available during the
  * simulation run. Carries the data from grompp to mdrun.
  */
 typedef struct ext_pot {
     char * basepath;
-    char **filenames; //< To keep the interface as basic as possible, store only filenames for external potential input data
-    char **outputfilenames;
-    int   *nat;//< Number of atoms subjext to an external potential
-    int  **ind;//< Indexing the atoms that will be subject to an external potential will be provided by default
-    int    number_external_potentials;//< The total number of external potentials that will be appied is only needed for writing index groups to the tpr files
-    t_gmx_ext_pot *extpot;//< The external potential classes containing the non-inputrec data.
+    int    number_external_potentials; //< If a potential from the same method is applied twice, this variable counts it twice
+    t_ext_pot_ir  **inputrec_data;      //< The data, written to the tpr file / inputrecod
+    t_gmx_ext_pot  *extpot;             //< The external potential classes containing the non-inputrec data.
 } t_ext_pot;
 
 /* Abstract type for IMD only defined in IMD.c */

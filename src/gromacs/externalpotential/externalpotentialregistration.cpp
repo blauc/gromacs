@@ -6,6 +6,8 @@
 #include "modules/densityfitting/densityfitting.h"
 #include "modules/pulling/pulling.h"
 
+#include "gromacs/utility/exceptions.h"
+
 
 ExternalPotentialRegistration::ExternalPotentialRegistration(){
     register_<DensityFittingInfo>();
@@ -15,7 +17,7 @@ ExternalPotentialRegistration::ExternalPotentialRegistration(){
 
 ExternalPotential* ExternalPotentialRegistration::init(
         size_t                 method,
-        ExternalPotentialData *data
+        ExternalPotentialDataPointer data
         )
 {
     return methods_[method]->create(data);

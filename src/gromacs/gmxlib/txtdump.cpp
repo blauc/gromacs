@@ -824,11 +824,17 @@ static void pr_externalpotential(FILE *fp, int indent, t_ext_pot * pot)
 {
 
     ExternalPotentialRegistration external_potential_registry;
+    t_ext_pot_ir * curr_ir;
 
     PS("external-potential-path", pot->basepath);
-    for (size_t p = 0; p < external_potential_registry.number_methods(); p++)
+
+    for (int p = 0; p < pot->number_external_potentials; p++)
     {
-        PS(external_potential_registry.name(p).c_str(), pot->filenames[p]);
+        curr_ir=pot->inputrec_data[p];
+        PS("external-potential-method",external_potential_registry.name(curr_ir->method).c_str());
+        PS("external-potential-inputfile",curr_ir->inputfilename);
+        PS("external-potential-outputfile",curr_ir->outputfilename);
+
     }
 
 }

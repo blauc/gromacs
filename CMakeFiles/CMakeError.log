@@ -1,0 +1,416 @@
+Determining if files io.h exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec1994449194/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec1994449194.dir/build.make CMakeFiles/cmTryCompileExec1994449194.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec1994449194.dir/CheckIncludeFiles.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter     -o CMakeFiles/cmTryCompileExec1994449194.dir/CheckIncludeFiles.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckIncludeFiles.c
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckIncludeFiles.c:2:16: fatal error: io.h: No such file or directory
+ #include <io.h>
+                ^
+compilation terminated.
+make[1]: *** [CMakeFiles/cmTryCompileExec1994449194.dir/CheckIncludeFiles.c.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec1994449194/fast] Error 2
+
+Source:
+/* */
+#include <io.h>
+
+
+int main(){return 0;}
+
+Determining if the _fileno exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec1039353494/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec1039353494.dir/build.make CMakeFiles/cmTryCompileExec1039353494.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec1039353494.dir/CheckSymbolExists.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec1039353494.dir/CheckSymbolExists.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx: In function ‘int main(int, char**)’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:8:19: error: ‘_fileno’ was not declared in this scope
+   return ((int*)(&_fileno))[argc];
+                   ^
+make[1]: *** [CMakeFiles/cmTryCompileExec1039353494.dir/CheckSymbolExists.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec1039353494/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <stdio.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef _fileno
+  return ((int*)(&_fileno))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the _commit exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec634161947/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec634161947.dir/build.make CMakeFiles/cmTryCompileExec634161947.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec634161947.dir/CheckSymbolExists.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec634161947.dir/CheckSymbolExists.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:2:16: fatal error: io.h: No such file or directory
+ #include <io.h>
+                ^
+compilation terminated.
+make[1]: *** [CMakeFiles/cmTryCompileExec634161947.dir/CheckSymbolExists.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec634161947/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <io.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef _commit
+  return ((int*)(&_commit))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the rsqrt exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec2490799056/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec2490799056.dir/build.make CMakeFiles/cmTryCompileExec2490799056.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec2490799056.dir/CheckSymbolExists.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec2490799056.dir/CheckSymbolExists.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx: In function ‘int main(int, char**)’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:8:19: error: ‘rsqrt’ was not declared in this scope
+   return ((int*)(&rsqrt))[argc];
+                   ^
+make[1]: *** [CMakeFiles/cmTryCompileExec2490799056.dir/CheckSymbolExists.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec2490799056/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <math.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef rsqrt
+  return ((int*)(&rsqrt))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the rsqrtf exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec3294900733/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec3294900733.dir/build.make CMakeFiles/cmTryCompileExec3294900733.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec3294900733.dir/CheckSymbolExists.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec3294900733.dir/CheckSymbolExists.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx: In function ‘int main(int, char**)’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:8:19: error: ‘rsqrtf’ was not declared in this scope
+   return ((int*)(&rsqrtf))[argc];
+                   ^
+make[1]: *** [CMakeFiles/cmTryCompileExec3294900733.dir/CheckSymbolExists.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec3294900733/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <math.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef rsqrtf
+  return ((int*)(&rsqrtf))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the memalign exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec1615881899/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec1615881899.dir/build.make CMakeFiles/cmTryCompileExec1615881899.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec1615881899.dir/CheckSymbolExists.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec1615881899.dir/CheckSymbolExists.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx: In function ‘int main(int, char**)’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:8:19: error: ‘memalign’ was not declared in this scope
+   return ((int*)(&memalign))[argc];
+                   ^
+make[1]: *** [CMakeFiles/cmTryCompileExec1615881899.dir/CheckSymbolExists.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec1615881899/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.cxx:
+/* */
+#include <stdlib.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef memalign
+  return ((int*)(&memalign))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the system is big endian passed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec3685687154/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec3685687154.dir/build.make CMakeFiles/cmTryCompileExec3685687154.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec3685687154.dir/TestEndianess.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter     -o CMakeFiles/cmTryCompileExec3685687154.dir/TestEndianess.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/TestEndianess.c
+Linking C executable cmTryCompileExec3685687154
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec3685687154.dir/link.txt --verbose=1
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter      CMakeFiles/cmTryCompileExec3685687154.dir/TestEndianess.c.o  -o cmTryCompileExec3685687154 -rdynamic 
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+
+TestEndianess.c:
+/* A 16 bit integer is required. */
+typedef unsigned short cmakeint16;
+
+/* On a little endian machine, these 16bit ints will give "THIS IS LITTLE ENDIAN."
+   On a big endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_little[] =  {0x4854, 0x5349, 0x4920, 0x2053, 0x494c, 0x5454, 0x454c, 0x4520, 0x444e, 0x4149, 0x2e4e, 0x0000};
+
+/* on a big endian machine, these 16bit ints will give "THIS IS BIG ENDIAN."
+   On a little endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_big[] =     {0x5448, 0x4953, 0x2049, 0x5320, 0x4249, 0x4720, 0x454e, 0x4449, 0x414e, 0x2e2e, 0x0000};
+
+#ifdef __CLASSIC_C__
+int main(argc, argv) int argc; char *argv[];
+#else
+int main(int argc, char *argv[])
+#endif
+{
+  int require = 0;
+  require += info_little[argc];
+  require += info_big[argc];
+  (void)argv;
+  return require;
+}
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec760779016/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec760779016.dir/build.make CMakeFiles/cmTryCompileExec760779016.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec760779016.dir/CheckSymbolExists.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter     -o CMakeFiles/cmTryCompileExec760779016.dir/CheckSymbolExists.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTryCompileExec760779016
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec760779016.dir/link.txt --verbose=1
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter      CMakeFiles/cmTryCompileExec760779016.dir/CheckSymbolExists.c.o  -o cmTryCompileExec760779016 -rdynamic 
+CMakeFiles/cmTryCompileExec760779016.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x16): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+make[1]: *** [cmTryCompileExec760779016] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec760779016/fast] Error 2
+
+File /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec363572614/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec363572614.dir/build.make CMakeFiles/cmTryCompileExec363572614.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec363572614.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTryCompileExec363572614.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-2.8/Modules/CheckFunctionExists.c
+Linking C executable cmTryCompileExec363572614
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec363572614.dir/link.txt --verbose=1
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=pthread_create    CMakeFiles/cmTryCompileExec363572614.dir/CheckFunctionExists.c.o  -o cmTryCompileExec363572614 -rdynamic -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+make[1]: *** [cmTryCompileExec363572614] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec363572614/fast] Error 2
+
+
+Determining if the include file regex exists failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec230860989/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec230860989.dir/build.make CMakeFiles/cmTryCompileExec230860989.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building CXX object CMakeFiles/cmTryCompileExec230860989.dir/CheckIncludeFile.cxx.o
+/usr/bin/c++    -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function     -o CMakeFiles/cmTryCompileExec230860989.dir/CheckIncludeFile.cxx.o -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx
+In file included from /usr/include/c++/4.8/regex:35:0,
+                 from /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx:1:
+/usr/include/c++/4.8/bits/c++0x_warning.h:32:2: error: #error This file requires compiler and library support for the ISO C++ 2011 standard. This support is currently experimental, and must be enabled with the -std=c++11 or -std=gnu++11 compiler options.
+ #error This file requires compiler and library support for the \
+  ^
+make[1]: *** [CMakeFiles/cmTryCompileExec230860989.dir/CheckIncludeFile.cxx.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec230860989/fast] Error 2
+
+
+Performing C SOURCE FILE Test _callconv___vectorcall failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec782583006/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec782583006.dir/build.make CMakeFiles/cmTryCompileExec782583006.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec782583006.dir/src.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -D_callconv___vectorcall   -o CMakeFiles/cmTryCompileExec782583006.dir/src.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c:1:18: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘f’
+ int __vectorcall f(int i) {return i;} int main(void) {return f(0);}
+                  ^
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c: In function ‘main’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c:1:18: warning: implicit declaration of function ‘f’ [-Wimplicit-function-declaration]
+make[1]: *** [CMakeFiles/cmTryCompileExec782583006.dir/src.c.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec782583006/fast] Error 2
+
+Source file was:
+int __vectorcall f(int i) {return i;} int main(void) {return f(0);}
+Performing C SOURCE FILE Test _callconv___regcall failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec1878030056/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec1878030056.dir/build.make CMakeFiles/cmTryCompileExec1878030056.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec1878030056.dir/src.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -D_callconv___regcall   -o CMakeFiles/cmTryCompileExec1878030056.dir/src.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c:1:15: error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘f’
+ int __regcall f(int i) {return i;} int main(void) {return f(0);}
+               ^
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c: In function ‘main’:
+/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/src.c:1:15: warning: implicit declaration of function ‘f’ [-Wimplicit-function-declaration]
+make[1]: *** [CMakeFiles/cmTryCompileExec1878030056.dir/src.c.o] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec1878030056/fast] Error 2
+
+Source file was:
+int __regcall f(int i) {return i;} int main(void) {return f(0);}
+Determining if the function fftwf_have_simd_sse exists in the /usr/lib/x86_64-linux-gnu/libfftw3f.so failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec3512379612/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec3512379612.dir/build.make CMakeFiles/cmTryCompileExec3512379612.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec3512379612.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=fftwf_have_simd_sse   -o CMakeFiles/cmTryCompileExec3512379612.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-2.8/Modules/CheckFunctionExists.c
+Linking C executable cmTryCompileExec3512379612
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec3512379612.dir/link.txt --verbose=1
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=fftwf_have_simd_sse    CMakeFiles/cmTryCompileExec3512379612.dir/CheckFunctionExists.c.o  -o cmTryCompileExec3512379612 -rdynamic -lfftw3f -lm 
+CMakeFiles/cmTryCompileExec3512379612.dir/CheckFunctionExists.c.o: In function `main':
+CheckFunctionExists.c:(.text+0x15): undefined reference to `fftwf_have_simd_sse'
+collect2: error: ld returned 1 exit status
+make[1]: *** [cmTryCompileExec3512379612] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec3512379612/fast] Error 2
+
+
+Determining if the function fftwf_have_sse exists in the /usr/lib/x86_64-linux-gnu/libfftw3f.so failed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec28390690/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec28390690.dir/build.make CMakeFiles/cmTryCompileExec28390690.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec28390690.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=fftwf_have_sse   -o CMakeFiles/cmTryCompileExec28390690.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-2.8/Modules/CheckFunctionExists.c
+Linking C executable cmTryCompileExec28390690
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec28390690.dir/link.txt --verbose=1
+/usr/bin/cc   -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -DCHECK_FUNCTION_EXISTS=fftwf_have_sse    CMakeFiles/cmTryCompileExec28390690.dir/CheckFunctionExists.c.o  -o cmTryCompileExec28390690 -rdynamic -lfftw3f -lm 
+CMakeFiles/cmTryCompileExec28390690.dir/CheckFunctionExists.c.o: In function `main':
+CheckFunctionExists.c:(.text+0x15): undefined reference to `fftwf_have_sse'
+collect2: error: ld returned 1 exit status
+make[1]: *** [cmTryCompileExec28390690] Error 1
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+make: *** [cmTryCompileExec28390690/fast] Error 2
+
+
+Determining if the system is big endian passed with the following output:
+Change Dir: /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp
+
+Run Build Command:/usr/bin/make "cmTryCompileExec2613862156/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec2613862156.dir/build.make CMakeFiles/cmTryCompileExec2613862156.dir/build
+make[1]: Entering directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec2613862156.dir/TestEndianess.c.o
+/usr/bin/cc   -mavx    -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter     -o CMakeFiles/cmTryCompileExec2613862156.dir/TestEndianess.c.o   -c /home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp/TestEndianess.c
+Linking C executable cmTryCompileExec2613862156
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec2613862156.dir/link.txt --verbose=1
+/usr/bin/cc   -mavx    -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter      CMakeFiles/cmTryCompileExec2613862156.dir/TestEndianess.c.o  -o cmTryCompileExec2613862156 -rdynamic 
+make[1]: Leaving directory `/home/cblau/Projects/external_potential/gromacs/CMakeFiles/CMakeTmp'
+
+TestEndianess.c:
+/* A 16 bit integer is required. */
+typedef unsigned short cmakeint16;
+
+/* On a little endian machine, these 16bit ints will give "THIS IS LITTLE ENDIAN."
+   On a big endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_little[] =  {0x4854, 0x5349, 0x4920, 0x2053, 0x494c, 0x5454, 0x454c, 0x4520, 0x444e, 0x4149, 0x2e4e, 0x0000};
+
+/* on a big endian machine, these 16bit ints will give "THIS IS BIG ENDIAN."
+   On a little endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_big[] =     {0x5448, 0x4953, 0x2049, 0x5320, 0x4249, 0x4720, 0x454e, 0x4449, 0x414e, 0x2e2e, 0x0000};
+
+#ifdef __CLASSIC_C__
+int main(argc, argv) int argc; char *argv[];
+#else
+int main(int argc, char *argv[])
+#endif
+{
+  int require = 0;
+  require += info_little[argc];
+  require += info_big[argc];
+  (void)argv;
+  return require;
+}
+
+
