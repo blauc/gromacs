@@ -7,12 +7,6 @@ PullingInfo::PullingInfo(){
     shortDescription_=std::string("do pulling");
 };
 
-ExternalPotential* PullingInfo::create(ExternalPotentialDataPointer data)
-{
-    return (ExternalPotential*)(new Pulling(data));
-}
-
-
 Pulling::Pulling(ExternalPotentialDataPointer data)
 {
  (void) data;

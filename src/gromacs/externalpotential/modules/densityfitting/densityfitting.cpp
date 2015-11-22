@@ -3,24 +3,31 @@
 
 #include "densityfitting.h"
 
-DensityFittingInfo::DensityFittingInfo(){
-    name_=std::string("density-fitting");
-    shortDescription_=std::string("do densfit");
-};
-
-ExternalPotential* DensityFittingInfo::create(ExternalPotentialDataPointer data)
-{
-    return (ExternalPotential*)(new DensityFitting(data));
-}
-
-DensityFitting::DensityFitting(ExternalPotentialDataPointer data)
-{
-    (void) data;
-};
+DensityFitting::DensityFitting(
+    struct ext_pot_ir *ep_ir,
+    t_commrec * cr,
+    t_inputrec * ir,
+    const gmx_mtop_t* mtop,
+    rvec x[],
+    matrix box,
+    FILE               *input_file,
+    FILE               *output_file,
+    FILE               *fplog,
+    gmx_bool            bVerbose,
+    const gmx_output_env_t *oenv,
+    unsigned long Flags):
+    ExternalPotential(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags)
+    {};
 
 DensityFitting::~DensityFitting()
 {
 };
+
+std::unique_ptr<ExternalPotential> DensityFitting::create(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
+{
+    return std::unique_ptr<ExternalPotential> (new DensityFitting(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags));
+}
+
 
 void DensityFitting::do_potential(
         t_commrec      *cr,

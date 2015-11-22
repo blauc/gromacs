@@ -7,7 +7,6 @@
 class PullingInfo : public ExternalPotentialInfo {
     public:
         PullingInfo();
-        ExternalPotential* create(ExternalPotentialDataPointer data);
 };
 
 class Pulling: public ExternalPotential

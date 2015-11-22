@@ -42,8 +42,9 @@ class ExternalPotential::Impl
         real                    potential_; /**< the (local) contribution to the potential */
         tensor                  virial_;
 
-        real                   *mpi_inbuf_;
-        real                   *mpi_outbuf_;
+        int                   *mpi_inbuf_;
+        int                   *mpi_outbuf_;
+        int                   *mpi_buf_size_;
 
         FILE                   *input_file_;
         FILE                   *output_file_;
@@ -113,10 +114,6 @@ rvec* ExternalPotential::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], 
 {
     return impl_->x_assembled(step, cr, x, box, group_index);
 };
-
-std::string ExternalPotentialInfo::name(){return name_; };
-std::string ExternalPotentialInfo::shortDescription(){return shortDescription_; };
-
 
 ExternalPotential::Impl::Group::Group(
     t_inputrec * ir,
@@ -241,13 +238,13 @@ void ExternalPotential::Impl::add_forces(rvec f[], real total_weight)
 real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
 {
 
-#ifdef GMX_MPI
-    MPI_Reduce(mpi_inbuf_, mpi_outbuf_, mpi_buf_size_, GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr), cr->mpi_comm_mygroup);
-#endif
+// #ifdef GMX_MPI
+    // MPI_Reduce(mpi_inbuf_, mpi_outbuf_, mpi_buf_size_, GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr), cr->mpi_comm_mygroup);
+// #endif
     return potential_;
 };
 
-real ExternalPotential::potential()
+real ExternalPotential::potential(t_commrec * cr)
 {
     impl_->reduce_potential_virial(cr);
 
@@ -265,4 +262,11 @@ void ExternalPotential::add_forces( rvec f[], tensor vir, t_commrec *cr,
 bool ExternalPotential::Impl::do_this_step(int step)
 {
     return (step % nst_apply_ == 0 );
+};
+
+ExternalPotential::ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr,
+    t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE               *input_file, FILE               *output_file, FILE               *fplog,
+    gmx_bool            bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
+{
+    impl_=std::unique_ptr<Impl>(new Impl(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags));
 };

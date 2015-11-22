@@ -8,19 +8,30 @@
 
 #include "gromacs/utility/exceptions.h"
 
-
-ExternalPotentialRegistration::ExternalPotentialRegistration(){
-    register_<DensityFittingInfo>();
-    register_<PullingInfo>();
-}
-
-
-ExternalPotential* ExternalPotentialRegistration::init(
+ExternalPotential* ExternalPotentialRegistration::create(
         size_t                 method,
-        ExternalPotentialDataPointer data
+        int method, struct ext_pot_ir *ep_ir,
+            t_commrec * cr, t_inputrec *ir, FILE * fplog,
+            std::string basepath, rvec x[], matrix box, gmx_mtop_t *mtop,
+            bool bVerbose, const gmx_output_env_t * oenv, unsigned long Flags
         )
 {
-   return methods_[method]->create(data);
+
+    FILE *input_file  = nullptr;
+    FILE *output_file = nullptr;
+
+    fprintf(stderr, "inputfile %s\n",ep_ir->inputfilename );
+    fprintf(stderr, "outputfile ''%s''\n",ep_ir->outputfilename );
+    if (MASTER(cr))
+    {
+        input_file  = gmx_ffopen((basepath + "/" + std::string(ep_ir->inputfilename)).c_str(), "r");
+        if(!std::string(ep_ir->outputfilename).empty()){
+            output_file = gmx_ffopen((basepath + "/" + std::string(ep_ir->outputfilename)).c_str(), "w");
+        }
+    }
+
+    return method_[method]->create(ep_ir, cr, ir, fplog,input_file, output_file, x, box, mtop, bVerbose, oenv,Flags);
+
 };
 
 size_t ExternalPotentialRegistration::number_methods()

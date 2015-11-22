@@ -6,6 +6,9 @@
 #include "gromacs/math/vectypes.h"
 #include "gromacs/gmxlib/readinp.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "externalpotential.h"
+#include "modules/densityfitting/densityfitting.h"
+#include "modules/pulling/pulling.h"
 
 
 
@@ -20,30 +23,21 @@ struct gmx_domdec_t;
 struct gmx_wallcycle;
 
 
+#include <map>
 #include <vector>
 #include <string>
 #include <memory>
+#include <functional>
 
 
-/*! \brief
- * Structure that keeps non-inputrecord data for external potentials.
- */
+namespace externalpotential{
+    typedef std::function<std::unique_ptr<ExternalPotential>(struct ext_pot_ir, t_commrec *, t_inputrec *, const gmx_mtop_t*, rvec [], matrix, FILE *, FILE *, FILE *, gmx_bool , const gmx_output_env_t *, unsigned long)> creatorFunction ;
 
- class ExternalPotential;
-
-typedef struct gmx_ext_pot
-{
-    std::vector<ExternalPotential*> potentials;
-}t_gmx_ext_pot;
-
-
-class ExternalPotentialData;
-typedef std::shared_ptr<ExternalPotentialData> ExternalPotentialDataPointer;
 
 /*! \brief
  * Manage iterations over external potentials.
  */
-class ExternalPotentialManager
+class Manager
 {
     public:
 
@@ -84,12 +78,11 @@ class ExternalPotentialManager
          * \todo: implement lambda-value reading for weighting the external potentials
          * \todo: implement exponential averaging for forces; make that default
          *
-         * \param[in] extpot The external potential structure
          * \param[in,out] f The updated forces
          * \param[in,out] vir The updated virial
          * \result contribution to the total potential from external potentials, updated force and virial
          */
-        real add_forces( struct gmx_ext_pot * extpot, rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step, real t);
+        real add_forces( rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step, real t);
 
         /*! \brief
          * Initialize the external potentials during the run (see runner.cpp).
@@ -116,9 +109,6 @@ class ExternalPotentialManager
         void broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential);
 
     private:
-
-        ExternalPotentialDataPointer init_data_(t_ext_pot_ir *grp, t_commrec * cr, t_inputrec *ir, FILE * fplog, std::string basepath, rvec x[], matrix box, gmx_mtop_t *mtop, bool bVerbose, const gmx_output_env_t * oenv,
-                                          unsigned long Flags);
 
         /*! \brief
          * Checks if the number of inputfile arguments matches the number of outputilfe matches groupnames
@@ -149,7 +139,10 @@ class ExternalPotentialManager
          * E.g. "a, \t \n fs  g \n" is returned as {"a,","fs","g"}
          */
         std::vector<std::string> split_string_at_whitespace_(std::string s);
+        std::vector<std::pair<std::string,decltype(&DensityFitting::create)>> methods_={{"density-fitting",&DensityFitting::create}};
+
+        std::vector<std::unique_ptr<ExternalPotential> > potentials_;
 
 };
-
+} // namespace externalpotential
 #endif

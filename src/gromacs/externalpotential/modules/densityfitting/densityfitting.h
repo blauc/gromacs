@@ -3,20 +3,25 @@
 
 #include "../../externalpotential.h"
 #include <string>
-
-class DensityFittingInfo : public ExternalPotentialInfo {
-    public:
-        DensityFittingInfo();
-        ExternalPotential* create(ExternalPotentialDataPointer data);
-};
-
+#include <memory>
 /*! \brief
  * nothing */
 class DensityFitting : public ExternalPotential
 {
     public:
 
-        DensityFitting(ExternalPotentialDataPointer data);
+        static std::unique_ptr<ExternalPotential> create(
+            struct ext_pot_ir *ep_ir,
+            t_commrec * cr,
+            t_inputrec * ir,
+            const gmx_mtop_t* mtop,
+             rvec x[], matrix box,
+             FILE *input_file,
+              FILE *output_file,
+             FILE *fplog,
+              gmx_bool bVerbose,
+             const gmx_output_env_t *oenv,
+             unsigned long Flags);
 
         ~DensityFitting();
 
@@ -30,7 +35,20 @@ class DensityFitting : public ExternalPotential
         {
             return 0;
         }
-
+private:
+        DensityFitting(
+            struct ext_pot_ir *ep_ir,
+            t_commrec * cr,
+            t_inputrec * ir,
+            const gmx_mtop_t* mtop,
+            rvec x[],
+            matrix box,
+            FILE               *input_file,
+            FILE               *output_file,
+            FILE               *fplog,
+            gmx_bool            bVerbose,
+            const gmx_output_env_t *oenv,
+            unsigned long Flags);
 };
 
 #endif

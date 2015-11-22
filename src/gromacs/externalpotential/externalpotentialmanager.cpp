@@ -41,7 +41,9 @@
 #define    snew_bc(cr, d, nr) { if (!MASTER(cr)) {snew((d), (nr)); }}
 
 
-char ** ExternalPotentialManager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
+namespace externalpotential {
+
+char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
                                                       t_ext_pot * ep )
 {
 
@@ -51,8 +53,6 @@ char ** ExternalPotentialManager::set_external_potential(int *ninp_p, t_inpfile 
     t_inpfile  *inp;
     ninp = *ninp_p;
     inp  = *inp_p;
-
-    ExternalPotentialRegistration factory;
 
     CTYPE("Where to look for the external potential files");
     snew(ep->basepath, STRLEN);
@@ -138,13 +138,12 @@ char ** ExternalPotentialManager::set_external_potential(int *ninp_p, t_inpfile 
     return groups;
 };
 
-std::vector<std::string> ExternalPotentialManager::split_input_at_token_(int * ninp_p, t_inpfile ** inp_p, std::string mdp_line_lhs, std::string default_rhs,char token){
+std::vector<std::string> Manager::split_input_at_token_(int * ninp_p, t_inpfile ** inp_p, std::string mdp_line_lhs, std::string default_rhs,char token){
     return split_string_at_token_(get_estr(ninp_p, inp_p, mdp_line_lhs.c_str(), default_rhs.c_str()), token);
 }
 
-void ExternalPotentialManager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, char **all_group_names)
+void Manager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, char **all_group_names)
 {
-    ExternalPotentialRegistration registry;
     int      group_index;
     std::vector<std::string>      curr_group_names;
 
@@ -167,8 +166,6 @@ void ExternalPotentialManager::make_groups(t_ext_pot *ep, char **group_name, t_b
             snew(ep_ir->ind[curr_group],ep_ir->nat[curr_group]);
             if (ep_ir->nat[curr_group] > 0)
             {
-                fprintf(stderr, "Group '%s' with %d atoms subject to external potential %s.\n",
-                        curr_group_names[curr_group].c_str(), ep_ir->nat[curr_group], registry.name(ep_ir->method).c_str());
                 snew(ep_ir->ind[curr_group], ep_ir->nat[curr_group]);
                 for (int i = 0; i < ep_ir->nat[curr_group]; i++)
                 {
@@ -180,7 +177,7 @@ void ExternalPotentialManager::make_groups(t_ext_pot *ep, char **group_name, t_b
     }
 };
 
-void ExternalPotentialManager::do_potential(
+void Manager::do_potential(
         t_commrec      *cr,
         t_inputrec     *ir,
         matrix          box,
@@ -190,24 +187,24 @@ void ExternalPotentialManager::do_potential(
         gmx_wallcycle_t wcycle,
         gmx_bool        bNS)
 {
-    for (auto && it :  ir->external_potential->extpot->potentials)
+    for (auto && it : potentials_)
     {
         it->do_potential(cr, ir, box, x, t, step, wcycle, bNS);
     }
     return;
 };
 
-real ExternalPotentialManager::add_forces( t_gmx_ext_pot * extpot, rvec            f[], tensor          vir, t_commrec      *cr, gmx_int64_t     step, real            t)
+real Manager::add_forces( rvec            f[], tensor          vir, t_commrec      *cr, gmx_int64_t     step, real            t)
 {
     real V_total = 0;
-    for (auto && it : extpot->potentials)
+    for (auto && it : potentials_)
     {
         it->add_forces(f, vir, cr, step, t, &V_total);
     }
     return V_total;
 };
 
-std::vector<std::string> ExternalPotentialManager::split_string_at_token_(const char * names, char token)
+std::vector<std::string> Manager::split_string_at_token_(const char * names, char token)
 {
     std::stringstream        iss(names);
     std::string              single_name{};
@@ -220,14 +217,14 @@ std::vector<std::string> ExternalPotentialManager::split_string_at_token_(const 
 };
 
 
-std::vector<std::string> ExternalPotentialManager::split_string_at_whitespace_(std::string s)
+std::vector<std::string> Manager::split_string_at_whitespace_(std::string s)
 {
     std::istringstream       iss(s);
     std::vector<std::string> result(std::istream_iterator<std::string>(iss), {});
     return result;
 }
 
-void ExternalPotentialManager::init_external_potentials(
+void Manager::init_external_potentials(
         FILE                     *fplog,
         t_inputrec               *ir,
         gmx_mtop_t               *mtop,
@@ -238,28 +235,37 @@ void ExternalPotentialManager::init_external_potentials(
         unsigned long             Flags,
         gmx_bool                  bVerbose )
 {
-    ExternalPotentialRegistration external_potential_factory;
-    ir->external_potential->extpot = new t_gmx_ext_pot;
+    t_ext_pot_ir * ir_data;
 
-    t_ext_pot_ir * external_potential_ir_data;
+    FILE *input_file  = nullptr;
+    FILE *output_file = nullptr;
+    std::string basepath(ir->external_potential->basepath);
 
-    for (int current_potential = 0; current_potential < ir->external_potential->number_external_potentials; ++current_potential)
+    for (int i = 0; i < ir->external_potential->number_external_potentials; ++i)
     {
-        external_potential_ir_data = ir->external_potential->inputrec_data[current_potential];
-        ExternalPotential *external_potential = external_potential_factory.init(
-                    external_potential_ir_data->method,
-                    init_data_(
-                            external_potential_ir_data, cr, ir, fplog, ir->external_potential->basepath,
-                            x, box, mtop, bVerbose, oenv, Flags)
-                    );
-        ir->external_potential->extpot->potentials.push_back(external_potential);
+        ir_data = ir->external_potential->inputrec_data[i];
+
+        fprintf(stderr, "inputfile %s\n",ir_data->inputfilename );
+        fprintf(stderr, "outputfile ''%s''\n",ir_data->outputfilename );
+        if (MASTER(cr))
+        {
+            input_file  = gmx_ffopen((basepath + "/" + std::string(ir_data->inputfilename)).c_str(), "r");
+            if(!std::string(ir_data->outputfilename).empty()){
+                output_file = gmx_ffopen((basepath + "/" + std::string(ir_data->outputfilename)).c_str(), "w");
+            }
+        }
+
+        potentials_.push_back(
+            methods_[ir_data->method](
+                    ir_data, cr, ir, fplog, x, box, mtop, bVerbose, oenv, Flags)
+                );
     }
 
-    fprintf(stderr, "\nDone initializing external potentials. Initalized %lu external potential(s).\n", ir->external_potential->extpot->potentials.size());
+    fprintf(stderr, "\nDone initializing external potentials. Initalized %lu external potential(s).\n", potentials_.size());
     return;
 };
 
-int ExternalPotentialManager::search_string_(const char *s, int ng, char *gn[])
+int Manager::search_string_(const char *s, int ng, char *gn[])
 {
     int i;
     for (i = 0; (i < ng); i++)
@@ -275,7 +281,7 @@ int ExternalPotentialManager::search_string_(const char *s, int ng, char *gn[])
                                      "of grompp."));
     return -1;
 };
-void ExternalPotentialManager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current)
+void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current)
 {
     if (current > ir->external_potential->number_external_potentials)
     {
@@ -303,37 +309,18 @@ void ExternalPotentialManager::throw_at_input_inconsistency_(t_commrec * cr, t_i
     }
 };
 
-ExternalPotentialDataPointer ExternalPotentialManager::init_data_(
-        t_ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec *ir, FILE * fplog,
-        std::string basepath, rvec x[], matrix box, gmx_mtop_t *mtop,
-        bool bVerbose, const gmx_output_env_t * oenv, unsigned long Flags)
-{
-    FILE *input_file  = nullptr;
-    FILE *output_file = nullptr;
 
-    fprintf(stderr, "inputfile %s\n",ep_ir->inputfilename );
-    fprintf(stderr, "outputfile ''%s''\n",ep_ir->outputfilename );
-    if (MASTER(cr))
-    {
-        input_file  = gmx_ffopen((basepath + "/" + std::string(ep_ir->inputfilename)).c_str(), "r");
-        if(!std::string(ep_ir->outputfilename).empty()){
-            output_file = gmx_ffopen((basepath + "/" + std::string(ep_ir->outputfilename)).c_str(), "w");
-        }
-    }
-    return std::make_shared<ExternalPotentialData>(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags);;
-};
-
-void ExternalPotentialManager::dd_make_local_groups(
+void Manager::dd_make_local_groups(
         gmx_domdec_t *dd, t_ext_pot *external_potential
         )
 {
-    for (auto && it : external_potential->extpot->potentials)
+    for (auto && it : potentials_)
     {
         it->dd_make_local_groups(dd);
     }
 };
 
-void ExternalPotentialManager::broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential)
+void Manager::broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential)
 {
 
     t_ext_pot_ir * curr_ir;
@@ -365,3 +352,5 @@ void ExternalPotentialManager::broadcast_inputrecord_data(const t_commrec * cr, 
         }
     }
 }
+
+} //namespace externalpotential
