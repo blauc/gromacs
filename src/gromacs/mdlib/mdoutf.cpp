@@ -37,6 +37,7 @@
 #include "mdoutf.h"
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/gmxfio.h"
@@ -48,6 +49,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/trajectory_writing.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
@@ -306,8 +308,12 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
         {
             fflush_tng(of->tng);
             fflush_tng(of->tng_low_prec);
+            ivec one_ivec = { 1, 1, 1 };
             write_checkpoint(of->fn_cpt, of->bKeepAndNumCPT,
-                             fplog, cr, of->eIntegrator, of->simulation_part,
+                             fplog, cr,
+                             DOMAINDECOMP(cr) ? cr->dd->nc : one_ivec,
+                             DOMAINDECOMP(cr) ? cr->dd->nnodes : cr->nnodes,
+                             of->eIntegrator, of->simulation_part,
                              of->bExpanded, of->elamstats, step, t, state_global);
         }
 

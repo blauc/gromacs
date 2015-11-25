@@ -49,13 +49,15 @@
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/txtdump.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 static void cmp_int(FILE *fp, const char *s, int index, int i1, int i2)
 {
@@ -137,12 +139,12 @@ static gmx_bool cmp_bool(FILE *fp, const char *s, int index, gmx_bool b1, gmx_bo
         if (index != -1)
         {
             fprintf(fp, "%s[%d] (%s - %s)\n", s, index,
-                    bool_names[b1], bool_names[b2]);
+                    gmx::boolToString(b1), gmx::boolToString(b2));
         }
         else
         {
             fprintf(fp, "%s (%s - %s)\n", s,
-                    bool_names[b1], bool_names[b2]);
+                    gmx::boolToString(b1), gmx::boolToString(b2));
         }
     }
     return b1 && b2;

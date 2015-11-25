@@ -47,18 +47,19 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/group.h"
-#include "gromacs/legacyheaders/types/nrnb.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
 #include "gromacs/mdlib/nsgrid.h"
+#include "gromacs/mdlib/qmmm.h"
+#include "gromacs/mdtypes/group.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/mtop_util.h"
@@ -238,8 +239,8 @@ void init_neighbor_list(FILE *log, t_forcerec *fr, int homenr)
     type                     = GMX_NBLIST_INTERACTION_STANDARD;
     bElecAndVdwSwitchDiffers = ( (fr->rcoulomb_switch != fr->rvdw_switch) || (fr->rcoulomb != fr->rvdw));
 
-    fr->ns.bCGlist = (getenv("GMX_NBLISTCG") != 0);
-    if (!fr->ns.bCGlist)
+    fr->ns->bCGlist = (getenv("GMX_NBLISTCG") != 0);
+    if (!fr->ns->bCGlist)
     {
         igeometry_def = GMX_NBLIST_GEOMETRY_PARTICLE_PARTICLE;
     }
@@ -308,7 +309,11 @@ void init_neighbor_list(FILE *log, t_forcerec *fr, int homenr)
     /* QMMM MM list */
     if (fr->bQMMM && fr->qr->QMMMscheme != eQMMMschemeoniom)
     {
-        init_nblist(log, &fr->QMMMlist, NULL,
+        if (NULL == fr->QMMMlist)
+        {
+            snew(fr->QMMMlist, 1);
+        }
+        init_nblist(log, fr->QMMMlist, NULL,
                     maxsr, maxlr, 0, 0, ielec, ielecmod, GMX_NBLIST_GEOMETRY_PARTICLE_PARTICLE, GMX_NBLIST_INTERACTION_STANDARD, bElecAndVdwSwitchDiffers);
     }
 
@@ -317,7 +322,7 @@ void init_neighbor_list(FILE *log, t_forcerec *fr, int homenr)
         fprintf(log, "\n");
     }
 
-    fr->ns.nblist_initialized = TRUE;
+    fr->ns->nblist_initialized = TRUE;
 }
 
 static void reset_nblist(t_nblist *nl)
@@ -337,7 +342,7 @@ static void reset_neighbor_lists(t_forcerec *fr, gmx_bool bResetSR, gmx_bool bRe
     if (fr->bQMMM)
     {
         /* only reset the short-range nblist */
-        reset_nblist(&(fr->QMMMlist));
+        reset_nblist(fr->QMMMlist);
     }
 
     for (n = 0; n < fr->nnblists; n++)
@@ -462,7 +467,7 @@ static gmx_inline void close_neighbor_lists(t_forcerec *fr, gmx_bool bMakeQMMMnb
 
     if (bMakeQMMMnblist)
     {
-        close_nblist(&(fr->QMMMlist));
+        close_nblist(fr->QMMMlist);
     }
 
     for (n = 0; n < fr->nnblists; n++)
@@ -1105,7 +1110,7 @@ put_in_list_qmmm(gmx_bool gmx_unused              bHaveVdW[],
     /* Get the i charge group info */
     igid   = GET_CGINFO_GID(fr->cginfo[icg]);
 
-    coul = &fr->QMMMlist;
+    coul = fr->QMMMlist;
 
     /* Loop over atoms in the ith charge group */
     for (i = 0; i < nicg; i++)
@@ -1799,7 +1804,7 @@ static int nsgrid_core(t_commrec *cr, t_forcerec *fr,
     gmx_bool      bDomDec, bTriclinicX, bTriclinicY;
     ivec          ncpddc;
 
-    ns = &fr->ns;
+    ns = fr->ns;
 
     bDomDec = DOMAINDECOMP(cr);
     dd      = cr->dd;
@@ -2329,7 +2334,7 @@ int search_neighbours(FILE *log, t_forcerec *fr,
     gmx_domdec_zones_t *dd_zones;
     put_in_list_t      *put_in_list;
 
-    ns = &fr->ns;
+    ns = fr->ns;
 
     /* Set some local variables */
     bGrid = fr->bGrid;
@@ -2418,7 +2423,7 @@ int search_neighbours(FILE *log, t_forcerec *fr,
         fill_grid(NULL, ns->grid, fr->hcg, fr->hcg-1, fr->hcg, fr->cg_cm);
     }
 
-    if (!fr->ns.bCGlist)
+    if (!fr->ns->bCGlist)
     {
         put_in_list = put_in_list_at;
     }

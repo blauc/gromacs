@@ -43,13 +43,13 @@
 #include <cstdio>
 
 #include "gromacs/fileio/filenm.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/mdatom.h"
-#include "gromacs/legacyheaders/types/nrnb.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"

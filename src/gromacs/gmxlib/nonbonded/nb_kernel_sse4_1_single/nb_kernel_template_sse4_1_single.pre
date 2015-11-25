@@ -43,7 +43,7 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
-#include "gromacs/legacyheaders/nrnb.h"
+#include "gromacs/gmxlib/nrnb.h"
 
 #include "kernelutil_x86_sse4_1_single.h"
 /* #endif */
@@ -232,8 +232,8 @@ void
     /* #if KERNEL_ELEC=='GeneralizedBorn' */
     invsqrta         = fr->invsqrta;
     dvda             = fr->dvda;
-    gbtabscale       = _mm_set1_ps(fr->gbtab.scale);
-    gbtab            = fr->gbtab.data;
+    gbtabscale       = _mm_set1_ps(fr->gbtab->scale);
+    gbtab            = fr->gbtab->data;
     gbinvepsdiff     = _mm_set1_ps((1.0/fr->epsilon_r) - (1.0/fr->gb_epsilon_solvent));
     /* #endif */
 

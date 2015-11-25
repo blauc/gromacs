@@ -47,18 +47,19 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/domdec/ga2la.h"
 #include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/linearalgebra/nrjac.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/cyclecounter.h"
 #include "gromacs/timing/wallcycle.h"
@@ -3605,10 +3606,10 @@ static void init_rot_group(FILE *fplog, t_commrec *cr, int g, t_rotgrp *rotg,
 
 extern void dd_make_local_rotation_groups(gmx_domdec_t *dd, t_rot *rot)
 {
-    gmx_ga2la_t     ga2la;
-    int             g;
-    t_rotgrp       *rotg;
-    gmx_enfrotgrp_t erg;      /* Pointer to enforced rotation group data */
+    gmx_ga2la_t      *ga2la;
+    int               g;
+    t_rotgrp         *rotg;
+    gmx_enfrotgrp_t   erg;    /* Pointer to enforced rotation group data */
 
     ga2la = dd->ga2la;
 

@@ -43,14 +43,10 @@
 #ifndef GMX_MDTYPES_INPUTREC_H
 #define GMX_MDTYPES_INPUTREC_H
 
-#include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef struct {
     //! Number of terms
@@ -317,26 +313,6 @@ typedef struct t_swapcoords {
                                             * swapcoords.cpp                               */
 } t_swapcoords;
 
-typedef struct t_adress {
-    int      type;           /* type of AdResS simulation                    */
-    gmx_bool bnew_wf;        /* enable new AdResS weighting function         */
-    gmx_bool bchempot_dx;    /*true:interaction table format input is F=-dmu/dx   false: dmu_dwp  */
-    gmx_bool btf_full_box;   /* true: appy therm force everywhere in the box according to table false: only in hybrid region */
-    real     const_wf;       /* value of weighting function for eAdressConst */
-    real     ex_width;       /* center of the explicit zone                  */
-    real     hy_width;       /* width of the hybrid zone                     */
-    int      icor;           /* type of interface correction                 */
-    int      site;           /* AdResS CG site location                      */
-    rvec     refs;           /* Coordinates for AdResS reference             */
-    real     ex_forcecap;    /* in the hybrid zone, cap forces large then this to adress_ex_forcecap */
-    gmx_bool do_hybridpairs; /* If true pair interaction forces are also scaled in an adress way*/
-
-    int    * tf_table_index; /* contains mapping of energy group index -> i-th adress tf table*/
-    int      n_tf_grps;
-    int     *group_explicit;
-    int      n_energy_grps;
-} t_adress;
-
 typedef struct t_inputrec {
     int             eI;                      /* Integration method                 */
     gmx_int64_t     nsteps;                  /* number of steps to be taken			*/
@@ -487,26 +463,6 @@ typedef struct t_inputrec {
     gmx_bool        bAdress;
 } t_inputrec;
 
-#define DEFORM(ir) ((ir).deform[XX][XX] != 0 || (ir).deform[YY][YY] != 0 || (ir).deform[ZZ][ZZ] != 0 || (ir).deform[YY][XX] != 0 || (ir).deform[ZZ][XX] != 0 || (ir).deform[ZZ][YY] != 0)
-
-#define DYNAMIC_BOX(ir) ((ir).epc != epcNO || (ir).eI == eiTPI || DEFORM(ir))
-
-#define PRESERVE_SHAPE(ir) ((ir).epc != epcNO && (ir).deform[XX][XX] == 0 && ((ir).epct == epctISOTROPIC || (ir).epct == epctSEMIISOTROPIC))
-
-#define NEED_MUTOT(ir) (((ir).coulombtype == eelEWALD || EEL_PME((ir).coulombtype)) && ((ir).ewald_geometry == eewg3DC || (ir).epsilon_surface != 0))
-
-#define IR_TWINRANGE(ir) ((ir).rlist > 0 && ((ir).rlistlong == 0 || (ir).rlistlong > (ir).rlist))
-
-#define IR_ELEC_FIELD(ir) ((ir).ex[XX].n > 0 || (ir).ex[YY].n > 0 || (ir).ex[ZZ].n > 0)
-
-#define IR_EXCL_FORCES(ir) (EEL_FULL((ir).coulombtype) || (EEL_RF((ir).coulombtype) && (ir).coulombtype != eelRF_NEC) || (ir).implicit_solvent != eisNO)
-/* use pointer definitions of ir here, since that's what's usually used in the code */
-#define IR_NPT_TROTTER(ir) ((((ir)->eI == eiVV) || ((ir)->eI == eiVVAK)) && (((ir)->epc == epcMTTK) && ((ir)->etc == etcNOSEHOOVER)))
-
-#define IR_NVT_TROTTER(ir) ((((ir)->eI == eiVV) || ((ir)->eI == eiVVAK)) && ((!((ir)->epc == epcMTTK)) && ((ir)->etc == etcNOSEHOOVER)))
-
-#define IR_NPH_TROTTER(ir) ((((ir)->eI == eiVV) || ((ir)->eI == eiVVAK)) && (((ir)->epc == epcMTTK) && (!(((ir)->etc == etcNOSEHOOVER)))))
-
 int ir_optimal_nstcalcenergy(const t_inputrec *ir);
 
 int tcouple_min_integration_steps(int etc);
@@ -559,8 +515,24 @@ void init_inputrec(t_inputrec *ir);
  */
 void done_inputrec(t_inputrec *ir);
 
-#ifdef __cplusplus
-}
-#endif
+gmx_bool inputrecDeform(const t_inputrec *ir);
+
+gmx_bool inputrecDynamicBox(const t_inputrec *ir);
+
+gmx_bool inputrecPreserveShape(const t_inputrec *ir);
+
+gmx_bool inputrecNeedMutot(const t_inputrec *ir);
+
+gmx_bool inputrecTwinRange(const t_inputrec *ir);
+
+gmx_bool inputrecElecField(const t_inputrec *ir);
+
+gmx_bool inputrecExclForces(const t_inputrec *ir);
+
+gmx_bool inputrecNptTrotter(const t_inputrec *ir);
+
+gmx_bool inputrecNvtTrotter(const t_inputrec *ir);
+
+gmx_bool inputrecNphTrotter(const t_inputrec *ir);
 
 #endif /* GMX_MDTYPES_INPUTREC_H */

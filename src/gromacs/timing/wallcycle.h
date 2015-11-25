@@ -42,12 +42,9 @@
 
 #include <stdio.h>
 
-#include <array>
-
 #include "gromacs/utility/basedefinitions.h"
 
 typedef struct gmx_wallcycle *gmx_wallcycle_t;
-typedef struct gmx_wallclock_gpu_t gmx_wallclock_gpu_t;
 struct t_commrec;
 
 enum {
@@ -55,7 +52,7 @@ enum {
     ewcDDCOMMBOUND, ewcVSITECONSTR, ewcPP_PMESENDX, ewcNS, ewcLAUNCH_GPU_NB,
     ewcMOVEX, ewcGB, ewcFORCE, ewcMOVEF, ewcPMEMESH,
     ewcPME_REDISTXF, ewcPME_SPREADGATHER, ewcPME_FFT, ewcPME_FFTCOMM, ewcLJPME, ewcPME_SOLVE,
-    ewcPMEWAITCOMM, ewcPP_PMEWAITRECVF, ewcWAIT_GPU_NB_NL, ewcWAIT_GPU_NB_L, ewcWAIT_GPU_NB_L_EST, ewcNB_XF_BUF_OPS,
+    ewcPMEWAITCOMM, ewcPP_PMEWAITRECVF, ewcWAIT_GPU_NB_NL, ewcWAIT_GPU_NB_L, ewcNB_XF_BUF_OPS,
     ewcVSITESPREAD, ewcPULLPOT,
     ewcTRAJ, ewcUPDATE, ewcCONSTR, ewcMoveE, ewcROT, ewcROTadd, ewcSWAP, ewcIMD,
     ewcEXTPOT, ewcEXTPOTadd,
@@ -104,19 +101,6 @@ void wallcycle_reset_all(gmx_wallcycle_t wc);
 
 void wallcycle_scale_by_num_threads(gmx_wallcycle_t wc, bool isPmeRank, int nthreads_pp, int nthreads_pme);
 /* Scale the cycle counts to reflect how many threads run for that number of cycles */
-
-typedef std::array<double, ewcNR+ewcsNR> WallcycleCounts;
-/* Convenience typedef */
-
-WallcycleCounts wallcycle_sum(struct t_commrec *cr, gmx_wallcycle_t wc);
-/* Return a vector of the sum of cycle counts over the nodes in
-   cr->mpi_comm_mysim. */
-
-void wallcycle_print(FILE *fplog, int nnodes, int npme,
-                     int nth_pp, int nth_pme, double realtime,
-                     gmx_wallcycle_t wc, const WallcycleCounts &cyc_sum,
-                     struct gmx_wallclock_gpu_t *gpu_t);
-/* Print the cycle and time accounting */
 
 gmx_int64_t wcycle_get_reset_counters(gmx_wallcycle_t wc);
 /* Return reset_counters from wc struct */

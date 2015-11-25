@@ -55,6 +55,7 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/mtxio.h"
@@ -62,9 +63,8 @@
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/linearalgebra/sparsematrix.h"
 #include "gromacs/listed-forces/manage-threading.h"
@@ -83,6 +83,7 @@
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
@@ -2952,7 +2953,7 @@ double do_nm(FILE *fplog, t_commrec *cr,
 #else
 #define mpi_type MPI_FLOAT
 #endif
-                MPI_Send(dfdx[0], natoms*DIM, mpi_type, MASTERNODE(cr), cr->nodeid,
+                MPI_Send(dfdx[0], natoms*DIM, mpi_type, MASTER(cr), cr->nodeid,
                          cr->mpi_comm_mygroup);
 #endif
             }

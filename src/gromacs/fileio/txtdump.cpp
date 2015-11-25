@@ -46,10 +46,10 @@
 #include <algorithm>
 
 #include "gromacs/fileio/tpxio.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
@@ -57,6 +57,10 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/externalpotential/externalpotentialmanager.h"
+#include "gromacs/utility/stringutil.h"
+
+//! Macro to select a bool name
+#define EBOOL(e)       gmx::boolToString(e)
 
 int pr_indent(FILE *fp, int n)
 {

@@ -40,13 +40,12 @@
 #include <string.h>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xtcio.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/constr.h"
@@ -57,6 +56,9 @@
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdlib/tgroup.h"
 #include "gromacs/mdlib/vcm.h"
+#include "gromacs/mdtypes/group.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
@@ -241,7 +243,7 @@ void global_stat(FILE *fplog, gmx_global_stat_t gs,
                 irmsd = add_binr(rb, inputrec->eI == eiSD2 ? 3 : 2, rmsd_data);
             }
         }
-        if (!NEED_MUTOT(*inputrec))
+        if (!inputrecNeedMutot(inputrec))
         {
             imu = add_binr(rb, DIM, mu_tot);
             where();
@@ -343,7 +345,7 @@ void global_stat(FILE *fplog, gmx_global_stat_t gs,
         {
             extract_binr(rb, irmsd, inputrec->eI == eiSD2 ? 3 : 2, rmsd_data);
         }
-        if (!NEED_MUTOT(*inputrec))
+        if (!inputrecNeedMutot(inputrec))
         {
             extract_binr(rb, imu, DIM, mu_tot);
         }

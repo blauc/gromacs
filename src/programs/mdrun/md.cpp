@@ -48,6 +48,7 @@
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
 #include "gromacs/fileio/filenm.h"
@@ -55,18 +56,14 @@
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/sighandler.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/legacyheaders/types/force_flags.h"
 #include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/legacyheaders/types/interaction_const.h"
-#include "gromacs/legacyheaders/types/mdatom.h"
-#include "gromacs/legacyheaders/types/nrnb.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -94,7 +91,10 @@
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
+#include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -197,8 +197,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     double          t, t0, lam0[efptNR];
     gmx_bool        bGStatEveryStep, bGStat, bCalcVir, bCalcEner;
     gmx_bool        bNS, bNStList, bSimAnn, bStopCM, bRerunMD, bNotLastFrame = FALSE,
-                    bFirstStep, bStateFromCP, bStateFromTPX, bInitStep, bLastStep,
-                    bBornRadii, bStartingFromCpt;
+                    bFirstStep, startingFromCheckpoint, bInitStep, bLastStep,
+                    bBornRadii;
     gmx_bool          bDoDHDL = FALSE, bDoFEP = FALSE, bDoExpanded = FALSE;
     gmx_bool          do_ene, do_log, do_verbose, bRerunWarnNoV = TRUE,
                       bForceUpdate = FALSE, bCPT;
@@ -230,7 +230,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     double            tcount                 = 0;
     gmx_bool          bConverged             = TRUE, bSumEkinhOld, bDoReplEx, bExchanged, bNeedRepartition;
     gmx_bool          bResetCountersHalfMaxH = FALSE;
-    gmx_bool          bVV, bTemp, bPres, bTrotter;
+    gmx_bool          bTemp, bPres, bTrotter;
     gmx_bool          bUpdateDoLR;
     real              dvdl_constr;
     rvec             *cbuf        = NULL;
@@ -278,8 +278,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     /* md-vv uses averaged full step velocities for T-control
        md-vv-avek uses averaged half step velocities for T-control (but full step ekin for P control)
        md uses averaged half step kinetic energies to determine temperature unless defined otherwise by GMX_EKIN_AVE_VEL; */
-    bVV      = EI_VV(ir->eI);
-    bTrotter = (bVV && (IR_NPT_TROTTER(ir) || IR_NPH_TROTTER(ir) || IR_NVT_TROTTER(ir)));
+    bTrotter = (EI_VV(ir->eI) && (inputrecNptTrotter(ir) || inputrecNphTrotter(ir) || inputrecNvtTrotter(ir)));
 
     if (bRerunMD)
     {
@@ -358,7 +357,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         gmx_fatal(FARGS, "Normal Mode analysis is not supported with virtual sites.\nIf you'd like to help with adding support, we have an open discussion at http://redmine.gromacs.org/issues/879\n");
     }
 
-    if (DEFORM(*ir))
+    if (inputrecDeform(ir))
     {
         tMPI_Thread_mutex_lock(&deform_init_box_mutex);
         set_deform_reference_box(upd,
@@ -435,23 +434,16 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     update_mdatoms(mdatoms, state->lambda[efptMASS]);
 
-    if (opt2bSet("-cpi", nfile, fnm))
-    {
-        bStateFromCP = gmx_fexist_master(opt2fn_master("-cpi", nfile, fnm, cr), cr);
-    }
-    else
-    {
-        bStateFromCP = FALSE;
-    }
+    startingFromCheckpoint = Flags & MD_STARTFROMCPT;
 
     if (ir->bExpanded)
     {
-        init_expanded_ensemble(bStateFromCP, ir, &state->dfhist);
+        init_expanded_ensemble(startingFromCheckpoint, ir, &state->dfhist);
     }
 
     if (MASTER(cr))
     {
-        if (bStateFromCP)
+        if (startingFromCheckpoint)
         {
             /* Update mdebin with energy history if appending to output files */
             if (Flags & MD_APPENDFILES)
@@ -527,7 +519,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
     }
 
-    if (IR_TWINRANGE(*ir) && repl_ex_nst % ir->nstcalclr != 0)
+    if (inputrecTwinRange(ir) && repl_ex_nst % ir->nstcalclr != 0)
     {
         /* We should exchange at nstcalclr steps to get correct integration */
         gmx_fatal(FARGS, "The replica exchange period (%d) is not divisible by nstcalclr (%d)", repl_ex_nst, ir->nstcalclr);
@@ -543,7 +535,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         nstfep = ir->fepvals->nstdhdl;
         if (ir->bExpanded)
         {
-            if (IR_TWINRANGE(*ir) &&
+            if (inputrecTwinRange(ir) &&
                 ir->expandedvals->nstexpanded % ir->nstcalclr != 0)
             {
                 gmx_fatal(FARGS, "nstexpanded should be divisible by nstcalclr");
@@ -555,7 +547,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             nstfep = gmx_greatest_common_divisor(repl_ex_nst, nstfep);
         }
         /* We checked divisibility of repl_ex_nst and nstcalclr above */
-        if (IR_TWINRANGE(*ir) && nstfep % ir->nstcalclr != 0)
+        if (inputrecTwinRange(ir) && nstfep % ir->nstcalclr != 0)
         {
             gmx_incons("nstfep not divisible by nstcalclr");
         }
@@ -574,8 +566,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     cglo_flags = (CGLO_TEMPERATURE | CGLO_GSTAT
                   | (bStopCM ? CGLO_STOPCM : 0)
-                  | (bVV ? CGLO_PRESSURE : 0)
-                  | (bVV ? CGLO_CONSTRAINT : 0)
+                  | (EI_VV(ir->eI) ? CGLO_PRESSURE : 0)
+                  | (EI_VV(ir->eI) ? CGLO_CONSTRAINT : 0)
                   | ((Flags & MD_READ_EKIN) ? CGLO_READEKIN : 0));
 
     bSumEkinhOld = FALSE;
@@ -740,9 +732,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     /* loop over MD steps or if rerunMD to end of input trajectory */
     bFirstStep = TRUE;
     /* Skip the first Nose-Hoover integration when we get the state from tpx */
-    bStateFromTPX    = !bStateFromCP;
-    bInitStep        = bFirstStep && (bStateFromTPX || bVV);
-    bStartingFromCpt = (Flags & MD_STARTFROMCPT) && bInitStep;
+    bInitStep        = !startingFromCheckpoint || EI_VV(ir->eI);
     bSumEkinhOld     = FALSE;
     bExchanged       = FALSE;
     bNeedRepartition = FALSE;
@@ -813,7 +803,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             bDoDHDL      = do_per_step(step, ir->fepvals->nstdhdl);
             bDoFEP       = ((ir->efep != efepNO) && do_per_step(step, nstfep));
             bDoExpanded  = (do_per_step(step, ir->expandedvals->nstexpanded)
-                            && (ir->bExpanded) && (step > 0) && (!bStartingFromCpt));
+                            && (ir->bExpanded) && (step > 0) && (!startingFromCheckpoint));
         }
 
         bDoReplEx = ((repl_ex_nst > 0) && (step > 0) && !bLastStep &&
@@ -946,7 +936,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             {
                 bMasterState = FALSE;
                 /* Correct the new box if it is too skewed */
-                if (DYNAMIC_BOX(*ir))
+                if (inputrecDynamicBox(ir))
                 {
                     if (correct_box(fplog, step, state->box, graph))
                     {
@@ -1033,7 +1023,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         /* Do we need global communication ? */
         bGStat = (bCalcVir || bCalcEner || bStopCM ||
                   do_per_step(step, nstglobalcomm) ||
-                  (bVV && IR_NVT_TROTTER(ir) && do_per_step(step-1, nstglobalcomm)));
+                  (EI_VV(ir->eI) && inputrecNvtTrotter(ir) && do_per_step(step-1, nstglobalcomm)));
 
         do_ene = (do_per_step(step, ir->nstenergy) || bLastStep);
 
@@ -1045,7 +1035,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
 
         force_flags = (GMX_FORCE_STATECHANGED |
-                       ((DYNAMIC_BOX(*ir) || bRerunMD) ? GMX_FORCE_DYNAMICBOX : 0) |
+                       ((inputrecDynamicBox(ir) || bRerunMD) ? GMX_FORCE_DYNAMICBOX : 0) |
                        GMX_FORCE_ALLFORCES |
                        GMX_FORCE_SEPLRF |
                        (bCalcVir ? GMX_FORCE_VIRIAL : 0) |
@@ -1095,7 +1085,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                      (bNS ? GMX_FORCE_NS : 0) | force_flags);
         }
 
-        if (bVV && !bStartingFromCpt && !bRerunMD)
+        if (EI_VV(ir->eI) && !startingFromCheckpoint && !bRerunMD)
         /*  ############### START FIRST UPDATE HALF-STEP FOR VV METHODS############### */
         {
             rvec *vbuf = NULL;
@@ -1146,8 +1136,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
              * Think about ways around this in the future?
              * For now, keep this choice in comments.
              */
-            /*bPres = (ir->eI==eiVV || IR_NPT_TROTTER(ir)); */
-            /*bTemp = ((ir->eI==eiVV &&(!bInitStep)) || (ir->eI==eiVVAK && IR_NPT_TROTTER(ir)));*/
+            /*bPres = (ir->eI==eiVV || inputrecNptTrotter(ir)); */
+            /*bTemp = ((ir->eI==eiVV &&(!bInitStep)) || (ir->eI==eiVVAK && inputrecNptTrotter(ir)));*/
             bPres = TRUE;
             bTemp = ((ir->eI == eiVV && (!bInitStep)) || (ir->eI == eiVVAK));
             if (bCalcEner && ir->eI == eiVVAK)
@@ -1187,33 +1177,28 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 {
                     m_add(force_vir, shake_vir, total_vir);     /* we need the un-dispersion corrected total vir here */
                     trotter_update(ir, step, ekind, enerd, state, total_vir, mdatoms, &MassQ, trotter_seq, ettTSEQ2);
-                }
-                else
-                {
-                    if (bExchanged)
+
+                    copy_mat(shake_vir, state->svir_prev);
+                    copy_mat(force_vir, state->fvir_prev);
+                    if (inputrecNvtTrotter(ir) && ir->eI == eiVV)
                     {
-                        wallcycle_stop(wcycle, ewcUPDATE);
-                        /* We need the kinetic energy at minus the half step for determining
-                         * the full step kinetic energy and possibly for T-coupling.*/
-                        /* This may not be quite working correctly yet . . . . */
-                        compute_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
-                                        wcycle, enerd, NULL, NULL, NULL, NULL, mu_tot,
-                                        constr, NULL, FALSE, state->box,
-                                        top_global, &bSumEkinhOld,
-                                        CGLO_GSTAT | CGLO_TEMPERATURE);
-                        wallcycle_start(wcycle, ewcUPDATE);
+                        /* update temperature and kinetic energy now that step is over - this is the v(t+dt) point */
+                        enerd->term[F_TEMP] = sum_ekin(&(ir->opts), ekind, NULL, (ir->eI == eiVV), FALSE);
+                        enerd->term[F_EKIN] = trace(ekind->ekin);
                     }
                 }
-            }
-            if (bTrotter && !bInitStep)
-            {
-                copy_mat(shake_vir, state->svir_prev);
-                copy_mat(force_vir, state->fvir_prev);
-                if (IR_NVT_TROTTER(ir) && ir->eI == eiVV)
+                else if (bExchanged)
                 {
-                    /* update temperature and kinetic energy now that step is over - this is the v(t+dt) point */
-                    enerd->term[F_TEMP] = sum_ekin(&(ir->opts), ekind, NULL, (ir->eI == eiVV), FALSE);
-                    enerd->term[F_EKIN] = trace(ekind->ekin);
+                    wallcycle_stop(wcycle, ewcUPDATE);
+                    /* We need the kinetic energy at minus the half step for determining
+                     * the full step kinetic energy and possibly for T-coupling.*/
+                    /* This may not be quite working correctly yet . . . . */
+                    compute_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
+                                    wcycle, enerd, NULL, NULL, NULL, NULL, mu_tot,
+                                    constr, NULL, FALSE, state->box,
+                                    top_global, &bSumEkinhOld,
+                                    CGLO_GSTAT | CGLO_TEMPERATURE);
+                    wallcycle_start(wcycle, ewcUPDATE);
                 }
             }
             /* if it's the initial step, we performed this first step just to get the constraint virial */
@@ -1226,7 +1211,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
 
         /* compute the conserved quantity */
-        if (bVV)
+        if (EI_VV(ir->eI))
         {
             saved_conserved_quantity = compute_conserved_from_auxiliary(ir, state, &MassQ);
             if (ir->eI == eiVV)
@@ -1272,7 +1257,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         bIMDstep = do_IMD(ir->bIMD, step, cr, bNS, state->box, state->x, ir, t, wcycle);
 
         /* kludge -- virial is lost with restart for NPT control. Must restart */
-        if (bStartingFromCpt && bVV)
+        if (startingFromCheckpoint && EI_VV(ir->eI))
         {
             copy_mat(state->svir_prev, shake_vir);
             copy_mat(state->fvir_prev, force_vir);
@@ -1398,7 +1383,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 update_pcouple(fplog, step, ir, state, pcoupl_mu, M, bInitStep);
             }
 
-            if (bVV)
+            if (EI_VV(ir->eI))
             {
                 /* velocity half-step update */
                 update_coords(fplog, step, ir, mdatoms, state, fr->bMolPBC, f,
@@ -1472,7 +1457,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                    cr, nrnb, wcycle, upd, NULL,
                                    FALSE, bCalcVir);
             }
-            if (bVV)
+            if (EI_VV(ir->eI))
             {
                 /* this factor or 2 correction is necessary
                    because half of the constraint force is removed
@@ -1549,7 +1534,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
            but what we actually need entering the new cycle is the new shake_vir value. Ideally, we could
            generate the new shake_vir, but test the veta value for convergence.  This will take some thought. */
 
-        if (ir->efep != efepNO && (!bVV || bRerunMD))
+        if (ir->efep != efepNO && (!EI_VV(ir->eI) || bRerunMD))
         {
             /* Sum up the foreign energy and dhdl terms for md and sd.
                Currently done every step so that dhdl is correct in the .edr */
@@ -1579,7 +1564,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
         enerd->term[F_ETOT] = enerd->term[F_EPOT] + enerd->term[F_EKIN];
 
-        if (bVV)
+        if (EI_VV(ir->eI))
         {
             enerd->term[F_ECONSERVED] = enerd->term[F_ETOT] + saved_conserved_quantity;
         }
@@ -1600,7 +1585,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 PrintFreeEnergyInfoToFile(fplog, ir->fepvals, ir->expandedvals, ir->bSimTemp ? ir->simtempvals : NULL,
                                           &state_global->dfhist, state->fep_state, ir->nstlog, step);
             }
-            if (!(bStartingFromCpt && (EI_VV(ir->eI))))
+            if (!(startingFromCheckpoint && (EI_VV(ir->eI))))
             {
                 if (bCalcEner)
                 {
@@ -1689,9 +1674,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                 nrnb, wcycle, FALSE);
         }
 
-        bFirstStep       = FALSE;
-        bInitStep        = FALSE;
-        bStartingFromCpt = FALSE;
+        bFirstStep             = FALSE;
+        bInitStep              = FALSE;
+        startingFromCheckpoint = FALSE;
 
         /* #######  SET VARIABLES FOR NEXT ITERATION IF THEY STILL NEED IT ###### */
         /* With all integrators, except VV, we need to retain the pressure

@@ -546,7 +546,7 @@ static const char *getFftDescriptionString()
     return "fftw3";
 #  else
     // Use the version string provided by libfftw3
-#    if GMX_DOUBLE
+#    ifdef GMX_DOUBLE
     return fftw_version;
 #    else
     return fftwf_version;
@@ -659,18 +659,6 @@ static void gmx_print_version_info(FILE *fp)
 #endif
 #endif
 }
-
-#ifdef GMX_DOUBLE
-void gmx_is_double_precision()
-{
-    /* allow precision detection */
-}
-#else
-void gmx_is_single_precision()
-{
-    /* allow precision detection */
-}
-#endif
 
 namespace gmx
 {

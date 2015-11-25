@@ -44,7 +44,7 @@
 
 #include "../nb_kernel.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/legacyheaders/nrnb.h"
+#include "gromacs/gmxlib/nrnb.h"
 /* #endif */
 
 /* ## List of variables set by the generating script:                                    */
@@ -236,8 +236,8 @@ void
     /* #if KERNEL_ELEC=='GeneralizedBorn' */
     invsqrta         = fr->invsqrta;
     dvda             = fr->dvda;
-    gbtabscale       = fr->gbtab.scale;
-    gbtab            = fr->gbtab.data;
+    gbtabscale       = fr->gbtab->scale;
+    gbtab            = fr->gbtab->data;
     gbinvepsdiff     = (1.0/fr->epsilon_r) - (1.0/fr->gb_epsilon_solvent);
     /* #endif */
 

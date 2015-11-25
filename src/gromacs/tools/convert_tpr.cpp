@@ -44,10 +44,10 @@
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trrio.h"
 #include "gromacs/gmxpreprocess/readir.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/random/random.h"
 #include "gromacs/topology/index.h"
@@ -59,6 +59,7 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 #define RANGECHK(i, n) if ((i) >= (n)) gmx_fatal(FARGS, "Your index file contains atomnumbers (e.g. %d)\nthat are larger than the number of atoms in the tpr file (%d)", (i), (n))
 
@@ -448,7 +449,7 @@ int gmx_convert_tpr(int argc, char *argv[])
         if (ir->bContinuation != bContinuation)
         {
             fprintf(stderr, "Modifying ir->bContinuation to %s\n",
-                    bool_names[bContinuation]);
+                    gmx::boolToString(bContinuation));
         }
         ir->bContinuation = bContinuation;
 

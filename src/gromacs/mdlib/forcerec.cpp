@@ -49,6 +49,7 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/ewald.h"
 #include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/trx.h"
@@ -59,10 +60,8 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
-#include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/units.h"
@@ -79,7 +78,9 @@
 #include "gromacs/mdlib/nbnxn_util.h"
 #include "gromacs/mdlib/ns.h"
 #include "gromacs/mdlib/qmmm.h"
+#include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/simd/simd.h"
@@ -88,8 +89,14 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 #include "nbnxn_gpu_jit_support.h"
+
+const char *egrp_nm[egNR+1] = {
+    "Coul-SR", "LJ-SR", "Buck-SR", "Coul-LR", "LJ-LR", "Buck-LR",
+    "Coul-14", "LJ-14", NULL
+};
 
 t_forcerec *mk_forcerec(void)
 {
@@ -1309,35 +1316,37 @@ static void make_nbf_tables(FILE *fp,
      * the table data to be aligned to 16-byte. The pointers could be freed
      * but currently aren't.
      */
-    nbl->table_elec.interaction   = GMX_TABLE_INTERACTION_ELEC;
-    nbl->table_elec.format        = nbl->table_elec_vdw.format;
-    nbl->table_elec.r             = nbl->table_elec_vdw.r;
-    nbl->table_elec.n             = nbl->table_elec_vdw.n;
-    nbl->table_elec.scale         = nbl->table_elec_vdw.scale;
-    nbl->table_elec.formatsize    = nbl->table_elec_vdw.formatsize;
-    nbl->table_elec.ninteractions = 1;
-    nbl->table_elec.stride        = nbl->table_elec.formatsize * nbl->table_elec.ninteractions;
-    snew_aligned(nbl->table_elec.data, nbl->table_elec.stride*(nbl->table_elec.n+1), 32);
+    snew(nbl->table_elec, 1);
+    nbl->table_elec->interaction   = GMX_TABLE_INTERACTION_ELEC;
+    nbl->table_elec->format        = nbl->table_elec_vdw->format;
+    nbl->table_elec->r             = nbl->table_elec_vdw->r;
+    nbl->table_elec->n             = nbl->table_elec_vdw->n;
+    nbl->table_elec->scale         = nbl->table_elec_vdw->scale;
+    nbl->table_elec->formatsize    = nbl->table_elec_vdw->formatsize;
+    nbl->table_elec->ninteractions = 1;
+    nbl->table_elec->stride        = nbl->table_elec->formatsize * nbl->table_elec->ninteractions;
+    snew_aligned(nbl->table_elec->data, nbl->table_elec->stride*(nbl->table_elec->n+1), 32);
 
-    nbl->table_vdw.interaction   = GMX_TABLE_INTERACTION_VDWREP_VDWDISP;
-    nbl->table_vdw.format        = nbl->table_elec_vdw.format;
-    nbl->table_vdw.r             = nbl->table_elec_vdw.r;
-    nbl->table_vdw.n             = nbl->table_elec_vdw.n;
-    nbl->table_vdw.scale         = nbl->table_elec_vdw.scale;
-    nbl->table_vdw.formatsize    = nbl->table_elec_vdw.formatsize;
-    nbl->table_vdw.ninteractions = 2;
-    nbl->table_vdw.stride        = nbl->table_vdw.formatsize * nbl->table_vdw.ninteractions;
-    snew_aligned(nbl->table_vdw.data, nbl->table_vdw.stride*(nbl->table_vdw.n+1), 32);
+    snew(nbl->table_vdw, 1);
+    nbl->table_vdw->interaction   = GMX_TABLE_INTERACTION_VDWREP_VDWDISP;
+    nbl->table_vdw->format        = nbl->table_elec_vdw->format;
+    nbl->table_vdw->r             = nbl->table_elec_vdw->r;
+    nbl->table_vdw->n             = nbl->table_elec_vdw->n;
+    nbl->table_vdw->scale         = nbl->table_elec_vdw->scale;
+    nbl->table_vdw->formatsize    = nbl->table_elec_vdw->formatsize;
+    nbl->table_vdw->ninteractions = 2;
+    nbl->table_vdw->stride        = nbl->table_vdw->formatsize * nbl->table_vdw->ninteractions;
+    snew_aligned(nbl->table_vdw->data, nbl->table_vdw->stride*(nbl->table_vdw->n+1), 32);
 
-    for (i = 0; i <= nbl->table_elec_vdw.n; i++)
+    for (i = 0; i <= nbl->table_elec_vdw->n; i++)
     {
         for (j = 0; j < 4; j++)
         {
-            nbl->table_elec.data[4*i+j] = nbl->table_elec_vdw.data[12*i+j];
+            nbl->table_elec->data[4*i+j] = nbl->table_elec_vdw->data[12*i+j];
         }
         for (j = 0; j < 8; j++)
         {
-            nbl->table_vdw.data[8*i+j] = nbl->table_elec_vdw.data[12*i+4+j];
+            nbl->table_vdw->data[8*i+j] = nbl->table_elec_vdw->data[12*i+4+j];
         }
     }
 }
@@ -2334,6 +2343,12 @@ void init_forcerec(FILE              *fp,
         fr->n_tpi = 0;
     }
 
+    if (ir->coulombtype == eelRF_NEC_UNSUPPORTED)
+    {
+        gmx_fatal(FARGS, "%s electrostatics is no longer supported",
+                  eel_names[ir->coulombtype]);
+    }
+
     if (ir->bAdress)
     {
         gmx_fatal(FARGS, "AdResS simulations are no longer supported");
@@ -2550,7 +2565,6 @@ void init_forcerec(FILE              *fp,
 
         case eelRF:
         case eelGRF:
-        case eelRF_NEC:
             fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_REACTIONFIELD;
             break;
 
@@ -2677,8 +2691,10 @@ void init_forcerec(FILE              *fp,
 
         if (fp)
         {
-            fprintf(fp, "Table routines are used for coulomb: %s\n", bool_names[fr->bcoultab]);
-            fprintf(fp, "Table routines are used for vdw:     %s\n", bool_names[fr->bvdwtab ]);
+            fprintf(fp, "Table routines are used for coulomb: %s\n",
+                    gmx::boolToString(fr->bcoultab));
+            fprintf(fp, "Table routines are used for vdw:     %s\n",
+                    gmx::boolToString(fr->bvdwtab));
         }
 
         if (fr->bvdwtab == TRUE)
@@ -2772,7 +2788,7 @@ void init_forcerec(FILE              *fp,
     fr->bF_NoVirSum = (EEL_FULL(fr->eeltype) || EVDW_PME(fr->vdwtype) ||
                        gmx_mtop_ftype_count(mtop, F_POSRES) > 0 ||
                        gmx_mtop_ftype_count(mtop, F_FBPOSRES) > 0 ||
-                       IR_ELEC_FIELD(*ir)
+                       inputrecElecField(ir)
                        );
 
     if (fr->cutoff_scheme == ecutsGROUP &&
@@ -3131,7 +3147,8 @@ void init_forcerec(FILE              *fp,
     fr->timesteps = 0;
 
     /* Initialize neighbor search */
-    init_ns(fp, cr, &fr->ns, fr, mtop);
+    snew(fr->ns, 1);
+    init_ns(fp, cr, fr->ns, fr, mtop);
 
     if (cr->duty & DUTY_PP)
     {
@@ -3168,7 +3185,7 @@ void init_forcerec(FILE              *fp,
 
 #define pr_real(fp, r) fprintf(fp, "%s: %e\n",#r, r)
 #define pr_int(fp, i)  fprintf((fp), "%s: %d\n",#i, i)
-#define pr_bool(fp, b) fprintf((fp), "%s: %s\n",#b, bool_names[b])
+#define pr_bool(fp, b) fprintf((fp), "%s: %s\n",#b, gmx::boolToString(b))
 
 void pr_forcerec(FILE *fp, t_forcerec *fr)
 {
@@ -3183,7 +3200,7 @@ void pr_forcerec(FILE *fp, t_forcerec *fr)
        pr_int(fp,fr->hcg);*/
     for (i = 0; i < fr->nnblists; i++)
     {
-        pr_int(fp, fr->nblists[i].table_elec_vdw.n);
+        pr_int(fp, fr->nblists[i].table_elec_vdw->n);
     }
     pr_real(fp, fr->rcoulomb_switch);
     pr_real(fp, fr->rcoulomb);

@@ -55,6 +55,7 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/checkpoint.h"
@@ -73,7 +74,6 @@
 #include "gromacs/gmxlib/sighandler.h"
 #include "gromacs/gmxlib/thread_affinity.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
@@ -89,6 +89,7 @@
 #include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/tpi.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
@@ -689,7 +690,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_constr_t              constr;
     int                       nChargePerturbed = -1, nTypePerturbed = 0, status;
     gmx_wallcycle_t           wcycle;
-    gmx_bool                  bReadEkin;
     gmx_walltime_accounting_t walltime_accounting = NULL;
     int                       rc;
     gmx_int64_t               reset_counters;
@@ -918,7 +918,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     {
         if (cr->npmenodes > 0)
         {
-            gmx_fatal_collective(FARGS, cr, NULL,
+            gmx_fatal_collective(FARGS, cr->mpi_comm_mysim, MASTER(cr),
                                  "PME-only ranks are requested, but the system does not use PME for electrostatics or LJ");
         }
 
@@ -956,7 +956,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     init_orires(fplog, mtop, state->x, inputrec, cr, &(fcd->orires),
                 state);
 
-    if (DEFORM(*inputrec))
+    if (inputrecDeform(inputrec))
     {
         /* Store the deform reference box before reading the checkpoint */
         if (SIMMASTER(cr))
@@ -979,23 +979,22 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         tMPI_Thread_mutex_unlock(&deform_init_box_mutex);
     }
 
-    if (opt2bSet("-cpi", nfile, fnm))
+    if (Flags & MD_STARTFROMCPT)
     {
         /* Check if checkpoint file exists before doing continuation.
          * This way we can use identical input options for the first and subsequent runs...
          */
-        if (gmx_fexist_master(opt2fn_master("-cpi", nfile, fnm, cr), cr) )
-        {
-            load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
-                            cr, ddxyz,
-                            inputrec, state, &bReadEkin,
-                            (Flags & MD_APPENDFILES),
-                            (Flags & MD_APPENDFILESSET));
+        gmx_bool bReadEkin;
 
-            if (bReadEkin)
-            {
-                Flags |= MD_READ_EKIN;
-            }
+        load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
+                        cr, ddxyz,
+                        inputrec, state, &bReadEkin,
+                        (Flags & MD_APPENDFILES),
+                        (Flags & MD_APPENDFILESSET));
+
+        if (bReadEkin)
+        {
+            Flags |= MD_READ_EKIN;
         }
     }
 

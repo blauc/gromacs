@@ -61,8 +61,8 @@
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
 #include "gromacs/legacyheaders/gmx_cpuid.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/legacyheaders/types/hw_info.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/basenetwork.h"
@@ -940,7 +940,8 @@ gmx_hw_info_t *gmx_detect_hardware(FILE *fplog, const t_commrec *cr,
          * -- sloppy, but that's it for now */
         if (gmx_cpuid_init(&hwinfo_g->cpuid_info) != 0)
         {
-            gmx_fatal_collective(FARGS, cr, NULL, "CPUID detection failed!");
+            gmx_fatal_collective(FARGS, cr->mpi_comm_mysim, MASTER(cr),
+                                 "CPUID detection failed!");
         }
 
         /* get the number of cores, will be 0 when not detected */

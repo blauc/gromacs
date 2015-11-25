@@ -42,7 +42,7 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
-#include "gromacs/legacyheaders/nrnb.h"
+#include "gromacs/gmxlib/nrnb.h"
 
 #include "kernelutil_x86_avx_128_fma_single.h"
 
@@ -123,8 +123,8 @@ nb_kernel_ElecGB_VdwLJ_GeomP1P1_VF_avx_128_fma_single
 
     invsqrta         = fr->invsqrta;
     dvda             = fr->dvda;
-    gbtabscale       = _mm_set1_ps(fr->gbtab.scale);
-    gbtab            = fr->gbtab.data;
+    gbtabscale       = _mm_set1_ps(fr->gbtab->scale);
+    gbtab            = fr->gbtab->data;
     gbinvepsdiff     = _mm_set1_ps((1.0/fr->epsilon_r) - (1.0/fr->gb_epsilon_solvent));
 
     /* Avoid stupid compiler warnings */
@@ -545,8 +545,8 @@ nb_kernel_ElecGB_VdwLJ_GeomP1P1_F_avx_128_fma_single
 
     invsqrta         = fr->invsqrta;
     dvda             = fr->dvda;
-    gbtabscale       = _mm_set1_ps(fr->gbtab.scale);
-    gbtab            = fr->gbtab.data;
+    gbtabscale       = _mm_set1_ps(fr->gbtab->scale);
+    gbtab            = fr->gbtab->data;
     gbinvepsdiff     = _mm_set1_ps((1.0/fr->epsilon_r) - (1.0/fr->gb_epsilon_solvent));
 
     /* Avoid stupid compiler warnings */

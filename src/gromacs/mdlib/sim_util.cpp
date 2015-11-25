@@ -49,6 +49,7 @@
 #include <array>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/copyrite.h"
@@ -57,13 +58,12 @@
 #include "gromacs/gmxlib/disre.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/orires.h"
 #include "gromacs/gmxlib/nonbonded/nb_free_energy.h"
 #include "gromacs/gmxlib/nonbonded/nb_kernel.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/listed-forces/bonded.h"
 #include "gromacs/math/units.h"
@@ -85,15 +85,19 @@
 #include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_ref.h"
 #include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn.h"
 #include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
-#include "gromacs/externalpotential/externalpotentialmanager.h"
+#include "gromacs/timing/cyclecounter.h"
 #include "gromacs/timing/gpu_timing.h"
 #include "gromacs/timing/wallcycle.h"
+#include "gromacs/timing/wallcyclereporting.h"
 #include "gromacs/timing/walltime_accounting.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
@@ -101,8 +105,25 @@
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/sysinfo.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #include "nbnxn_gpu.h"
+
+#if defined(GMX_GPU)
+#if defined(GMX_USE_OPENCL)
+// Have OpenCL support
+static const bool useCuda   = false;
+static const bool useOpenCL = true;
+#else
+// Have CUDA support
+static const bool useCuda   = true;
+static const bool useOpenCL = false;
+#endif
+#else
+// No GPU support
+static const bool useCuda   = false;
+static const bool useOpenCL = false;
+#endif
 
 void print_time(FILE                     *out,
                 gmx_walltime_accounting_t walltime_accounting,
@@ -755,6 +776,10 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     gmx_bool            bDiffKernels = FALSE;
     rvec                vzero, box_diag;
     float               cycles_pme, cycles_force, cycles_wait_gpu;
+    /* TODO To avoid loss of precision, float can't be used for a
+     * cycle count. Build an object that can do this right and perhaps
+     * also be used by gmx_wallcycle_t */
+    gmx_cycles_t        cycleCountBeforeLocalWorkCompletes = 0;
     nonbonded_verlet_t *nbv;
 
     cycles_force    = 0;
@@ -793,7 +818,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         update_forcerec(fr, box);
 
-        if (NEED_MUTOT(*inputrec))
+        if (inputrecNeedMutot(inputrec))
         {
             /* Calculate total (local) dipole moment in a temporary common array.
              * This makes it possible to sum them over nodes faster.
@@ -1038,7 +1063,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             dd_move_x(cr->dd, box, x);
 
             /* When we don't need the total dipole we sum it in global_stat */
-            if (bStateChanged && NEED_MUTOT(*inputrec))
+            if (bStateChanged && inputrecNeedMutot(inputrec))
             {
                 gmx_sumd(2*DIM, mu, cr);
             }
@@ -1076,7 +1101,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         cycles_force += wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
     }
 
-    if (bStateChanged && NEED_MUTOT(*inputrec))
+    if (bStateChanged && inputrecNeedMutot(inputrec))
     {
         if (PAR(cr))
         {
@@ -1337,16 +1362,14 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
     if (bDoForces && DOMAINDECOMP(cr))
     {
-        if (bUseGPU)
+        if (bUseGPU && useCuda)
         {
             /* We are done with the CPU compute, but the GPU local non-bonded
              * kernel can still be running while we communicate the forces.
              * We start a counter here, so we can, hopefully, time the rest
              * of the GPU kernel execution and data transfer.
              */
-            // TODO This counter has very little to do with the rest
-            // of wcycle, so should be a separate object
-            wallcycle_start(wcycle, ewcWAIT_GPU_NB_L_EST);
+            cycleCountBeforeLocalWorkCompletes = gmx_cycles_read();
         }
 
         /* Communicate the forces */
@@ -1365,9 +1388,8 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     if (bUseOrEmulGPU)
     {
         /* wait for local forces (or calculate in emulation mode) */
-        if (bUseGPU)
+        if (bUseGPU && useCuda)
         {
-#if defined(GMX_GPU) && !defined(GMX_USE_OPENCL)
             float       cycles_tmp, cycles_wait_est;
             const float cuda_api_overhead_margin = 50000.0f; /* cycles */
 
@@ -1380,7 +1402,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
             if (bDoForces && DOMAINDECOMP(cr))
             {
-                cycles_wait_est = wallcycle_stop(wcycle, ewcWAIT_GPU_NB_L_EST);
+                cycles_wait_est = gmx_cycles_read() - cycleCountBeforeLocalWorkCompletes;
 
                 if (cycles_tmp < cuda_api_overhead_margin)
                 {
@@ -1405,8 +1427,9 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
              */
             cycles_force    += cycles_wait_est;
             cycles_wait_gpu += cycles_wait_est;
-
-#elif defined(GMX_GPU) && defined(GMX_USE_OPENCL)
+        }
+        else if (bUseGPU && useOpenCL)
+        {
 
             wallcycle_start(wcycle, ewcWAIT_GPU_NB_L);
             nbnxn_gpu_wait_for_gpu(nbv->gpu_nbv,
@@ -1414,8 +1437,9 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
                                    enerd->grpp.ener[egLJSR], enerd->grpp.ener[egCOULSR],
                                    fr->fshift);
             cycles_wait_gpu += wallcycle_stop(wcycle, ewcWAIT_GPU_NB_L);
-#endif
-
+        }
+        if (bUseGPU)
+        {
             /* now clear the GPU outputs while we finish the step on the CPU */
             wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
             nbnxn_gpu_clear_outputs(nbv->gpu_nbv, flags);
@@ -1452,7 +1476,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
     if (bDoForces)
     {
-        if (IR_ELEC_FIELD(*inputrec))
+        if (inputrecElecField(inputrec))
         {
             /* Compute forces due to electric field */
             calc_f_el(MASTER(cr) ? field : NULL,
@@ -1594,7 +1618,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     {
         update_forcerec(fr, box);
 
-        if (NEED_MUTOT(*inputrec))
+        if (inputrecNeedMutot(inputrec))
         {
             /* Calculate total (local) dipole moment in a temporary common array.
              * This makes it possible to sum them over nodes faster.
@@ -1688,9 +1712,8 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcMOVEX);
     }
 
-    if (NEED_MUTOT(*inputrec))
+    if (inputrecNeedMutot(inputrec))
     {
-
         if (bStateChanged)
         {
             if (PAR(cr))
@@ -1867,7 +1890,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
 
     if (bDoForces)
     {
-        if (IR_ELEC_FIELD(*inputrec))
+        if (inputrecElecField(inputrec))
         {
             /* Compute forces due to electric field */
             calc_f_el(MASTER(cr) ? field : NULL,
@@ -2236,10 +2259,10 @@ void calc_enervirdiff(FILE *fplog, int eDispCorr, t_forcerec *fr)
             /* TODO This code depends on the logic in tables.c that
                constructs the table layout, which should be made
                explicit in future cleanup. */
-            GMX_ASSERT(fr->nblists[0].table_vdw.interaction == GMX_TABLE_INTERACTION_VDWREP_VDWDISP,
+            GMX_ASSERT(fr->nblists[0].table_vdw->interaction == GMX_TABLE_INTERACTION_VDWREP_VDWDISP,
                        "Dispersion-correction code needs a table with both repulsion and dispersion terms");
-            scale  = fr->nblists[0].table_vdw.scale;
-            vdwtab = fr->nblists[0].table_vdw.data;
+            scale  = fr->nblists[0].table_vdw->scale;
+            vdwtab = fr->nblists[0].table_vdw->data;
 
             /* Round the cut-offs to exact table values for precision */
             ri0  = static_cast<int>(floor(fr->rvdw_switch*scale));

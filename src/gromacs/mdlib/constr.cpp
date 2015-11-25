@@ -46,6 +46,7 @@
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/copyrite.h"
@@ -53,12 +54,12 @@
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/splitter.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/topology/block.h"
@@ -360,7 +361,9 @@ gmx_bool constrain(FILE *fplog, gmx_bool bLog, gmx_bool bEner,
          * by the constraint coordinate communication routine,
          * so that here we can use normal pbc.
          */
-        pbc_null = set_pbc_dd(&pbc, ir->ePBC, cr->dd, FALSE, box);
+        pbc_null = set_pbc_dd(&pbc, ir->ePBC,
+                              DOMAINDECOMP(cr) ? cr->dd->nc : nullptr,
+                              FALSE, box);
     }
     else
     {

@@ -62,10 +62,8 @@
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/conformation-utilities.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/constr.h"
@@ -78,6 +76,8 @@
 #include "gromacs/mdlib/tgroup.h"
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/group.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/random.h"
 #include "gromacs/timing/wallcycle.h"
@@ -326,7 +326,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
         bCharge |= (mdatoms->chargeA[i] != 0 ||
                     (mdatoms->chargeB && mdatoms->chargeB[i] != 0));
     }
-    bRFExcl = (bCharge && EEL_RF(fr->eeltype) && fr->eeltype != eelRF_NEC);
+    bRFExcl = (bCharge && EEL_RF(fr->eeltype));
 
     calc_cgcm(fplog, cg_tp, cg_tp+1, &(top->cgs), state_global->x, fr->cg_cm);
     if (bCavity)

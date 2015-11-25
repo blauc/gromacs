@@ -49,14 +49,16 @@
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/resall.h"
 #include "gromacs/gmxpreprocess/toputil.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 typedef struct {
     t_iatom  a[4];
@@ -858,7 +860,7 @@ int set_vsites(gmx_bool bVerbose, t_atoms *atoms, gpp_atomtype_t atype,
 
                 if (debug)
                 {
-                    fprintf(debug, "bSet=%s ", bool_names[bSet]);
+                    fprintf(debug, "bSet=%s ", gmx::boolToString(bSet));
                     print_param(debug, ftype, i, &plist[ftype].param[i]);
                 }
                 if (!bSet)

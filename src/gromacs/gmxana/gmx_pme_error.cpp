@@ -53,6 +53,7 @@
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/random/random.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
@@ -1129,8 +1130,7 @@ int gmx_pme_error(int argc, char *argv[])
 
 #define NFILE asize(fnm)
 
-    cr = init_commrec();
-
+    cr         = init_commrec();
     PCA_Flags  = PCA_NOEXIT_ON_ARGS;
 
     if (!parse_common_args(&argc, argv, PCA_Flags,

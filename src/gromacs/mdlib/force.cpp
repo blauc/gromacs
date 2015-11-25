@@ -45,15 +45,15 @@
 #include <string.h>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/ewald.h"
 #include "gromacs/ewald/long-range-correction.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/listed-forces/listed-forces.h"
 #include "gromacs/math/vec.h"
@@ -62,6 +62,7 @@
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/ns.h"
 #include "gromacs/mdlib/qmmm.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -85,7 +86,7 @@ void ns(FILE              *fp,
     int     nsearch;
 
 
-    if (!fr->ns.nblist_initialized)
+    if (!fr->ns->nblist_initialized)
     {
         init_neighbor_list(fp, fr, md->homenr);
     }
@@ -107,9 +108,9 @@ void ns(FILE              *fp,
        count_nb(cr,nsb,&(top->blocks[ebCGS]),nns,fr->nlr,
        &(top->idef),opts->ngener);
      */
-    if (fr->ns.dump_nl > 0)
+    if (fr->ns->dump_nl > 0)
     {
-        dump_nblist(fp, cr, fr, fr->ns.dump_nl);
+        dump_nblist(fp, cr, fr, fr->ns->dump_nl);
     }
 }
 
@@ -219,7 +220,7 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
 
         if (bBornRadii)
         {
-            calc_gb_rad(cr, fr, ir, top, x, &(fr->gblist), born, md, nrnb);
+            calc_gb_rad(cr, fr, ir, top, x, fr->gblist, born, md, nrnb);
         }
 
         wallcycle_sub_stop(wcycle, ewcsNONBONDED);
@@ -365,7 +366,8 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
         /* Since all atoms are in the rectangular or triclinic unit-cell,
          * only single box vector shifts (2 in x) are required.
          */
-        set_pbc_dd(&pbc, fr->ePBC, cr->dd, TRUE, box);
+        set_pbc_dd(&pbc, fr->ePBC, DOMAINDECOMP(cr) ? cr->dd->nc : nullptr,
+                   TRUE, box);
     }
 
     do_force_listed(wcycle, box, ir->fepvals, cr->ms,
@@ -601,21 +603,18 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
     }
     else
     {
-        /* Is there a reaction-field exclusion correction needed? */
-        if (EEL_RF(fr->eeltype) && eelRF_NEC != fr->eeltype)
+        /* Is there a reaction-field exclusion correction needed?
+         * With the Verlet scheme, exclusion forces are calculated
+         * in the non-bonded kernel.
+         */
+        if (ir->cutoff_scheme != ecutsVERLET && EEL_RF(fr->eeltype))
         {
-            /* With the Verlet scheme, exclusion forces are calculated
-             * in the non-bonded kernel.
-             */
-            if (ir->cutoff_scheme != ecutsVERLET)
-            {
-                real dvdl_rf_excl      = 0;
-                enerd->term[F_RF_EXCL] =
-                    RF_excl_correction(fr, graph, md, excl, x, f,
-                                       fr->fshift, &pbc, lambda[efptCOUL], &dvdl_rf_excl);
+            real dvdl_rf_excl      = 0;
+            enerd->term[F_RF_EXCL] =
+                RF_excl_correction(fr, graph, md, excl, x, f,
+                                   fr->fshift, &pbc, lambda[efptCOUL], &dvdl_rf_excl);
 
-                enerd->dvdl_lin[efptCOUL] += dvdl_rf_excl;
-            }
+            enerd->dvdl_lin[efptCOUL] += dvdl_rf_excl;
         }
     }
     where();

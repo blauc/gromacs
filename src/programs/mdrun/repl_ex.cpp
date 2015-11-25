@@ -47,16 +47,19 @@
 #include "gromacs/fileio/copyrite.h"
 #include "gromacs/gmxlib/main.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/random/random.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 #define PROBABILITYCUTOFF 100
 /* we don't bother evaluating if events are more rare than exp(-100) = 3.7x10^-44 */
+
+//! Rank in the multisimulaiton
+#define MSRANK(ms, nodeid)  (nodeid)
 
 enum {
     ereTEMP, ereLAMBDA, ereENDSINGLE, ereTL, ereNR
