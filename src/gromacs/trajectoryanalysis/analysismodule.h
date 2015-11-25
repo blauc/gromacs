@@ -173,7 +173,6 @@ class TrajectoryAnalysisModuleData
 
     private:
         class Impl;
-
         PrivateImplPointer<Impl> impl_;
 };
 

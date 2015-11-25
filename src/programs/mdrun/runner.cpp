@@ -699,7 +699,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_hw_info_t            *hwinfo       = NULL;
     /* The master rank decides early on bUseGPU and broadcasts this later */
     gmx_bool                  bUseGPU            = FALSE;
-    ExternalPotentialManager     external_potentials;
 
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
@@ -1307,7 +1306,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (inputrec->bExternalPotential)
         {
             /* Initialize the external potentials */
-            external_potentials.init_external_potentials(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
+            inputrec->external_potential->manager=new externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
         }
 
         if (inputrec->eSwapCoords != eswapNO)

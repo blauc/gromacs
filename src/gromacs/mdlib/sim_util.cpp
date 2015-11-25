@@ -756,7 +756,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     rvec                vzero, box_diag;
     float               cycles_pme, cycles_force, cycles_wait_gpu;
     nonbonded_verlet_t *nbv;
-    ExternalPotentialManager external_potentials;
 
     cycles_force    = 0;
     cycles_wait_gpu = 0;
@@ -1130,7 +1129,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        external_potentials.do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
+        inputrec->external_potential->manager->do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 
@@ -1511,7 +1510,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     if (inputrec->bExternalPotential)
     {
         wallcycle_start(wcycle, ewcEXTPOTadd);
-        enerd->term[F_EXTPOT] += inputrec->external_potential->manager.add_forces(f, vir_force, cr, step, t);
+        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, cr, step);
         wallcycle_stop(wcycle, ewcEXTPOTadd);
     }
 
@@ -1560,7 +1559,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     gmx_bool   bStateChanged, bNS, bFillGrid, bCalcCGCM;
     gmx_bool   bDoLongRangeNS, bDoForces, bSepLRF;
     float      cycles_pme, cycles_force;
-    ExternalPotentialManager external_potentials;
 
     start  = 0;
     homenr = mdatoms->homenr;
@@ -1770,7 +1768,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        external_potentials.do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
+        inputrec->external_potential->manager->do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 
@@ -1951,7 +1949,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     if (inputrec->bExternalPotential)
     {
         wallcycle_start(wcycle, ewcEXTPOTadd);
-        enerd->term[F_EXTPOT] += external_potentials.add_forces(inputrec->external_potential->extpot, f, vir_force, cr, step, t);
+        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, cr, step);
         wallcycle_stop(wcycle, ewcEXTPOTadd);
     }
 

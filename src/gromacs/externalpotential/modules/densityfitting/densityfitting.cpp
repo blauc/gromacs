@@ -3,25 +3,6 @@
 
 #include "densityfitting.h"
 
-DensityFitting::DensityFitting(
-    struct ext_pot_ir *ep_ir,
-    t_commrec * cr,
-    t_inputrec * ir,
-    const gmx_mtop_t* mtop,
-    rvec x[],
-    matrix box,
-    FILE               *input_file,
-    FILE               *output_file,
-    FILE               *fplog,
-    gmx_bool            bVerbose,
-    const gmx_output_env_t *oenv,
-    unsigned long Flags):
-    ExternalPotential(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags)
-    {};
-
-DensityFitting::~DensityFitting()
-{
-};
 
 std::unique_ptr<ExternalPotential> DensityFitting::create(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
 {

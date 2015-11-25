@@ -1,7 +1,6 @@
 #include "gmxpre.h"
 
 #include "externalpotentialmanager.h"
-#include "externalpotentialregistration.h"
 #include "externalpotential.h"
 
 #include "gromacs/topology/block.h"
@@ -17,6 +16,7 @@
 #include "gromacs/utility/exceptions.h"
 
 #include "gromacs/fileio/oenv.h"
+#include "gromacs/fileio/txtdump.h"
 
 #include "gromacs/mdlib/sim_util.h"
 
@@ -43,7 +43,56 @@
 
 namespace externalpotential {
 
-char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
+typedef std::string methodkey_t ;
+
+const std::map<methodkey_t, Registry::Info>
+    Registry::methods = {
+        {"density-fitting",{&DensityFitting::create,"do density fitting"}}
+    };
+
+
+std::vector<std::string> stringutils::split_input_at_token(int * ninp_p, t_inpfile ** inp_p, std::string mdp_line_lhs, std::string default_rhs,char token){
+    return split_string_at_token(get_estr(ninp_p, inp_p, mdp_line_lhs.c_str(), default_rhs.c_str()), token);
+}
+
+int stringutils::search_string_(const char *s, int ng, char *gn[])
+{
+    int i;
+    for (i = 0; (i < ng); i++)
+    {
+        if (gmx_strcasecmp(s, gn[i]) == 0)
+        {
+            return i;
+        }
+    }
+    GMX_THROW(gmx::InvalidInputError("Group"+ std::string(s) + "referenced in the .mdp file was not found in the index file.\n"
+                                     "Group names must match either [moleculetype] names or custom index group\n"
+                                     "names, in which case you must supply an index file to the '-n' option\n"
+                                     "of grompp."));
+    return -1;
+};
+
+std::vector<std::string> stringutils::split_string_at_token(const char * names, char token)
+{
+    std::stringstream        iss(names);
+    std::string              single_name{};
+    std::vector<std::string> result;
+    while (std::getline(iss, single_name, token) )
+    {
+        result.push_back(single_name);
+    }
+    return result;
+};
+
+
+std::vector<std::string> stringutils::split_string_at_whitespace(std::string s)
+{
+    std::istringstream       iss(s);
+    std::vector<std::string> result(std::istream_iterator<std::string>(iss), {});
+    return result;
+}
+
+char ** inputrecordutils::set_external_potential(int *ninp_p, t_inpfile **inp_p,
                                                       t_ext_pot * ep )
 {
 
@@ -59,6 +108,7 @@ char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
     STYPE("external-potential-path", ep->basepath, "./");
     CTYPE("All registered external potential types. Seperate input for multiple files by " " : " " .");
 
+    std::string methodname;
     std::vector<std::string> inputfilenames;
     std::vector<std::string> outputfilenames;
     std::vector<std::string> groupnames;
@@ -69,21 +119,21 @@ char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
     snew(ep->inputrec_data,1);
     ep->inputrec_data=nullptr;
 
-    for (size_t method_id = 0; method_id < factory.number_methods(); method_id++)
+    for (auto && method : Registry::methods)
     {
-
-        inputfilenames=split_input_at_token_(&ninp, &inp, factory.name(method_id)+"-input","",':');
-        outputfilenames=split_input_at_token_(&ninp, &inp, factory.name(method_id)+"-output","",':');
-        groupnames=split_input_at_token_(&ninp, &inp, factory.name(method_id)+"-groups","system",':');
+        methodname=method.first;
+        inputfilenames=stringutils::split_input_at_token(&ninp, &inp, methodname +"-input","",':');
+        outputfilenames=stringutils::split_input_at_token(&ninp, &inp, methodname +"-output","",':');
+        groupnames=stringutils::split_input_at_token(&ninp, &inp, methodname +"-groups","system",':');
 
         if (groupnames.size() < inputfilenames.size() )
         {
-            fprintf(stderr, "Less groups than inputfiles for external potential %s. Matching as far as possible, then keeping the last value for all following. \n", factory.name(method_id).c_str());
+            fprintf(stderr, "Less groups than inputfiles for external potential %s. Matching as far as possible, then keeping the last value for all following. \n", methodname.c_str());
         }
 
         if (groupnames.size() < outputfilenames.size() )
         {
-            fprintf(stderr, "Less outputfiles than inputfiles for external potential %s. Matching as far as possible, then keeping the last found value for all following. \n", factory.name(method_id).c_str());
+            fprintf(stderr, "Less outputfiles than inputfiles for external potential %s. Matching as far as possible, then keeping the last found value for all following. \n",methodname.c_str());
         }
 
         for (auto && filename : inputfilenames)
@@ -95,7 +145,7 @@ char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
             srenew(groups, ep->number_external_potentials+1);
 
 
-            ep->inputrec_data[ep->number_external_potentials]->method         = method_id;
+            ep->inputrec_data[ep->number_external_potentials]->method         = strdup(methodname.c_str());
             ep->inputrec_data[ep->number_external_potentials]->inputfilename  = strdup(filename.c_str());
             if (outputfilenames.size() > 0)
             {
@@ -122,11 +172,11 @@ char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
 
         if (groupnames.size() > 1)
         {
-            GMX_THROW(gmx::InconsistentInputError("More index groups given than external potentials for " + factory.name(method_id) + " ."));
+            GMX_THROW(gmx::InconsistentInputError("More index groups given than external potentials for " + methodname + " ."));
         }
         if (outputfilenames.size() > 1)
         {
-            GMX_THROW(gmx::InconsistentInputError("More ouput filenames given than external potentials for " + factory.name(method_id) + " ."));
+            GMX_THROW(gmx::InconsistentInputError("More ouput filenames given than external potentials for " + methodname + " ."));
         }
 
     }
@@ -137,12 +187,7 @@ char ** Manager::set_external_potential(int *ninp_p, t_inpfile **inp_p,
 
     return groups;
 };
-
-std::vector<std::string> Manager::split_input_at_token_(int * ninp_p, t_inpfile ** inp_p, std::string mdp_line_lhs, std::string default_rhs,char token){
-    return split_string_at_token_(get_estr(ninp_p, inp_p, mdp_line_lhs.c_str(), default_rhs.c_str()), token);
-}
-
-void Manager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, char **all_group_names)
+void inputrecordutils::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, char **all_group_names)
 {
     int      group_index;
     std::vector<std::string>      curr_group_names;
@@ -153,7 +198,7 @@ void Manager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, ch
     for (int curr_ep = 0; curr_ep < ep->number_external_potentials; curr_ep++)
     {
         ep_ir            = ep->inputrec_data[curr_ep];
-        curr_group_names = split_string_at_whitespace_(std::string(group_name[curr_ep]));
+        curr_group_names = stringutils::split_string_at_whitespace(std::string(group_name[curr_ep]));
         ep_ir->number_index_groups = curr_group_names.size();
 
         snew(ep_ir->nat, ep_ir->number_index_groups);
@@ -161,7 +206,7 @@ void Manager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, ch
 
         for (int curr_group = 0; curr_group < ep_ir->number_index_groups; curr_group++)
         {
-            group_index          = search_string_( curr_group_names[curr_group].c_str(), groups->nr, all_group_names);
+            group_index          = stringutils::search_string_( curr_group_names[curr_group].c_str(), groups->nr, all_group_names);
             ep_ir->nat[curr_group]  = groups->index[group_index+1] - groups->index[group_index];
             snew(ep_ir->ind[curr_group],ep_ir->nat[curr_group]);
             if (ep_ir->nat[curr_group] > 0)
@@ -176,6 +221,32 @@ void Manager::make_groups(t_ext_pot *ep, char **group_name, t_blocka *groups, ch
         }
     }
 };
+
+void stringutils::pr_str(FILE *fp, int indent, const char * title, char * s)
+{
+    pr_indent(fp, indent);
+    fprintf(fp, "%-30s = %s\n", title, s);
+};
+
+void inputrecordutils::pr_externalpotential(FILE *fp, int indent, t_ext_pot * pot)
+{
+
+    t_ext_pot_ir * curr_ir;
+
+
+    stringutils::pr_str(fp, indent, "external-potential-path", pot->basepath);
+
+    for (int p = 0; p < pot->number_external_potentials; p++)
+    {
+        curr_ir=pot->inputrec_data[p];
+        stringutils::pr_str(fp, indent, "external-potential-method",curr_ir->method);
+        stringutils::pr_str(fp, indent, "external-potential-inputfile",curr_ir->inputfilename);
+        stringutils::pr_str(fp, indent, "external-potential-outputfile",curr_ir->outputfilename);
+    }
+
+}
+
+
 
 void Manager::do_potential(
         t_commrec      *cr,
@@ -194,37 +265,55 @@ void Manager::do_potential(
     return;
 };
 
-real Manager::add_forces( rvec            f[], tensor          vir, t_commrec      *cr, gmx_int64_t     step, real            t)
+std::vector<real> Manager::calculate_weights()
 {
-    real V_total = 0;
-    for (auto && it : potentials_)
+    std::vector<real> weights;
+
+    // ensure numerical stability by substracting the largest potential averaging
+    real V_max;  //< the largest of all potentials
+    V_max = *std::max_element(V_external_.begin(),V_external_.end());
+    real weight_normal;
+
+    for ( auto&& V:V_external_) {
+        weights.push_back(exp(V_max-V));
+    };
+    weight_normal=std::accumulate(weights.begin(),weights.end(),0);
+
+    for (auto&& w:weights)
     {
-        it->add_forces(f, vir, cr, step, t, &V_total);
+        w/=weight_normal;
     }
-    return V_total;
-};
 
-std::vector<std::string> Manager::split_string_at_token_(const char * names, char token)
-{
-    std::stringstream        iss(names);
-    std::string              single_name{};
-    std::vector<std::string> result;
-    while (std::getline(iss, single_name, token) )
-    {
-        result.push_back(single_name);
-    }
-    return result;
-};
-
-
-std::vector<std::string> Manager::split_string_at_whitespace_(std::string s)
-{
-    std::istringstream       iss(s);
-    std::vector<std::string> result(std::istream_iterator<std::string>(iss), {});
-    return result;
+    return weights;
 }
 
-void Manager::init_external_potentials(
+real Manager::add_forces(rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step)
+{
+    if (potentials_.size()!=0){
+
+        real V_total=0;
+        int i;
+        std::vector<real> weights;
+        std::vector<tensor> virials;
+        i=0;
+        for (auto && it: potentials_) {
+            V_external_[i]=it->sum_reduce_potential_virial(cr);
+        }
+
+        weights=calculate_weights();
+
+        for (auto && it : potentials_)
+        {
+            it->add_forces(f, step, weights[i]);
+            it->add_virial(vir, step, weights[i]);
+            ++i;
+        }
+        return V_total;
+    };
+    return 0;
+};
+
+Manager::Manager(
         FILE                     *fplog,
         t_inputrec               *ir,
         gmx_mtop_t               *mtop,
@@ -245,8 +334,6 @@ void Manager::init_external_potentials(
     {
         ir_data = ir->external_potential->inputrec_data[i];
 
-        fprintf(stderr, "inputfile %s\n",ir_data->inputfilename );
-        fprintf(stderr, "outputfile ''%s''\n",ir_data->outputfilename );
         if (MASTER(cr))
         {
             input_file  = gmx_ffopen((basepath + "/" + std::string(ir_data->inputfilename)).c_str(), "r");
@@ -255,32 +342,28 @@ void Manager::init_external_potentials(
             }
         }
 
-        potentials_.push_back(
-            methods_[ir_data->method](
-                    ir_data, cr, ir, fplog, x, box, mtop, bVerbose, oenv, Flags)
-                );
+        try
+        {
+            potentials_.push_back(
+                 Registry::methods.at(methodkey_t(ir_data->method)).factorymethod(
+                        ir_data, cr, ir,  mtop, x, box, fplog, input_file, output_file,  bVerbose, oenv, Flags)
+                    );
+        }
+        catch (std::out_of_range)
+        {
+            GMX_THROW(gmx::InvalidInputError("Method """+ std::string(ir_data->method) + """referenced in the .mdp file was not found registered.\n"
+                                             "Most likely the gromacs version used for the mdrun is older than the one to generate the .tpr-file.\n" ));
+        }
+
     }
+
+    V_external_.resize(potentials_.size(),0);
 
     fprintf(stderr, "\nDone initializing external potentials. Initalized %lu external potential(s).\n", potentials_.size());
     return;
 };
 
-int Manager::search_string_(const char *s, int ng, char *gn[])
-{
-    int i;
-    for (i = 0; (i < ng); i++)
-    {
-        if (gmx_strcasecmp(s, gn[i]) == 0)
-        {
-            return i;
-        }
-    }
-    GMX_THROW(gmx::InvalidInputError("Group"+ std::string(s) + "referenced in the .mdp file was not found in the index file.\n"
-                                     "Group names must match either [moleculetype] names or custom index group\n"
-                                     "names, in which case you must supply an index file to the '-n' option\n"
-                                     "of grompp."));
-    return -1;
-};
+
 void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current)
 {
     if (current > ir->external_potential->number_external_potentials)
@@ -310,9 +393,7 @@ void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std
 };
 
 
-void Manager::dd_make_local_groups(
-        gmx_domdec_t *dd, t_ext_pot *external_potential
-        )
+void Manager::dd_make_local_groups(gmx_domdec_t *dd)
 {
     for (auto && it : potentials_)
     {
@@ -320,7 +401,7 @@ void Manager::dd_make_local_groups(
     }
 };
 
-void Manager::broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential)
+void inputrecordutils::broadcast_inputrecord_data(const t_commrec * cr, struct ext_pot * external_potential)
 {
 
     t_ext_pot_ir * curr_ir;

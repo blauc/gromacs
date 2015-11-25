@@ -254,7 +254,7 @@ typedef struct t_rot {
 
 typedef struct ext_pot_ir{
 
-    int    method;         /*< The method identifier                            */
+    char * method;         /*< The method identifier                            */
     int    number_index_groups;
 
     char  *inputfilename;  /*< Filenames for external potential input data      */

@@ -2138,8 +2138,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     if (ir->bExternalPotential)
     {
         snew(ir->external_potential,1);
-        ExternalPotentialManager external_potential_util;
-        is->ext_pot = external_potential_util.set_external_potential(&ninp, &inp, ir->external_potential);
+        is->ext_pot = externalpotential::inputrecordutils::set_external_potential(&ninp, &inp, ir->external_potential);
     }
 
 
@@ -3565,8 +3564,7 @@ void do_index(const char* mdparin, const char *ndx,
 
     if (ir->bExternalPotential)
     {
-        ExternalPotentialManager external_potential_utils;
-        external_potential_utils.make_groups(ir->external_potential, is->ext_pot ,grps, gnames);
+        externalpotential::inputrecordutils::make_groups(ir->external_potential, is->ext_pot ,grps, gnames);
     }
 
     if (ir->eSwapCoords != eswapNO)

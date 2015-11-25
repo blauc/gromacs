@@ -9142,7 +9142,7 @@ void dd_partition_system(FILE                *fplog,
     ivec               ncells_old = {0, 0, 0}, ncells_new = {0, 0, 0}, np;
     real               grid_density;
     char               sbuf[22];
-    ExternalPotentialManager external_potentials;
+
 
 
     wallcycle_start(wcycle, ewcDOMDEC);
@@ -9679,7 +9679,7 @@ void dd_partition_system(FILE                *fplog,
     if (ir->bExternalPotential)
     {
         /* Make a selection of the local atoms for density fitting */
-        external_potentials.dd_make_local_groups(dd, ir->external_potential);
+        ir->external_potential->manager->dd_make_local_groups(dd);
     }
 
 

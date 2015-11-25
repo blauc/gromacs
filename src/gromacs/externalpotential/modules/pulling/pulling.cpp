@@ -2,20 +2,6 @@
 #include "pulling.h"
 
 
-PullingInfo::PullingInfo(){
-    name_=std::string("pulling");
-    shortDescription_=std::string("do pulling");
-};
-
-Pulling::Pulling(ExternalPotentialDataPointer data)
-{
- (void) data;
-};
-
-Pulling::~Pulling()
-{
-};
-
 void Pulling::do_potential(
     t_commrec      *cr,
     t_inputrec     *ir,

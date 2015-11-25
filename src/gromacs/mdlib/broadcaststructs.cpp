@@ -500,8 +500,7 @@ static void bc_pull_group(const t_commrec *cr, t_pull_group *pgrp)
 
 static void bc_externalpotential(const t_commrec *cr, t_ext_pot *pot)
 {
-    ExternalPotentialManager external_potential_manager;
-    external_potential_manager.broadcast_inputrecord_data(cr, pot);
+    externalpotential::inputrecordutils::broadcast_inputrecord_data(cr, pot);
 }
 
 static void bc_pull(const t_commrec *cr, pull_params_t *pull)

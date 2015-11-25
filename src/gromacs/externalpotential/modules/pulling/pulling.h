@@ -4,18 +4,10 @@
 #include "../../externalpotential.h"
 #include <string>
 
-class PullingInfo : public ExternalPotentialInfo {
-    public:
-        PullingInfo();
-};
 
 class Pulling: public ExternalPotential
 {
     public:
-
-        Pulling(ExternalPotentialDataPointer data);
-
-        ~Pulling();
 
         void do_potential(t_commrec *cr, t_inputrec *ir, matrix box, rvec x[],
                           real t, gmx_int64_t step, gmx_wallcycle_t wcycle, gmx_bool bNS);

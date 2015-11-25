@@ -66,7 +66,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/externalpotential/externalpotentialregistration.h"
 #include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #define TPX_TAG_RELEASE  "release"
@@ -900,7 +899,7 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
             snew(curr_ir->outputfilename, STRLEN);//\todo: STRLEN (4096) characters are too few to hold a large number of output file names
         }
 
-        gmx_fio_do_int(fio,curr_ir->method);
+        gmx_fio_do_string(fio, curr_ir->method);
         gmx_fio_do_string(fio, curr_ir->inputfilename);
         gmx_fio_do_string(fio, curr_ir->outputfilename);
 
@@ -919,7 +918,7 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
             }
             gmx_fio_ndo_int(fio,curr_ir->ind[index_group],curr_ir->nat[index_group]);
         }
-    }    
+    }
 }
 
 
