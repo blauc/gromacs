@@ -60,6 +60,7 @@
 #include <unistd.h>
 #endif
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/domdec/ga2la.h"
 #include "gromacs/fileio/confio.h"
@@ -1617,7 +1618,7 @@ void IMD_fill_energy_record(gmx_bool bIMD, t_IMD *imd, gmx_enerdata_t *enerd,
                 ene->E_dihe  = (float)  enerd->term[F_PDIHS  ];
                 ene->E_impr  = (float)  enerd->term[F_IDIHS  ];
                 ene->E_vdw   = (float)  enerd->term[F_LJ     ];
-                ene->E_coul  = (float) (enerd->term[F_COUL_SR] + enerd->term[F_COUL_LR]);
+                ene->E_coul  = (float)  enerd->term[F_COUL_SR];
             }
         }
 #else

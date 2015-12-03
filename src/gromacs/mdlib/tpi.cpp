@@ -52,6 +52,7 @@
 
 #include <algorithm>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/confio.h"
@@ -63,7 +64,6 @@
 #include "gromacs/gmxlib/conformation-utilities.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/constr.h"
@@ -76,6 +76,7 @@
 #include "gromacs/mdlib/tgroup.h"
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -85,6 +86,7 @@
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
 
 //! Global max algorithm
@@ -212,7 +214,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
 
     nnodes = cr->nnodes;
 
-    top = gmx_mtop_generate_local_top(top_global, inputrec);
+    top = gmx_mtop_generate_local_top(top_global, inputrec->efep != efepNO);
 
     groups = &top_global->groups;
 
@@ -308,12 +310,9 @@ double do_tpi(FILE *fplog, t_commrec *cr,
     {
         fprintf(debug, "TPI cg %d, atoms %d-%d\n", cg_tp, a_tp0, a_tp1);
     }
-    if (a_tp1 - a_tp0 > 1 &&
-        (inputrec->rlist < inputrec->rcoulomb ||
-         inputrec->rlist < inputrec->rvdw))
-    {
-        gmx_fatal(FARGS, "Can not do TPI for multi-atom molecule with a twin-range cut-off");
-    }
+
+    GMX_RELEASE_ASSERT(inputrec->rcoulomb <= inputrec->rlist && inputrec->rvdw <= inputrec->rlist, "Twin-range interactions are not supported with TPI");
+
     snew(x_mol, a_tp1-a_tp0);
 
     bDispCorr = (inputrec->eDispCorr != edispcNO);
@@ -671,12 +670,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
              * and the RF exclusion terms of the inserted molecule occur
              * within a single charge group we can pass NULL for the graph.
              * This also avoids shifts that would move charge groups
-             * out of the box.
-             *
-             * Some checks above ensure than we can not have
-             * twin-range interactions together with nstlist > 1,
-             * therefore we do not need to remember the LR energies.
-             */
+             * out of the box. */
             /* Make do_force do a single node force calculation */
             cr->nnodes = 1;
             do_force(fplog, cr, inputrec,
@@ -686,7 +680,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                      state_global->lambda,
                      NULL, fr, NULL, mu_tot, t, NULL, NULL, FALSE,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY |
-                     (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS | GMX_FORCE_DO_LR : 0) |
+                     (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS : 0) |
                      (bStateChanged ? GMX_FORCE_STATECHANGED : 0));
             cr->nnodes    = nnodes;
             bStateChanged = FALSE;
@@ -742,8 +736,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                     for (i = 0; i < ngid; i++)
                     {
                         sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egBHAMSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egBHAMLR][GID(i, gid_tp, ngid)])*embU;
+                            enerd->grpp.ener[egBHAMSR][GID(i, gid_tp, ngid)]*embU;
                     }
                 }
                 else
@@ -751,8 +744,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                     for (i = 0; i < ngid; i++)
                     {
                         sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egLJSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egLJLR][GID(i, gid_tp, ngid)])*embU;
+                            enerd->grpp.ener[egLJSR][GID(i, gid_tp, ngid)]*embU;
                     }
                 }
                 if (bDispCorr)
@@ -763,9 +755,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                 {
                     for (i = 0; i < ngid; i++)
                     {
-                        sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egCOULSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egCOULLR][GID(i, gid_tp, ngid)])*embU;
+                        sum_UgembU[e++] += enerd->grpp.ener[egCOULSR][GID(i, gid_tp, ngid)] * embU;
                     }
                     if (bRFExcl)
                     {

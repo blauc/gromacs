@@ -48,13 +48,13 @@
 #include "gromacs/gmxlib/disre.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/orires.h"
-#include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/mdebin_bar.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdtypes/energyhistory.h"
+#include "gromacs/mdtypes/fcdata.h"
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -202,18 +202,6 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         else if (i == F_EQM)
         {
             md->bEner[i] = ir->bQMMM;
-        }
-        else if (i == F_COUL_LR)
-        {
-            md->bEner[i] = (ir->rcoulomb > ir->rlist);
-        }
-        else if (i == F_LJ_LR)
-        {
-            md->bEner[i] = (!bBHAM && ir->rvdw > ir->rlist);
-        }
-        else if (i == F_BHAM_LR)
-        {
-            md->bEner[i] = (bBHAM && ir->rvdw > ir->rlist);
         }
         else if (i == F_RF_EXCL)
         {
@@ -384,25 +372,10 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
     md->bEInd[egCOULSR] = TRUE;
     md->bEInd[egLJSR  ] = TRUE;
 
-    if (ir->rcoulomb > ir->rlist)
-    {
-        md->bEInd[egCOULLR] = TRUE;
-    }
-    if (!bBHAM)
-    {
-        if (ir->rvdw > ir->rlist)
-        {
-            md->bEInd[egLJLR]   = TRUE;
-        }
-    }
-    else
+    if (bBHAM)
     {
         md->bEInd[egLJSR]   = FALSE;
         md->bEInd[egBHAMSR] = TRUE;
-        if (ir->rvdw > ir->rlist)
-        {
-            md->bEInd[egBHAMLR]   = TRUE;
-        }
     }
     if (b14)
     {

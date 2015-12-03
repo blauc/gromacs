@@ -49,7 +49,7 @@
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/fileio/xtcio.h"
-#include "gromacs/legacyheaders/types/ifunc.h"
+#include "gromacs/gmxlib/ifunc.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -292,7 +292,7 @@ void chk_trj(const gmx_output_env_t *oenv, const char *fn, const char *tpr, real
     if (tpr)
     {
         read_tpx_state(tpr, &ir, &state, &mtop);
-        top = gmx_mtop_generate_local_top(&mtop, &ir);
+        top = gmx_mtop_generate_local_top(&mtop, ir.efep != efepNO);
     }
     new_natoms = -1;
     natoms     = -1;

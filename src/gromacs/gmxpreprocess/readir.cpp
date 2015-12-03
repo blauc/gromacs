@@ -47,11 +47,11 @@
 #include <algorithm>
 
 #include "gromacs/gmxlib/chargegroup.h"
+#include "gromacs/gmxlib/ifunc.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/readinp.h"
 #include "gromacs/gmxlib/warninp.h"
 #include "gromacs/gmxpreprocess/toputil.h"
-#include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
@@ -291,49 +291,19 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
                      "release when all interaction forms are supported for the verlet scheme. The verlet "
                      "scheme already scales better, and it is compatible with GPUs and other accelerators.");
 
-        /* BASIC CUT-OFF STUFF */
-        if (ir->rlist == 0 ||
-            !((ir_coulomb_might_be_zero_at_cutoff(ir) && ir->rcoulomb > ir->rlist) ||
-              (ir_vdw_might_be_zero_at_cutoff(ir)     && ir->rvdw     > ir->rlist)))
+        if (ir->rlist > 0 && ir->rlist < ir->rcoulomb)
         {
-            /* No switched potential and/or no twin-range:
-             * we can set the long-range cut-off to the maximum of the other cut-offs.
-             */
-            ir->rlistlong = max_cutoff(ir->rlist, max_cutoff(ir->rvdw, ir->rcoulomb));
+            gmx_fatal(FARGS, "rcoulomb must not be greater than rlist (twin-range schemes are not supported)");
         }
-        else if (ir->rlistlong < 0)
+        if (ir->rlist > 0 && ir->rlist < ir->rvdw)
         {
-            ir->rlistlong = max_cutoff(ir->rlist, max_cutoff(ir->rvdw, ir->rcoulomb));
-            sprintf(warn_buf, "rlistlong was not set, setting it to %g (no buffer)",
-                    ir->rlistlong);
-            warning(wi, warn_buf);
+            gmx_fatal(FARGS, "rvdw must not be greater than rlist (twin-range schemes are not supported)");
         }
-        if (ir->rlistlong == 0 && ir->ePBC != epbcNONE)
+
+        if (ir->rlist == 0 && ir->ePBC != epbcNONE)
         {
             warning_error(wi, "Can not have an infinite cut-off with PBC");
         }
-        if (ir->rlistlong > 0 && (ir->rlist == 0 || ir->rlistlong < ir->rlist))
-        {
-            warning_error(wi, "rlistlong can not be shorter than rlist");
-        }
-        if (inputrecTwinRange(ir) && ir->nstlist == 0)
-        {
-            warning_error(wi, "Can not have nstlist == 0 with twin-range interactions");
-        }
-        if (inputrecTwinRange(ir) && EI_VV(ir->eI))
-        {
-            sprintf(warn_buf, "Twin-range interactions are not supported with integrator %s.", ei_names[ir->eI]);
-            warning_error(wi, warn_buf);
-        }
-    }
-
-    if (ir->rlistlong == ir->rlist)
-    {
-        ir->nstcalclr = 0;
-    }
-    else if (ir->rlistlong > ir->rlist && ir->nstcalclr == 0)
-    {
-        warning_error(wi, "With different cutoffs for electrostatics and VdW, nstcalclr must be -1 or a positive number");
     }
 
     if (ir->cutoff_scheme == ecutsVERLET)
@@ -448,31 +418,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
                 }
             }
         }
-
-        /* No twin-range calculations with Verlet lists */
-        ir->rlistlong = ir->rlist;
-    }
-
-    if (ir->nstcalclr == -1)
-    {
-        /* if rlist=rlistlong, this will later be changed to nstcalclr=0 */
-        ir->nstcalclr = ir->nstlist;
-    }
-    else if (ir->nstcalclr > 0)
-    {
-        if (ir->nstlist > 0 && (ir->nstlist % ir->nstcalclr != 0))
-        {
-            warning_error(wi, "nstlist must be evenly divisible by nstcalclr. Use nstcalclr = -1 to automatically follow nstlist");
-        }
-    }
-    else if (ir->nstcalclr < -1)
-    {
-        warning_error(wi, "nstcalclr must be a positive number (divisor of nstcalclr), or -1 to follow nstlist.");
-    }
-
-    if (EEL_PME(ir->coulombtype) && ir->rcoulomb > ir->rlist && ir->nstcalclr > 1)
-    {
-        warning_error(wi, "When used with PME, the long-range component of twin-range interactions must be updated every step (nstcalclr)");
     }
 
     /* GENERAL INTEGRATOR STUFF */
@@ -556,16 +501,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
             if (ir->nstpcouple < 0)
             {
                 ir->nstpcouple = ir_optimal_nstpcouple(ir);
-            }
-        }
-        if (inputrecTwinRange(ir))
-        {
-            check_nst("nstcalclr", ir->nstcalclr,
-                      "nstcalcenergy", &ir->nstcalcenergy, wi);
-            if (ir->epc != epcNO)
-            {
-                check_nst("nstlist", ir->nstlist,
-                          "nstpcouple", &ir->nstpcouple, wi);
             }
         }
 
@@ -787,19 +722,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
                 CHECK((fep->all_lambda[i][j] < 0) || (fep->all_lambda[i][j] > 1));
             }
         }
-
-        if (inputrecTwinRange(ir))
-        {
-            sprintf(err_buf, "nstdhdl must be divisible by nstcalclr");
-            CHECK(ir->fepvals->nstdhdl > 0 &&
-                  ir->fepvals->nstdhdl % ir->nstcalclr != 0);
-
-            if (ir->efep == efepEXPANDED)
-            {
-                sprintf(err_buf, "nstexpanded must be divisible by nstcalclr");
-                CHECK(ir->expandedvals->nstexpanded % ir->nstcalclr != 0);
-            }
-        }
     }
 
     if ((ir->bSimTemp) || (ir->efep == efepEXPANDED))
@@ -965,11 +887,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     {
         warning_note(wi, "Tumbling and or flying ice-cubes: We are not removing rotation around center of mass in a non-periodic system. You should probably set comm_mode = ANGULAR.");
     }
-
-    sprintf(err_buf, "Twin-range neighbour searching (NS) with simple NS"
-            " algorithm not implemented");
-    CHECK(((ir->rcoulomb > ir->rlist) || (ir->rvdw > ir->rlist))
-          && (ir->ns_type == ensSIMPLE));
 
     /* TEMPERATURE COUPLING */
     if (ir->etc == etcYES)
@@ -1240,17 +1157,10 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
             if (ir->coulombtype == eelPME || ir->coulombtype == eelP3M_AD)
             {
                 sprintf(err_buf,
-                        "With coulombtype = %s (without modifier), rcoulomb must be equal to rlist,\n"
-                        "or rlistlong if nstcalclr=1. For optimal energy conservation,consider using\n"
+                        "With coulombtype = %s (without modifier), rcoulomb must be equal to rlist.\n"
+                        "For optimal energy conservation,consider using\n"
                         "a potential modifier.", eel_names[ir->coulombtype]);
-                if (ir->nstcalclr == 1)
-                {
-                    CHECK(ir->rcoulomb != ir->rlist && ir->rcoulomb != ir->rlistlong);
-                }
-                else
-                {
-                    CHECK(ir->rcoulomb != ir->rlist);
-                }
+                CHECK(ir->rcoulomb != ir->rlist);
             }
         }
     }
@@ -1341,16 +1251,14 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
                          "between neighborsearch steps");
         }
 
-        if (ir_coulomb_is_zero_at_cutoff(ir) && ir->rlistlong <= ir->rcoulomb)
+        if (ir_coulomb_is_zero_at_cutoff(ir) && ir->rlist <= ir->rcoulomb)
         {
-            sprintf(warn_buf, "For energy conservation with switch/shift potentials, %s should be 0.1 to 0.3 nm larger than rcoulomb.",
-                    inputrecTwinRange(ir) ? "rlistlong" : "rlist");
+            sprintf(warn_buf, "For energy conservation with switch/shift potentials, rlist should be 0.1 to 0.3 nm larger than rcoulomb.");
             warning_note(wi, warn_buf);
         }
-        if (ir_vdw_switched(ir) && (ir->rlistlong <= ir->rvdw))
+        if (ir_vdw_switched(ir) && (ir->rlist <= ir->rvdw))
         {
-            sprintf(warn_buf, "For energy conservation with switch/shift potentials, %s should be 0.1 to 0.3 nm larger than rvdw.",
-                    inputrecTwinRange(ir) ? "rlistlong" : "rlist");
+            sprintf(warn_buf, "For energy conservation with switch/shift potentials, rlist should be 0.1 to 0.3 nm larger than rvdw.");
             warning_note(wi, warn_buf);
         }
     }
@@ -1876,6 +1784,8 @@ void get_ir(const char *mdparin, const char *mdparout,
     REM_TYPE("adress_tf_grp_names");
     REM_TYPE("adress_cg_grp_names");
     REM_TYPE("adress_do_hybridpairs");
+    REM_TYPE("rlistlong");
+    REM_TYPE("nstcalclr");
 
     /* replace the following commands with the clearer new versions*/
     REPL_TYPE("unconstrained-start", "continuation");
@@ -1967,8 +1877,6 @@ void get_ir(const char *mdparin, const char *mdparout,
     CTYPE ("nblist cut-off");
     RTYPE ("rlist",   ir->rlist,  1.0);
     CTYPE ("long-range cut-off for switched potentials");
-    RTYPE ("rlistlong",   ir->rlistlong,  -1);
-    ITYPE ("nstcalclr",   ir->nstcalclr,  -1);
 
     /* Electrostatics */
     CCTYPE ("OPTIONS FOR ELECTROSTATICS AND VDW");
@@ -4371,7 +4279,6 @@ void double_check(t_inputrec *ir, matrix box,
                   warninp_t wi)
 {
     real        min_size;
-    gmx_bool    bTWIN;
     char        warn_buf[STRLEN];
     const char *ptr;
 
@@ -4388,19 +4295,6 @@ void double_check(t_inputrec *ir, matrix box,
             sprintf(warn_buf, "ERROR: shake-tol must be > 0 instead of %g\n",
                     ir->shake_tol);
             warning_error(wi, warn_buf);
-        }
-
-        if (inputrecTwinRange(ir) && ir->nstlist > 1)
-        {
-            sprintf(warn_buf, "With twin-range cut-off's and SHAKE the virial and the pressure are incorrect.");
-            if (ir->epc == epcNO)
-            {
-                warning(wi, warn_buf);
-            }
-            else
-            {
-                warning_error(wi, warn_buf);
-            }
         }
     }
 
@@ -4443,20 +4337,18 @@ void double_check(t_inputrec *ir, matrix box,
         {
             warning(wi, "With nstlist=0 atoms are only put into the box at step 0, therefore drifting atoms might cause the simulation to crash.");
         }
-        bTWIN = (ir->rlistlong > ir->rlist);
         if (ir->ns_type == ensGRID)
         {
-            if (sqr(ir->rlistlong) >= max_cutoff2(ir->ePBC, box))
+            if (sqr(ir->rlist) >= max_cutoff2(ir->ePBC, box))
             {
-                sprintf(warn_buf, "ERROR: The cut-off length is longer than half the shortest box vector or longer than the smallest box diagonal element. Increase the box size or decrease %s.\n",
-                        bTWIN ? (ir->rcoulomb == ir->rlistlong ? "rcoulomb" : "rvdw") : "rlist");
+                sprintf(warn_buf, "ERROR: The cut-off length is longer than half the shortest box vector or longer than the smallest box diagonal element. Increase the box size or decrease rlist.\n");
                 warning_error(wi, warn_buf);
             }
         }
         else
         {
             min_size = std::min(box[XX][XX], std::min(box[YY][YY], box[ZZ][ZZ]));
-            if (2*ir->rlistlong >= min_size)
+            if (2*ir->rlist >= min_size)
             {
                 sprintf(warn_buf, "ERROR: One of the box lengths is smaller than twice the cut-off length. Increase the box size or decrease rlist.");
                 warning_error(wi, warn_buf);
@@ -4507,16 +4399,15 @@ void check_chargegroup_radii(const gmx_mtop_t *mtop, const t_inputrec *ir,
              * not be zero at the cut-off.
              */
             if (ir_vdw_is_zero_at_cutoff(ir) &&
-                rvdw1 + rvdw2 > ir->rlistlong - ir->rvdw)
+                rvdw1 + rvdw2 > ir->rlist - ir->rvdw)
             {
                 sprintf(warn_buf, "The sum of the two largest charge group "
-                        "radii (%f) is larger than %s (%f) - rvdw (%f).\n"
+                        "radii (%f) is larger than rlist (%f) - rvdw (%f).\n"
                         "With exact cut-offs, better performance can be "
                         "obtained with cutoff-scheme = %s, because it "
                         "does not use charge groups at all.",
                         rvdw1+rvdw2,
-                        ir->rlistlong > ir->rlist ? "rlistlong" : "rlist",
-                        ir->rlistlong, ir->rvdw,
+                        ir->rlist, ir->rvdw,
                         ecutscheme_names[ecutsVERLET]);
                 if (ir_NVE(ir))
                 {
@@ -4528,13 +4419,12 @@ void check_chargegroup_radii(const gmx_mtop_t *mtop, const t_inputrec *ir,
                 }
             }
             if (ir_coulomb_is_zero_at_cutoff(ir) &&
-                rcoul1 + rcoul2 > ir->rlistlong - ir->rcoulomb)
+                rcoul1 + rcoul2 > ir->rlist - ir->rcoulomb)
             {
-                sprintf(warn_buf, "The sum of the two largest charge group radii (%f) is larger than %s (%f) - rcoulomb (%f).\n"
+                sprintf(warn_buf, "The sum of the two largest charge group radii (%f) is larger than rlist (%f) - rcoulomb (%f).\n"
                         "With exact cut-offs, better performance can be obtained with cutoff-scheme = %s, because it does not use charge groups at all.",
                         rcoul1+rcoul2,
-                        ir->rlistlong > ir->rlist ? "rlistlong" : "rlist",
-                        ir->rlistlong, ir->rcoulomb,
+                        ir->rlist, ir->rcoulomb,
                         ecutscheme_names[ecutsVERLET]);
                 if (ir_NVE(ir))
                 {

@@ -46,10 +46,10 @@
 #include <algorithm>
 #include <vector>
 
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/filetypes.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
-#include "gromacs/legacyheaders/types/ifunc.h"
+#include "gromacs/gmxlib/ifunc.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -104,6 +104,8 @@ enum tpxv {
     tpxv_CompElWithSwapLayerOffset,                          /**< added parameters for improved CompEl setups */
     tpxv_CompElPolyatomicIonsAndMultipleIonTypes,            /**< CompEl now can handle polyatomic ions and more than two types of ions */
     tpxv_RemoveAdress,                                       /**< removed support for AdResS */
+    tpxv_PullCoordNGroup,                                    /**< add ngroup to pull coord */
+    tpxv_RemoveTwinRange,                                    /**< removed support for twin-range interactions */
     tpxv_Count                                               /**< the total number of tpxv versions */
 };
 
@@ -182,7 +184,7 @@ static const t_ftupd ftupd[] = {
     { 72, F_NPSOLVATION       },
     { 41, F_LJC14_Q           },
     { 41, F_LJC_PAIRS_NB      },
-    { 32, F_BHAM_LR           },
+    { 32, F_BHAM_LR_NOLONGERUSED },
     { 32, F_RF_EXCL           },
     { 32, F_COUL_RECIP        },
     { 93, F_LJ_RECIP          },
@@ -277,24 +279,58 @@ static void do_pull_group(t_fileio *fio, t_pull_group *pgrp, gmx_bool bRead)
 static void do_pull_coord(t_fileio *fio, t_pull_coord *pcrd, int file_version,
                           int ePullOld, int eGeomOld, ivec dimOld)
 {
-    gmx_fio_do_int(fio, pcrd->group[0]);
-    gmx_fio_do_int(fio, pcrd->group[1]);
-    if (file_version >= tpxv_PullCoordTypeGeom)
+    if (file_version >= tpxv_PullCoordNGroup)
     {
         gmx_fio_do_int(fio,  pcrd->eType);
+        /* Note that we try to support adding new geometries without
+         * changing the tpx version. This requires checks when printing the
+         * geometry string and a check and fatal_error in init_pull.
+         */
         gmx_fio_do_int(fio,  pcrd->eGeom);
-        if (pcrd->eGeom == epullgDIRRELATIVE)
+        gmx_fio_do_int(fio,  pcrd->ngroup);
+        if (pcrd->ngroup <= 4)
         {
-            gmx_fio_do_int(fio, pcrd->group[2]);
-            gmx_fio_do_int(fio, pcrd->group[3]);
+            gmx_fio_ndo_int(fio, pcrd->group, pcrd->ngroup);
+        }
+        else
+        {
+            /* More groups in file than supported, this must be a new geometry
+             * that is not supported by our current code. Since we will not
+             * use the groups for this coord (checks in the pull and WHAM code
+             * ensure this), we can ignore the groups and set ngroup=0.
+             */
+            int *dum;
+            snew(dum, pcrd->ngroup);
+            gmx_fio_ndo_int(fio, dum, pcrd->ngroup);
+            sfree(dum);
+
+            pcrd->ngroup = 0;
         }
         gmx_fio_do_ivec(fio, pcrd->dim);
     }
     else
     {
-        pcrd->eType = ePullOld;
-        pcrd->eGeom = eGeomOld;
-        copy_ivec(dimOld, pcrd->dim);
+        pcrd->ngroup = 2;
+        gmx_fio_do_int(fio, pcrd->group[0]);
+        gmx_fio_do_int(fio, pcrd->group[1]);
+        if (file_version >= tpxv_PullCoordTypeGeom)
+        {
+            pcrd->ngroup = (pcrd->eGeom == epullgDIRRELATIVE ? 4 : 2);
+            gmx_fio_do_int(fio,  pcrd->eType);
+            gmx_fio_do_int(fio,  pcrd->eGeom);
+            if (pcrd->ngroup == 4)
+            {
+                gmx_fio_do_int(fio, pcrd->group[2]);
+                gmx_fio_do_int(fio, pcrd->group[3]);
+            }
+            gmx_fio_do_ivec(fio, pcrd->dim);
+        }
+        else
+        {
+            pcrd->eType = ePullOld;
+            pcrd->eGeom = eGeomOld;
+            copy_ivec(dimOld, pcrd->dim);
+        }
     }
     gmx_fio_do_rvec(fio, pcrd->origin);
     gmx_fio_do_rvec(fio, pcrd->vec);
@@ -1118,18 +1154,43 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
         ir->verletbuf_tol = 0;
     }
     gmx_fio_do_real(fio, ir->rlist);
-    if (file_version >= 67)
+    if (file_version >= 67 && file_version < tpxv_RemoveTwinRange)
     {
-        gmx_fio_do_real(fio, ir->rlistlong);
-    }
-    if (file_version >= 82 && file_version != 90)
-    {
-        gmx_fio_do_int(fio, ir->nstcalclr);
+        if (bRead)
+        {
+            // Reading such a file version could invoke the twin-range
+            // scheme, about which mdrun should give a fatal error.
+            real dummy_rlistlong = -1;
+            gmx_fio_do_real(fio, dummy_rlistlong);
+
+            if (ir->rlist > 0 && (dummy_rlistlong == 0 || dummy_rlistlong > ir->rlist))
+            {
+                // Get mdrun to issue an error (regardless of
+                // ir->cutoff_scheme).
+                ir->useTwinRange = true;
+            }
+            else
+            {
+                // grompp used to set rlistlong actively. Users were
+                // probably also confused and set rlistlong == rlist.
+                // However, in all remaining cases, it is safe to let
+                // mdrun proceed normally.
+                ir->useTwinRange = false;
+            }
+        }
     }
     else
     {
-        /* Calculate at NS steps */
-        ir->nstcalclr = ir->nstlist;
+        // No need to read or write anything
+        ir->useTwinRange = false;
+    }
+    if (file_version >= 82 && file_version != 90)
+    {
+        // Multiple time-stepping is no longer enabled, but the old
+        // support required the twin-range scheme, for which mdrun
+        // already emits a fatal error.
+        int dummy_nstcalclr = -1;
+        gmx_fio_do_int(fio, dummy_nstcalclr);
     }
     gmx_fio_do_int(fio, ir->coulombtype);
     if (file_version < 32 && ir->coulombtype == eelRF)
@@ -1157,10 +1218,6 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
     }
     gmx_fio_do_real(fio, ir->rvdw_switch);
     gmx_fio_do_real(fio, ir->rvdw);
-    if (file_version < 67)
-    {
-        ir->rlistlong = max_cutoff(ir->rlist, max_cutoff(ir->rvdw, ir->rcoulomb));
-    }
     gmx_fio_do_int(fio, ir->eDispCorr);
     gmx_fio_do_real(fio, ir->epsilon_r);
     if (file_version >= 37)

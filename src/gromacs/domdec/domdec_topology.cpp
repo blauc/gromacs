@@ -58,11 +58,11 @@
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
 #include "gromacs/mdlib/forcerec.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
@@ -2193,8 +2193,7 @@ void dd_make_local_top(gmx_domdec_t *dd, gmx_domdec_zones_t *zones,
             make_la2lc(dd);
             if (fr->bMolPBC)
             {
-                set_pbc_dd(&pbc, fr->ePBC, dd->nc, TRUE, box);
-                pbc_null = &pbc;
+                pbc_null = set_pbc_dd(&pbc, fr->ePBC, dd->nc, TRUE, box);
             }
             else
             {

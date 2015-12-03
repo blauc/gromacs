@@ -39,9 +39,11 @@
 
 #include <stdio.h>
 
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/utility/basedefinitions.h"
 
 struct gmx_multisim_t;
+struct t_commrec;
+struct t_filenm;
 
 void gmx_log_open(const char *fn, const t_commrec *cr,
                   gmx_bool bAppendFiles, FILE**);

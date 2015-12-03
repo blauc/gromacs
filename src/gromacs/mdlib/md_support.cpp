@@ -46,12 +46,12 @@
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/mdrun_signalling.h"
 #include "gromacs/mdlib/tgroup.h"
 #include "gromacs/mdlib/vcm.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
 #include "gromacs/mdtypes/group.h"
@@ -639,49 +639,6 @@ int check_nstglobalcomm(FILE *fplog, t_commrec *cr,
     }
 
     return nstglobalcomm;
-}
-
-void check_ir_old_tpx_versions(t_commrec *cr, FILE *fplog,
-                               t_inputrec *ir, gmx_mtop_t *mtop)
-{
-    /* Check required for old tpx files */
-    if (inputrecTwinRange(ir) && ir->nstlist > 1 &&
-        ir->nstcalcenergy % ir->nstlist != 0)
-    {
-        md_print_warn(cr, fplog, "Old tpr file with twin-range settings: modifying energy calculation and/or T/P-coupling frequencies\n");
-
-        if (gmx_mtop_ftype_count(mtop, F_CONSTR) +
-            gmx_mtop_ftype_count(mtop, F_CONSTRNC) > 0 &&
-            ir->eConstrAlg == econtSHAKE)
-        {
-            md_print_warn(cr, fplog, "With twin-range cut-off's and SHAKE the virial and pressure are incorrect\n");
-            if (ir->epc != epcNO)
-            {
-                gmx_fatal(FARGS, "Can not do pressure coupling with twin-range cut-off's and SHAKE");
-            }
-        }
-        check_nst_param(fplog, cr, "nstlist", ir->nstlist,
-                        "nstcalcenergy", &ir->nstcalcenergy);
-        if (ir->epc != epcNO)
-        {
-            check_nst_param(fplog, cr, "nstlist", ir->nstlist,
-                            "nstpcouple", &ir->nstpcouple);
-        }
-        check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                        "nstenergy", &ir->nstenergy);
-        check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                        "nstlog", &ir->nstlog);
-        if (ir->efep != efepNO)
-        {
-            check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                            "nstdhdl", &ir->fepvals->nstdhdl);
-        }
-    }
-
-    if (EI_VV(ir->eI) && inputrecTwinRange(ir) && ir->nstlist > 1)
-    {
-        gmx_fatal(FARGS, "Twin-range multiple time stepping does not work with integrator %s.", ei_names[ir->eI]);
-    }
 }
 
 void rerun_parallel_comm(t_commrec *cr, t_trxframe *fr,

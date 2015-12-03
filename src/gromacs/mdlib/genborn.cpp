@@ -50,10 +50,10 @@
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/genborn_allvsall.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/nblist.h"
 #include "gromacs/pbcutil/ishift.h"
@@ -243,7 +243,7 @@ int init_gb(gmx_genborn_t **p_born,
     natoms   = mtop->natoms;
 
     atoms    = gmx_mtop_global_atoms(mtop);
-    localtop = gmx_mtop_generate_local_top(mtop, ir);
+    localtop = gmx_mtop_generate_local_top(mtop, ir->efep != efepNO);
 
     snew(born, 1);
     *p_born = born;

@@ -36,12 +36,13 @@
 
 #include "trajectory_writing.h"
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/fileio/confio.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdoutf.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/energyhistory.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/topology.h"

@@ -55,14 +55,12 @@
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/gmx_omp_nthreads.h"
+#include "gromacs/gmxlib/ifunc.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
+#include "gromacs/hardware/hw_info.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/hw_info.h"
-#include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
@@ -77,7 +75,9 @@
 #include "gromacs/mdlib/nsgrid.h"
 #include "gromacs/mdlib/shellfc.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/df_history.h"
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/mdatom.h"
@@ -232,7 +232,7 @@ static int ddcoord2ddnodeid(gmx_domdec_t *dd, ivec c)
     return ddnodeid;
 }
 
-static gmx_bool dynamic_dd_box(gmx_ddbox_t *ddbox, t_inputrec *ir)
+static gmx_bool dynamic_dd_box(const gmx_ddbox_t *ddbox, const t_inputrec *ir)
 {
     return (ddbox->nboundeddim < DIM || inputrecDynamicBox(ir));
 }
@@ -6494,7 +6494,7 @@ gmx_domdec_t *init_domain_decomposition(FILE *fplog, t_commrec *cr,
     dd->bInterCGcons    = inter_charge_group_constraints(mtop);
     dd->bInterCGsettles = inter_charge_group_settles(mtop);
 
-    if (ir->rlistlong == 0)
+    if (ir->rlist == 0)
     {
         /* Set the cut-off to some very large value,
          * so we don't need if statements everywhere in the code.
@@ -6504,7 +6504,7 @@ gmx_domdec_t *init_domain_decomposition(FILE *fplog, t_commrec *cr,
     }
     else
     {
-        comm->cutoff   = ir->rlistlong;
+        comm->cutoff   = ir->rlist;
     }
     comm->cutoff_mbody = 0;
 
@@ -6516,7 +6516,7 @@ gmx_domdec_t *init_domain_decomposition(FILE *fplog, t_commrec *cr,
      * a cell size, DD cells should be at least the size of the list buffer.
      */
     comm->cellsize_limit = std::max(comm->cellsize_limit,
-                                    ir->rlistlong - std::max(ir->rvdw, ir->rcoulomb));
+                                    ir->rlist - std::max(ir->rvdw, ir->rcoulomb));
 
     if (comm->bInterCGBondeds)
     {
@@ -7245,7 +7245,7 @@ void set_dd_parameters(FILE *fplog, gmx_domdec_t *dd, real dlb_scale,
 }
 
 static gmx_bool test_dd_cutoff(t_commrec *cr,
-                               t_state *state, t_inputrec *ir,
+                               t_state *state, const t_inputrec *ir,
                                real cutoff_req)
 {
     gmx_domdec_t *dd;
@@ -7314,7 +7314,7 @@ static gmx_bool test_dd_cutoff(t_commrec *cr,
     return TRUE;
 }
 
-gmx_bool change_dd_cutoff(t_commrec *cr, t_state *state, t_inputrec *ir,
+gmx_bool change_dd_cutoff(t_commrec *cr, t_state *state, const t_inputrec *ir,
                           real cutoff_req)
 {
     gmx_bool bCutoffAllowed;
@@ -9415,7 +9415,7 @@ void dd_partition_system(FILE                *fplog,
             copy_ivec(fr->ns->grid->n, ncells_old);
             grid_first(fplog, fr->ns->grid, dd, &ddbox,
                        state_local->box, cell_ns_x0, cell_ns_x1,
-                       fr->rlistlong, grid_density);
+                       fr->rlist, grid_density);
             break;
         case ecutsVERLET:
             nbnxn_get_ncells(fr->nbv->nbs, &ncells_old[XX], &ncells_old[YY]);
@@ -9601,10 +9601,10 @@ void dd_partition_system(FILE                *fplog,
     }
 
     /* Set the number of atoms required for the force calculation.
-     * Forces need to be constrained when using a twin-range setup
-     * or with energy minimization. For simple simulations we could
-     * avoid some allocation, zeroing and copying, but this is
-     * probably not worth the complications ande checking.
+     * Forces need to be constrained when doing energy
+     * minimization. For simple simulations we could avoid some
+     * allocation, zeroing and copying, but this is probably not worth
+     * the complications and checking.
      */
     forcerec_set_ranges(fr, dd->ncg_home, dd->ncg_tot,
                         dd->nat_tot, comm->nat[ddnatCON], nat_f_novirsum);

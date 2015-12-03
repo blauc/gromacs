@@ -2,8 +2,8 @@
  * This file is part of the GROMACS molecular simulation package.
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
- * Copyright (c) 2001-2012, The GROMACS development team.
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2001-2004, The GROMACS development team.
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,49 +34,62 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_FILEIO_FILETYPES_H
+#define GMX_FILEIO_FILETYPES_H
 
-#ifndef _force_flags_h
-#define _force_flags_h
+#include "gromacs/utility/basedefinitions.h"
 
+/* this enum should correspond to the array deffile in filetypes.cpp */
+enum GromacsFileType {
+    efMDP,
+    efTRX, efTRO, efTRN, efTRR, efCOMPRESSED, efXTC, efTNG,
+    efEDR,
+    efSTX, efSTO, efGRO, efG96, efPDB, efBRK, efENT, efESP, efPQR,
+    efCPT,
+    efLOG, efXVG, efOUT,
+    efNDX,
+    efTOP, efITP,
+    efTPS, efTPR,
+    efTEX, efRTP, efATP, efHDB,
+    efDAT, efDLG,
+    efMAP, efEPS, efMAT, efM2P,
+    efMTX,
+    efEDI,
+    efCUB,
+    efXPM,
+    efRND,
+    efNR
+};
 
-#ifdef __cplusplus
-extern "C" {
+const char *ftp2ext(int ftp);
+/* Return extension for filetype */
+
+const char *ftp2ext_generic(int ftp);
+/* Return extension for filetype, and a generic name for generic types
+   (e.g. trx)*/
+
+const char *ftp2ext_with_dot(int ftp);
+/* Return extension for filetype with a leading dot */
+
+int ftp2generic_count(int ftp);
+/* Return the number of filetypes for a generic filetype */
+
+const int *ftp2generic_list(int ftp);
+/* Return the list of filetypes for a generic filetype */
+
+const char *ftp2desc(int ftp);
+/* Return description for file type */
+
+const char *ftp2defnm(int ftp);
+/* Return default file name for file type */
+
+const char *ftp2defopt(int ftp);
+/* Return default option name for file type */
+
+gmx_bool ftp_is_text(int ftp);
+gmx_bool ftp_is_xdr(int ftp);
+
+int fn2ftp(const char *fn);
+/* Return the filetype corrsponding to filename */
+
 #endif
-
-
-/* Flags to tell the force calculation routines what (not) to do */
-
-/* The state has changed */
-#define GMX_FORCE_STATECHANGED (1<<0)
-/* The box might have changed */
-#define GMX_FORCE_DYNAMICBOX   (1<<1)
-/* Do neighbor searching */
-#define GMX_FORCE_NS           (1<<2)
-/* Update long-range neighborlists */
-#define GMX_FORCE_LRNS         (1<<3)
-/* Calculate listed energies/forces (e.g. bonds, restraints, 1-4, FEP non-bonded) */
-#define GMX_FORCE_LISTED       (1<<4)
-/* Store long-range forces in a separate array */
-#define GMX_FORCE_SEPLRF       (1<<5)
-/* Calculate non-bonded energies/forces */
-#define GMX_FORCE_NONBONDED    (1<<6)
-/* Calculate forces (not only energies) */
-#define GMX_FORCE_FORCES       (1<<7)
-/* Calculate the virial */
-#define GMX_FORCE_VIRIAL       (1<<8)
-/* Calculate energies */
-#define GMX_FORCE_ENERGY       (1<<9)
-/* Calculate dHdl */
-#define GMX_FORCE_DHDL         (1<<10)
-/* Calculate long-range energies/forces */
-#define GMX_FORCE_DO_LR        (1<<11)
-
-/* Normally one want all energy terms and forces */
-#define GMX_FORCE_ALLFORCES    (GMX_FORCE_LISTED | GMX_FORCE_NONBONDED | GMX_FORCE_FORCES)
-
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  /* _force_flags_h */

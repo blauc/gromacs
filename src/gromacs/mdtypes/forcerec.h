@@ -34,14 +34,12 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_MDTYPES_TYPES_FORCEREC_H
+#define GMX_MDTYPES_TYPES_FORCEREC_H
 
-#ifndef GMX_LEGACYHEADERS_TYPES_FORCEREC_H
-#define GMX_LEGACYHEADERS_TYPES_FORCEREC_H
-
-#include "gromacs/legacyheaders/types/hw_info.h"
-#include "gromacs/legacyheaders/types/interaction_const.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/topology/idef.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
@@ -63,6 +61,8 @@ struct t_forcetable;
 struct t_nblist;
 struct t_nblists;
 struct t_QMMMrec;
+struct gmx_hw_info_t;
+struct gmx_gpu_opt_t;
 
 /* macros for the cginfo data in forcerec
  *
@@ -116,7 +116,7 @@ enum {
 };
 
 enum {
-    egCOULSR, egLJSR, egBHAMSR, egCOULLR, egLJLR, egBHAMLR,
+    egCOULSR, egLJSR, egBHAMSR,
     egCOUL14, egLJ14, egGB, egNR
 };
 extern const char *egrp_nm[egNR+1];
@@ -163,15 +163,15 @@ typedef struct t_forcerec {
     gmx_bool bDomDec;
 
     /* PBC stuff */
-    int                  ePBC;
-    gmx_bool             bMolPBC;
-    int                  rc_scaling;
-    rvec                 posres_com;
-    rvec                 posres_comB;
+    int                         ePBC;
+    gmx_bool                    bMolPBC;
+    int                         rc_scaling;
+    rvec                        posres_com;
+    rvec                        posres_comB;
 
-    const gmx_hw_info_t *hwinfo;
-    const gmx_gpu_opt_t *gpu_opt;
-    gmx_bool             use_simd_kernels;
+    const struct gmx_hw_info_t *hwinfo;
+    const struct gmx_gpu_opt_t *gpu_opt;
+    gmx_bool                    use_simd_kernels;
 
     /* Interaction for calculated in kernels. In many cases this is similar to
      * the electrostatics settings in the inputrecord, but the difference is that
@@ -196,7 +196,7 @@ typedef struct t_forcerec {
     /* Cut-Off stuff.
      * Infinite cut-off's will be GMX_CUTOFF_INF (unlike in t_inputrec: 0).
      */
-    real rlist, rlistlong;
+    real rlist;
 
     /* Dielectric constant resp. multiplication factor for charges */
     real zsquare, temp;
@@ -297,15 +297,6 @@ typedef struct t_forcerec {
     int natoms_force_constr;
     /* The allocation size of vectors of size natoms_force */
     int nalloc_force;
-
-    /* Twin Range stuff, f_twin has size natoms_force */
-    gmx_bool bTwinRange;
-    int      nlr;
-    rvec    *f_twin;
-    /* Constraint virial correction for multiple time
-       stepping. Supported for the group scheme when not using
-       velocity-Verlet integrators. */
-    tensor   vir_twin_constr;
 
     /* Forces that should not enter into the virial summation:
      * PPPM/PME/Ewald/posres

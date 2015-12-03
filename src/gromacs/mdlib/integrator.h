@@ -42,12 +42,11 @@
 
 #include <cstdio>
 
-#include "gromacs/fileio/filenm.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/legacyheaders/types/fcdata.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/fcdata.h"
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/state.h"
@@ -56,10 +55,11 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-struct t_commrec;
 struct gmx_mtop_t;
 struct gmx_membed_t;
 struct gmx_output_env_t;
+struct t_commrec;
+struct t_filenm;
 
 namespace gmx
 {

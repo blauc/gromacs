@@ -37,13 +37,14 @@
 #ifndef GMX_MDLIB_FORCE_H
 #define GMX_MDLIB_FORCE_H
 
-#include "gromacs/legacyheaders/types/fcdata.h"
-#include "gromacs/legacyheaders/types/force_flags.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
+#include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/fcdata.h"
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/timing/wallcycle.h"
 
 struct gmx_edsam;
+struct gmx_gpu_info_t;
 struct gmx_groups_t;
 struct gmx_vsite_t;
 struct history_t;
@@ -139,10 +140,8 @@ void destroy_enerdata(gmx_enerdata_t *enerd);
 void reset_foreign_enerdata(gmx_enerdata_t *enerd);
 /* Resets only the foreign energy data */
 
-void reset_enerdata(t_forcerec *fr, gmx_bool bNS,
-                    gmx_enerdata_t *enerd,
-                    gmx_bool bMaster);
-/* Resets the energy data, if bNS=TRUE also zeros the long-range part */
+void reset_enerdata(gmx_enerdata_t *enerd);
+/* Resets the energy data */
 
 void sum_epot(gmx_grppairener_t *grpp, real *epot);
 /* Locally sum the non-bonded potential energy terms */
@@ -188,8 +187,7 @@ void ns(FILE              *fplog,
         t_mdatoms         *md,
         t_commrec         *cr,
         t_nrnb            *nrnb,
-        gmx_bool           bFillGrid,
-        gmx_bool           bDoLongRangeNS);
+        gmx_bool           bFillGrid);
 /* Call the neighborsearcher */
 
 void do_force_lowlevel(t_forcerec   *fr,
@@ -202,7 +200,6 @@ void do_force_lowlevel(t_forcerec   *fr,
                        rvec         x[],
                        history_t    *hist,
                        rvec         f_shortrange[],
-                       rvec         f_longrange[],
                        gmx_enerdata_t *enerd,
                        t_fcdata     *fcd,
                        gmx_localtop_t *top,

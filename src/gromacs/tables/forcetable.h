@@ -35,9 +35,11 @@
 #ifndef GMX_TABLES_FORCETABLE_H
 #define GMX_TABLES_FORCETABLE_H
 
-#include "gromacs/legacyheaders/types/fcdata.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/interaction_const.h"
+#include <cstdio>
+
+#include "gromacs/mdtypes/fcdata.h"
+#include "gromacs/mdtypes/forcerec.h"
+#include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/utility/real.h"
 
 #define GMX_MAKETABLES_FORCEUSER  (1<<0)

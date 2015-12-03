@@ -57,14 +57,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/filenm.h"
 #include "gromacs/gmxlib/main.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/readinp.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdrunutility/handlerestart.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/fatalerror.h"
 

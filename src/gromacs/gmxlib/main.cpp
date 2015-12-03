@@ -44,11 +44,11 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/fileio/copyrite.h"
-#include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"

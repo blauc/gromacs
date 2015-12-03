@@ -52,6 +52,7 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/ewald.h"
 #include "gromacs/fileio/copyrite.h"
+#include "gromacs/fileio/filetypes.h"
 #include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/gmx_detect_hardware.h"
@@ -60,8 +61,6 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
-#include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/units.h"
@@ -78,6 +77,8 @@
 #include "gromacs/mdlib/nbnxn_util.h"
 #include "gromacs/mdlib/ns.h"
 #include "gromacs/mdlib/qmmm.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/fcdata.h"
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -94,7 +95,7 @@
 #include "nbnxn_gpu_jit_support.h"
 
 const char *egrp_nm[egNR+1] = {
-    "Coul-SR", "LJ-SR", "Buck-SR", "Coul-LR", "LJ-LR", "Buck-LR",
+    "Coul-SR", "LJ-SR", "Buck-SR",
     "Coul-14", "LJ-14", NULL
 };
 
@@ -1442,11 +1443,6 @@ void forcerec_set_ranges(t_forcerec *fr,
     if (fr->natoms_force_constr > fr->nalloc_force)
     {
         fr->nalloc_force = over_alloc_dd(fr->natoms_force_constr);
-
-        if (fr->bTwinRange)
-        {
-            srenew(fr->f_twin, fr->nalloc_force);
-        }
     }
 
     if (fr->bF_NoVirSum)
@@ -1970,7 +1966,6 @@ init_interaction_const(FILE                       *fp,
     snew_aligned(ic->tabq_coul_V, 16, 32);
 
     ic->rlist           = fr->rlist;
-    ic->rlistlong       = fr->rlistlong;
 
     /* Lennard-Jones */
     ic->vdwtype         = fr->vdwtype;
@@ -2353,7 +2348,10 @@ void init_forcerec(FILE              *fp,
     {
         gmx_fatal(FARGS, "AdResS simulations are no longer supported");
     }
-
+    if (ir->useTwinRange)
+    {
+        gmx_fatal(FARGS, "Twin-range simulations are no longer supported");
+    }
     /* Copy the user determined parameters */
     fr->userint1  = ir->userint1;
     fr->userint2  = ir->userint2;
@@ -2548,7 +2546,6 @@ void init_forcerec(FILE              *fp,
     copy_rvec(ir->posres_com, fr->posres_com);
     copy_rvec(ir->posres_comB, fr->posres_comB);
     fr->rlist                    = cutoff_inf(ir->rlist);
-    fr->rlistlong                = cutoff_inf(ir->rlistlong);
     fr->eeltype                  = ir->coulombtype;
     fr->vdwtype                  = ir->vdwtype;
     fr->ljpme_combination_rule   = ir->ljpme_combination_rule;
@@ -2631,7 +2628,6 @@ void init_forcerec(FILE              *fp,
     fr->rcoulomb         = cutoff_inf(ir->rcoulomb);
     fr->rcoulomb_switch  = ir->rcoulomb_switch;
 
-    fr->bTwinRange = fr->rlistlong > fr->rlist;
     fr->bEwald     = (EEL_PME(fr->eeltype) || fr->eeltype == eelEWALD);
 
     fr->reppow     = mtop->ffparams.reppow;
@@ -3016,7 +3012,7 @@ void init_forcerec(FILE              *fp,
      * in that case grompp should already have checked that we do not need
      * normal tables and we only generate tables for 1-4 interactions.
      */
-    rtab = ir->rlistlong + ir->tabext;
+    rtab = ir->rlist + ir->tabext;
 
     if (bMakeTables)
     {
@@ -3195,7 +3191,6 @@ void pr_forcerec(FILE *fp, t_forcerec *fr)
     pr_real(fp, fr->rcoulomb);
     pr_real(fp, fr->fudgeQQ);
     pr_bool(fp, fr->bGrid);
-    pr_bool(fp, fr->bTwinRange);
     /*pr_int(fp,fr->cg0);
        pr_int(fp,fr->hcg);*/
     for (i = 0; i < fr->nnblists; i++)

@@ -54,6 +54,7 @@
 
 #include <algorithm>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
@@ -525,7 +526,6 @@ static void increase_nstlist(FILE *fp, t_commrec *cr,
             fprintf(fp, "%s\n\n", buf);
         }
         ir->rlist     = rlist_new;
-        ir->rlistlong = rlist_new;
     }
 }
 
@@ -562,7 +562,6 @@ static void prepare_verlet_scheme(FILE                           *fplog,
                         ls.cluster_size_i, ls.cluster_size_j);
             }
             ir->rlist     = rlist_new;
-            ir->rlistlong = rlist_new;
         }
     }
 

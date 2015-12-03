@@ -54,6 +54,7 @@
 
 #include <algorithm>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
@@ -65,7 +66,6 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/linearalgebra/sparsematrix.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/vec.h"
@@ -82,6 +82,7 @@
 #include "gromacs/mdlib/trajectory_writing.h"
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/mshift.h"
@@ -400,7 +401,7 @@ void init_em(FILE *fplog, const char *title,
         }
         copy_mat(state_global->box, ems->s.box);
 
-        *top      = gmx_mtop_generate_local_top(top_global, ir);
+        *top      = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO);
         *f_global = *f;
 
         forcerec_set_excl_load(fr, *top);
@@ -787,7 +788,7 @@ static void evaluate_energy(FILE *fplog, t_commrec *cr,
              ems->s.lambda, graph, fr, vsite, mu_tot, t, NULL, NULL, TRUE,
              GMX_FORCE_STATECHANGED | GMX_FORCE_ALLFORCES |
              GMX_FORCE_VIRIAL | GMX_FORCE_ENERGY |
-             (bNS ? GMX_FORCE_NS | GMX_FORCE_DO_LR : 0));
+             (bNS ? GMX_FORCE_NS : 0));
 
     /* Clear the unused shake virial and pressure */
     clear_mat(shake_vir);

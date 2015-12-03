@@ -46,9 +46,9 @@
 #ifndef GMX_EWALD_PME_LOAD_BALANCING_H
 #define GMX_EWALD_PME_LOAD_BALANCING_H
 
-#include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/interaction_const.h"
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/timing/wallcycle.h"
 
@@ -89,7 +89,7 @@ void pme_loadbal_do(pme_load_balancing_t  *pme_lb,
                     struct t_commrec      *cr,
                     FILE                  *fp_err,
                     FILE                  *fp_log,
-                    t_inputrec            *ir,
+                    const t_inputrec      *ir,
                     t_forcerec            *fr,
                     t_state               *state,
                     gmx_wallcycle_t        wcycle,

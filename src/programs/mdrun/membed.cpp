@@ -39,12 +39,13 @@
 #include <signal.h>
 #include <stdlib.h>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/readinp.h"
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/index.h"
