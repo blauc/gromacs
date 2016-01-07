@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,6 +46,7 @@
 
 #include <algorithm>
 
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/ifunc.h"
 #include "gromacs/gmxlib/network.h"
@@ -66,7 +67,6 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #define MAXPTR 254
 #define NOGID  255
@@ -2052,7 +2052,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     EETYPE("external-potential", ir->bExternalPotential, yesno_names);
     if (ir->bExternalPotential)
     {
-        snew(ir->external_potential,1);
+        snew(ir->external_potential, 1);
         is->ext_pot = externalpotential::inputrecordutils::set_external_potential(&ninp, &inp, ir->external_potential);
     }
 
@@ -3479,7 +3479,7 @@ void do_index(const char* mdparin, const char *ndx,
 
     if (ir->bExternalPotential)
     {
-        externalpotential::inputrecordutils::make_groups(ir->external_potential, is->ext_pot ,grps, gnames);
+        externalpotential::inputrecordutils::make_groups(ir->external_potential, is->ext_pot, grps, gnames);
     }
 
     if (ir->eSwapCoords != eswapNO)

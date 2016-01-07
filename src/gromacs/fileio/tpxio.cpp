@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,6 +46,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/fileio/filetypes.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
@@ -66,7 +67,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/externalpotential/externalpotentialmanager.h"
 
 #define TPX_TAG_RELEASE  "release"
 
@@ -908,7 +908,8 @@ static void do_swapcoords_tpx(t_fileio *fio, t_swapcoords *swap, gmx_bool bRead,
 
 }
 
-static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_input, gmx_bool bRead){
+static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_input, gmx_bool bRead)
+{
 
     t_ext_pot_ir *curr_ir;
 
@@ -916,7 +917,7 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
 
     if (bRead)
     {
-        snew(external_potential_input->basepath,STRLEN);
+        snew(external_potential_input->basepath, STRLEN);
         snew(external_potential_input->inputrec_data, external_potential_input->number_external_potentials);
     }
 
@@ -924,35 +925,39 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
 
     for (int current_potential = 0; current_potential <  external_potential_input->number_external_potentials; current_potential++)
     {
-        if(bRead){
-            snew(external_potential_input->inputrec_data[current_potential],1);
+        if (bRead)
+        {
+            snew(external_potential_input->inputrec_data[current_potential], 1);
         }
 
-        curr_ir=external_potential_input->inputrec_data[current_potential];
+        curr_ir = external_potential_input->inputrec_data[current_potential];
 
-        if(bRead){
-            snew(curr_ir->inputfilename, STRLEN);//\todo: STRLEN (4096) characters are too few to hold a large number of input file names
-            snew(curr_ir->outputfilename, STRLEN);//\todo: STRLEN (4096) characters are too few to hold a large number of output file names
+        if (bRead)
+        {
+            snew(curr_ir->inputfilename, STRLEN);  //\todo: STRLEN (4096) characters are too few to hold a large number of input file names
+            snew(curr_ir->outputfilename, STRLEN); //\todo: STRLEN (4096) characters are too few to hold a large number of output file names
         }
 
         gmx_fio_do_string(fio, curr_ir->method);
         gmx_fio_do_string(fio, curr_ir->inputfilename);
         gmx_fio_do_string(fio, curr_ir->outputfilename);
 
-        gmx_fio_do_int(fio,curr_ir->number_index_groups);
+        gmx_fio_do_int(fio, curr_ir->number_index_groups);
 
-        if(bRead){
-            snew(curr_ir->nat,curr_ir->number_index_groups);
-            snew(curr_ir->ind,curr_ir->number_index_groups);
+        if (bRead)
+        {
+            snew(curr_ir->nat, curr_ir->number_index_groups);
+            snew(curr_ir->ind, curr_ir->number_index_groups);
         }
 
-        for (int index_group = 0; index_group < curr_ir->number_index_groups; index_group++) {
-            gmx_fio_do_int(fio,curr_ir->nat[index_group]);
+        for (int index_group = 0; index_group < curr_ir->number_index_groups; index_group++)
+        {
+            gmx_fio_do_int(fio, curr_ir->nat[index_group]);
             if (bRead)
             {
-                snew(curr_ir->ind[index_group],curr_ir->nat[index_group]);
+                snew(curr_ir->ind[index_group], curr_ir->nat[index_group]);
             }
-            gmx_fio_ndo_int(fio,curr_ir->ind[index_group],curr_ir->nat[index_group]);
+            gmx_fio_ndo_int(fio, curr_ir->ind[index_group], curr_ir->nat[index_group]);
         }
     }
 }
@@ -1747,13 +1752,14 @@ static void do_inputrec(t_fileio *fio, t_inputrec *ir, gmx_bool bRead,
     }
 
     /* External Potentials */
-    if (file_version >= tpxv_ExternalPotential){
+    if (file_version >= tpxv_ExternalPotential)
+    {
         gmx_fio_do_gmx_bool(fio, ir->bExternalPotential);
         if (ir->bExternalPotential == TRUE)
         {
             if (bRead)
             {
-                  snew(ir->external_potential,1);
+                snew(ir->external_potential, 1);
             }
             do_external_potential(fio, ir->external_potential, bRead);
         }

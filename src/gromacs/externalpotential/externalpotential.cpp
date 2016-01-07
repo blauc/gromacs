@@ -1,15 +1,51 @@
+/*
+ * This file is part of the GROMACS molecular simulation package.
+ *
+ * Copyright (c) 2016, by the GROMACS development team, led by
+ * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
+ * and including many others, as listed in the AUTHORS file in the
+ * top-level source directory and at http://www.gromacs.org.
+ *
+ * GROMACS is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1
+ * of the License, or (at your option) any later version.
+ *
+ * GROMACS is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with GROMACS; if not, see
+ * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
+ *
+ * If you want to redistribute modifications to GROMACS, please
+ * consider that scientific software is very special. Version
+ * control is crucial - bugs must be traceable. We will be happy to
+ * consider code for inclusion in the official distribution, but
+ * derived work must not be called official GROMACS. Details are found
+ * in the README & COPYING files - if they are missing, get the
+ * official version at http://www.gromacs.org.
+ *
+ * To help us fund GROMACS development, we humbly ask that you cite
+ * the research papers on the package. Check out http://www.gromacs.org.
+ */
 #include "externalpotential.h"
-#include "gromacs/topology/topology.h"
-#include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/gmxlib/network.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/math/vec.h"
-#include "gromacs/mdlib/sim_util.h"
-#include "gromacs/mdlib/groupcoord.h"
-#include "gromacs/mdtypes/inputrec.h"
-#include "gromacs/utility/exceptions.h"
 
 #include <memory>
+
+#include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/mdlib/groupcoord.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/smalloc.h"
 
 /*! \brief
  *  Read all generic data for experimental input modules on the master node
@@ -18,9 +54,9 @@ class ExternalPotential::Impl
 {
     public:
         Impl(struct ext_pot_ir * ep_ir, t_commrec * cr, t_inputrec * ir,
-            const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file,
-            FILE *output_file, FILE *fplog, gmx_bool bVerbose,
-            const gmx_output_env_t *oenv, unsigned long Flags);
+             const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file,
+             FILE *output_file, FILE *fplog, gmx_bool bVerbose,
+             const gmx_output_env_t *oenv, unsigned long Flags);
 
         ~Impl();
 
@@ -47,7 +83,7 @@ class ExternalPotential::Impl
         const gmx_output_env_t *oenv_;
 
         class Group;
-        std::vector<std::unique_ptr<ExternalPotential::Impl::Group>> atom_groups_;
+        std::vector < std::unique_ptr < ExternalPotential::Impl::Group>> atom_groups_;
 
         void mpi_start_(t_commrec * cr);
         void mpi_buffer_resize_(int size);
@@ -66,18 +102,22 @@ class ExternalPotential::Impl
 
 };
 
-void ExternalPotential::add_virial(tensor vir, gmx_int64_t step,real weight){
+void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
+{
     if (impl_->do_this_step(step))
     {
         impl_->add_virial(vir, weight);
-    };
+    }
+    ;
 };
 
 void ExternalPotential::Impl::add_virial(real (*vir)[3], real total_weight)
 {
-    for (int i = XX; i < DIM; i++) {
-        for (int j = 0; j < DIM; j++) {
-            vir[i][j]+=total_weight*total_virial_[i][j];
+    for (int i = XX; i < DIM; i++)
+    {
+        for (int j = 0; j < DIM; j++)
+        {
+            vir[i][j] += total_weight*total_virial_[i][j];
         }
     }
 }
@@ -86,11 +126,11 @@ class ExternalPotential::Impl::Group
 {
     public:
 
-        Group(t_inputrec * ir,t_commrec * cr,const gmx_mtop_t * mtop,size_t nat, int *ind, rvec *x, matrix box);
+        Group(t_inputrec * ir, t_commrec * cr, const gmx_mtop_t * mtop, size_t nat, int *ind, rvec *x, matrix box);
         void make_local_group_indices(gmx_domdec_t *dd);
         void communicate_positions_all_to_all(t_commrec *cr, rvec *x, matrix box);
         rvec * x_assembled(gmx_int64_t step, t_commrec *cr, rvec *x, matrix box);
-        void add_forces(rvec f[],real w);
+        void add_forces(rvec f[], real w);
         void add_virial(tensor vir);
 
     private:
@@ -130,7 +170,8 @@ void ExternalPotential::dd_make_local_groups( gmx_domdec_t *dd)
 
 void ExternalPotential::Impl::dd_make_local_groups( gmx_domdec_t *dd)
 {
-    for ( auto && grp : atom_groups_ ) {
+    for (auto && grp : atom_groups_)
+    {
         grp->make_local_group_indices(dd);
     }
 };
@@ -147,14 +188,14 @@ rvec* ExternalPotential::x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], 
 };
 
 ExternalPotential::Impl::Group::Group(
-    t_inputrec * ir,
-    t_commrec * cr,
-    const gmx_mtop_t* mtop,
-    size_t              nat,
-    int            *ind,
-    rvec               x[],
-matrix box):
-     num_atoms_(nat), ind_(ind)
+        t_inputrec        * ir,
+        t_commrec         * cr,
+        const gmx_mtop_t  * mtop,
+        size_t              nat,
+        int                *ind,
+        rvec                x[],
+        matrix              box) :
+    num_atoms_(nat), ind_(ind)
 {
 
     /* To be able to make the density fitting molecule whole: */
@@ -185,28 +226,30 @@ matrix box):
 ExternalPotential::~ExternalPotential(){};
 
 ExternalPotential::Impl::Impl(
-    struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box,
+        struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box,
         FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose,
         const gmx_output_env_t *oenv, unsigned long Flags ) :
-      input_file_(input_file), output_file_(output_file), logfile_(fplog),
-      bVerbose_(bVerbose), Flags_(Flags), oenv_(oenv),
-      mpi_inbuf_(nullptr), mpi_outbuf_(nullptr),
-      mpi_buf_size_(0), mpi_current_(0), mpi_buf_write_(true)
+    input_file_(input_file), output_file_(output_file), logfile_(fplog),
+    bVerbose_(bVerbose), Flags_(Flags), oenv_(oenv),
+    mpi_inbuf_(nullptr), mpi_outbuf_(nullptr),
+    mpi_buf_size_(0), mpi_current_(0), mpi_buf_write_(true)
 {
 
-    for (int i = 0; i < ep_ir->number_index_groups ; i++) {
+    for (int i = 0; i < ep_ir->number_index_groups; i++)
+    {
         atom_groups_.push_back(
-            std::unique_ptr<ExternalPotential::Impl::Group>(
-                new ExternalPotential::Impl::Group(ir, cr, mtop,ep_ir->nat[i],ep_ir->ind[i],x,box)
-            )
-        );
-    };
+                std::unique_ptr<ExternalPotential::Impl::Group>(
+                        new ExternalPotential::Impl::Group(ir, cr, mtop, ep_ir->nat[i], ep_ir->ind[i], x, box)
+                        )
+                );
+    }
+    ;
 
 };
 
 void ExternalPotential::Impl::mpi_buffer_resize_(int size)
 {
-    mpi_buf_size_=size;
+    mpi_buf_size_ = size;
     srenew(mpi_inbuf_, mpi_buf_size_);
     srenew(mpi_outbuf_, mpi_buf_size_);
 };
@@ -236,32 +279,35 @@ rvec * ExternalPotential::Impl::Group::x_assembled(gmx_int64_t step, t_commrec *
 
 void ExternalPotential::Impl::Group::add_virial(tensor vir)
 {
-    for (size_t i = XX; i < DIM; i++) {
-        for (size_t j = XX; j < DIM; j++) {
-            vir[i][j]+=virial_loc_[i][j];
+    for (size_t i = XX; i < DIM; i++)
+    {
+        for (size_t j = XX; j < DIM; j++)
+        {
+            vir[i][j] += virial_loc_[i][j];
         }
     }
 };
 
 
-void ExternalPotential::Impl::Group::add_forces(rvec f[],real w)
+void ExternalPotential::Impl::Group::add_forces(rvec f[], real w)
 {
-        for (int l = 0; l < num_atoms_loc_; l++)
+    for (int l = 0; l < num_atoms_loc_; l++)
+    {
+        /* Get the right index of the local force, since typically not all local
+         * atoms are subject to density fitting forces */
+        /* Add to local force */
+        for (int i = XX; i < DIM; i++)
         {
-            /* Get the right index of the local force, since typically not all local
-            * atoms are subject to density fitting forces */
-            /* Add to local force */
-            for (int i = XX; i < DIM; i++) {
-                f_loc_[l][i]*=w;
-            }
-            rvec_inc(f[ind_loc_[l]], f_loc_[l]);
+            f_loc_[l][i] *= w;
         }
+        rvec_inc(f[ind_loc_[l]], f_loc_[l]);
+    }
 };
 
 void ExternalPotential::Impl::Group::communicate_positions_all_to_all(
-    t_commrec  *cr,
-    rvec       *x,
-    matrix      box    )
+        t_commrec  *cr,
+        rvec       *x,
+        matrix      box    )
 {
     communicate_group_positions( cr, x_assembled_, x_shifts_, extra_shifts_, bUpdateShifts_, x, num_atoms_, num_atoms_loc_, ind_loc_, coll_ind_, x_assembled_old_, box);
     bUpdateShifts_ = false;
@@ -269,29 +315,34 @@ void ExternalPotential::Impl::Group::communicate_positions_all_to_all(
 
 void ExternalPotential::Impl::add_forces(rvec f[], real total_weight)
 {
-    for ( auto && group : atom_groups_)
+    for (auto && group : atom_groups_)
     {
-        group->add_forces(f,total_weight);
+        group->add_forces(f, total_weight);
     }
 }
 
 void ExternalPotential::Impl::mpi_buffer_(real value)
 {
-    if(mpi_current_ + 1< mpi_buf_size_)
+    if (mpi_current_ + 1 < mpi_buf_size_)
     {
-        if(mpi_buf_write_){
+        if (mpi_buf_write_)
+        {
             mpi_buffer_resize_(mpi_current_ + 1);
-        }else{
+        }
+        else
+        {
             GMX_THROW(gmx::InternalError("Trying to read more values from MPI output buffer than allocated in target buffer."));
         }
     }
-    if(mpi_buf_write_)
+    if (mpi_buf_write_)
     {
-        mpi_inbuf_[mpi_current_++]=value;
-    }else
+        mpi_inbuf_[mpi_current_++] = value;
+    }
+    else
     {
-        if MASTER(cr_){
-            value=mpi_outbuf_[mpi_current_++];
+        if (MASTER(cr_))
+        {
+            value = mpi_outbuf_[mpi_current_++];
         }
     };
 };
@@ -300,85 +351,111 @@ void ExternalPotential::Impl::mpi_buffer_(real value)
 
 void ExternalPotential::Impl::mpi_buffer_( real * vector, int size)
 {
-    if(cr_!=nullptr)
+    if (cr_ != nullptr)
     {
-        if(mpi_current_ + size< mpi_buf_size_)
+        if (mpi_current_ + size < mpi_buf_size_)
         {
-            if(mpi_buf_write_){
+            if (mpi_buf_write_)
+            {
                 mpi_buffer_resize_(mpi_current_ +size  );
-            }else{
+            }
+            else
+            {
                 GMX_THROW(gmx::InternalError("Trying to read more values from MPI output buffer than allocated in target buffer."));
             }
         }
-        if(mpi_buf_write_)
+        if (mpi_buf_write_)
         {
-            for (int i = 0; i < size; i++) {
-                    mpi_inbuf_[mpi_current_++]=vector[i];
-            };
-        }else
-        {
-            if MASTER(cr_)
+            for (int i = 0; i < size; i++)
             {
-                for (int i = 0; i < size; i++) {
-                    vector[i]=mpi_outbuf_[mpi_current_++];
-                };
+                mpi_inbuf_[mpi_current_++] = vector[i];
+            }
+            ;
+        }
+        else
+        {
+            if (MASTER(cr_))
+            {
+                for (int i = 0; i < size; i++)
+                {
+                    vector[i] = mpi_outbuf_[mpi_current_++];
+                }
+                ;
             }
         };
-};
+    }
+    ;
 
 };
 
 void ExternalPotential::Impl::mpi_buffer_(real matrix[DIM][DIM])
 {
-    if (cr_!=nullptr){
+    if (cr_ != nullptr)
+    {
 
-        if(mpi_current_ + DIM*DIM < mpi_buf_size_)
+        if (mpi_current_ + DIM*DIM < mpi_buf_size_)
         {
-            if(mpi_buf_write_){
+            if (mpi_buf_write_)
+            {
                 mpi_buffer_resize_(mpi_current_ + DIM*DIM);
-            }else{
+            }
+            else
+            {
                 GMX_THROW(gmx::InternalError("Trying to read more values from MPI output buffer than allocated in target buffer."));
             }
         }
-        if(mpi_buf_write_)
+        if (mpi_buf_write_)
         {
-            for (size_t i = XX; i < DIM; i++) {
-                for (size_t j = XX ; j < DIM; j++) {
-                    mpi_inbuf_[mpi_current_++]=matrix[i][j];
-                };
-            };
-        }else
+            for (size_t i = XX; i < DIM; i++)
+            {
+                for (size_t j = XX; j < DIM; j++)
+                {
+                    mpi_inbuf_[mpi_current_++] = matrix[i][j];
+                }
+                ;
+            }
+            ;
+        }
+        else
         {
-            if MASTER(cr_){
+            if (MASTER(cr_))
+            {
 
-            for (size_t i = XX; i < DIM; i++) {
-                for (size_t j = XX ; j < DIM; j++) {
-                    matrix[i][j]=mpi_outbuf_[mpi_current_++];
-                };
-            };
+                for (size_t i = XX; i < DIM; i++)
+                {
+                    for (size_t j = XX; j < DIM; j++)
+                    {
+                        matrix[i][j] = mpi_outbuf_[mpi_current_++];
+                    }
+                    ;
+                }
+                ;
+            }
+            ;
         };
-        };
-    };
+    }
+    ;
 };
 
 void ExternalPotential::Impl::mpi_start_(t_commrec * cr)
 {
-    cr_=cr;
+    cr_ = cr;
 }
 
-void ExternalPotential::Impl::mpi_sum_reduce_(){
+void ExternalPotential::Impl::mpi_sum_reduce_()
+{
 
 #ifdef GMX_MPI
     MPI_Reduce(mpi_inbuf_, mpi_outbuf_, mpi_buf_size_, GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr_), cr_->mpi_comm_mygroup);
 #endif
-    mpi_buf_write_=false;
-    mpi_current_=0;
+    mpi_buf_write_ = false;
+    mpi_current_   = 0;
 };
 
 void ExternalPotential::Impl::mpi_finish_()
 {
-    mpi_buf_write_=true;
-    cr_=nullptr;
+    mpi_buf_write_ = true;
+    cr_            = nullptr;
 }
 
 
@@ -387,7 +464,7 @@ real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
     clear_mat(total_virial_);
 
     // collect the contribution to the virial from all groups
-    for ( auto && group : atom_groups_)
+    for (auto && group : atom_groups_)
     {
         group->add_virial(total_virial_);
     }
@@ -404,7 +481,8 @@ real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
 
     mpi_finish_();
 
-    if MASTER(cr){
+    if (MASTER(cr))
+    {
         return potential_;
     }
 
@@ -431,7 +509,7 @@ bool ExternalPotential::Impl::do_this_step(int step)
 };
 
 ExternalPotential::ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr,
-    t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
+                                      t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
 {
-    impl_=std::unique_ptr<Impl>(new Impl(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags));
+    impl_ = std::unique_ptr<Impl>(new Impl(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags));
 };

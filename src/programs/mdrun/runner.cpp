@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -59,6 +59,7 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
+#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/oenv.h"
@@ -95,7 +96,6 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
-#include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
@@ -1304,7 +1304,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (inputrec->bExternalPotential)
         {
             /* Initialize the external potentials */
-            inputrec->external_potential->manager=new externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
+            inputrec->external_potential->manager = new externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
         }
 
         if (inputrec->eSwapCoords != eswapNO)
