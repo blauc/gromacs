@@ -45,8 +45,8 @@
 #endif
 
 #include "gromacs/fileio/tngio.h"
-#include "gromacs/fileio/trx.h"
 #include "gromacs/math/units.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
@@ -82,7 +82,7 @@ void gmx_prepare_tng_writing(const char              *filename,
                                                                      const char*,
                                                                      const char,
                                                                      const char);
-#ifdef GMX_DOUBLE
+#if GMX_DOUBLE
     set_writing_interval_func_pointer set_writing_interval = tng_util_generic_write_interval_double_set;
 #else
     set_writing_interval_func_pointer set_writing_interval = tng_util_generic_write_interval_set;

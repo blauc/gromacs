@@ -38,7 +38,7 @@
 
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/modules/template/template.h"
-#include "gromacs/gmxlib/readinp.h"
+#include "gromacs/fileio/readinp.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/basedefinitions.h"

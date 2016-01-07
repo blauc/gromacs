@@ -208,7 +208,7 @@ ExternalPotential::Impl::Group::Group(
     {
         /* Remove pbc and prepare a whole molecule for new_t_gmx_densfit */
         snew(x_pbc, mtop->natoms); /* There ... */
-        m_rveccopy(mtop->natoms, x, x_pbc);
+        copy_rvecn(x, x_pbc, 0, mtop->natoms);
         do_pbc_first_mtop(NULL, ir->ePBC, box, mtop, x_pbc);
         for (int i = 0; i < num_atoms_; i++)
         {

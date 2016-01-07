@@ -40,6 +40,7 @@
 
 #include "tpxio.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -50,14 +51,16 @@
 #include "gromacs/fileio/filetypes.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/gmxfio-xdr.h"
-#include "gromacs/gmxlib/ifunc.h"
+#include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/pull-params.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/boxutilities.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/block.h"
+#include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/topology/topology.h"
@@ -67,6 +70,8 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/snprintf.h"
+#include "gromacs/utility/txtdump.h"
 
 #define TPX_TAG_RELEASE  "release"
 
@@ -288,7 +293,7 @@ static void do_pull_coord(t_fileio *fio, t_pull_coord *pcrd, int file_version,
          */
         gmx_fio_do_int(fio,  pcrd->eGeom);
         gmx_fio_do_int(fio,  pcrd->ngroup);
-        if (pcrd->ngroup <= 4)
+        if (pcrd->ngroup <= PULL_COORD_NGROUP_MAX)
         {
             gmx_fio_ndo_int(fio, pcrd->group, pcrd->ngroup);
         }
@@ -3322,7 +3327,8 @@ static void do_tpxheader(t_fileio *fio, gmx_bool bRead, t_tpxheader *tpx,
     }
     else
     {
-        gmx_fio_write_string(fio, gmx_version());
+        snprintf(buf, STRLEN, "VERSION %s", gmx_version());
+        gmx_fio_write_string(fio, buf);
         bDouble = (precision == sizeof(double));
         gmx_fio_setprecision(fio, bDouble);
         gmx_fio_do_int(fio, precision);
@@ -3759,4 +3765,29 @@ int read_tpx_top(const char *fn,
 gmx_bool fn2bTPX(const char *file)
 {
     return (efTPR == fn2ftp(file));
+}
+
+void pr_tpxheader(FILE *fp, int indent, const char *title, const t_tpxheader *sh)
+{
+    if (available(fp, sh, indent, title))
+    {
+        indent = pr_title(fp, indent, title);
+        pr_indent(fp, indent);
+        fprintf(fp, "bIr    = %spresent\n", sh->bIr ? "" : "not ");
+        pr_indent(fp, indent);
+        fprintf(fp, "bBox   = %spresent\n", sh->bBox ? "" : "not ");
+        pr_indent(fp, indent);
+        fprintf(fp, "bTop   = %spresent\n", sh->bTop ? "" : "not ");
+        pr_indent(fp, indent);
+        fprintf(fp, "bX     = %spresent\n", sh->bX ? "" : "not ");
+        pr_indent(fp, indent);
+        fprintf(fp, "bV     = %spresent\n", sh->bV ? "" : "not ");
+        pr_indent(fp, indent);
+        fprintf(fp, "bF     = %spresent\n", sh->bF ? "" : "not ");
+
+        pr_indent(fp, indent);
+        fprintf(fp, "natoms = %d\n", sh->natoms);
+        pr_indent(fp, indent);
+        fprintf(fp, "lambda = %e\n", sh->lambda);
+    }
 }

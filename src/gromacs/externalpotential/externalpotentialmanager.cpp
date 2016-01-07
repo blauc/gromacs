@@ -46,9 +46,9 @@
 
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/fileio/oenv.h"
-#include "gromacs/fileio/txtdump.h"
 #include "gromacs/gmxlib/network.h"
-#include "gromacs/gmxlib/readinp.h"
+#include "gromacs/utility/txtdump.h"
+#include "gromacs/fileio/readinp.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdtypes/commrec.h"

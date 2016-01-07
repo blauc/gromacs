@@ -48,7 +48,6 @@
 #include <string>
 #include <vector>
 
-#include "gromacs/fileio/copyrite.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/gmxpreprocess/add_par.h"
 #include "gromacs/gmxpreprocess/fflibutil.h"
@@ -62,9 +61,11 @@
 #include "gromacs/gmxpreprocess/topdirs.h"
 #include "gromacs/gmxpreprocess/topio.h"
 #include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/residuetypes.h"
 #include "gromacs/topology/symtab.h"
+#include "gromacs/utility/binaryinformation.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/dir_separator.h"
 #include "gromacs/utility/exceptions.h"
@@ -766,8 +767,8 @@ static void at2bonds(t_params *psb, t_hackblock *hb,
     real        dist2, long_bond_dist2, short_bond_dist2;
     const char *ptr;
 
-    long_bond_dist2  = sqr(long_bond_dist);
-    short_bond_dist2 = sqr(short_bond_dist);
+    long_bond_dist2  = gmx::square(long_bond_dist);
+    short_bond_dist2 = gmx::square(short_bond_dist);
 
     if (debug)
     {

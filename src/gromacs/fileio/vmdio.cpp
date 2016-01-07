@@ -107,8 +107,9 @@
 #endif
 
 #include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/trx.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -187,7 +188,7 @@ gmx_bool read_next_vmd_frame(t_trxframe *fr)
 
     fr->bV = fr->vmdplugin->bV;
 
-#ifdef GMX_DOUBLE
+#if GMX_DOUBLE
     snew(ts.coords, fr->natoms*3);
     if (fr->bV)
     {
@@ -213,7 +214,7 @@ gmx_bool read_next_vmd_frame(t_trxframe *fr)
         return 0;
     }
 
-#ifdef GMX_DOUBLE
+#if GMX_DOUBLE
     for (i = 0; i < fr->natoms; i++)
     {
         fr->x[i][0] = .1*ts.coords[i*3];

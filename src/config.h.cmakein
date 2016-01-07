@@ -134,6 +134,9 @@
 /* Target mantissa accuracy for SIMD double precision math */
 #define GMX_SIMD_ACCURACY_BITS_DOUBLE @GMX_SIMD_ACCURACY_BITS_DOUBLE@
 
+/* Whether a double-precision configuration may target accuracy equivalent to single precision */
+#cmakedefine01 GMX_RELAXED_DOUBLE_PRECISION
+
 /* Integer byte order is big endian. */
 #cmakedefine01 GMX_INTEGER_BIG_ENDIAN
 
@@ -185,9 +188,6 @@
 /* Use ORCA for QM-MM calculations */
 #cmakedefine01 GMX_QMMM_ORCA
 
-/* Use the GROMACS software 1/sqrt(x) */
-#cmakedefine GMX_SOFTWARE_INVSQRT
-
 /* Use sub-counters */
 #cmakedefine01 GMX_CYCLE_SUBCOUNTERS
 
@@ -230,8 +230,12 @@
 /* Enable x86 gcc inline assembly */
 #cmakedefine GMX_X86_GCC_INLINE_ASM
 
-/* Use GPU native acceleration */
-#cmakedefine GMX_GPU
+/* Define constants useful for handling GPU support */
+#define GMX_GPU_NONE   0
+#define GMX_GPU_CUDA   1
+#define GMX_GPU_OPENCL 2
+/* Which kind of GPU support is configured */
+#define GMX_GPU @GMX_GPU_ACCELERATION_FRAMEWORK@
 
 /* CUDA runtime API version (identical to CUDART_VERSION from cuda_runtime_api.h) */
 #cmakedefine GMX_CUDA_VERSION @GMX_CUDA_VERSION@
@@ -272,15 +276,6 @@
 /* Define to 1 if you have the rdtscp instruction. */
 #cmakedefine HAVE_RDTSCP
 
-/* Define to 1 if you have the isfinite() function. */
-#cmakedefine HAVE_ISFINITE
-
-/* Define to 1 if you have the _isfinite() function. */
-#cmakedefine HAVE__ISFINITE
-
-/* Define to 1 if you have the _finite() function. */
-#cmakedefine HAVE__FINITE
-
 /* Define to 1 if you have the fsync() function. */
 #cmakedefine HAVE_FSYNC
 
@@ -296,14 +291,23 @@
 /* Define to 1 if you have the sigaction() function. */
 #cmakedefine HAVE_SIGACTION
 
-/* Define to 1 if you have the rsqrt() function. */
-#cmakedefine HAVE_RSQRT
+/* Define for the GNU __builtin_clz() function. */
+#cmakedefine01 HAVE_BUILTIN_CLZ
 
-/* Define to 1 if you have the rsqrtf() function. */
-#cmakedefine HAVE_RSQRTF
+/* Define for the GNU __builtin_clzll() function. */
+#cmakedefine01 HAVE_BUILTIN_CLZLL
 
-/* Define to 1 if you have the sqrtf() function. */
-#cmakedefine HAVE_SQRTF
+/* Define for the MSVC _BitScanReverse() function. */
+#cmakedefine01 HAVE_BITSCANREVERSE
+
+/* Define for the MSVC _BitScanReverse64() function. */
+#cmakedefine01 HAVE_BITSCANREVERSE64
+
+/* Define for the IBM xlc++ __cntlz4() function. */
+#cmakedefine01 HAVE_CNTLZ4
+
+/* Define for the IBM xlc++ __cntlz8() function. */
+#cmakedefine01 HAVE_CNTLZ8
 
 /* Define to 1 if yo have the <unistd.h> header file. */
 #cmakedefine HAVE_UNISTD_H

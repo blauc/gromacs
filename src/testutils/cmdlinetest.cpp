@@ -252,6 +252,14 @@ class CommandLineTestHelper::Impl
             {
             }
 
+            OutputFileInfo &operator=(OutputFileInfo &&other)
+            {
+                option  = std::move(other.option);
+                path    = std::move(other.path);
+                matcher = std::move(other.matcher);
+                return *this;
+            }
+
             std::string              option;
             std::string              path;
             TextBlockMatcherPointer  matcher;
@@ -448,7 +456,8 @@ TestReferenceChecker CommandLineTestBase::rootChecker()
 void CommandLineTestBase::testWriteHelp(ICommandLineModule *module)
 {
     StringOutputStream     stream;
-    CommandLineHelpContext context(&stream, eHelpOutputFormat_Console, nullptr, "test");
+    TextWriter             writer(&stream);
+    CommandLineHelpContext context(&writer, eHelpOutputFormat_Console, nullptr, "test");
     context.setModuleDisplayName(formatString("%s %s", "test", module->name()));
     module->writeHelp(context);
     TestReferenceChecker   checker(rootChecker());

@@ -50,7 +50,6 @@
 #include <string>
 #include <vector>
 
-#include "gromacs/fileio/trx.h"
 #include "gromacs/onlinehelp/helpmanager.h"
 #include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/options/basicoptions.h"
@@ -58,6 +57,7 @@
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selhelp.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/filestream.h"
 #include "gromacs/utility/gmxassert.h"
@@ -285,7 +285,7 @@ void printHelp(TextWriter *writer, gmx_ana_selcollection_t *sc,
     {
         sc->rootHelp = createSelectionHelpTopic();
     }
-    HelpWriterContext context(&writer->stream(), eHelpOutputFormat_Console);
+    HelpWriterContext context(writer, eHelpOutputFormat_Console);
     HelpManager       manager(*sc->rootHelp, context);
     try
     {

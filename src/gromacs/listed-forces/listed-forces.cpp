@@ -51,11 +51,11 @@
 
 #include <algorithm>
 
-#include "gromacs/gmxlib/disre.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/gmxlib/orires.h"
 #include "gromacs/listed-forces/bonded.h"
+#include "gromacs/listed-forces/disre.h"
+#include "gromacs/listed-forces/orires.h"
 #include "gromacs/listed-forces/position-restraints.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
@@ -260,13 +260,7 @@ calc_one_bond(int thread,
               int *global_atom_index)
 {
 #if GMX_SIMD_HAVE_REAL
-    gmx_bool bUseSIMD;
-    /* MSVC 2010 produces buggy SIMD PBC code, disable SIMD for MSVC <= 2010 */
-#    if defined _MSC_VER && _MSC_VER < 1700 && !defined(__ICL)
-    bUseSIMD = FALSE;
-#    else
-    bUseSIMD = fr->use_simd_kernels;
-#    endif
+    bool bUseSIMD = fr->use_simd_kernels;
 #endif
 
     int      nat1, nbonds, efptFTYPE;
