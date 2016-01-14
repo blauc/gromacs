@@ -39,12 +39,10 @@
 #include <cstdio>
 
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/timing/wallcycle.h"
-#include "gromacs/utility/basedefinitions.h"
 
 struct t_commrec;
 struct t_inputrec;
@@ -53,33 +51,84 @@ struct gmx_output_env_t;
 struct gmx_domdec_t;
 struct gmx_mtop_t;
 
+namespace gmx
+{
+
+class GroupCoordinates;
+
 class ExternalPotential
 {
     public:
 
         ~ExternalPotential();
-        // Compute energies and forces (and possible more
+        /*! \brief
+         * Compute energies, forces, and virial.
+         */
         virtual void do_potential(t_commrec *cr, t_inputrec *ir, matrix box,
-                                  rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle,
-                                  gmx_bool bNS) = 0;
+                                  const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle,
+                                  bool bNS) = 0;
 
+        /*! \brief
+         * Add up potential and virial contribution from all nodes.
+         */
         real sum_reduce_potential_virial(t_commrec * cr);
 
+        /*! \brief
+         * Adds the external potential forces, after they have been previously calculated in do_potential.
+         */
         void add_forces(rvec f[], gmx_int64_t step, real weight);
+
+        /*! \brief
+         * Adds the contribution to the virial form this external potential.
+         */
         void add_virial(tensor vir, gmx_int64_t step, real weight);
 
-        // distribute the atom indices over all nodes in the dd steps
+        /*! \brief
+         * Distribute the atom indices over all nodes in the domain decomposition steps.
+         */
         void dd_make_local_groups( gmx_domdec_t *dd);
 
     protected:
 
-        rvec* x_assembled(gmx_int64_t step, t_commrec *cr, rvec x[], matrix box, int group_index);
+        const std::vector<RVec> &x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box, int group_index);
+
+        /*! \brief
+         * Identifies local group atoms in the assembled coordinates, such that x_assembled[collective_index(group_number)[i]] returns the ith atom in group "group_number".
+         */
+        const std::vector<int> &collective_index(int group_index);
+
+        /*! \brief
+         * Picks the local atoms that are in group "group_index".
+         *
+         * f_local and x_local correspond to one another.
+         */
+        GroupCoordinates x_local(const rvec x[], int group_index);
+
+        std::vector<RVec> &f_local(int group_index);
+
+        void set_local_potential(real potential);
+
+        void set_local_virial(tensor virial);
+
+        FILE* input_file();
+        FILE* output_file();
+        FILE* log_file();
+
+        unsigned long Flags();
+        const gmx_output_env_t *oenv();
+        bool isVerbose();
+
         ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr,
-                           t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog,
-                           gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags);
+                           t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog,
+                           bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
     private:
         class Impl;
         std::unique_ptr<Impl> impl_;
 };
+
+
+
+
+} // end namespace gmx
 
 #endif

@@ -36,6 +36,10 @@ file(GLOB EXTERNALPOTENTIALMODULE_SOURCES *.cpp modules/*/*.cpp)
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${EXTERNALPOTENTIALMODULE_SOURCES} PARENT_SCOPE)
 
 gmx_install_headers(
+    modules.h
+    inputrecordIO.h
+    mpi-helper.h
+    group.h
     externalpotential.h
     externalpotentialmanager.h
     )

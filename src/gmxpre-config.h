@@ -64,4 +64,3 @@
  * required. */
 /* Define for busy wait option  */
 /* #undef TMPI_WAIT_FOR_NO_ONE */
-

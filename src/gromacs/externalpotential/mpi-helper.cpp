@@ -32,41 +32,81 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _PULLING_H
-#define _PULLING_H
-
-#include <memory>
-#include <string>
-
-#include "gromacs/externalpotential/externalpotential.h"
-#include "gromacs/externalpotential/modules.h"
+#include "mpi-helper.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/utility/exceptions.h"
+
 namespace gmx
 {
 
-class Template : public ExternalPotential
+MpiHelper::MpiHelper(t_commrec * cr) : cr_(cr){}
+
+void MpiHelper::buffer(real value)
 {
-    public:
+    if (cr_ != nullptr)
+    {
+        if (buf_write_)
+        {
+            inbuf_.push_back(value);
+        }
+        else
+        {
+            if (MASTER(cr_))
+            {
+                value = outbuf_.back();
+                outbuf_.pop_back();
+            }
+        }
+    }
+}
 
-        static std::unique_ptr<ExternalPotential> create( struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
-        void do_potential(t_commrec *cr, t_inputrec *ir, matrix box, const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, bool bNS);
-
-    private:
-
-        Template(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE * input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
-        real k_;
-
+void MpiHelper::buffer( real * vector, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        buffer(vector[i]);
+    }
 };
 
-class TemplateInfo
+void MpiHelper::buffer(real matrix[DIM][DIM])
 {
-    public:
-        static std::string name;
-        static std::string shortDescription;
-        static const int   numberIndexGroups;
-        static externalpotential::ModuleCreator create;
+    for (int i = 0; i < DIM; i++)
+    {
+        buffer(matrix[i], DIM);
+    }
 };
+
+void MpiHelper::cr(t_commrec * cr)
+{
+    cr_ = cr;
+}
+
+void MpiHelper::sum_reduce()
+{
+    if (inbuf_.empty())
+    {
+        return;
+    }
+    outbuf_.resize(inbuf_.size());
+#ifdef GMX_MPI
+    MPI_Reduce(&inbuf_[0], &outbuf_[0], inbuf_.size(), GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr_), cr_->mpi_comm_mygroup);
+#endif
+    inbuf_.clear();
+    buf_write_ = false;
+};
+
+void MpiHelper::finish()
+{
+    if (outbuf_.size() != 0)
+    {
+        GMX_THROW(APIError("MpiHelper : Buffer not read completely before switching to writing."));
+    }
+    else
+    {
+        buf_write_ = true;
+    }
+}
+
 
 } // namespace gmx
-
-#endif

@@ -46,7 +46,7 @@
 
 #include <algorithm>
 
-#include "gromacs/externalpotential/externalpotentialmanager.h"
+#include "gromacs/externalpotential/inputrecordIO.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/gmxlib/chargegroup.h"
@@ -2055,7 +2055,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     if (ir->bExternalPotential)
     {
         snew(ir->external_potential, 1);
-        is->ext_pot = externalpotential::inputrecordutils::set_external_potential(&ninp, &inp, ir->external_potential);
+        is->ext_pot = gmx::externalpotential::inputrecordutils::set_external_potential(&ninp, &inp, ir->external_potential);
     }
 
 
@@ -3488,7 +3488,7 @@ void do_index(const char* mdparin, const char *ndx,
 
     if (ir->bExternalPotential)
     {
-        externalpotential::inputrecordutils::make_groups(ir->external_potential, is->ext_pot, grps, gnames);
+        gmx::externalpotential::inputrecordutils::make_groups(ir->external_potential, is->ext_pot, grps, gnames);
     }
 
     if (ir->eSwapCoords != eswapNO)

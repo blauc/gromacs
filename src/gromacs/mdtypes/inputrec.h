@@ -221,20 +221,23 @@ typedef struct ext_pot_ir{
     int  **ind;            /*< Indices of atoms subject to an external potential*/
 } t_ext_pot_ir;
 
+namespace gmx
+{
 namespace externalpotential
 {
 class Manager;
-};
+} // externalpotential
+} // gmx
 
 /*! \brief
  * The external potential information which will be available during the
  * simulation run. Carries the data from grompp to mdrun.
  */
 typedef struct ext_pot {
-    char                      * basepath;
-    int                         number_external_potentials; //< If a potential from the same method is applied twice, this variable counts it twice
-    t_ext_pot_ir              **inputrec_data;              //< The data, written to the tpr file / inputrecod
-    externalpotential::Manager *manager;                    //< The external potential classes containing the non-inputrec data.
+    char                           * basepath;
+    int                              number_external_potentials; //< If a potential from the same method is applied twice, this variable counts it twice
+    t_ext_pot_ir                   **inputrec_data;              //< The data, written to the tpr file / inputrecod
+    gmx::externalpotential::Manager *manager;                    //< The external potential classes containing the non-inputrec data.
 } t_ext_pot;
 
 /* Abstract type for IMD only defined in IMD.c */

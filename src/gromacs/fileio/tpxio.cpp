@@ -939,6 +939,7 @@ static void do_external_potential(t_fileio *fio, t_ext_pot *external_potential_i
 
         if (bRead)
         {
+            snew(curr_ir->method, STRLEN);
             snew(curr_ir->inputfilename, STRLEN);  //\todo: STRLEN (4096) characters are too few to hold a large number of input file names
             snew(curr_ir->outputfilename, STRLEN); //\todo: STRLEN (4096) characters are too few to hold a large number of output file names
         }

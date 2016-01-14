@@ -497,11 +497,6 @@ static void bc_pull_group(const t_commrec *cr, t_pull_group *pgrp)
     }
 }
 
-static void bc_externalpotential(const t_commrec *cr, t_ext_pot *pot)
-{
-    externalpotential::inputrecordutils::broadcast_inputrecord_data(cr, pot);
-}
-
 static void bc_pull(const t_commrec *cr, pull_params_t *pull)
 {
     int g;
@@ -682,11 +677,6 @@ static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
     if (inputrec->bSimTemp)
     {
         bc_simtempvals(cr, inputrec->simtempvals, inputrec->fepvals->n_lambda);
-    }
-    if (inputrec->bExternalPotential)
-    {
-        snew_bc(cr, inputrec->external_potential, 1);
-        bc_externalpotential(cr, inputrec->external_potential);
     }
     if (inputrec->bPull)
     {

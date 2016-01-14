@@ -32,34 +32,49 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "gmxpre.h"
 
-#include "densityfitting.h"
-
-
-std::unique_ptr<ExternalPotential> DensityFitting::create(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, gmx_bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags)
+#ifndef GMX_EXTERNALPOTENTIAL_MODULES_H
+#define GMX_EXTERNALPOTENTIAL_MODULES_H
+#include <memory>
+#include "gromacs/math/vectypes.h"
+#include "externalpotential.h"
+#include <string>
+#include <map>
+#include <vector>
+namespace gmx
 {
-    return std::unique_ptr<ExternalPotential> (new DensityFitting(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags));
-}
-
-
-void DensityFitting::do_potential(
-        t_commrec      *cr,
-        t_inputrec     *ir,
-        matrix          box,
-        rvec            x[],
-        real            t,
-        gmx_int64_t     step,
-        gmx_wallcycle_t wcycle,
-        gmx_bool        bNS)
+namespace externalpotential
 {
-    (void) cr;
-    (void) ir;
-    (void) box;
-    (void) x;
-    (void) t;
-    (void) step;
-    (void) wcycle;
-    (void) bNS;
 
+typedef std::unique_ptr<ExternalPotential> (* ModuleCreator) (struct ext_pot_ir *, struct t_commrec *, struct t_inputrec *, const struct gmx_mtop_t*, const rvec [], matrix, FILE *, FILE *, FILE *, bool, const struct gmx_output_env_t *, unsigned long, int );
+
+struct Modules
+{
+    typedef std::string ModuleName;
+    struct ModuleProperties
+    {
+        std::string   shortDescription;
+        int           numberIndexGroups;
+        ModuleCreator create;
+    };
+    std::map<ModuleName, ModuleProperties> module;
 };
+
+/*! \brief
+ * Registers all trajectory analysis command-line modules.
+ *
+ * \param[in] manager  Command-line module manager to receive the modules.
+ * \throws    std::bad_alloc if out of memory.
+ *
+ * Registers all trajectory analysis modules declared in the library such that
+ * they can be run through \p manager.
+ *
+ * \ingroup module_trajectoryanalysis
+ */
+void registerExternalPotentialModules(gmx::externalpotential::Modules *modules);
+
+
+} // namespace exteranlpotential
+} // namespace gmx
+
+ #endif

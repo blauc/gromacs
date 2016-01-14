@@ -32,44 +32,45 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _densityfitting_h_
-#define _densityfitting_h_
 
-#include <memory>
-#include <string>
+ #include "gmxpre.h"
 
-#include "gromacs/externalpotential/externalpotential.h"
-/*! \brief
- * nothing */
-class DensityFitting : public ExternalPotential
+ #include "modules.h"
+
+ #include "modules/template/template.h"
+
+namespace gmx
 {
-    public:
 
-        static std::unique_ptr<ExternalPotential> create(
-            struct ext_pot_ir *ep_ir,
-            t_commrec * cr,
-            t_inputrec * ir,
-            const gmx_mtop_t* mtop,
-            rvec x[], matrix box,
-            FILE *input_file,
-            FILE *output_file,
-            FILE *fplog,
-            gmx_bool bVerbose,
-            const gmx_output_env_t *oenv,
-            unsigned long Flags);
+namespace externalpotential
+{
+/*! \brief
+ * Convenience method for registering an external potential module,
+ *
+ * \tparam ModuleInfo  Info about external potential module to wrap.
+ *
+ * \p ModuleInfo should have static public members
+ * `const char name[]`, `const char shortDescription[]`, and
+ * `gmx::TrajectoryAnalysisModulePointer create()`.
+ *
+ * \ingroup module_trajectoryanalysis
+ */
+template <class ModuleInfo>
+void registerModule(gmx::externalpotential::Modules *modules)
+{
+    modules->module[ModuleInfo::name] = Modules::ModuleProperties {
+        .shortDescription  = ModuleInfo::shortDescription,
+        .numberIndexGroups = ModuleInfo::numberIndexGroups,
+        .create            = ModuleInfo::create
+    };
+}
 
-        void do_potential(t_commrec *cr, t_inputrec *ir, matrix box, rvec x[],
-                          real t, gmx_int64_t step, gmx_wallcycle_t wcycle, gmx_bool bNS);
+void registerExternalPotentialModules(gmx::externalpotential::Modules *modules)
+{
+    using namespace gmx::externalpotential;
+    registerModule<TemplateInfo>(modules);
 
-        void add_forces(rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step,
-                        real t, real *V_total);
+}
+} // namespace externalpotential
 
-        real potential()
-        {
-            return 0;
-        }
-    private:
-        using ExternalPotential::ExternalPotential;
-};
-
-#endif
+} // namespace gmx

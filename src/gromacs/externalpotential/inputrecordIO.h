@@ -32,41 +32,52 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _PULLING_H
-#define _PULLING_H
+#ifndef _EXTERNALPOTENTIAL_INPUTRECORDIO_
+#define _EXTERNALPOTENTIAL_INPUTRECORDIO_
 
-#include <memory>
+#include <list>
 #include <string>
 
-#include "gromacs/externalpotential/externalpotential.h"
-#include "gromacs/externalpotential/modules.h"
-#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/fileio/readinp.h"
+
+struct ext_pot;
+struct t_blocka;
+
 namespace gmx
 {
-
-class Template : public ExternalPotential
+namespace externalpotential
 {
-    public:
-
-        static std::unique_ptr<ExternalPotential> create( struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
-        void do_potential(t_commrec *cr, t_inputrec *ir, matrix box, const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, bool bNS);
-
-    private:
-
-        Template(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE * input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
-        real k_;
-
-};
-
-class TemplateInfo
+namespace inputrecordutils
 {
-    public:
-        static std::string name;
-        static std::string shortDescription;
-        static const int   numberIndexGroups;
-        static externalpotential::ModuleCreator create;
-};
+/*! \brief
+ * Helper function, that splits a string at a token
+ * \todo: allow multiple tokens
+ */
+std::list<std::string> split_string_at_token(const char * names, char token);
 
-} // namespace gmx
+/*! \brief
+ * Set the filenames and indexgroup names for all external potentials in grompp.
+ *
+ * \param[in] ninp_p mdp number of input parameters for STYPE-macro magic
+ * \param[in] inp_p mdp input parameters for STYPE-macro magic
+ * \param[in] ep all external potential data that goes into the input-record
+ * \result groupnames for all types of external potentials
+ * todo: enforce input consistency (eg. by writing checksums of input files to the .tpr file / inputrecord)
+ */
+char ** set_external_potential(int *ninp_p, t_inpfile **inp_p, struct ext_pot * ep );
 
-#endif
+/*! \brief
+ * Generate an index group per applied external potential during pre-processing in grompp.
+ *
+ * \param[in] ext_pot all external potential data that goes into the input-record
+ * \param[in] group_name the index group names of the external potentials
+ * \param[in] groups the indexgroups as read by grompp
+ * \param[in] all_group_names the group names as read by grompp
+ */
+void make_groups(struct ext_pot *ep, char **group_name, struct t_blocka *groups, char **all_group_names);
+
+void pr_externalpotential(FILE *fp, int indent, struct ext_pot * pot);
+}      // namepsace inputrecordutils
+}      // namespace externalpotential
+}      // namespace gmx
+#endif /* end of include guard: _EXTERNALPOTENTIAL_INPUTRECORDIO_ */

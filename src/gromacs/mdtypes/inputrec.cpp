@@ -43,6 +43,7 @@
 
 #include <algorithm>
 
+
 #include "gromacs/math/vecdump.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/pull-params.h"
@@ -53,6 +54,8 @@
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/txtdump.h"
+// #include "gromacs/externalpotential/externalpotentialmanager.h"
+#include "gromacs/externalpotential/inputrecordIO.h"
 
 //! Macro to select a bool name
 #define EBOOL(e)       gmx::boolToString(e)
@@ -969,6 +972,13 @@ void pr_inputrec(FILE *fp, int indent, const char *title, const t_inputrec *ir,
         if (ir->bIMD)
         {
             pr_imd(fp, indent, ir->imd);
+        }
+
+        /* EXTERNAL POTENTIAL */
+        PS("external-potential", EBOOL(ir->bExternalPotential));
+        if (ir->bExternalPotential)
+        {
+            gmx::externalpotential::inputrecordutils::pr_externalpotential(fp, indent, ir->external_potential);
         }
 
         /* NMR refinement stuff */

@@ -1295,7 +1295,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (inputrec->bExternalPotential)
         {
             /* Initialize the external potentials */
-            inputrec->external_potential->manager = new externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
+            inputrec->external_potential->manager = new gmx::externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
         }
 
         if (inputrec->eSwapCoords != eswapNO)
