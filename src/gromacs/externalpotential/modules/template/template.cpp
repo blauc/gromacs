@@ -50,18 +50,14 @@ std::unique_ptr<ExternalPotential> Template::create(struct ext_pot_ir *ep_ir, t_
 
 void Template::do_potential( t_commrec *cr, t_inputrec *ir, matrix box, const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, bool bNS)
 {
-
-
-    GroupCoordinates  r1_local = x_local(x, 0);
+    GroupCoordinates   r1_local = x_local(x, 0);
     // std::vector<RVec> r1       = x_assembled(step, cr, x, box, 0);
-    RVec              com1;
+    RVec               com1;
     // = std::accumulate( r1.begin(), r1.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
-
-    GroupCoordinates  r2_local = x_local(x, 1);
+    GroupCoordinates   r2_local = x_local(x, 1);
     // std::vector<RVec> r2       = x_assembled(step, cr, x, box, 1);
-    RVec              com2;
+    RVec               com2;
     //   = std::accumulate( r2.begin(), r2.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
-
     real               potential = 0;
 
     com1[XX] = box[XX][XX]*0.25;
@@ -123,9 +119,8 @@ Template::Template(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, co
 
     if (PAR(cr))
     {
-        MPI_Bcast(&k_, 1, MPI_FLOAT, MASTERRANK(cr), cr->mpi_comm_mygroup);
+        MPI_Bcast(&k_, 1, GMX_MPI_REAL, MASTERRANK(cr), cr->mpi_comm_mygroup);
     }
-
 }
 
 std::string TemplateInfo::name                        = "Template";

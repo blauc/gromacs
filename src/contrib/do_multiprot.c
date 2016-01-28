@@ -1,11 +1,11 @@
 /* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  *                This source code is NOT REALLY part of
- *
+ * 
  *                 G   R   O   M   A   C   S
- *
+ * 
  *          GROningen MAchine for Chemical Simulations
- *
+ * 
  *                        VERSION 4.2.5
  * Written by David van der Spoel, Erik Lindahl, Berk Hess, and others.
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
@@ -16,21 +16,21 @@
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- *
+ * 
  * If you want to redistribute modifications, please consider that
  * scientific software is very special. Version control is crucial -
  * bugs must be traceable. We will be happy to consider code for
  * inclusion in the official distribution, but derived work must not
  * be called official GROMACS. Details are found in the README & COPYING
  * files - if they are missing, get the official version at www.gromacs.org.
- *
+ * 
  * To help us fund GROMACS development, we humbly ask that you cite
  * the papers on the package - you can find them in the top README file.
- *
+ * 
  * For more info, check our website at http://www.gromacs.org
  *
  * Author: do_multiprot was written by Ran Friedman <r.friedman@bioc.uzh.ch>
- *
+ * 
  * And Hey:
  * Green Red Orange Magenta Azure Cyan Skyblue
  */
@@ -56,22 +56,22 @@
 #include "gromacs/fileio/confio.h"
 
 typedef struct {
-    int resnr;
-    int count;
+    int resnr; 
+    int count; 
 } t_countres;
 
-static void process_multiprot_output(const char *fn, real *rmsd, int *nres, rvec rotangles,
+static void process_multiprot_output(const char *fn, real *rmsd, int *nres, rvec rotangles, 
 				     rvec translation, bool bCountres, t_countres *countres)
 {
     FILE       *mpoutput;
     char       line[256];
     char       *string;
     int        i=0,j=0,res;
-
+    
     (*rmsd)=-1;
     (*nres)=0;
     mpoutput=gmx_ffopen (fn,"r");
-
+    
     if (bCountres) {
 	do {
 	    fgets(line, 256, mpoutput);
@@ -97,7 +97,7 @@ static void process_multiprot_output(const char *fn, real *rmsd, int *nres, rvec
     do {
 	fgets(line, 256, mpoutput);
     } while (strstr(line,"Trans : ") == NULL);
-
+    
     string = strtok (line," :");
     string = strtok (NULL," ");
     while (i<3 && string != NULL) {
@@ -114,9 +114,9 @@ static void process_multiprot_output(const char *fn, real *rmsd, int *nres, rvec
     if (i!=3) {
 	gmx_warning("Not enough values for rotation and translation vectors in the output of multiprot");
     }
-
-    rotangles[YY]=rotangles[YY]*(-1);
-
+    
+    rotangles[YY]=rotangles[YY]*(-1); 
+    
     while ((*rmsd) <0) {
 	fgets(line, 256, mpoutput);
 	if (strstr(line,"RMSD : ") != NULL) {
@@ -139,7 +139,7 @@ static void process_multiprot_output(const char *fn, real *rmsd, int *nres, rvec
 int main(int argc,char *argv[])
 {
     const char *desc[] = {
-	"[TT]do_multiprot[tt] ",
+	"[TT]do_multiprot[tt] ", 
 	"reads a trajectory file and aligns it to a reference structure  ",
 	"each time frame",
 	"calling the multiprot program. This allows you to use a reference",
@@ -152,9 +152,9 @@ int main(int argc,char *argv[])
 	"With the [TT]-cr[tt] option, the number of hits in the alignment is given",
 	"per residue. This number can be between 0 and the number of frames, and",
 	"indicates the structural conservation of this residue.[PAR]",
-	"If you do not have the [TT]multiprot[tt] program, get it. [TT]do_multiprot[tt] assumes",
+	"If you do not have the [TT]multiprot[tt] program, get it. [TT]do_multiprot[tt] assumes", 
 	"that the [TT]multiprot[tt] executable is [TT]/usr/local/bin/multiprot[tt]. If this is ",
-	"not the case, then you should set an environment variable [BB]MULTIPROT[bb]",
+	"not the case, then you should set an environment variable [BB]MULTIPROT[bb]", 
 	"pointing to the [TT]multiprot[tt] executable, e.g.: [PAR]",
 	"[TT]setenv MULTIPROT /usr/MultiProtInstall/multiprot.Linux[tt][PAR]",
 	"Note that at the current implementation only binary alignment (your",
@@ -171,11 +171,11 @@ int main(int argc,char *argv[])
 	{ "-v",  FALSE, etBOOL, {&bVerbose},
 	  "HIDDENGenerate miles of useless information" }
     };
-
-    const char *bugs[] = {
+  
+    const char *bugs[] = { 
 	"The program is very slow, since multiprot is run externally"
     };
-
+  
     t_trxstatus *status;
     t_trxstatus *trxout=NULL;
     FILE        *tapein,*fo,*frc,*tmpf,*out=NULL,*fres=NULL;
@@ -194,7 +194,7 @@ int main(int argc,char *argv[])
     t_countres  *countres=NULL;
     matrix      box,rbox;
     int         gnx;
-    char        *grpnm,*ss_str;
+    char        *grpnm,*ss_str; 
     atom_id     *index;
     rvec        *xp,*x,*xr;
     char        pdbfile[32],refpdb[256],title[256],rtitle[256],filemode[5];
@@ -208,7 +208,7 @@ int main(int argc,char *argv[])
     output_env_t oenv;
     static rvec translation={0,0,0},rotangles={0,0,0};
     gmx_rmpbc_t gpbc=NULL;
-
+    
     t_filenm   fnm[] = {
 	{ efTRX, "-f",   NULL,      ffREAD },
 	{ efTPS, NULL,   NULL,      ffREAD },
@@ -220,7 +220,7 @@ int main(int argc,char *argv[])
 	{ efTRX, "-ox", "aligned",  ffOPTWR }
     };
 #define NFILE asize(fnm)
-
+    
     CopyRight(stderr,argv[0]);
     parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_CAN_VIEW | PCA_TIME_UNIT,
 		      NFILE,fnm, asize(pa),pa, asize(desc),desc,
@@ -229,25 +229,25 @@ int main(int argc,char *argv[])
     fnRef=opt2fn("-r",NFILE,fnm);
     bTrjout = opt2bSet("-ox",NFILE,fnm);
     bCountres=  opt2bSet("-cr",NFILE,fnm);
-
+    
     if (bTrjout) {
 	TrjoutFile = opt2fn_null("-ox",NFILE,fnm);
     }
-
+    
     read_tps_conf(ftp2fn(efTPS,NFILE,fnm),title,&top,&ePBC,&xp,NULL,box,FALSE);
     gpbc = gmx_rmpbc_init(&top.idef,ePBC,top.atoms.nr,box);
     atoms=&(top.atoms);
 
     ftp=fn2ftp(fnRef);
-
+ 
     get_stx_coordnum(fnRef,&nratoms);
-    init_t_atoms(&ratoms,nratoms,TRUE);
+    init_t_atoms(&ratoms,nratoms,TRUE);  
     snew(xr,nratoms);
     read_stx_conf(fnRef,rtitle,&ratoms,xr,NULL,&ePBC,rbox);
-
+    
     if (bVerbose) {
-	fprintf(stderr,"Read %d atoms\n",atoms->nr);
-	fprintf(stderr,"Read %d reference atoms\n",ratoms.nr);
+	fprintf(stderr,"Read %d atoms\n",atoms->nr); 
+	fprintf(stderr,"Read %d reference atoms\n",ratoms.nr); 
     }
     if (bCountres) {
 	snew(countres,ratoms.nres);
@@ -273,7 +273,7 @@ int main(int argc,char *argv[])
 	}
     }
     fprintf(stderr,"There are %d residues in your selected group\n",nres);
-
+    
     strcpy(pdbfile,"ddXXXXXX");
     gmx_tmpnam(pdbfile);
     if ((tmpf = fopen(pdbfile,"w")) == NULL) {
@@ -306,11 +306,11 @@ int main(int argc,char *argv[])
     }
     sprintf (multiprot,"%s %s %s > /dev/null %s",
 	     mptr, refpdb, pdbfile, "2> /dev/null");
-
+    
     if (bVerbose)
 	fprintf(stderr,"multiprot cmd='%s'\n",multiprot);
-
-    if (!read_first_frame(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&fr,TRX_READ_X))
+    
+    if (!read_first_frame(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&fr,TRX_READ_X)) 
       	gmx_fatal(FARGS,"Could not read a frame from %s",ftp2fn(efTRX,NFILE,fnm));
     natoms = fr.natoms;
 
@@ -347,7 +347,7 @@ int main(int argc,char *argv[])
 		break;
 	}
     }
-
+    
     if (natoms > atoms->nr) {
 	gmx_fatal(FARGS,"\nTrajectory does not match topology!");
     }
@@ -357,12 +357,12 @@ int main(int argc,char *argv[])
 
     fo = xvgropen(opt2fn("-o",NFILE,fnm),"RMSD","Time (ps)","RMSD (nm)",oenv);
     frc = xvgropen(opt2fn("-rc",NFILE,fnm),"Number of Residues in the alignment","Time (ps)","Residues",oenv);
-
+    
     do {
 	t = output_env_conv_time(oenv,fr.time);
 	gmx_rmpbc(gpbc,natoms,fr.box,fr.x);
 	tapein=gmx_ffopen(pdbfile,"w");
-	write_pdbfile_indexed(tapein,NULL,atoms,fr.x,ePBC,fr.box,' ',-1,gnx,index,NULL,TRUE);
+	write_pdbfile_indexed(tapein,NULL,atoms,fr.x,ePBC,fr.box,' ',-1,gnx,index,NULL,TRUE); 
 	gmx_ffclose(tapein);
 	system(multiprot);
 	remove(pdbfile);
@@ -389,14 +389,14 @@ int main(int argc,char *argv[])
 		    sprintf(out_title,"Generated by do_multiprot : %s t= %g %s",
 			    title,output_env_conv_time(oenv,fr.time),output_env_get_time_unit(oenv));
 		    switch(outftp) {
-			case efGRO:
+			case efGRO: 
 			    write_hconf_p(out,out_title,&useatoms,prec2ndec(fr.prec),
 					  fr.x,NULL,fr.box);
 			    break;
 			case efPDB:
 			    fprintf(out,"REMARK    GENERATED BY DO_MULTIPROT\n");
 			    sprintf(out_title,"%s t= %g %s",title,output_env_conv_time(oenv,fr.time),output_env_get_time_unit(oenv));
-			    /* if reading from pdb, we want to keep the original
+			    /* if reading from pdb, we want to keep the original 
 			       model numbering else we write the output frame
 			       number plus one, because model 0 is not allowed in pdb */
 			    if (ftp==efPDB && fr.step > model_nr) {

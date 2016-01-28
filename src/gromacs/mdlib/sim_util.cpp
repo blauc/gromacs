@@ -46,14 +46,12 @@
 #include <string.h>
 
 #include <array>
-#include <list>
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/externalpotential/externalpotentialmanager.h"
-#include "gromacs/utility/txtdump.h"
 #include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"

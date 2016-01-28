@@ -69,7 +69,6 @@ std::list<std::string> inputrecordutils::split_string_at_token(const char * name
     return result;
 };
 
-
 char ** inputrecordutils::set_external_potential(int *ninp_p, t_inpfile **inp_p,
                                                  struct ext_pot * ep )
 {

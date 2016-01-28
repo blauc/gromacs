@@ -54,7 +54,6 @@
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/txtdump.h"
-// #include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/externalpotential/inputrecordIO.h"
 
 //! Macro to select a bool name

@@ -160,7 +160,6 @@ Manager::Manager(FILE *fplog, t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix 
     return;
 };
 
-
 void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current)
 {
     if (current > ir->external_potential->number_external_potentials)
@@ -188,7 +187,6 @@ void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std
         GMX_THROW(gmx::APIError("External potential modules only implemented for domain decomposition ."));
     }
 };
-
 
 void Manager::dd_make_local_groups(gmx_domdec_t *dd)
 {
