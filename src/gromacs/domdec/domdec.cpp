@@ -213,7 +213,7 @@ static int ddcoord2ddnodeid(gmx_domdec_t *dd, ivec c)
     }
     else if (dd->comm->bCartesianPP)
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Cart_rank(dd->mpi_comm_all, c, &ddnodeid);
 #endif
     }
@@ -1134,7 +1134,7 @@ static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
 
     if (!DDMASTER(dd))
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Send(lv, dd->nat_home*sizeof(rvec), MPI_BYTE, DDMASTERRANK(dd),
                  dd->rank, dd->mpi_comm_all);
 #endif
@@ -1163,7 +1163,7 @@ static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
                     nalloc = over_alloc_dd(ma->nat[n]);
                     srenew(buf, nalloc);
                 }
-#ifdef GMX_MPI
+#if GMX_MPI
                 MPI_Recv(buf, ma->nat[n]*sizeof(rvec), MPI_BYTE, DDRANK(dd, n),
                          n, dd->mpi_comm_all, MPI_STATUS_IGNORE);
 #endif
@@ -1431,7 +1431,7 @@ static void dd_distribute_vec_sendrecv(gmx_domdec_t *dd, t_block *cgs,
                               a, ma->nat[n]);
                 }
 
-#ifdef GMX_MPI
+#if GMX_MPI
                 MPI_Send(buf, ma->nat[n]*sizeof(rvec), MPI_BYTE,
                          DDRANK(dd, n), n, dd->mpi_comm_all);
 #endif
@@ -1450,7 +1450,7 @@ static void dd_distribute_vec_sendrecv(gmx_domdec_t *dd, t_block *cgs,
     }
     else
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Recv(lv, dd->nat_home*sizeof(rvec), MPI_BYTE, DDMASTERRANK(dd),
                  MPI_ANY_TAG, dd->mpi_comm_all, MPI_STATUS_IGNORE);
 #endif
@@ -1916,7 +1916,7 @@ static int ddcoord2simnodeid(t_commrec *cr, int x, int y, int z)
     coords[ZZ] = z;
     if (comm->bCartesianPP_PME)
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Cart_rank(cr->mpi_comm_mysim, coords, &nodeid);
 #endif
     }
@@ -1954,7 +1954,7 @@ static int dd_simnode2pmenode(const gmx_domdec_t         *dd,
     /* This assumes a uniform x domain decomposition grid cell size */
     if (comm->bCartesianPP_PME)
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         ivec coord, coord_pme;
         MPI_Cart_coords(cr->mpi_comm_mysim, sim_nodeid, DIM, coord);
         if (coord[comm->cartpmedim] < dd->nc[comm->cartpmedim])
@@ -2084,7 +2084,7 @@ static gmx_bool receive_vir_ener(const gmx_domdec_t *dd, const t_commrec *cr)
         if (comm->bCartesianPP_PME)
         {
             int  pmenode = dd_simnode2pmenode(dd, cr, cr->sim_nodeid);
-#ifdef GMX_MPI
+#if GMX_MPI
             ivec coords;
             MPI_Cart_coords(cr->mpi_comm_mysim, cr->sim_nodeid, DIM, coords);
             coords[comm->cartpmedim]++;
@@ -2537,7 +2537,7 @@ static float dd_force_load(gmx_domdec_comm_t *comm)
             load -= comm->cycl_max[ddCyclF];
         }
 
-#ifdef GMX_MPI
+#if GMX_MPI
         if (comm->cycl_n[ddCyclWaitGPU] && comm->nrank_gpu_shared > 1)
         {
             float gpu_wait, gpu_wait_sum;
@@ -3308,7 +3308,7 @@ static void distribute_dd_cell_sizes_dlb(gmx_domdec_t *dd,
 
     comm = dd->comm;
 
-#ifdef GMX_MPI
+#if GMX_MPI
     /* Each node would only need to know two fractions,
      * but it is probably cheaper to broadcast the whole array.
      */
@@ -5016,7 +5016,7 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
             /* Communicate a row in DD direction d.
              * The communicators are setup such that the root always has rank 0.
              */
-#ifdef GMX_MPI
+#if GMX_MPI
             MPI_Gather(sbuf, load->nload*sizeof(float), MPI_BYTE,
                        load->load, load->nload*sizeof(float), MPI_BYTE,
                        0, comm->mpi_comm_load[d]);
@@ -5321,7 +5321,7 @@ static void dd_print_load_verbose(gmx_domdec_t *dd)
     }
 }
 
-#ifdef GMX_MPI
+#if GMX_MPI
 static void make_load_communicator(gmx_domdec_t *dd, int dim_ind, ivec loc)
 {
     MPI_Comm           c_row;
@@ -5384,7 +5384,7 @@ void dd_setup_dlb_resource_sharing(t_commrec           gmx_unused *cr,
                                    const gmx_hw_info_t gmx_unused *hwinfo,
                                    const gmx_hw_opt_t  gmx_unused *hw_opt)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     int           physicalnode_id_hash;
     int           gpu_id;
     gmx_domdec_t *dd;
@@ -5437,7 +5437,7 @@ void dd_setup_dlb_resource_sharing(t_commrec           gmx_unused *cr,
 
 static void make_load_communicators(gmx_domdec_t gmx_unused *dd)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     int  dim0, dim1, i, j;
     ivec loc;
 
@@ -5601,7 +5601,7 @@ static void make_pp_communicator(FILE                 *fplog,
                                  t_commrec gmx_unused *cr,
                                  int gmx_unused        reorder)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_domdec_comm_t *comm;
     int                rank, *buf;
     ivec               periods;
@@ -5723,7 +5723,7 @@ static void make_pp_communicator(FILE                 *fplog,
 static void receive_ddindex2simnodeid(gmx_domdec_t         *dd,
                                       t_commrec gmx_unused *cr)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_domdec_comm_t *comm = dd->comm;
 
     if (!comm->bCartesianPP_PME && comm->bCartesianPP)
@@ -5781,7 +5781,7 @@ static void split_communicator(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
     gmx_domdec_comm_t *comm;
     int                i;
     gmx_bool           bDiv[DIM];
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Comm           comm_cart;
 #endif
 
@@ -5824,7 +5824,7 @@ static void split_communicator(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
         }
     }
 
-#ifdef GMX_MPI
+#if GMX_MPI
     if (comm->bCartesianPP_PME)
     {
         int  rank;
@@ -5961,7 +5961,7 @@ static void make_dd_communicators(FILE *fplog, t_commrec *cr,
     else
     {
         /* All nodes do PP and PME */
-#ifdef GMX_MPI
+#if GMX_MPI
         /* We do not require separate communicators */
         cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
 #endif

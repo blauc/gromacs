@@ -223,9 +223,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     gmx_int64_t     step, step_rel;
     double          elapsed_time;
     double          t, t0, lam0[efptNR];
-    gmx_bool        bGStatEveryStep, bGStat, bCalcVir, bCalcEner;
-    gmx_bool        bNS, bNStList, bSimAnn, bStopCM, bRerunMD, bNotLastFrame = FALSE,
-                    bFirstStep, startingFromCheckpoint, bInitStep, bLastStep,
+    gmx_bool        bGStatEveryStep, bGStat, bCalcVir, bCalcEnerStep, bCalcEner;
+    gmx_bool        bNS, bNStList, bSimAnn, bStopCM, bRerunMD,
+                    bFirstStep, startingFromCheckpoint, bInitStep, bLastStep = FALSE,
                     bBornRadii;
     gmx_bool          bDoDHDL = FALSE, bDoFEP = FALSE, bDoExpanded = FALSE;
     gmx_bool          do_ene, do_log, do_verbose, bRerunWarnNoV = TRUE,
@@ -247,7 +247,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     gmx_enerdata_t   *enerd;
     rvec             *f = NULL;
     gmx_global_stat_t gstat;
-    gmx_update_t      upd   = NULL;
+    gmx_update_t     *upd   = NULL;
     t_graph          *graph = NULL;
     gmx_signalling_t  gs;
     gmx_groups_t     *groups;
@@ -689,9 +689,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         rerun_fr.natoms = 0;
         if (MASTER(cr))
         {
-            bNotLastFrame = read_first_frame(oenv, &status,
-                                             opt2fn("-rerun", nfile, fnm),
-                                             &rerun_fr, TRX_NEED_X | TRX_READ_V);
+            bLastStep = !read_first_frame(oenv, &status,
+                                          opt2fn("-rerun", nfile, fnm),
+                                          &rerun_fr, TRX_NEED_X | TRX_READ_V);
             if (rerun_fr.natoms != top_global->natoms)
             {
                 gmx_fatal(FARGS,
@@ -714,7 +714,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         if (PAR(cr))
         {
-            rerun_parallel_comm(cr, &rerun_fr, &bNotLastFrame);
+            rerun_parallel_comm(cr, &rerun_fr, &bLastStep);
         }
 
         if (ir->ePBC != epbcNONE)
@@ -747,9 +747,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
 
     /* and stop now if we should */
-    bLastStep = (bRerunMD || (ir->nsteps >= 0 && step_rel > ir->nsteps) ||
+    bLastStep = (bLastStep || (ir->nsteps >= 0 && step_rel > ir->nsteps) ||
                  ((multisim_nsteps >= 0) && (step_rel >= multisim_nsteps )));
-    while (!bLastStep || (bRerunMD && bNotLastFrame))
+    while (!bLastStep)
     {
 
         /* Determine if this is a neighbor search step */
@@ -808,7 +808,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         if (bSimAnn)
         {
-            update_annealing_target_temp(&(ir->opts), t);
+            update_annealing_target_temp(ir, t, upd);
         }
 
         if (bRerunMD)
@@ -919,9 +919,15 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             bBornRadii = TRUE;
         }
 
-        do_log     = do_per_step(step, ir->nstlog) || bFirstStep || bLastStep;
+        /* do_log triggers energy and virial calculation. Because this leads
+         * to different code paths, forces can be different. Thus for exact
+         * continuation we should avoid extra log output.
+         * Note that the || bLastStep can result in non-exact continuation
+         * beyond the last step. But we don't consider that to be an issue.
+         */
+        do_log     = do_per_step(step, ir->nstlog) || (bFirstStep && !startingFromCheckpoint) || bLastStep || bRerunMD;
         do_verbose = bVerbose &&
-            (step % stepout == 0 || bFirstStep || bLastStep);
+            (step % stepout == 0 || bFirstStep || bLastStep || bRerunMD);
 
         if (bNS && !(bFirstStep && ir->bContinuation && !bRerunMD))
         {
@@ -1010,30 +1016,31 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                but the virial needs to be calculated on both the current step and the 'next' step. Future
                reorganization may be able to get rid of one of the bCalcVir=TRUE steps. */
 
-            bCalcEner = do_per_step(step-1, ir->nstcalcenergy);
-            bCalcVir  = bCalcEner ||
+            /* TODO: This is probably not what we want, we will write to energy file one step after nstcalcenergy steps. */
+            bCalcEnerStep = do_per_step(step - 1, ir->nstcalcenergy);
+            bCalcVir      = bCalcEnerStep ||
                 (ir->epc != epcNO && (do_per_step(step, ir->nstpcouple) || do_per_step(step-1, ir->nstpcouple)));
         }
         else
         {
-            bCalcEner = do_per_step(step, ir->nstcalcenergy);
-            bCalcVir  = bCalcEner ||
+            bCalcEnerStep = do_per_step(step, ir->nstcalcenergy);
+            bCalcVir      = bCalcEnerStep ||
                 (ir->epc != epcNO && do_per_step(step, ir->nstpcouple));
+        }
+        bCalcEner = bCalcEnerStep;
+
+        do_ene = (do_per_step(step, ir->nstenergy) || bLastStep || bRerunMD);
+
+        if (do_ene || do_log || bDoReplEx)
+        {
+            bCalcVir  = TRUE;
+            bCalcEner = TRUE;
         }
 
         /* Do we need global communication ? */
         bGStat = (bCalcVir || bCalcEner || bStopCM ||
                   do_per_step(step, nstglobalcomm) ||
                   (EI_VV(ir->eI) && inputrecNvtTrotter(ir) && do_per_step(step-1, nstglobalcomm)));
-
-        do_ene = (do_per_step(step, ir->nstenergy) || bLastStep);
-
-        if (do_ene || do_log || bDoReplEx)
-        {
-            bCalcVir  = TRUE;
-            bCalcEner = TRUE;
-            bGStat    = TRUE;
-        }
 
         force_flags = (GMX_FORCE_STATECHANGED |
                        ((inputrecDynamicBox(ir) || bRerunMD) ? GMX_FORCE_DYNAMICBOX : 0) |
@@ -1254,7 +1261,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         /* Check whether everything is still allright */
         if (((int)gmx_get_stop_condition() > handled_stop_condition)
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
             && MASTER(cr)
 #endif
             )
@@ -1321,7 +1328,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         /* #########   START SECOND UPDATE STEP ################# */
 
-        /* at the start of step, randomize the velocities (if vv. Restriction of Andersen controlled
+        /* at the start of step, randomize or scale the velocities ((if vv. Restriction of Andersen controlled
            in preprocessing */
 
         if (ETC_ANDERSEN(ir->etc)) /* keep this outside of update_tcouple because of the extra info required to pass */
@@ -1554,36 +1561,32 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         /* Output stuff */
         if (MASTER(cr))
         {
-            gmx_bool do_dr, do_or;
-
             if (fplog && do_log && bDoExpanded)
             {
                 /* only needed if doing expanded ensemble */
                 PrintFreeEnergyInfoToFile(fplog, ir->fepvals, ir->expandedvals, ir->bSimTemp ? ir->simtempvals : NULL,
                                           &state_global->dfhist, state->fep_state, ir->nstlog, step);
             }
-            if (!(startingFromCheckpoint && (EI_VV(ir->eI))))
+            if (bCalcEner)
             {
-                if (bCalcEner)
-                {
-                    upd_mdebin(mdebin, bDoDHDL, TRUE,
-                               t, mdatoms->tmass, enerd, state,
-                               ir->fepvals, ir->expandedvals, lastbox,
-                               shake_vir, force_vir, total_vir, pres,
-                               ekind, mu_tot, constr);
-                }
-                else
-                {
-                    upd_mdebin_step(mdebin);
-                }
-
-                do_dr  = do_per_step(step, ir->nstdisreout);
-                do_or  = do_per_step(step, ir->nstorireout);
-
-                print_ebin(mdoutf_get_fp_ene(outf), do_ene, do_dr, do_or, do_log ? fplog : NULL,
-                           step, t,
-                           eprNORMAL, mdebin, fcd, groups, &(ir->opts));
+                upd_mdebin(mdebin, bDoDHDL, bCalcEnerStep,
+                           t, mdatoms->tmass, enerd, state,
+                           ir->fepvals, ir->expandedvals, lastbox,
+                           shake_vir, force_vir, total_vir, pres,
+                           ekind, mu_tot, constr);
             }
+            else
+            {
+                upd_mdebin_step(mdebin);
+            }
+
+            gmx_bool do_dr  = do_per_step(step, ir->nstdisreout);
+            gmx_bool do_or  = do_per_step(step, ir->nstorireout);
+
+            print_ebin(mdoutf_get_fp_ene(outf), do_ene, do_dr, do_or, do_log ? fplog : NULL,
+                       step, t,
+                       eprNORMAL, mdebin, fcd, groups, &(ir->opts));
+
             if (ir->bPull)
             {
                 pull_print_output(ir->pull_work, step, t);
@@ -1682,12 +1685,12 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             if (MASTER(cr))
             {
                 /* read next frame from input trajectory */
-                bNotLastFrame = read_next_frame(oenv, status, &rerun_fr);
+                bLastStep = !read_next_frame(oenv, status, &rerun_fr);
             }
 
             if (PAR(cr))
             {
-                rerun_parallel_comm(cr, &rerun_fr, &bNotLastFrame);
+                rerun_parallel_comm(cr, &rerun_fr, &bLastStep);
             }
         }
 

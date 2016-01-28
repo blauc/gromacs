@@ -82,6 +82,10 @@ Platform
 These include any distribution of Linux, Mac OS X or Windows, and
 architectures including x86, AMD64/x86-64, PPC, ARM v7 and SPARC VIII.
 
+On Linux, a 64-bit operating system is strongly recommended, since currently
+|Gromacs| cannot operate on large trajectories when compiled on a 32-bit
+system.
+
 Compiler
 --------
 Technically, |Gromacs| can be compiled on any platform with an ANSI C99
@@ -579,7 +583,9 @@ If you have the CUDA_ Toolkit installed, you can use ``cmake`` with:
 
 (or whichever path has your installation). In some cases, you might
 need to specify manually which of your C++ compilers should be used,
-e.g. with the advanced option ``CUDA_HOST_COMPILER``. To make it
+e.g. with the advanced option ``CUDA_HOST_COMPILER``.
+
+To make it
 possible to get best performance from NVIDIA Tesla and Quadro GPUs,
 you should install the `GPU Deployment Kit
 <https://developer.nvidia.com/gpu-deployment-kit>`_ and configure
@@ -595,6 +601,8 @@ permissions, clocks cannot be changed, and in that case informative
 log file messages will be produced. Background details can be found at
 this `NVIDIA blog post
 <http://devblogs.nvidia.com/parallelforall/increase-performance-gpu-boost-k80-autoboost/>`_.
+NVML support is only available if detected, and may be disabled by
+turning off the ``GMX_USE_NVML`` CMake advanced option.
 
 By default, optimized code will be generated for CUDA architectures
 supported by the nvcc compiler (and the |Gromacs| build system). 

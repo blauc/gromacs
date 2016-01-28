@@ -125,7 +125,7 @@ void print_time(FILE                     *out,
     double dt, elapsed_seconds, time_per_step;
     char   buf[48];
 
-#ifndef GMX_THREAD_MPI
+#if !GMX_THREAD_MPI
     if (!PAR(cr))
 #endif
     {
@@ -160,7 +160,7 @@ void print_time(FILE                     *out,
                     ir->delta_t/1000*24*60*60/time_per_step);
         }
     }
-#ifndef GMX_THREAD_MPI
+#if !GMX_THREAD_MPI
     if (PAR(cr))
     {
         fprintf(out, "\n");
@@ -836,7 +836,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     nbnxn_atomdata_copy_shiftvec(flags & GMX_FORCE_DYNAMICBOX,
                                  fr->shift_vec, nbv->grp[0].nbat);
 
-#ifdef GMX_MPI
+#if GMX_MPI
     if (!(cr->duty & DUTY_PME))
     {
         gmx_bool bBS;
@@ -1609,7 +1609,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         pr_rvecs(debug, 0, "cgcm", fr->cg_cm, top->cgs.nr);
     }
 
-#ifdef GMX_MPI
+#if GMX_MPI
     if (!(cr->duty & DUTY_PME))
     {
         gmx_bool bBS;
@@ -2557,7 +2557,7 @@ void finish_run(FILE *fplog, t_commrec *cr,
     if (cr->nnodes > 1)
     {
         snew(nrnb_tot, 1);
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Allreduce(nrnb->n, nrnb_tot->n, eNRNB, MPI_DOUBLE, MPI_SUM,
                       cr->mpi_comm_mysim);
 #endif
@@ -2571,7 +2571,7 @@ void finish_run(FILE *fplog, t_commrec *cr,
     elapsed_time_over_all_ranks                  = elapsed_time;
     elapsed_time_over_all_threads                = walltime_accounting_get_elapsed_time_over_all_threads(walltime_accounting);
     elapsed_time_over_all_threads_over_all_ranks = elapsed_time_over_all_threads;
-#ifdef GMX_MPI
+#if GMX_MPI
     if (cr->nnodes > 1)
     {
         /* reduce elapsed_time over all MPI ranks in the current simulation */
@@ -2719,7 +2719,7 @@ void init_md(FILE *fplog,
              double *t, double *t0,
              real *lambda, int *fep_state, double *lam0,
              t_nrnb *nrnb, gmx_mtop_t *mtop,
-             gmx_update_t *upd,
+             gmx_update_t **upd,
              int nfile, const t_filenm fnm[],
              gmx_mdoutf_t *outf, t_mdebin **mdebin,
              tensor force_vir, tensor shake_vir, rvec mu_tot,
@@ -2740,19 +2740,19 @@ void init_md(FILE *fplog,
             *bSimAnn = TRUE;
         }
     }
-    if (*bSimAnn)
-    {
-        update_annealing_target_temp(&(ir->opts), ir->init_t);
-    }
 
     /* Initialize lambda variables */
     initialize_lambdas(fplog, ir, fep_state, lambda, lam0);
 
+    // TODO upd is never NULL in practice, but the analysers don't know that
     if (upd)
     {
         *upd = init_update(ir);
     }
-
+    if (*bSimAnn)
+    {
+        update_annealing_target_temp(ir, ir->init_t, upd ? *upd : NULL);
+    }
 
     if (vcm != NULL)
     {

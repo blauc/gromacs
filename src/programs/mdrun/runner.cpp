@@ -87,6 +87,7 @@
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/sighandler.h"
+#include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdlib/tpi.h"
 #include "gromacs/mdrunutility/threadaffinity.h"
 #include "gromacs/mdtypes/inputrec.h"
@@ -124,7 +125,7 @@ matrix              deform_init_box_tpx;
 //! MPI variable for use in pressure scaling
 tMPI_Thread_mutex_t deform_init_box_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
 /* The minimum number of atoms per tMPI thread. With fewer atoms than this,
  * the number of threads will get lowered.
  */
@@ -784,7 +785,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                 gmx_fatal(FARGS, "GPU requested, but can't be used without cutoff-scheme=Verlet");
             }
 
-#ifdef GMX_TARGET_BGQ
+#if GMX_TARGET_BGQ
             md_print_warn(cr, fplog,
                           "NOTE: There is no SIMD implementation of the group scheme kernels on\n"
                           "      BlueGene/Q. You will observe better performance from using the\n"
@@ -800,7 +801,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_check_thread_affinity_set(fplog, cr,
                                   hw_opt, hwinfo->nthreads_hw_avail, FALSE);
 
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
     if (SIMMASTER(cr))
     {
         if (npme > 0 && hw_opt->nthreads_tmpi <= 0)
@@ -883,10 +884,10 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     {
         gmx_fatal(FARGS,
                   "The -dd or -npme option request a parallel simulation, "
-#ifndef GMX_MPI
+#if !GMX_MPI
                   "but %s was compiled without threads or MPI enabled"
 #else
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
                   "but the number of threads (option -nt) is 1"
 #else
                   "but %s was not started through mpirun/mpiexec or only one rank was requested through mpirun/mpiexec"
@@ -1055,7 +1056,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
     /* Initialize per-physical-node MPI process/thread ID and counters. */
     gmx_init_intranode_counters(cr);
-#ifdef GMX_MPI
+#if GMX_MPI
     if (MULTISIM(cr))
     {
         md_print_info(cr, fplog,
@@ -1065,7 +1066,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     }
     md_print_info(cr, fplog, "Using %d MPI %s\n",
                   cr->nnodes,
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
                   cr->nnodes == 1 ? "thread" : "threads"
 #else
                   cr->nnodes == 1 ? "process" : "processes"
@@ -1386,7 +1387,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
     done_ed(&ed);
 
-#ifdef GMX_THREAD_MPI
+#if GMX_THREAD_MPI
     /* we need to join all threads. The sub-threads join when they
        exit this function, but the master thread needs to be told to
        wait for that. */
