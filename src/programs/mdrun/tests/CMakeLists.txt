@@ -65,10 +65,12 @@ gmx_build_unit_test(
     ${testname}
     ${exename}
     # files with code for tests
+    energyreader.cpp
     multisim.cpp
     multisimtest.cpp
     replicaexchange.cpp
     domain_decomposition.cpp
+    externalpotentialtests.cpp
     # files with code for test fixtures
     moduletest.cpp
     # pseudo-library for code for mdrun

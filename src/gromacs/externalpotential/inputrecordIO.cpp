@@ -83,7 +83,7 @@ char ** inputrecordutils::set_external_potential(int *ninp_p, t_inpfile **inp_p,
 
     CTYPE("Where to look for the external potential files");
     snew(ep->basepath, STRLEN);
-    STYPE("external-potential-path", ep->basepath, "./");
+    STYPE("external-potential-path", ep->basepath, "");
     CTYPE("All registered external potential types. Seperate input for multiple files by " ":" " .");
 
     std::string              methodname;

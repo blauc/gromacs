@@ -823,6 +823,15 @@ void calc_verlet_buffer_size(const gmx_mtop_t *mtop, real boxvol,
     real                  rb, rl;
     real                  drift;
 
+    if (!EI_DYNAMICS(ir->eI))
+    {
+        gmx_incons("Can only determine the Verlet buffer size for integrators that perform dynamics");
+    }
+    if (ir->verletbuf_tol <= 0)
+    {
+        gmx_incons("The Verlet buffer tolerance needs to be larger than zero");
+    }
+
     if (reference_temperature < 0)
     {
         if (EI_MD(ir->eI) && ir->etc == etcNO)
