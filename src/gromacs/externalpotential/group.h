@@ -89,8 +89,8 @@ class Group
         Group(int ePBC, t_commrec * cr, const gmx_mtop_t * mtop, int nat, int *ind, const rvec x[], matrix box);
         ~Group();
         void set_indices(gmx_domdec_t *dd);
-        void communicate_positions_all_to_all(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box);
-        const std::vector<RVec> &x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box);
+        void communicate_positions_all_to_all(gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box);
+        const std::vector<RVec> &x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box);
         void add_forces(rvec f[], real w);
         void add_virial(tensor vir);
         std::vector<RVec> &f_local();
@@ -103,7 +103,7 @@ class Group
 
         std::vector<RVec> x_assembled_;     /**< all atoms in ind_ (not just the ones stored locally), made whole, using x_assembled_old_ as reference*/
         std::vector<RVec> x_assembled_old_; /**< reference positions of all atoms in ind_ from precious step, used to define "whole" */
-        std::vector<RVec> x_local_;
+
         ivec             *x_shifts_;        /**< number of periodic boundary condition shifts, helper variable to assemble a whole molecule */
         ivec             *extra_shifts_;    /**< extra number of periodic boundary condition shifts, helper variable to assemble a whole molecule */
 

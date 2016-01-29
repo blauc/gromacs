@@ -68,7 +68,7 @@ class ExternalPotential::Impl
 
         real reduce_potential_virial(t_commrec * cr);
         void dd_make_local_groups( gmx_domdec_t *dd);
-        const std::vector<RVec> &x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box, int group_index);
+        const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
         GroupCoordinates x_local(const rvec x[], int group_index);
         std::vector<RVec> &f_local(int group_index);
         const std::vector<int> &collective_index(int group_index);
@@ -87,7 +87,7 @@ class ExternalPotential::Impl
 
     private:
 
-        gmx_int64_t             nst_apply_; /**< every how many steps to apply; \todo for every step, since not implemented  */
+        gmx_int64_t             nst_apply_; /**< every how many steps to apply; \TODO for every step, since not implemented  */
         real                    potential_; /**< the (local) contribution to the potential */
         tensor                  virial_;
 
@@ -100,7 +100,7 @@ class ExternalPotential::Impl
         const gmx_output_env_t *oenv_;
         MpiHelper               mpi;
 
-        std::vector < std::unique_ptr < Group>> atom_groups_;
+        std::vector < std::unique_ptr < Group>> atom_groups_; /**< \TODO: make groups friend class, and set x[], cr, and f[] here to avoid handing down parameters all the time.?*/
 };
 
 FILE*  ExternalPotential::Impl::input_file()
@@ -157,7 +157,7 @@ void ExternalPotential::Impl::dd_make_local_groups( gmx_domdec_t *dd)
     }
 }
 
-const std::vector<RVec> &ExternalPotential::Impl::x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box, int group_index)
+const std::vector<RVec> &ExternalPotential::Impl::x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index)
 {
     return atom_groups_[group_index]->x_assembled(step, cr, x, box);
 }
@@ -255,8 +255,8 @@ real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
  */
 
 ExternalPotential::ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups)
+    : impl_(new Impl(ep_ir, cr, ir, mtop, x, box, input_file_p, output_file_p, fplog, bVerbose, oenv, Flags, number_groups))
 {
-    impl_ = std::unique_ptr<ExternalPotential::Impl>(new ExternalPotential::Impl(ep_ir, cr, ir, mtop, x, box, input_file_p, output_file_p, fplog, bVerbose, oenv, Flags, number_groups));
 };
 
 ExternalPotential::~ExternalPotential(){};
@@ -274,7 +274,7 @@ void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
     }
 };
 
-const std::vector<RVec> &ExternalPotential::x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box, int group_index)
+const std::vector<RVec> &ExternalPotential::x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index)
 {
     return impl_->x_assembled(step, cr, x, box, group_index);
 };

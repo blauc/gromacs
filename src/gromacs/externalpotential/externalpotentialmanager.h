@@ -87,7 +87,7 @@ class Manager
          * \param[in] ir Input record
          * \result potential_ and force_ will be updated in all experimental input modules, if applied at this step.
          */
-        void do_potential( t_commrec *cr, t_inputrec *ir, matrix box, rvec x[], real t, gmx_int64_t step, gmx_wallcycle* wcycle, bool bNS);
+        void do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step);
 
         /*! \brief
          * Add the forces from the external potentials to the overall force in this simulation step.

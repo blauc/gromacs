@@ -50,19 +50,11 @@ namespace gmx
 namespace externalpotential
 {
 
-void Manager::do_potential(
-        t_commrec      *cr,
-        t_inputrec     *ir,
-        matrix          box,
-        rvec            x[],
-        real            t,
-        gmx_int64_t     step,
-        gmx_wallcycle_t wcycle,
-        bool            bNS)
+void Manager::do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step)
 {
     for (auto && it : potentials_)
     {
-        it->do_potential(cr, ir, box, x, t, step, wcycle, bNS);
+        it->do_potential(cr, box, x, step);
     }
     return;
 };

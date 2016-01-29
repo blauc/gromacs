@@ -44,9 +44,6 @@
 
 namespace gmx
 {
-
-
-
 /*******************************************************************************
  * GroupCoordinates::Iterator
  */
@@ -189,7 +186,7 @@ void Group::set_indices(gmx_domdec_t *dd)
     bUpdateShifts_ = true;
 };
 
-const std::vector<RVec> &Group::x_assembled(gmx_int64_t step, t_commrec * cr, const rvec x[], matrix box)
+const std::vector<RVec> &Group::x_assembled(const gmx_int64_t step, t_commrec * cr, const rvec x[], const matrix box)
 {
     communicate_positions_all_to_all(step, cr, x, box);
     return x_assembled_;
@@ -219,8 +216,7 @@ const std::vector<int> &Group::collective_index()
     return coll_ind_;
 }
 
-
-void Group::communicate_positions_all_to_all( gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box)
+void Group::communicate_positions_all_to_all(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box)
 {
     if (step != last_comm_step_)
     {
@@ -233,5 +229,5 @@ void Group::communicate_positions_all_to_all( gmx_int64_t step, t_commrec *cr, c
         last_comm_step_ = step;
         bUpdateShifts_  = false;
     }
-};
+}
 } // namespace gmx

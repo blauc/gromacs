@@ -1135,7 +1135,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        inputrec->external_potential->manager->do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
+        inputrec->external_potential->manager->do_potential(cr, box, x, step);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 
@@ -1735,7 +1735,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     {
         /* External potentials have a common cycle counter - with no effect so far. */
         wallcycle_start(wcycle, ewcEXTPOT);
-        inputrec->external_potential->manager->do_potential(cr, inputrec, box, x, t, step, wcycle, bNS);
+        inputrec->external_potential->manager->do_potential(cr, box, x, step);
         wallcycle_stop(wcycle, ewcEXTPOT);
     }
 

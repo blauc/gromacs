@@ -48,10 +48,10 @@ std::unique_ptr<ExternalPotential> Template::create(struct ext_pot_ir *ep_ir, t_
     return std::unique_ptr<ExternalPotential> (new Template(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags, number_groups));
 }
 
-void Template::do_potential( t_commrec *cr, t_inputrec *ir, matrix box, const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle, bool bNS)
+void Template::do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step)
 {
     GroupCoordinates   r1_local = x_local(x, 0);
-    // std::vector<RVec> r1       = x_assembled(step, cr, x, box, 0);
+    std::vector<RVec>  r1       = x_assembled(step, cr, x, box, 0);
     RVec               com1;
     // = std::accumulate( r1.begin(), r1.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
     GroupCoordinates   r2_local = x_local(x, 1);
@@ -89,13 +89,9 @@ void Template::do_potential( t_commrec *cr, t_inputrec *ir, matrix box, const rv
     set_local_potential(potential);
 
     (void) cr;
-    (void) ir;
     (void) box;
     (void) x;
-    (void) t;
     (void) step;
-    (void) wcycle;
-    (void) bNS;
 };
 
 Template::Template(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups) :

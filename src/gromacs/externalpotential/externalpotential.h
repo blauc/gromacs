@@ -43,6 +43,7 @@
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/timing/wallcycle.h"
+#include "gromacs/utility/classhelpers.h"
 
 struct t_commrec;
 struct t_inputrec;
@@ -64,9 +65,7 @@ class ExternalPotential
         /*! \brief
          * Compute energies, forces, and virial.
          */
-        virtual void do_potential(t_commrec *cr, t_inputrec *ir, matrix box,
-                                  const rvec x[], real t, gmx_int64_t step, gmx_wallcycle_t wcycle,
-                                  bool bNS) = 0;
+        virtual void do_potential(t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step) = 0;
 
         /*! \brief
          * Add up potential and virial contribution from all nodes.
@@ -90,7 +89,7 @@ class ExternalPotential
 
     protected:
 
-        const std::vector<RVec> &x_assembled(gmx_int64_t step, t_commrec *cr, const rvec x[], matrix box, int group_index);
+        const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
 
         /*! \brief
          * Identifies local group atoms in the assembled coordinates, such that x_assembled[collective_index(group_number)[i]] returns the ith atom in group "group_number".
@@ -123,7 +122,7 @@ class ExternalPotential
                            bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
     private:
         class Impl;
-        std::unique_ptr<Impl> impl_;
+        PrivateImplPointer<Impl> impl_;
 };
 
 
