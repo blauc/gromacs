@@ -48,9 +48,14 @@
 #include "gromacs/utility/smalloc.h"
 #include "group.h"
 #include "mpi-helper.h"
+#include "externalpotentialIO.h"
 
 namespace gmx
 {
+
+namespace externalpotential
+{
+
 
 /******************************************************************************
  * ExternalPotential::Impl
@@ -59,16 +64,13 @@ namespace gmx
 class ExternalPotential::Impl
 {
     public:
-        Impl(struct ext_pot_ir * ep_ir, t_commrec * cr, t_inputrec * ir,
-             const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file,
-             FILE *output_file, FILE *fplog, bool bVerbose,
-             const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
+        Impl();
 
         ~Impl();
 
-        real reduce_potential_virial(t_commrec * cr);
-        void dd_make_local_groups( gmx_domdec_t *dd);
-        const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
+        real reduce_potential_virial();
+        void dd_make_local_groups( gmx_ga2la_t *ga2la);
+        // const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
         GroupCoordinates x_local(const rvec x[], int group_index);
         std::vector<RVec> &f_local(int group_index);
         const std::vector<int> &collective_index(int group_index);
@@ -77,60 +79,25 @@ class ExternalPotential::Impl
         void add_virial(tensor vir, real total_weight);
         void set_potential(real potential);
         void set_virial(tensor virial);
-        FILE* input_file();
-        FILE* output_file();
-        FILE* log_file();
-        bool bVerbose();
-        unsigned long Flags();
-        const gmx_output_env_t *oenv();
-        bool isVerbose();
+        void add_group(std::unique_ptr<Group> &&group);
+        void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
+        void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
+        std::shared_ptr<ExternalPotentialIO> input_output();
 
     private:
 
-        gmx_int64_t             nst_apply_; /**< every how many steps to apply; \TODO for every step, since not implemented  */
-        real                    potential_; /**< the (local) contribution to the potential */
-        tensor                  virial_;
+        gmx_int64_t                          nst_apply_; /**< every how many steps to apply; \TODO for every step, since not implemented  */
+        real                                 potential_; /**< the (local) contribution to the potential */
+        tensor                               virial_;
 
-        FILE                   *input_file_;
-        FILE                   *output_file_;
-        FILE                   *log_file_;
-
-        bool                    bVerbose_; /**< -v flag from command line                      */
-        unsigned long           Flags_;
-        const gmx_output_env_t *oenv_;
-        MpiHelper               mpi;
-
+        std::shared_ptr<MpiHelper>           mpi_;
+        std::shared_ptr<ExternalPotentialIO> input_output_;
         std::vector < std::unique_ptr < Group>> atom_groups_; /**< \TODO: make groups friend class, and set x[], cr, and f[] here to avoid handing down parameters all the time.?*/
 };
 
-FILE*  ExternalPotential::Impl::input_file()
+std::shared_ptr<ExternalPotentialIO> ExternalPotential::Impl::input_output()
 {
-    return input_file_;
-}
-
-FILE* ExternalPotential::Impl::output_file()
-{
-    return output_file_;
-}
-
-FILE* ExternalPotential::Impl::log_file()
-{
-    return log_file_;
-}
-
-unsigned long ExternalPotential::Impl::Flags()
-{
-    return Flags_;
-}
-
-const gmx_output_env_t * ExternalPotential::Impl::oenv()
-{
-    return oenv_;
-}
-
-bool ExternalPotential::Impl::isVerbose()
-{
-    return bVerbose_;
+    return input_output_;
 }
 
 std::vector<RVec> &ExternalPotential::Impl::f_local(int group_index)
@@ -149,17 +116,22 @@ void ExternalPotential::Impl::set_potential(real potential)
     potential_ = potential;
 }
 
-void ExternalPotential::Impl::dd_make_local_groups( gmx_domdec_t *dd)
+void ExternalPotential::Impl::dd_make_local_groups(gmx_ga2la_t *ga2la)
 {
     for (auto && grp : atom_groups_)
     {
-        grp->set_indices(dd);
+        grp->set_indices(ga2la);
     }
 }
 
-const std::vector<RVec> &ExternalPotential::Impl::x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index)
+void ExternalPotential::Impl::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)
 {
-    return atom_groups_[group_index]->x_assembled(step, cr, x, box);
+    mpi_ = mpi;
+}
+
+void ExternalPotential::Impl::set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output)
+{
+    input_output_ = std::move(input_output);
 }
 
 
@@ -174,27 +146,16 @@ void ExternalPotential::Impl::add_virial(real (*vir)[3], real total_weight)
     }
 }
 
-ExternalPotential::Impl::Impl(
-        struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box,
-        FILE *input_file, FILE *output_file, FILE *fplog, bool bVerbose,
-        const gmx_output_env_t *oenv, unsigned long Flags, int number_groups ) :
-    nst_apply_(1), potential_(0), input_file_(input_file), output_file_(output_file), log_file_(fplog),
-    bVerbose_(bVerbose), Flags_(Flags), oenv_(oenv), mpi(cr)
+ExternalPotential::Impl::Impl() :
+    nst_apply_(1), potential_(0), mpi_(nullptr)
 {
-    if (number_groups != ep_ir->number_index_groups)
-    {
-        GMX_THROW(gmx::InconsistentInputError("Number of index groups found in tpr file for external potential does not match number of required index groups.\n"
-                                              "This should have been caught in grompp."));
-    }
-    for (int i = 0; i < ep_ir->number_index_groups; i++)
-    {
-        atom_groups_.push_back(
-                std::unique_ptr<Group>(
-                        new Group(ir->ePBC, cr, mtop, ep_ir->nat[i], ep_ir->ind[i], x, box)
-                        )
-                );
-    }
 };
+
+void ExternalPotential::Impl::add_group(std::unique_ptr<Group> &&group)
+{
+    atom_groups_.push_back(std::move(group));
+}
+
 ExternalPotential::Impl::~Impl()
 {
 
@@ -218,30 +179,23 @@ GroupCoordinates ExternalPotential::Impl::x_local(const rvec x[], int group_inde
     return atom_groups_[group_index]->x_local(x);
 }
 
-const std::vector<int> &ExternalPotential::Impl::collective_index(int group_index)
+real ExternalPotential::Impl::reduce_potential_virial()
 {
-    return atom_groups_[group_index]->collective_index();
-}
-
-real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
-{
-    if (PAR(cr))
+    if (mpi_ != nullptr)
     {
-        mpi.cr(cr);
+        mpi_->buffer(virial_);
+        mpi_->buffer(potential_);
 
-        mpi.buffer(virial_);
-        mpi.buffer(potential_);
+        mpi_->sum_reduce();
 
-        mpi.sum_reduce();
+        mpi_->buffer(virial_);
+        mpi_->buffer(potential_);
 
-        mpi.buffer(virial_);
-        mpi.buffer(potential_);
-
-        mpi.finish();
+        mpi_->finish();
 
     }
 
-    if (!PAR(cr) || MASTER(cr))
+    if (mpi_ == nullptr || mpi_->isMaster())
     {
         return potential_;
     }
@@ -254,16 +208,16 @@ real ExternalPotential::Impl::reduce_potential_virial(t_commrec * cr)
  * ExternalPotential
  */
 
-ExternalPotential::ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups)
-    : impl_(new Impl(ep_ir, cr, ir, mtop, x, box, input_file_p, output_file_p, fplog, bVerbose, oenv, Flags, number_groups))
+ExternalPotential::ExternalPotential ()
+    : impl_(new Impl())
 {
 };
 
 ExternalPotential::~ExternalPotential(){};
 
-void ExternalPotential::dd_make_local_groups( gmx_domdec_t *dd)
+void ExternalPotential::dd_make_local_groups( gmx_ga2la_t  * ga2la)
 {
-    impl_->dd_make_local_groups(dd);
+    impl_->dd_make_local_groups(ga2la);
 };
 
 void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
@@ -274,15 +228,10 @@ void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
     }
 };
 
-const std::vector<RVec> &ExternalPotential::x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index)
-{
-    return impl_->x_assembled(step, cr, x, box, group_index);
-};
 
-
-real ExternalPotential::sum_reduce_potential_virial(t_commrec * cr)
+real ExternalPotential::sum_reduce_potential_virial()
 {
-    return impl_->reduce_potential_virial(cr);
+    return impl_->reduce_potential_virial();
 }
 
 void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
@@ -293,36 +242,9 @@ void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
     }
 };
 
-FILE* ExternalPotential::input_file()
+void ExternalPotential::add_group(std::unique_ptr<Group> &&group)
 {
-    return impl_->input_file();
-}
-
-FILE* ExternalPotential::output_file()
-{
-    return impl_->output_file();
-}
-
-FILE* ExternalPotential::log_file()
-{
-    return impl_->log_file();
-}
-
-
-
-unsigned long ExternalPotential::Flags()
-{
-    return impl_->Flags();
-}
-
-const gmx_output_env_t * ExternalPotential::oenv()
-{
-    return impl_->oenv();
-}
-
-bool ExternalPotential::isVerbose()
-{
-    return impl_->isVerbose();
+    impl_->add_group(std::move(group));
 }
 
 
@@ -346,8 +268,21 @@ GroupCoordinates ExternalPotential::x_local(const rvec x[], int group_index)
     return impl_->x_local(x, group_index);
 }
 
-const std::vector<int> &ExternalPotential::collective_index(int group_index)
+void ExternalPotential::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)
 {
-    return impl_->collective_index(group_index);
+    impl_->set_mpi_helper(mpi);
 }
+
+void ExternalPotential::set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output)
+{
+    impl_->set_input_output(std::move(input_output));
+}
+
+std::shared_ptr<ExternalPotentialIO> ExternalPotential::input_output()
+{
+    return impl_->input_output();
+}
+
+} // end namespace externalpotential
+
 } // end namespace gmx

@@ -40,7 +40,9 @@
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/domdec/ga2la.h"
+
+#include <algorithm>
 
 namespace gmx
 {
@@ -112,85 +114,65 @@ const RVec GroupCoordinates::operator[](int i)
 
 std::vector<RVec> &Group::f_local()
 {
+    f_loc_.reserve(num_atoms_loc_);
     f_loc_.resize(num_atoms_loc_, {0, 0, 0});
     return f_loc_;
 }
 
-Group::Group( int ePBC, t_commrec *cr, const gmx_mtop_t *mtop, int nat, int *ind, const rvec x[], matrix box) :
-    num_atoms_(nat), ind_(ind), nalloc_loc_(1)
+Group::Group( int nat, int *ind, bool bParallel) :
+    num_atoms_(nat), ind_(ind), bParallel_(bParallel)
 {
-    if (!PAR(cr))
+    if (!bParallel_)
     {
         num_atoms_loc_ = num_atoms_;
         ind_loc_.assign(ind, ind+num_atoms_);
-        nalloc_loc_ = num_atoms_loc_;
         coll_ind_.resize(num_atoms_loc_);
-        for (int i = 0; i < num_atoms_loc_; i++)
-        {
-            coll_ind_[i] = i;
-        }
+        std::iota (coll_ind_.begin(), coll_ind_.end(), 0);
     }
-    make_whole_reference(ePBC, cr, mtop, x, box);
-    x_assembled_.resize(x_assembled_old_.size());
-    snew(x_shifts_, num_atoms_loc_);
-    snew(extra_shifts_, num_atoms_loc_);
-    return;
 };
 
 Group::~Group()
 {
-    sfree(x_shifts_);
-    sfree(extra_shifts_);
 }
 
-void Group::make_whole_reference(int ePBC, t_commrec *cr, const gmx_mtop_t *mtop, const rvec x[], matrix box)
-{
-    /* To make the molecule whole, use the reference in x_assembled_old
-     * create this reference in the first step */
-    if (MASTER(cr))
-    {
-        /* Remove pbc and prepare a whole molecule for new_t_gmx_densfit */
-        rvec *x_pbc            = NULL;
-        snew(x_pbc, mtop->natoms);      /* There ... */
-        copy_rvecn(x, x_pbc, 0, mtop->natoms);
 
-        do_pbc_first_mtop(NULL, ePBC, box, mtop, x_pbc);
-        for (int i = 0; i < num_atoms_; i++)
+void Group::set_indices(gmx_ga2la_t *ga2la)
+{
+    /* Loop over all the atom indices of the group to check
+     * which ones are on the local node */
+    int  i_local;
+    // int nalloc_loc=0;
+    num_atoms_loc_ = 0;
+    fprintf(stderr, " Setting indices: coll_ind: %p ind_loc: %p \n", &coll_ind_, &ind_loc_);
+    for (int i_collective = 0; i_collective < num_atoms_; i_collective++)
+    {
+        if (ga2la_get_home(ga2la, ind_[i_collective], &i_local))
         {
-            x_assembled_old_.push_back(x_pbc[ind_[i]]);
+            // /* The atom with this index is a home atom *?
+            // if (num_atoms_loc_ >= nalloc_loc ) /* Check whether memory suffices */
+            // {
+            //     nalloc_loc = over_alloc_dd(num_atoms_loc_+1);
+            //     /* We never need more memory than the number of atoms in the group */
+            //     nalloc_loc = std::min(nalloc_loc, num_atoms_);
+            //
+            //     ind_loc_.reserve(nalloc_loc);
+            //     coll_ind_.reserve(nalloc_loc);
+            // }
+            /* Save the atoms index in the local atom numbers array */
+            ind_loc_.push_back(i_local);
+
+            /* Keep track of where this local atom belongs in the collective index array.
+             * This is needed when reducing the local arrays to a collective/global array
+             * in communicate_group_positions */
+            coll_ind_.push_back(i_collective);
+
+            /* add one to the local atom count */
+            num_atoms_loc_++;
         }
-        sfree(x_pbc);      /* ... and back again */
     }
 
-    if (PAR(cr))
-    {
-        rvec *to_broadcast = as_rvec_array(x_assembled_old_.data());
-        MPI_Bcast(to_broadcast, num_atoms_ * sizeof(rvec), MPI_BYTE, MASTERRANK(cr), cr->mpi_comm_mygroup);
-        x_assembled_old_.assign(to_broadcast, to_broadcast+num_atoms_);
-    }
-
-}
-
-void Group::set_indices(gmx_domdec_t *dd)
-{
-
-    int * local_ind = nullptr;
-    int * coll_ind  = coll_ind_.data();
-    dd_make_local_group_indices(dd->ga2la, num_atoms_, ind_, &num_atoms_loc_, &local_ind, &nalloc_loc_, coll_ind);
-    ind_loc_.assign(local_ind, local_ind+num_atoms_loc_);
-    sfree(local_ind);
-    coll_ind_.assign(coll_ind, coll_ind+num_atoms_loc_);
-
-    /* Indicate that the group's shift vectors for this structure need to be updated
-     * at the next call to communicate_group_positions, since obviously we are in a NS step */
-    bUpdateShifts_ = true;
 };
 
-const std::vector<RVec> &Group::x_assembled(const gmx_int64_t step, t_commrec * cr, const rvec x[], const matrix box)
-{
-    communicate_positions_all_to_all(step, cr, x, box);
-    return x_assembled_;
-};
 
 void Group::add_forces(rvec f[], real w)
 {
@@ -216,18 +198,5 @@ const std::vector<int> &Group::collective_index()
     return coll_ind_;
 }
 
-void Group::communicate_positions_all_to_all(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box)
-{
-    if (step != last_comm_step_)
-    {
-        rvec * x_to_communicate     = as_rvec_array(x_assembled_.data());
-        rvec * x_old_to_communicate = as_rvec_array(x_assembled_old_.data());
-        communicate_group_positions( cr, x_to_communicate, x_shifts_, extra_shifts_, bUpdateShifts_, const_cast<rvec*>(x), num_atoms_, num_atoms_loc_, ind_loc_.data(), coll_ind_.data(), x_old_to_communicate, box);
-        x_assembled_.assign(x_to_communicate, x_to_communicate + num_atoms_);
-        x_assembled_old_.assign(x_old_to_communicate, x_old_to_communicate + num_atoms_);
 
-        last_comm_step_ = step;
-        bUpdateShifts_  = false;
-    }
-}
 } // namespace gmx

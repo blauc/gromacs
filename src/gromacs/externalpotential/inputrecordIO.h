@@ -42,6 +42,7 @@
 
 struct ext_pot;
 struct t_blocka;
+struct t_commrec;
 
 namespace gmx
 {
@@ -51,9 +52,12 @@ namespace inputrecordutils
 {
 /*! \brief
  * Helper function, that splits a string at a token
- * \todo: allow multiple tokens
  */
 std::list<std::string> split_string_at_token(const char * names, char token);
+/*! \brief
+ * Broadcast inputrecord data
+ */
+void bc_externalpotential(const t_commrec * cr, struct ext_pot * ep);
 
 /*! \brief
  * Set the filenames and indexgroup names for all external potentials in grompp.

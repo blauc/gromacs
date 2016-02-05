@@ -74,7 +74,7 @@
 #endif
 #endif /*MPI_INT64_T*/
 #else
-#if GMX_THREAD_MPI
+#ifdef GMX_THREAD_MPI
 #include "thread_mpi/mpi_bindings.h" /* IWYU pragma: export */
 #include "thread_mpi/tmpi.h"         /* IWYU pragma: export */
 #else

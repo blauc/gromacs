@@ -42,9 +42,10 @@ namespace gmx
 class MpiHelper
 {
     public:
-        MpiHelper(t_commrec * cr);
+        MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster);
         void cr(t_commrec *cr);
         void sum_reduce();
+        bool isMaster();
         void buffer(real value);
         void buffer(real * vector,  int size);
         void buffer(real matrix[3][3]);
@@ -53,7 +54,10 @@ class MpiHelper
         std::vector<real> inbuf_;
         std::vector<real> outbuf_;
         bool              buf_write_;
-        t_commrec        *cr_;
+        MPI_Comm          mpi_comm_mygroup_;
+        int               masterrank_;
+        bool              bMaster_;
+
 };
 
 } // namespace gmx

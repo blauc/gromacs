@@ -37,24 +37,26 @@
 #include "externalpotential.h"
 #include "externalpotentialmanager.h"
 #include "modules.h"
+#include "group.h"
+#include "mpi-helper.h"
+#include "externalpotentialIO.h"
 
 #include <algorithm>
 
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/futil.h"
 
 namespace gmx
 {
 namespace externalpotential
 {
 
-void Manager::do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step)
+void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t step)
 {
     for (auto && it : potentials_)
     {
-        it->do_potential(cr, box, x, step);
+        it->do_potential( box, x, step);
     }
     return;
 };
@@ -82,7 +84,7 @@ std::vector<real> Manager::calculate_weights()
     return weights;
 }
 
-real Manager::add_forces(rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step)
+real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
 {
     if (potentials_.size() != 0)
     {
@@ -90,7 +92,7 @@ real Manager::add_forces(rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step)
         int i = 0;
         for (auto && it : potentials_)
         {
-            V_external_[i] = it->sum_reduce_potential_virial(cr);
+            V_external_[i] = it->sum_reduce_potential_virial();
         }
 
         std::vector<real> weights = calculate_weights();
@@ -108,43 +110,55 @@ real Manager::add_forces(rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step)
     return 0;
 };
 
-Manager::Manager(FILE *fplog, t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, t_commrec *cr, const gmx_output_env_t *oenv, unsigned long Flags, bool bVerbose)
+Manager::Manager(struct ext_pot *external_potential, bool bMaster, bool bParallel, MPI_Comm mpi_comm_mygroup, int masterrank)
 {
     t_ext_pot_ir * ir_data;
 
-    FILE          *input_file  = nullptr;
-    FILE          *output_file = nullptr;
-    std::string    basepath(ir->external_potential->basepath);
-
     registerExternalPotentialModules(&modules_);
 
-    for (int i = 0; i < ir->external_potential->number_external_potentials; ++i)
+    std::shared_ptr<MpiHelper> mpihelper(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
+
+    for (int i = 0; i < external_potential->number_external_potentials; ++i)
     {
-        ir_data = ir->external_potential->inputrec_data[i];
-        if (MASTER(cr))
-        {
-            if (!std::string(ir_data->inputfilename).empty())
-            {
-                input_file  = gmx_ffopen((basepath + "/" + std::string(ir_data->inputfilename)).c_str(), "r");
-            }
+        ir_data = external_potential->inputrec_data[i];
 
-            if (!std::string(ir_data->outputfilename).empty())
-            {
-                output_file = gmx_ffopen((basepath + "/" + std::string(ir_data->outputfilename)).c_str(), "w");
-            }
-        }
-
+        Modules::ModuleProperties curr_module;
         try
         {
-            Modules::ModuleProperties curr_module = modules_.module.at(ir_data->method);
-            potentials_.push_back(curr_module.create(ir_data, cr, ir,  mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags, curr_module.numberIndexGroups));
+            curr_module = modules_.module.at(ir_data->method);
         }
         catch (std::out_of_range)
         {
-            GMX_THROW(gmx::InvalidInputError("Method " ""+ std::string(ir_data->method) + "" "referenced in the .mdp file was not found registered."
-                                             "Most likely the gromacs version used for the mdrun is older than the one to generate the .tpr-file.\n" ));
+            GMX_THROW(gmx::InvalidInputError("Unknown Method : "+ std::string(ir_data->method) + ". Most likely this gromacs version is older than the one to generate the .tpr-file.\n" ));
         }
 
+        potentials_.push_back(curr_module.create());
+
+        if (bParallel)
+        {
+            potentials_.back()->set_mpi_helper(mpihelper);
+        }
+
+        if (curr_module.numberIndexGroups != ir_data->number_index_groups)
+        {
+            GMX_THROW(gmx::InconsistentInputError("Number of index groups found in tpr file for external potential does not match number of required index groups."));
+        }
+
+        for (int i = 0; i < curr_module.numberIndexGroups; i++)
+        {
+            std::unique_ptr<Group> group(new Group(ir_data->nat[i], ir_data->ind[i], bParallel));
+            potentials_.back()->add_group(std::move(group));
+        }
+
+        if (bMaster)
+        {
+            std::shared_ptr<ExternalPotentialIO> input_output;
+            input_output->set_input_file(std::string(external_potential->basepath), std::string(ir_data->inputfilename));
+            input_output->set_output_file(std::string(external_potential->basepath), std::string(ir_data->outputfilename));
+
+            potentials_.back()->set_input_output(std::move(input_output));
+            potentials_.back()->read_input();
+        }
     }
 
     V_external_.resize(potentials_.size(), 0);
@@ -152,39 +166,11 @@ Manager::Manager(FILE *fplog, t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix 
     return;
 };
 
-void Manager::throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current)
-{
-    if (current > ir->external_potential->number_external_potentials)
-    {
-        GMX_THROW(gmx::InconsistentInputError("Number of recognised exernal potentials does not match number of external potentials in mdp file."));
-    }
-    if (!gmx_fexist( input_file.c_str() ) )
-    {
-        GMX_THROW(gmx::FileIOError("Cannot open external input file " + input_file + "."));
-    }
-
-    FILE * outputfile_p;
-    outputfile_p = fopen(output_file.c_str(), "w");
-    if (outputfile_p == NULL)
-    {
-        GMX_THROW(gmx::FileIOError("Cannot open external output file " + output_file + " for writing."));
-    }
-    else
-    {
-        fclose(outputfile_p);
-    };
-
-    if (PAR(cr) && !DOMAINDECOMP(cr))
-    {
-        GMX_THROW(gmx::APIError("External potential modules only implemented for domain decomposition ."));
-    }
-};
-
-void Manager::dd_make_local_groups(gmx_domdec_t *dd)
+void Manager::dd_make_local_groups(gmx_ga2la_t  * ga2la)
 {
     for (auto && it : potentials_)
     {
-        it->dd_make_local_groups(dd);
+        it->dd_make_local_groups(ga2la);
     }
 };
 

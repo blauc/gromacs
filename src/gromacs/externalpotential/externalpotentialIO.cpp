@@ -32,42 +32,75 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _PULLING_H
-#define _PULLING_H
 
-#include <memory>
+#include "externalpotentialIO.h"
+#include <stdio.h>
 #include <string>
 
-#include "gromacs/externalpotential/externalpotential.h"
-#include "gromacs/externalpotential/modules.h"
-#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/utility/futil.h"
+
 namespace gmx
 {
+
 namespace externalpotential
 {
-class Template : public ExternalPotential
+FILE*  ExternalPotentialIO::input_file()
 {
-    public:
+    return input_file_;
+}
 
-        static std::unique_ptr<ExternalPotential> create();
-        void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
-        void read_input();
-
-    private:
-        Template();
-        real k_;
-
-};
-
-class TemplateInfo
+FILE* ExternalPotentialIO::output_file()
 {
-    public:
-        static std::string name;
-        static std::string shortDescription;
-        static const int   numberIndexGroups;
-        static externalpotential::ModuleCreator create;
-};
-} // namespace externalpotential
-} // namespace gmx
+    return output_file_;
+}
 
-#endif
+FILE* ExternalPotentialIO::log_file()
+{
+    return log_file_;
+}
+
+unsigned long ExternalPotentialIO::Flags()
+{
+    return Flags_;
+}
+
+const gmx_output_env_t * ExternalPotentialIO::oenv()
+{
+    return oenv_;
+}
+
+bool ExternalPotentialIO::isVerbose()
+{
+    return bVerbose_;
+}
+
+void ExternalPotentialIO::set_input_file(std::string basepath, std::string filename)
+{
+    input_file_ = open_(basepath, filename, "r");
+}
+
+void ExternalPotentialIO::set_output_file(std::string basepath, std::string filename)
+{
+    output_file_ = open_(basepath, filename, "w");
+}
+
+void ExternalPotentialIO::set_log_file(std::string basepath, std::string filename)
+{
+    log_file_ = open_(basepath, filename, "w");
+}
+
+FILE * ExternalPotentialIO::open_(std::string basename, std::string filename, const char * mode)
+{
+    if (gmx_fexist((basename + "/" + filename).c_str()))
+    {
+        return gmx_ffopen((basename + "/" + filename).c_str(), mode);
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+}       // namespace externalpotential
+
+}       // namespace gmx

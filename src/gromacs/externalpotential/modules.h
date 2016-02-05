@@ -46,7 +46,7 @@ namespace gmx
 namespace externalpotential
 {
 
-typedef std::unique_ptr<ExternalPotential> (* ModuleCreator) (struct ext_pot_ir *, struct t_commrec *, struct t_inputrec *, const struct gmx_mtop_t*, const rvec [], matrix, FILE *, FILE *, FILE *, bool, const struct gmx_output_env_t *, unsigned long, int );
+typedef std::unique_ptr<ExternalPotential> (* ModuleCreator) ();
 
 struct Modules
 {
@@ -71,7 +71,7 @@ struct Modules
  *
  * \ingroup module_trajectoryanalysis
  */
-void registerExternalPotentialModules(gmx::externalpotential::Modules *modules);
+void registerExternalPotentialModules(Modules *modules);
 
 
 } // namespace exteranlpotential

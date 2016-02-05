@@ -40,6 +40,7 @@
 
 #include "gromacs/topology/block.h"
 
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/utility/txtdump.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/cstringutil.h"
@@ -238,6 +239,56 @@ void inputrecordutils::pr_externalpotential(FILE *fp, int indent, t_ext_pot * po
         pr_str(fp, indent, "external-potential-method", curr_ir->method);
         pr_str(fp, indent, "external-potential-inputfile", curr_ir->inputfilename);
         pr_str(fp, indent, "external-potential-outputfile", curr_ir->outputfilename);
+    }
+
+}
+
+void inputrecordutils::bc_externalpotential(const t_commrec * cr, struct ext_pot * ep)
+{
+    if (!MASTER(cr))
+    {
+        snew(ep->basepath, STRLEN);
+    }
+    MPI_Bcast(ep->basepath, STRLEN, MPI_BYTE, MASTERRANK(cr), cr->mpi_comm_mygroup);
+    MPI_Bcast(&ep->number_external_potentials, sizeof(int), MPI_INT, MASTERRANK(cr), cr->mpi_comm_mygroup);
+    if (!MASTER(cr))
+    {
+        snew(ep->inputrec_data, ep->number_external_potentials);
+    }
+
+    struct ext_pot_ir * curr_ir;
+    for (int p = 0; p < ep->number_external_potentials; p++)
+    {
+        if (!MASTER(cr))
+        {
+            snew(ep->inputrec_data[p], 1);
+        }
+        curr_ir = ep->inputrec_data[p];
+
+        MPI_Bcast(&(curr_ir->number_index_groups), sizeof(int), MPI_INT, MASTERRANK(cr), cr->mpi_comm_mygroup);
+
+        if (!MASTER(cr))
+        {
+            snew(curr_ir->inputfilename, STRLEN);
+            snew(curr_ir->outputfilename, STRLEN);
+            snew(curr_ir->method, STRLEN);
+            snew(curr_ir->nat, curr_ir->number_index_groups);
+            snew(curr_ir->ind, curr_ir->number_index_groups);
+        }
+
+        MPI_Bcast(curr_ir->inputfilename, STRLEN, MPI_BYTE, MASTERRANK(cr), cr->mpi_comm_mygroup);
+        MPI_Bcast(curr_ir->outputfilename, STRLEN, MPI_BYTE, MASTERRANK(cr), cr->mpi_comm_mygroup);
+        MPI_Bcast(curr_ir->method, STRLEN, MPI_BYTE, MASTERRANK(cr), cr->mpi_comm_mygroup);
+        MPI_Bcast(curr_ir->nat, sizeof(int)*curr_ir->number_index_groups, MPI_INT, MASTERRANK(cr), cr->mpi_comm_mygroup);
+
+        for (int i = 0; i < curr_ir->number_index_groups; i++)
+        {
+            if (!MASTER(cr))
+            {
+                snew(curr_ir->ind[i], curr_ir->nat[i]);
+            }
+            MPI_Bcast(curr_ir->ind[i], curr_ir->nat[i], MPI_INT, MASTERRANK(cr), cr->mpi_comm_mygroup);
+        }
     }
 
 }

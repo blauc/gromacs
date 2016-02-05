@@ -32,42 +32,49 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _PULLING_H
-#define _PULLING_H
+ #ifndef _externalpotentialio_h_
+ #define _externalpotentialio_h_
 
-#include <memory>
+#include <stdio.h>
 #include <string>
-
-#include "gromacs/externalpotential/externalpotential.h"
-#include "gromacs/externalpotential/modules.h"
-#include "gromacs/mdtypes/commrec.h"
+struct gmx_output_env_t;
 namespace gmx
 {
+
 namespace externalpotential
 {
-class Template : public ExternalPotential
+
+class ExternalPotentialIO
 {
     public:
-
-        static std::unique_ptr<ExternalPotential> create();
-        void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
-        void read_input();
+        ExternalPotentialIO();
+        ~ExternalPotentialIO();
+        void set_input_file(std::string basepath, std::string filename);
+        void set_output_file(std::string basepath, std::string filename);
+        void set_log_file(std::string basepath, std::string filename);
+        void set_verbose(bool bVerbose);
+        void set_oenv(const gmx_output_env_t * oenv);
+        void set_flags(unsigned long flags);
+        FILE* input_file();
+        FILE* output_file();
+        FILE* log_file();
+        unsigned long Flags();
+        const gmx_output_env_t *oenv();
+        bool isVerbose();
 
     private:
-        Template();
-        real k_;
+        FILE * open_(std::string basename, std::string filename, const char * mode);
+        FILE                   *input_file_;
+        FILE                   *output_file_;
+        FILE                   *log_file_;
 
+        bool                    bVerbose_;         /**< -v flag from command line                      */
+        unsigned long           Flags_;
+        const gmx_output_env_t *oenv_;
 };
 
-class TemplateInfo
-{
-    public:
-        static std::string name;
-        static std::string shortDescription;
-        static const int   numberIndexGroups;
-        static externalpotential::ModuleCreator create;
-};
-} // namespace externalpotential
-} // namespace gmx
+}       // namespace externalpotential
 
-#endif
+}       // namespace gmx
+
+ #endif /* end of include guard: _externalpotentialio_h_ */

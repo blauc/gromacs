@@ -43,15 +43,17 @@
 namespace gmx
 {
 
-std::unique_ptr<ExternalPotential> Template::create(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file, FILE *output_file, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups)
+namespace externalpotential
 {
-    return std::unique_ptr<ExternalPotential> (new Template(ep_ir, cr, ir, mtop, x, box, input_file, output_file, fplog, bVerbose, oenv, Flags, number_groups));
+
+std::unique_ptr<ExternalPotential> Template::create()
+{
+    return std::unique_ptr<ExternalPotential> (new Template());
 }
 
-void Template::do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step)
+void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
     GroupCoordinates   r1_local = x_local(x, 0);
-    std::vector<RVec>  r1       = x_assembled(step, cr, x, box, 0);
     RVec               com1;
     // = std::accumulate( r1.begin(), r1.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
     GroupCoordinates   r2_local = x_local(x, 1);
@@ -88,41 +90,43 @@ void Template::do_potential( t_commrec *cr, const matrix box, const rvec x[], co
 
     set_local_potential(potential);
 
-    (void) cr;
     (void) box;
     (void) x;
     (void) step;
 };
 
-Template::Template(struct ext_pot_ir *ep_ir, t_commrec * cr, t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog, bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups) :
-    ExternalPotential(ep_ir, cr, ir, mtop, x, box, input_file_p, output_file_p, fplog, bVerbose, oenv, Flags, number_groups)
+Template::Template() : ExternalPotential() {};
+
+void Template::read_input()
 {
-    if (MASTER(cr) || !PAR(cr))
+
+    char * line = nullptr;
+    size_t len  = 0;
+    if (input_output() != nullptr)
     {
-        char * line = nullptr;
-        size_t len  = 0;
-        if (input_file() != nullptr)
-        {
-            getline(&line, &len, input_file());
-            k_ = strtof(line, nullptr);
-        }
-        else
-        {
-            fprintf(stderr, "\n\n\nNo inputfile found, setting k to default value..\n\n\n");
-            k_ = 0;
-        }
+        // getline(&line, &len, input_file());
+        k_ = strtof(line, nullptr);
+    }
+    else
+    {
+        fprintf(stderr, "\n\n\nNo inputfile found, setting k to default value..\n\n\n");
+        k_ = 0;
     }
 
-    if (PAR(cr))
-    {
-        MPI_Bcast(&k_, 1, GMX_MPI_REAL, MASTERRANK(cr), cr->mpi_comm_mygroup);
-    }
+    // TODO: make input such that no check for master/ parallel is necessary
+
+
+    // TODO: externd MPIhelper to allow Bcast
+    // if (bParallel)
+    // {
+    // MPI_Bcast(&k_, 1, GMX_MPI_REAL, MASTERRANK(cr), cr->mpi_comm_mygroup);//
+    // }
 }
 
-std::string TemplateInfo::name                        = "Template";
+std::string TemplateInfo::name                        = "template";
 std::string TemplateInfo::shortDescription            = "basic external potential example";
 const int   TemplateInfo::numberIndexGroups           = 2;
 externalpotential::ModuleCreator TemplateInfo::create = Template::create;
 
-
+} // namespace externalpotential
 } // namespace gmx

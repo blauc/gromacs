@@ -1295,17 +1295,17 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                      bVerbose, Flags);
         }
 
-        if (inputrec->bExternalPotential)
-        {
-            /* Initialize the external potentials */
-            inputrec->external_potential->manager = new gmx::externalpotential::Manager(fplog, inputrec, mtop, state->x, box, cr, oenv, Flags, bVerbose);
-        }
-
         if (inputrec->eSwapCoords != eswapNO)
         {
             /* Initialize ion swapping code */
             init_swapcoords(fplog, bVerbose, inputrec, opt2fn_master("-swap", nfile, fnm, cr),
                             mtop, state->x, state->box, &state->swapstate, cr, oenv, Flags);
+        }
+
+        if (inputrec->bExternalPotential)
+        {
+            /* Initialize the external potentials ; TODO smaller constructor, seperate domain decomposition initialisation */
+            inputrec->external_potential->manager = new gmx::externalpotential::Manager(inputrec->external_potential, MASTER(cr), PAR(cr), cr->mpi_comm_mygroup, MASTERRANK(cr));
         }
 
         constr = init_constraints(fplog, mtop, inputrec, ed, state, cr);

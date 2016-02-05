@@ -87,7 +87,7 @@ typedef ExternalPotentialTemplateTest ExternalPotential;
 TEST_F(ExternalPotential, CanRun)
 {
     theMdpFile = gmx::formatString("integrator              = steep\n"
-                                   "nsteps                  = 10\n"
+                                   "nsteps                  = 0\n"
                                    "external-potential      = yes\n"
                                    "external-potential-path = \n"
                                    "template-input          = ") + theExternalPotentialInputFile +

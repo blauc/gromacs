@@ -49,53 +49,63 @@ struct t_commrec;
 struct t_inputrec;
 struct ext_pot_ir;
 struct gmx_output_env_t;
-struct gmx_domdec_t;
+struct gmx_ga2la_t;
 struct gmx_mtop_t;
 
 namespace gmx
 {
 
 class GroupCoordinates;
+class MpiHelper;
+class Group;
+namespace externalpotential
+{
+
+class ExternalPotentialIO;
 
 class ExternalPotential
 {
+    // TODO: make methods that should only be called by the manager also only visible to the manager
     public:
 
         ~ExternalPotential();
         /*! \brief
          * Compute energies, forces, and virial.
          */
-        virtual void do_potential(t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step) = 0;
+        virtual void do_potential(const matrix box, const rvec x[], const gmx_int64_t step) = 0;
 
         /*! \brief
          * Add up potential and virial contribution from all nodes.
          */
-        real sum_reduce_potential_virial(t_commrec * cr);
+        real sum_reduce_potential_virial();
 
         /*! \brief
-         * Adds the external potential forces, after they have been previously calculated in do_potential.
+         * Sums the external potential forces on all nodes, after they have been previously calculated in do_potential.
          */
         void add_forces(rvec f[], gmx_int64_t step, real weight);
 
         /*! \brief
-         * Adds the contribution to the virial form this external potential.
+         * Sums the contribution to the virial from this potential from all nodes
+         * TODO: rename to sum
          */
         void add_virial(tensor vir, gmx_int64_t step, real weight);
 
         /*! \brief
          * Distribute the atom indices over all nodes in the domain decomposition steps.
          */
-        void dd_make_local_groups( gmx_domdec_t *dd);
+        void dd_make_local_groups(gmx_ga2la_t  *ga2la);
+
+        void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
+
+        void add_group(std::unique_ptr<Group> &&group);
+
+        void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
+        virtual void read_input() = 0;
+
 
     protected:
 
-        const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
-
-        /*! \brief
-         * Identifies local group atoms in the assembled coordinates, such that x_assembled[collective_index(group_number)[i]] returns the ith atom in group "group_number".
-         */
-        const std::vector<int> &collective_index(int group_index);
-
+        ExternalPotential ();
         /*! \brief
          * Picks the local atoms that are in group "group_index".
          *
@@ -109,24 +119,15 @@ class ExternalPotential
 
         void set_local_virial(tensor virial);
 
-        FILE* input_file();
-        FILE* output_file();
-        FILE* log_file();
+        std::shared_ptr<ExternalPotentialIO> input_output();
 
-        unsigned long Flags();
-        const gmx_output_env_t *oenv();
-        bool isVerbose();
-
-        ExternalPotential (struct ext_pot_ir *ep_ir, t_commrec * cr,
-                           t_inputrec * ir, const gmx_mtop_t* mtop, const rvec x[], matrix box, FILE *input_file_p, FILE *output_file_p, FILE *fplog,
-                           bool bVerbose, const gmx_output_env_t *oenv, unsigned long Flags, int number_groups);
     private:
         class Impl;
         PrivateImplPointer<Impl> impl_;
 };
 
 
-
+} // end namspace externalpotential
 
 } // end namespace gmx
 

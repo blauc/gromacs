@@ -9622,7 +9622,7 @@ void dd_partition_system(FILE                *fplog,
     if (ir->bExternalPotential)
     {
         /* Make a selection of the local atoms for density fitting */
-        ir->external_potential->manager->dd_make_local_groups(dd);
+        ir->external_potential->manager->dd_make_local_groups(dd->ga2la);
     }
 
 

@@ -40,24 +40,22 @@
 namespace gmx
 {
 
-MpiHelper::MpiHelper(t_commrec * cr) : cr_(cr){}
+MpiHelper::MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster) :
+    buf_write_(true), mpi_comm_mygroup_(mpi_comm_mygroup), masterrank_(masterrank),  bMaster_(bMaster){}
 
 void MpiHelper::buffer(real value)
 {
-    if (cr_ != nullptr)
+    if (buf_write_)
     {
-        if (buf_write_)
+        inbuf_.push_back(value);
+    }
+    else
+    {
+        if (bMaster_)
         {
-            inbuf_.push_back(value);
+            value = outbuf_.back();
         }
-        else
-        {
-            if (MASTER(cr_))
-            {
-                value = outbuf_.back();
-                outbuf_.pop_back();
-            }
-        }
+        outbuf_.pop_back();
     }
 }
 
@@ -77,11 +75,6 @@ void MpiHelper::buffer(real matrix[DIM][DIM])
     }
 };
 
-void MpiHelper::cr(t_commrec * cr)
-{
-    cr_ = cr;
-}
-
 void MpiHelper::sum_reduce()
 {
     if (inbuf_.empty())
@@ -90,7 +83,7 @@ void MpiHelper::sum_reduce()
     }
     outbuf_.resize(inbuf_.size());
 #ifdef GMX_MPI
-    MPI_Reduce(&inbuf_[0], &outbuf_[0], inbuf_.size(), GMX_MPI_REAL, MPI_SUM, MASTERRANK(cr_), cr_->mpi_comm_mygroup);
+    MPI_Reduce(&inbuf_[0], &outbuf_[0], inbuf_.size(), GMX_MPI_REAL, MPI_SUM, masterrank_, mpi_comm_mygroup_);
 #endif
     inbuf_.clear();
     buf_write_ = false;
@@ -108,5 +101,9 @@ void MpiHelper::finish()
     }
 }
 
+bool MpiHelper::isMaster()
+{
+    return bMaster_;
+}
 
 } // namespace gmx

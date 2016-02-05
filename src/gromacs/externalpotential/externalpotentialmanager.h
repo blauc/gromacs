@@ -77,7 +77,7 @@ class Manager
          * \todo: Parse info from input-files in xml/json format?.
          * \todo: Check input file consistency with checksums.
          */
-        Manager( FILE *fplog, t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, t_commrec *cr, const gmx_output_env_t *oenv, unsigned long Flags, bool bVerbose );
+        Manager(struct ext_pot *external_potential, bool bMaster, bool bParallel, MPI_Comm mpi_comm_mygroup, int masterrank);
 
         /*! \brief
          * Trigger calculation of external potentials in the respective external potential module classes.
@@ -87,7 +87,7 @@ class Manager
          * \param[in] ir Input record
          * \result potential_ and force_ will be updated in all experimental input modules, if applied at this step.
          */
-        void do_potential( t_commrec *cr, const matrix box, const rvec x[], const gmx_int64_t step);
+        void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
 
         /*! \brief
          * Add the forces from the external potentials to the overall force in this simulation step.
@@ -98,7 +98,7 @@ class Manager
          * \param[in,out] vir The updated virial
          * \result contribution to the total potential from external potentials, updated force and virial
          */
-        real add_forces( rvec f[], tensor vir, t_commrec *cr, gmx_int64_t step);
+        real add_forces( rvec f[], tensor vir, gmx_int64_t step);
 
         /*! \brief
          * Keep the local indices in all applied potentials up-to-date after domain decomposition.
@@ -109,19 +109,11 @@ class Manager
          *
          * \result updated num_atoms_loc_, ind_loc_ and nalloc_loc_,
          */
-        void dd_make_local_groups( gmx_domdec_t *dd);
-
-
+        void dd_make_local_groups( gmx_ga2la_t *ga2la);
 
     private:
 
         std::vector<real> calculate_weights();
-
-        /*! \brief
-         * Throw errors if input is inconsistent
-         */
-        void throw_at_input_inconsistency_(t_commrec * cr, t_inputrec * ir, std::string input_file, std::string output_file, int current);
-
         std::vector<std::unique_ptr<ExternalPotential> > potentials_;
         std::vector<real> V_external_;
         Modules           modules_;
