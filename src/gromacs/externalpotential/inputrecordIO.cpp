@@ -34,25 +34,24 @@
  */
 
 #include "inputrecordIO.h"
-#include "gromacs/mdtypes/inputrec.h"
-#include "gromacs/fileio/readinp.h"
-#include "gromacs/mdtypes/inputrec.h"
 
-#include "gromacs/topology/block.h"
-
-#include "gromacs/mdtypes/commrec.h"
-#include "gromacs/utility/txtdump.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/stringutil.h"
-#include "gromacs/utility/exceptions.h"
-#include "gromacs/gmxpreprocess/readir.h"
-#include "externalpotentialmanager.h"
-#include <list>
-#include <vector>
-#include <string>
-#include <sstream>
 #include <algorithm>
+#include <list>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "gromacs/externalpotential/externalpotentialmanager.h"
+#include "gromacs/fileio/readinp.h"
+#include "gromacs/gmxpreprocess/readir.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/txtdump.h"
 
 namespace gmx
 {

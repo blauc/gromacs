@@ -34,15 +34,15 @@
  */
 #include "gmxpre.h"
 
-#include "externalpotential.h"
 #include "externalpotentialmanager.h"
-#include "modules.h"
-#include "group.h"
-#include "mpi-helper.h"
-#include "externalpotentialIO.h"
 
 #include <algorithm>
 
+#include "gromacs/externalpotential/externalpotential.h"
+#include "gromacs/externalpotential/externalpotentialIO.h"
+#include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/modules.h"
+#include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/exceptions.h"
@@ -146,13 +146,13 @@ Manager::Manager(struct ext_pot *external_potential, bool bMaster, bool bParalle
 
         for (int i = 0; i < curr_module.numberIndexGroups; i++)
         {
-            std::unique_ptr<Group> group(new Group(ir_data->nat[i], ir_data->ind[i], bParallel));
+            std::shared_ptr<Group> group(new Group(ir_data->nat[i], ir_data->ind[i], bParallel));
             potentials_.back()->add_group(std::move(group));
         }
 
         if (bMaster)
         {
-            std::shared_ptr<ExternalPotentialIO> input_output;
+            std::shared_ptr<ExternalPotentialIO> input_output( new(ExternalPotentialIO));
             input_output->set_input_file(std::string(external_potential->basepath), std::string(ir_data->inputfilename));
             input_output->set_output_file(std::string(external_potential->basepath), std::string(ir_data->outputfilename));
 

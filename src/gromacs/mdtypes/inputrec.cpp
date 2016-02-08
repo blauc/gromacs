@@ -43,7 +43,7 @@
 
 #include <algorithm>
 
-
+#include "gromacs/externalpotential/inputrecordIO.h"
 #include "gromacs/math/vecdump.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/pull-params.h"
@@ -54,7 +54,6 @@
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/txtdump.h"
-#include "gromacs/externalpotential/inputrecordIO.h"
 
 //! Macro to select a bool name
 #define EBOOL(e)       gmx::boolToString(e)

@@ -33,12 +33,21 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 #include "gmxpre.h"
-#include <algorithm>
+
 #include "template.h"
+
 #include <cstdio>
 
-#include "gromacs/math/vec.h"
+#include <algorithm>
+#include <ios>
+
+#include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/mpi-helper.h"
+#include "gromacs/externalpotential/forceplotter.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/exceptions.h"
+
 
 namespace gmx
 {
@@ -53,14 +62,11 @@ std::unique_ptr<ExternalPotential> Template::create()
 
 void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
-    GroupCoordinates   r1_local = x_local(x, 0);
-    RVec               com1;
-    // = std::accumulate( r1.begin(), r1.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
-    GroupCoordinates   r2_local = x_local(x, 1);
-    // std::vector<RVec> r2       = x_assembled(step, cr, x, box, 1);
-    RVec               com2;
-    //   = std::accumulate( r2.begin(), r2.end(), RVec(0, 0, 0), [](const RVec &a, const RVec &b) {return RVec(a[XX]+b[XX], a[YY]+b[YY], a[ZZ]+b[ZZ]); } );
-    real               potential = 0;
+    // std::shared_ptr<Group> r1_local = group(x, 0);
+    RVec                   com1;
+    std::shared_ptr<Group> r2_local = group(x, 1);
+    RVec                   com2;
+    real                   potential = 0;
 
     com1[XX] = box[XX][XX]*0.25;
     com1[YY] = box[YY][YY]*0.25;
@@ -69,29 +75,17 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
     com2[XX] = 3*com1[XX];
     com2[YY] = 3*com1[YY];
     com2[ZZ] = 3*com1[ZZ];
-
-    std::vector<RVec> &f1_local = f_local(0);
-
-    for (size_t i = 0; i < f1_local.size(); i++)
+    //
+    for (auto atom : *r2_local)
     {
-        rvec_sub(r1_local[i], com1, f1_local[i]);
-        svmul(-k_, f1_local[i], f1_local[i]);
-
-        potential      += k_*distance2(r1_local[i], com1)/2.0;
+        rvec_sub(atom.x, com1, atom.force);
+        svmul(-k_, atom.force, atom.force);
+        potential      += k_*distance2(atom.x, com1)/2.0;
     }
 
-    std::vector<RVec> &f2_local = f_local(1);
-    for (size_t i = 0; i < f2_local.size(); i++)
-    {
-        rvec_sub(r2_local[i], com2, f2_local[i]);
-        svmul(-k_, f2_local[i], f2_local[i]);
-        potential      += k_*distance2(r2_local[i], com2)/2.0;
-    }
 
     set_local_potential(potential);
 
-    (void) box;
-    (void) x;
     (void) step;
 };
 
@@ -99,28 +93,27 @@ Template::Template() : ExternalPotential() {};
 
 void Template::read_input()
 {
-
-    char * line = nullptr;
-    size_t len  = 0;
-    if (input_output() != nullptr)
+    FILE * inputfile = input_output()->input_file();
+    char * line      = nullptr;
+    size_t len       = 0;
+    try
     {
-        // getline(&line, &len, input_file());
-        k_ = strtof(line, nullptr);
+        getline(&line, &len, inputfile);
     }
-    else
+    catch (const std::ios_base::failure &e)
     {
-        fprintf(stderr, "\n\n\nNo inputfile found, setting k to default value..\n\n\n");
-        k_ = 0;
+        GMX_THROW(gmx::InvalidInputError("Cannot read from externalpotential : template inputfile."));
     }
 
-    // TODO: make input such that no check for master/ parallel is necessary
+    k_ = strtof(line, nullptr);
+}
 
-
-    // TODO: externd MPIhelper to allow Bcast
-    // if (bParallel)
-    // {
-    // MPI_Bcast(&k_, 1, GMX_MPI_REAL, MASTERRANK(cr), cr->mpi_comm_mygroup);//
-    // }
+void Template::broadcast_internal()
+{
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->broadcast(&k_, 1);
+    }
 }
 
 std::string TemplateInfo::name                        = "template";

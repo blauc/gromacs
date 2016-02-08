@@ -38,8 +38,10 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${EXTERNALPOTENTIALMODULE_SOURCES} 
 gmx_install_headers(
     modules.h
     inputrecordIO.h
+    externalpotentialIO.h
     mpi-helper.h
     group.h
+    forceplotter.h
     externalpotential.h
     externalpotentialmanager.h
     )

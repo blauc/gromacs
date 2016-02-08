@@ -39,6 +39,7 @@
 
 #include <string.h>
 
+#include "gromacs/externalpotential/inputrecordIO.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdrun.h"
@@ -52,7 +53,6 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "gromacs/externalpotential/inputrecordIO.h"
 
 #define   block_bc(cr,   d) gmx_bcast(     sizeof(d),     &(d), (cr))
 /* Probably the test for (nr) > 0 in the next macro is only needed
@@ -706,7 +706,6 @@ static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
     {
         snew_bc(cr, inputrec->external_potential, 1);
         gmx::externalpotential::inputrecordutils::bc_externalpotential(cr, inputrec->external_potential);
-        fprintf(stderr, "\n\nBROADCASTING EXTERNAL POTENTIALS\n\n");
     }
 }
 

@@ -41,6 +41,7 @@
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/mdtypes/commrec.h"
+
 namespace gmx
 {
 namespace externalpotential
@@ -52,6 +53,7 @@ class Template : public ExternalPotential
         static std::unique_ptr<ExternalPotential> create();
         void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
         void read_input();
+        void broadcast_internal();
 
     private:
         Template();

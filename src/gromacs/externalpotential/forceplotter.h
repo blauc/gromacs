@@ -33,44 +33,22 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
- #include "gmxpre.h"
-
- #include "modules.h"
-
- #include "gromacs/externalpotential/modules/template/template.h"
-
+#include <vector>
+#include "gromacs/math/vec.h"
 namespace gmx
 {
-
 namespace externalpotential
 {
-/*! \brief
- * Convenience method for registering an external potential module,
- *
- * \tparam ModuleInfo  Info about external potential module to wrap.
- *
- * \p ModuleInfo should have static public members
- * `const char name[]`, `const char shortDescription[]`, and
- * `gmx::TrajectoryAnalysisModulePointer create()`.
- *
- * \ingroup module_trajectoryanalysis
- */
-template <class ModuleInfo>
-void registerModule(gmx::externalpotential::Modules *modules)
-{
-    modules->module[ModuleInfo::name] = Modules::ModuleProperties {
-        .shortDescription  = ModuleInfo::shortDescription,
-        .numberIndexGroups = ModuleInfo::numberIndexGroups,
-        .create            = ModuleInfo::create
-    };
-}
 
-void registerExternalPotentialModules(gmx::externalpotential::Modules *modules)
+class ForcePlotter
 {
-    using namespace gmx::externalpotential;
-    registerModule<TemplateInfo>(modules);
+    public:
+        void start_plot_forces(std::string outfile);
+        void plot_forces(const rvec * x, rvec * f, int size, int id);
+        void stop_plot_forces();
+    private:
+        FILE * file_;
+};
 
 }
-} // namespace externalpotential
-
-} // namespace gmx
+}

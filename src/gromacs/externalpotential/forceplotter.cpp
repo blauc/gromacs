@@ -33,44 +33,42 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
- #include "gmxpre.h"
-
- #include "modules.h"
-
- #include "gromacs/externalpotential/modules/template/template.h"
+#include <string>
+#include "forceplotter.h"
+#include "gromacs/utility/futil.h"
 
 namespace gmx
 {
-
 namespace externalpotential
 {
-/*! \brief
- * Convenience method for registering an external potential module,
- *
- * \tparam ModuleInfo  Info about external potential module to wrap.
- *
- * \p ModuleInfo should have static public members
- * `const char name[]`, `const char shortDescription[]`, and
- * `gmx::TrajectoryAnalysisModulePointer create()`.
- *
- * \ingroup module_trajectoryanalysis
- */
-template <class ModuleInfo>
-void registerModule(gmx::externalpotential::Modules *modules)
+
+void ForcePlotter::start_plot_forces(std::string outfile)
 {
-    modules->module[ModuleInfo::name] = Modules::ModuleProperties {
-        .shortDescription  = ModuleInfo::shortDescription,
-        .numberIndexGroups = ModuleInfo::numberIndexGroups,
-        .create            = ModuleInfo::create
-    };
-}
+    file_ = gmx_ffopen(outfile.c_str(), "a");
+};
 
-void registerExternalPotentialModules(gmx::externalpotential::Modules *modules)
+void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id)
 {
-    using namespace gmx::externalpotential;
-    registerModule<TemplateInfo>(modules);
+    int  palette_size = 2;
+    real scale        = 0.1;
+    rvec xf;
+    rvec f_scaled;
+    fprintf(file_, ".color %.9f %.9f %.9f \n", (1.0/palette_size) * (id %palette_size), (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size));
+    for (int i = 0; i < size; i++)
+    {
+        svmul(scale, f[i], f_scaled);
+        rvec_add(f_scaled, x[i], xf);
+        fprintf(file_, ".arrow %.9f %.9f %.9f %.9f %.9f %.9f\n", x[i][XX], x[i][YY], x[i][ZZ], xf[XX], xf[YY], xf[ZZ]);
+
+    }
+};
+
+void ForcePlotter::stop_plot_forces()
+{
+    gmx_ffclose(file_);
+};
+
+
 
 }
-} // namespace externalpotential
-
-} // namespace gmx
+}

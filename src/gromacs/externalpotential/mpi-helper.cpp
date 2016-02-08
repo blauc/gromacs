@@ -33,9 +33,10 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 #include "mpi-helper.h"
-#include "gromacs/utility/real.h"
+
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
@@ -100,7 +101,10 @@ void MpiHelper::finish()
         buf_write_ = true;
     }
 }
-
+void MpiHelper::broadcast(void *ptr, size_t size)
+{
+    MPI_Bcast(ptr, size, GMX_MPI_REAL, masterrank_, mpi_comm_mygroup_);
+}
 bool MpiHelper::isMaster()
 {
     return bMaster_;

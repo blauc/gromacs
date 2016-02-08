@@ -34,7 +34,9 @@
  */
 
 #include "externalpotentialIO.h"
+
 #include <stdio.h>
+
 #include <string>
 
 #include "gromacs/utility/futil.h"
@@ -44,6 +46,14 @@ namespace gmx
 
 namespace externalpotential
 {
+ExternalPotentialIO::ExternalPotentialIO()
+{
+}
+
+ExternalPotentialIO::~ExternalPotentialIO()
+{
+}
+
 FILE*  ExternalPotentialIO::input_file()
 {
     return input_file_;
@@ -91,7 +101,7 @@ void ExternalPotentialIO::set_log_file(std::string basepath, std::string filenam
 
 FILE * ExternalPotentialIO::open_(std::string basename, std::string filename, const char * mode)
 {
-    if (gmx_fexist((basename + "/" + filename).c_str()))
+    if (!filename.empty() && gmx_fexist((basename + "/" + filename).c_str()))
     {
         return gmx_ffopen((basename + "/" + filename).c_str(), mode);
     }

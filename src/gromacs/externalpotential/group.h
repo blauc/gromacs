@@ -34,6 +34,7 @@
  */
 
 #include <vector>
+#include <memory>
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -48,58 +49,57 @@ struct gmx_mtop_t;
 
 namespace gmx
 {
-//TODO: make GroupAtoms iterator, provide Group with begin() and end()
-class GroupCoordinates
-{
-    public:
-        GroupCoordinates(const rvec * x, int * index, int size);
 
-        class GroupIterator : std::iterator<std::forward_iterator_tag, RVec>
-        {
-            public:
-                friend         GroupCoordinates;
-                GroupIterator &operator++ ();
-                GroupIterator  operator++ (int);
-                bool           operator== (const GroupIterator &rhs);
-                bool           operator!= (const GroupIterator &rhs);
-                const RVec operator*();
-            private:
-                GroupIterator(const GroupCoordinates * coordinates);
-                GroupIterator(const GroupCoordinates * coordinates, int i);
-                GroupIterator(const GroupIterator * iterator);
-                const GroupCoordinates * coordinates_;
-                int i_;
-        };
-        friend class GroupIterator;
-
-        GroupIterator begin();
-        GroupIterator end();
-        const RVec   operator[] (int i);
-
-    private:
-        const rvec * x_;
-        int        * index_;
-        int          size_;
+struct GroupAtom{
+    const real *x;
+    real       *force;
+    real        weight;
+    int         ii;
 };
 
 class Group
 {
     public:
+
+        class GroupIterator : std::iterator<std::forward_iterator_tag, GroupAtom>
+        {
+            public:
+                friend         Group;
+                GroupIterator &operator++ ();
+                GroupIterator  operator++ (int);
+                bool           operator== (const GroupIterator &rhs);
+                bool           operator!= (const GroupIterator &rhs);
+                GroupAtom &operator*();
+            private:
+                GroupIterator(Group * group);
+                GroupIterator(Group * group, int i);
+                GroupIterator(const GroupIterator * iterator);
+                Group * group_;
+                int     i_;
+        };
+
+        friend class GroupIterator;
+
+        GroupIterator begin();
+        GroupIterator end();
+        GroupAtom &operator[] (int i);
+
         Group(int nat, int *ind, bool bParallel);
         ~Group();
         void set_indices(gmx_ga2la_t  *ga2la);
 
         void add_forces(rvec f[], real w);
         void add_virial(tensor vir);
-        std::vector<RVec> &f_local();
         const std::vector<int> &collective_index();
 
-        GroupCoordinates x_local(const rvec x[]);
+        void set_x(const rvec x[]); // TODO: figure if x[] is ever changed, set then..
 
     private:
 
+        const rvec       *x_;
+        GroupAtom         atom_;
         int               num_atoms_;       /**< Number of (global) atoms in this external potential group. */
-        int              *ind_;             /**< Global indices of the atoms in this roup.*/
+        int              *ind_;             /**< Global indices of the atoms in this group.*/
         std::vector<int>  coll_ind_;        /**< map local atom indices to global atom indicices of atoms of this group (i.e. global_index=ind_[coll_ind_[local_index])]*/
 
         int               num_atoms_loc_;   /**< number of local atoms from index group; set by set_indices. */

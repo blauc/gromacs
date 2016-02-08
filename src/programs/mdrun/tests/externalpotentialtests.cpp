@@ -48,6 +48,7 @@
 
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/textwriter.h"
+
 #include "energyreader.h"
 #include "moduletest.h"
 
@@ -76,7 +77,7 @@ class ExternalPotentialTemplateTest :
             gmx::TextWriter::writeFileFromString(theExternalPotentialInputFile, ExternalPotentialInputData);
             runner_.edrFileName_ = fileManager_.getTemporaryFilePath("argon5832-ener.edr");
             ASSERT_EQ(0, runner_.callMdrun());
-            // energy = gmx::test::openEnergyFileToReadFields(runner_.edrFileName_, {{"Potential"}});
+            energy = gmx::test::openEnergyFileToReadFields(runner_.edrFileName_, {{"Potential"}});
         }
 };
 
@@ -87,7 +88,7 @@ typedef ExternalPotentialTemplateTest ExternalPotential;
 TEST_F(ExternalPotential, CanRun)
 {
     theMdpFile = gmx::formatString("integrator              = steep\n"
-                                   "nsteps                  = 0\n"
+                                   "nsteps                  = 1000\n"
                                    "external-potential      = yes\n"
                                    "external-potential-path = \n"
                                    "template-input          = ") + theExternalPotentialInputFile +

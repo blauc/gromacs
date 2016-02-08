@@ -33,8 +33,9 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "group.h"
 #include "assembledmolecule.h"
+
+#include "group.h"
 
 namespace gmx
 {

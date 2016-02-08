@@ -38,17 +38,16 @@
 #include <vector>
 
 #include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/externalpotential/externalpotentialIO.h"
+#include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/mdlib/sim_util.h"
-
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
-#include "group.h"
-#include "mpi-helper.h"
-#include "externalpotentialIO.h"
 
 namespace gmx
 {
@@ -68,140 +67,22 @@ class ExternalPotential::Impl
 
         ~Impl();
 
-        real reduce_potential_virial();
-        void dd_make_local_groups( gmx_ga2la_t *ga2la);
-        // const std::vector<RVec> &x_assembled(const gmx_int64_t step, t_commrec *cr, const rvec x[], const matrix box, int group_index);
-        GroupCoordinates x_local(const rvec x[], int group_index);
-        std::vector<RVec> &f_local(int group_index);
-        const std::vector<int> &collective_index(int group_index);
-        bool do_this_step(int step);
-        void add_forces(rvec f[], real w);
-        void add_virial(tensor vir, real total_weight);
-        void set_potential(real potential);
-        void set_virial(tensor virial);
-        void add_group(std::unique_ptr<Group> &&group);
-        void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
-        void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
-        std::shared_ptr<ExternalPotentialIO> input_output();
-
-    private:
-
         gmx_int64_t                          nst_apply_; /**< every how many steps to apply; \TODO for every step, since not implemented  */
         real                                 potential_; /**< the (local) contribution to the potential */
         tensor                               virial_;
 
         std::shared_ptr<MpiHelper>           mpi_;
         std::shared_ptr<ExternalPotentialIO> input_output_;
-        std::vector < std::unique_ptr < Group>> atom_groups_; /**< \TODO: make groups friend class, and set x[], cr, and f[] here to avoid handing down parameters all the time.?*/
+        std::vector < std::shared_ptr < Group>> atom_groups_;
 };
-
-std::shared_ptr<ExternalPotentialIO> ExternalPotential::Impl::input_output()
-{
-    return input_output_;
-}
-
-std::vector<RVec> &ExternalPotential::Impl::f_local(int group_index)
-{
-    return atom_groups_[group_index]->f_local();
-}
-
-void ExternalPotential::Impl::set_virial(tensor virial)
-{
-    copy_mat(virial, virial_);
-
-}
-
-void ExternalPotential::Impl::set_potential(real potential)
-{
-    potential_ = potential;
-}
-
-void ExternalPotential::Impl::dd_make_local_groups(gmx_ga2la_t *ga2la)
-{
-    for (auto && grp : atom_groups_)
-    {
-        grp->set_indices(ga2la);
-    }
-}
-
-void ExternalPotential::Impl::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)
-{
-    mpi_ = mpi;
-}
-
-void ExternalPotential::Impl::set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output)
-{
-    input_output_ = std::move(input_output);
-}
-
-
-void ExternalPotential::Impl::add_virial(real (*vir)[3], real total_weight)
-{
-    for (int i = XX; i <= ZZ; i++)
-    {
-        for (int j = XX; j <= ZZ; j++)
-        {
-            vir[i][j] += total_weight*virial_[i][j];
-        }
-    }
-}
 
 ExternalPotential::Impl::Impl() :
     nst_apply_(1), potential_(0), mpi_(nullptr)
 {
 };
 
-void ExternalPotential::Impl::add_group(std::unique_ptr<Group> &&group)
-{
-    atom_groups_.push_back(std::move(group));
-}
-
 ExternalPotential::Impl::~Impl()
 {
-
-};
-
-void ExternalPotential::Impl::add_forces(rvec f[], real total_weight)
-{
-    for (auto && group : atom_groups_)
-    {
-        group->add_forces(f, total_weight);
-    }
-}
-
-bool ExternalPotential::Impl::do_this_step(int step)
-{
-    return (step % nst_apply_ == 0 );
-}
-
-GroupCoordinates ExternalPotential::Impl::x_local(const rvec x[], int group_index)
-{
-    return atom_groups_[group_index]->x_local(x);
-}
-
-real ExternalPotential::Impl::reduce_potential_virial()
-{
-    if (mpi_ != nullptr)
-    {
-        mpi_->buffer(virial_);
-        mpi_->buffer(potential_);
-
-        mpi_->sum_reduce();
-
-        mpi_->buffer(virial_);
-        mpi_->buffer(potential_);
-
-        mpi_->finish();
-
-    }
-
-    if (mpi_ == nullptr || mpi_->isMaster())
-    {
-        return potential_;
-    }
-
-    return 0.0;
-
 };
 
 /*******************************************************************************
@@ -217,71 +98,108 @@ ExternalPotential::~ExternalPotential(){};
 
 void ExternalPotential::dd_make_local_groups( gmx_ga2la_t  * ga2la)
 {
-    impl_->dd_make_local_groups(ga2la);
+    for (auto && grp : impl_->atom_groups_)
+    {
+        grp->set_indices(ga2la);
+    }
 };
 
 void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
 {
-    if (impl_->do_this_step(step))
+    if (do_this_step(step))
     {
-        impl_->add_virial(vir, weight);
+        for (int i = XX; i <= ZZ; i++)
+        {
+            for (int j = XX; j <= ZZ; j++)
+            {
+                vir[i][j] += weight*impl_->virial_[i][j];
+            }
+        }
+
     }
 };
-
+bool ExternalPotential::do_this_step(gmx_int64_t step)
+{
+    return (step % impl_->nst_apply_ == 0 );
+}
 
 real ExternalPotential::sum_reduce_potential_virial()
 {
-    return impl_->reduce_potential_virial();
+    if (impl_->mpi_ != nullptr)
+    {
+        impl_->mpi_->buffer(impl_->virial_);
+        impl_->mpi_->buffer(impl_->potential_);
+
+        impl_->mpi_->sum_reduce();
+
+        impl_->mpi_->buffer(impl_->virial_);
+        impl_->mpi_->buffer(impl_->potential_);
+
+        impl_->mpi_->finish();
+
+    }
+
+    if (impl_->mpi_ == nullptr || impl_->mpi_->isMaster())
+    {
+        return impl_->potential_;
+    }
+
+    return 0.0;
 }
 
 void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
 {
-    if (impl_->do_this_step(step))
+    if (do_this_step(step))
     {
-        impl_->add_forces(f, weight);
+        for (auto && group : impl_->atom_groups_)
+        {
+            group->add_forces(f, weight);
+        }
+
     }
 };
 
-void ExternalPotential::add_group(std::unique_ptr<Group> &&group)
+void ExternalPotential::add_group(std::shared_ptr<Group> &&group)
 {
-    impl_->add_group(std::move(group));
+    impl_->atom_groups_.push_back(std::move(group));
 }
 
 
 void ExternalPotential::set_local_virial(tensor virial)
 {
-    impl_->set_virial(virial);
+    copy_mat(virial, impl_->virial_);
 }
 
 void ExternalPotential::set_local_potential(real potential)
 {
-    impl_->set_potential(potential);
+    impl_->potential_ = potential;
 }
 
-std::vector<RVec> &ExternalPotential::f_local(int group_index)
+std::shared_ptr<Group> ExternalPotential::group(const rvec x[], int group_index)
 {
-    return impl_->f_local(group_index);
-}
-
-GroupCoordinates ExternalPotential::x_local(const rvec x[], int group_index)
-{
-    return impl_->x_local(x, group_index);
+    impl_->atom_groups_[group_index]->set_x(x);
+    return impl_->atom_groups_[group_index];
 }
 
 void ExternalPotential::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)
 {
-    impl_->set_mpi_helper(mpi);
+    impl_->mpi_ = mpi;
 }
 
 void ExternalPotential::set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output)
 {
-    impl_->set_input_output(std::move(input_output));
+    impl_->input_output_ = std::move(input_output);
 }
 
 std::shared_ptr<ExternalPotentialIO> ExternalPotential::input_output()
 {
-    return impl_->input_output();
+    return impl_->input_output_;
 }
+
+std::shared_ptr<MpiHelper> ExternalPotential::mpi_helper()
+{
+    return impl_->mpi_;
+};
 
 } // end namespace externalpotential
 

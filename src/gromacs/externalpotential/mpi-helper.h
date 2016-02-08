@@ -46,8 +46,9 @@ class MpiHelper
         void cr(t_commrec *cr);
         void sum_reduce();
         bool isMaster();
+        void broadcast(void * ptr, size_t size);
         void buffer(real value);
-        void buffer(real * vector,  int size);
+        void buffer(real * vector, int size);
         void buffer(real matrix[3][3]);
         void finish();
     private:
@@ -57,7 +58,6 @@ class MpiHelper
         MPI_Comm          mpi_comm_mygroup_;
         int               masterrank_;
         bool              bMaster_;
-
 };
 
 } // namespace gmx

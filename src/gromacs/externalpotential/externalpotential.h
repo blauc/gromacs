@@ -58,6 +58,7 @@ namespace gmx
 class GroupCoordinates;
 class MpiHelper;
 class Group;
+
 namespace externalpotential
 {
 
@@ -97,27 +98,30 @@ class ExternalPotential
 
         void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
 
-        void add_group(std::unique_ptr<Group> &&group);
+        void add_group(std::shared_ptr<Group> &&group);
 
         void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
-        virtual void read_input() = 0;
+        virtual void read_input()         = 0;
+        virtual void broadcast_internal() = 0;
+
+        bool do_this_step(gmx_int64_t step);
 
 
     protected:
 
         ExternalPotential ();
+
         /*! \brief
          * Picks the local atoms that are in group "group_index".
          *
-         * f_local and x_local correspond to one another.
          */
-        GroupCoordinates x_local(const rvec x[], int group_index);
-
-        std::vector<RVec> &f_local(int group_index);
+        std::shared_ptr<Group> group(const rvec x[], int group_index);
 
         void set_local_potential(real potential);
 
         void set_local_virial(tensor virial);
+
+        std::shared_ptr<MpiHelper> mpi_helper();
 
         std::shared_ptr<ExternalPotentialIO> input_output();
 

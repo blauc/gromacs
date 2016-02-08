@@ -34,90 +34,86 @@
  */
 
 #include "group.h"
-#include "gromacs/mdtypes/commrec.h"
-#include "gromacs/topology/topology.h"
-#include "gromacs/mdlib/groupcoord.h"
-#include "gromacs/mdlib/sim_util.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/math/vec.h"
-#include "gromacs/domdec/ga2la.h"
 
 #include <algorithm>
+#include <memory>
+
+#include "gromacs/domdec/ga2la.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/mdlib/groupcoord.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/smalloc.h"
+
+#include "forceplotter.h"
 
 namespace gmx
 {
 /*******************************************************************************
- * GroupCoordinates::Iterator
+ * Group::Iterator
  */
-GroupCoordinates::GroupIterator::GroupIterator(const GroupCoordinates * coordinates, int i)
-    : coordinates_(coordinates), i_(i) {}
+Group::GroupIterator::GroupIterator(Group * group, int i)
+    : group_(group), i_(i) {}
 
-GroupCoordinates::GroupIterator::GroupIterator(const GroupCoordinates * coordinates)
-    : coordinates_(coordinates), i_(0) {}
+Group::GroupIterator::GroupIterator(Group * group)
+    : group_(group), i_(0) {}
 
-GroupCoordinates::GroupIterator::GroupIterator(const GroupIterator * iterator)
-    : coordinates_(iterator->coordinates_), i_(iterator->i_) {}
+Group::GroupIterator::GroupIterator(const GroupIterator * iterator)
+    : group_(iterator->group_), i_(iterator->i_) {}
 
-GroupCoordinates::GroupIterator &GroupCoordinates::GroupIterator::operator++()
+Group::GroupIterator &Group::GroupIterator::operator++()
 {
     ++i_;
     return *this;
 }
 
-GroupCoordinates::GroupIterator GroupCoordinates::GroupIterator::operator++(int)
+Group::GroupIterator Group::GroupIterator::operator++(int)
 {
     GroupIterator tmp(this);
     operator++();
     return tmp;
 }
 
-bool GroupCoordinates::GroupIterator::operator==(const GroupIterator &rhs)
+bool Group::GroupIterator::operator==(const GroupIterator &rhs)
 {
-    return (i_ == rhs.i_) && (coordinates_ == rhs.coordinates_);
+    return (i_ == rhs.i_) && (group_ == rhs.group_);
 }
 
-bool GroupCoordinates::GroupIterator::operator!=(const GroupIterator &rhs)
+bool Group::GroupIterator::operator!=(const GroupIterator &rhs)
 {
-    return (i_ != rhs.i_) || (coordinates_ != rhs.coordinates_);
+    return (i_ != rhs.i_) || (group_ != rhs.group_);
 }
 
-const RVec GroupCoordinates::GroupIterator::operator*()
+GroupAtom &Group::GroupIterator::operator*()
 {
-    return RVec(coordinates_->x_[coordinates_->index_[i_]]);
+    int ii = group_->ind_loc_[i_];
+    group_->atom_.x      = group_->x_[ii];
+    group_->atom_.force  = as_vec_array(group_->f_loc_.data())[i_];
+    group_->atom_.weight = group_->weight_loc_[i_];
+    group_->atom_.ii     = ii;
+    return group_->atom_;
 }
 
 /*******************************************************************************
- * GroupCoordinates
+ * Group
  */
 
-GroupCoordinates::GroupCoordinates(const rvec * x, int * index, int size)
-    : x_(x), index_(index), size_(size) {}
-
-GroupCoordinates::GroupIterator GroupCoordinates::begin()
+Group::GroupIterator Group::begin()
 {
     return GroupIterator(this);
 };
 
-GroupCoordinates::GroupIterator GroupCoordinates::end()
+Group::GroupIterator Group::end()
 {
-    return GroupIterator(this, size_);
+    return GroupIterator(this, num_atoms_loc_);
 };
 
-const RVec GroupCoordinates::operator[](int i)
+GroupAtom &Group::operator[](int i)
 {
-    return RVec(x_[index_[i]]);
+    GroupIterator result(this, i);
+    return *result;
 };
-
-/******************************************************************************
- * Group
- */
-
-std::vector<RVec> &Group::f_local()
-{
-    f_loc_.reserve(num_atoms_loc_);
-    f_loc_.resize(num_atoms_loc_, {0, 0, 0});
-    return f_loc_;
-}
 
 Group::Group( int nat, int *ind, bool bParallel) :
     num_atoms_(nat), ind_(ind), bParallel_(bParallel)
@@ -128,6 +124,8 @@ Group::Group( int nat, int *ind, bool bParallel) :
         ind_loc_.assign(ind, ind+num_atoms_);
         coll_ind_.resize(num_atoms_loc_);
         std::iota (coll_ind_.begin(), coll_ind_.end(), 0);
+        f_loc_.resize(num_atoms_, {0, 0, 0});
+        snew(weight_loc_, num_atoms_);
     }
 };
 
@@ -143,7 +141,7 @@ void Group::set_indices(gmx_ga2la_t *ga2la)
     int  i_local;
     // int nalloc_loc=0;
     num_atoms_loc_ = 0;
-    fprintf(stderr, " Setting indices: coll_ind: %p ind_loc: %p \n", &coll_ind_, &ind_loc_);
+
     for (int i_collective = 0; i_collective < num_atoms_; i_collective++)
     {
         if (ga2la_get_home(ga2la, ind_[i_collective], &i_local))
@@ -171,11 +169,20 @@ void Group::set_indices(gmx_ga2la_t *ga2la)
         }
     }
 
+    f_loc_.resize(num_atoms_, {0, 0, 0});
+    snew(weight_loc_, num_atoms_);
 };
 
 
 void Group::add_forces(rvec f[], real w)
 {
+    static int i = 0;
+    externalpotential::ForcePlotter plot;
+    plot.start_plot_forces("forces.bild");
+    plot.plot_forces(x_, as_vec_array(f_loc_.data()), num_atoms_loc_, i);
+    i = (i+1)%2;
+    plot.stop_plot_forces();
+
     for (int l = 0; l < num_atoms_loc_; l++)
     {
         for (int i = XX; i <= ZZ; i++)
@@ -188,15 +195,14 @@ void Group::add_forces(rvec f[], real w)
     }
 };
 
-GroupCoordinates Group::x_local(const rvec x[])
-{
-    return GroupCoordinates(x, ind_loc_.data(), num_atoms_loc_);
-}
-
 const std::vector<int> &Group::collective_index()
 {
     return coll_ind_;
 }
 
+void Group::set_x(const rvec x[])
+{
+    x_ = x;
+};
 
 } // namespace gmx
