@@ -47,9 +47,12 @@ class MpiHelper
         void sum_reduce();
         bool isMaster();
         void broadcast(void * ptr, size_t size);
-        void buffer(real value);
-        void buffer(real * vector, int size);
-        void buffer(real matrix[3][3]);
+        real from_reals_buffer();
+        void from_reals_buffer(matrix result);
+        void from_reals_buffer(real * vector, int size);
+        void to_reals_buffer(real value);
+        void to_reals_buffer(real * vector, int size);
+        void to_reals_buffer(real matrix[3][3]);
         void finish();
     private:
         std::vector<real> inbuf_;

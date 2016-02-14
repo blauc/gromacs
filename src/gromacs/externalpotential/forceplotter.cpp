@@ -33,8 +33,10 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include <string>
 #include "forceplotter.h"
+
+#include <string>
+
 #include "gromacs/utility/futil.h"
 
 namespace gmx
@@ -47,19 +49,24 @@ void ForcePlotter::start_plot_forces(std::string outfile)
     file_ = gmx_ffopen(outfile.c_str(), "a");
 };
 
-void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id)
+void ForcePlotter::plot_force(const rvec x, rvec f, int id)
 {
     int  palette_size = 2;
-    real scale        = 0.1;
+    real scale        = 1e-4;
     rvec xf;
     rvec f_scaled;
-    fprintf(file_, ".color %.9f %.9f %.9f \n", (1.0/palette_size) * (id %palette_size), (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size));
+    svmul(scale, f, f_scaled);
+    rvec_add(f_scaled, x, xf);
+    fprintf(file_, ".color %.9f %.9f %.9f \n.arrow %.9f %.9f %.9f %.9f %.9f %.9f 0.01 0.01 0.02\n", (1.0/palette_size) * (id % palette_size),
+            (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size), x[XX], x[YY], x[ZZ], xf[XX], xf[YY], xf[ZZ]);
+    fflush(file_);
+}
+
+void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id, int * ind)
+{
     for (int i = 0; i < size; i++)
     {
-        svmul(scale, f[i], f_scaled);
-        rvec_add(f_scaled, x[i], xf);
-        fprintf(file_, ".arrow %.9f %.9f %.9f %.9f %.9f %.9f\n", x[i][XX], x[i][YY], x[i][ZZ], xf[XX], xf[YY], xf[ZZ]);
-
+        plot_force(x[ind[i]], f[i], id);
     }
 };
 
@@ -67,8 +74,6 @@ void ForcePlotter::stop_plot_forces()
 {
     gmx_ffclose(file_);
 };
-
-
 
 }
 }

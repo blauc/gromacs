@@ -44,35 +44,59 @@ namespace gmx
 MpiHelper::MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster) :
     buf_write_(true), mpi_comm_mygroup_(mpi_comm_mygroup), masterrank_(masterrank),  bMaster_(bMaster){}
 
-void MpiHelper::buffer(real value)
-{
-    if (buf_write_)
-    {
-        inbuf_.push_back(value);
-    }
-    else
-    {
-        if (bMaster_)
-        {
-            value = outbuf_.back();
-        }
-        outbuf_.pop_back();
-    }
-}
 
-void MpiHelper::buffer( real * vector, int size)
+void MpiHelper::from_reals_buffer(real * vector, int size)
 {
     for (int i = 0; i < size; i++)
     {
-        buffer(vector[i]);
+        vector[i] = from_reals_buffer();
     }
-};
+}
 
-void MpiHelper::buffer(real matrix[DIM][DIM])
+
+void MpiHelper::from_reals_buffer(matrix result)
 {
     for (int i = 0; i < DIM; i++)
     {
-        buffer(matrix[i], DIM);
+        from_reals_buffer(result[i], DIM);
+    }
+
+}
+
+
+real MpiHelper::from_reals_buffer()
+{
+    if (bMaster_)
+    {
+        real result = outbuf_.back();
+        outbuf_.pop_back();
+        return result;
+    }
+    else
+    {
+        outbuf_.pop_back();
+        return 0;
+    }
+}
+
+void MpiHelper::to_reals_buffer(real value)
+{
+    inbuf_.push_back(value);
+}
+
+void MpiHelper::to_reals_buffer( real * vector, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        to_reals_buffer(vector[i]);
+    }
+};
+
+void MpiHelper::to_reals_buffer(real matrix[DIM][DIM])
+{
+    for (int i = 0; i < DIM; i++)
+    {
+        to_reals_buffer(matrix[i], DIM);
     }
 };
 
@@ -84,7 +108,7 @@ void MpiHelper::sum_reduce()
     }
     outbuf_.resize(inbuf_.size());
 #ifdef GMX_MPI
-    MPI_Reduce(&inbuf_[0], &outbuf_[0], inbuf_.size(), GMX_MPI_REAL, MPI_SUM, masterrank_, mpi_comm_mygroup_);
+    MPI_Reduce(inbuf_.data(), outbuf_.data(), inbuf_.size(), GMX_MPI_REAL, MPI_SUM, masterrank_, mpi_comm_mygroup_);
 #endif
     inbuf_.clear();
     buf_write_ = false;
@@ -95,10 +119,6 @@ void MpiHelper::finish()
     if (outbuf_.size() != 0)
     {
         GMX_THROW(APIError("MpiHelper : Buffer not read completely before switching to writing."));
-    }
-    else
-    {
-        buf_write_ = true;
     }
 }
 void MpiHelper::broadcast(void *ptr, size_t size)

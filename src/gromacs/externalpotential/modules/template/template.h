@@ -54,6 +54,8 @@ class Template : public ExternalPotential
         void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
         void read_input();
         void broadcast_internal();
+        AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
+        void finish();
 
     private:
         Template();

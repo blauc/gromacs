@@ -36,20 +36,13 @@
 #define _externalpotentialmanager_h_
 
 
-#include "gromacs/externalpotential/modules/template/template.h"
 #include "externalpotential.h"
 #include "modules.h"
+#include "gromacs/utility/gmxmpi.h"
 
 struct ext_pot;
-struct t_blocka;
-struct t_commrec;
-struct t_inputrec;
-struct gmx_ext_pot;
-struct gmx_output_env_t;
-struct gmx_mtop_t;
-struct gmx_domdec_t;
-struct gmx_wallcycle;
-
+struct t_mdatoms;
+struct t_atomtypes;
 
 #include <map>
 #include <string>
@@ -77,7 +70,7 @@ class Manager
          * \todo: Parse info from input-files in xml/json format?.
          * \todo: Check input file consistency with checksums.
          */
-        Manager(struct ext_pot *external_potential, bool bMaster, bool bParallel, MPI_Comm mpi_comm_mygroup, int masterrank);
+        Manager(struct ext_pot *external_potential);
 
         /*! \brief
          * Trigger calculation of external potentials in the respective external potential module classes.
@@ -111,6 +104,15 @@ class Manager
          */
         void dd_make_local_groups( gmx_ga2la_t *ga2la);
 
+        void set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * types);
+
+        void init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank);
+        void init_input_output(struct ext_pot_ir ** ir_data, int n_potentials, const char * basepath);
+        void init_groups(struct ext_pot_ir ** ir_data, int n_potentials, bool bParallel);
+
+        void broadcast_internal();
+
+        void finish();
     private:
 
         std::vector<real> calculate_weights();

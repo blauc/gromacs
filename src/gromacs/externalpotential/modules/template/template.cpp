@@ -42,9 +42,9 @@
 #include <ios>
 
 #include "gromacs/externalpotential/externalpotentialIO.h"
+#include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/group.h"
 #include "gromacs/externalpotential/mpi-helper.h"
-#include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/exceptions.h"
 
@@ -60,11 +60,18 @@ std::unique_ptr<ExternalPotential> Template::create()
     return std::unique_ptr<ExternalPotential> (new Template());
 }
 
+gmx::AtomProperties * Template::single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc)
+{
+    (void) mdatoms;
+    (void) topology_loc;
+    return nullptr;
+}
+
 void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
-    // std::shared_ptr<Group> r1_local = group(x, 0);
-    RVec                   com1;
+    std::shared_ptr<Group> r1_local = group(x, 0);
     std::shared_ptr<Group> r2_local = group(x, 1);
+    RVec                   com1;
     RVec                   com2;
     real                   potential = 0;
 
@@ -75,12 +82,27 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
     com2[XX] = 3*com1[XX];
     com2[YY] = 3*com1[YY];
     com2[ZZ] = 3*com1[ZZ];
-    //
-    for (auto atom : *r2_local)
+
+    for (auto atom : *r1_local)
     {
+        if (atom.x[0]*atom.x[0] > 1e2 || atom.x[1]*atom.x[1] > 1e2 || atom.x[2]*atom.x[2] > 1e2)
+        {
+            fprintf(stderr, " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
+        }
         rvec_sub(atom.x, com1, atom.force);
         svmul(-k_, atom.force, atom.force);
         potential      += k_*distance2(atom.x, com1)/2.0;
+    }
+
+    for (auto atom : *r2_local)
+    {
+        if (atom.x[0]*atom.x[0] > 1e2 || atom.x[1]*atom.x[1] > 1e2 || atom.x[2]*atom.x[2] > 1e2)
+        {
+            fprintf(stderr, " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
+        }
+        rvec_sub(atom.x, com2, atom.force);
+        svmul(-k_, atom.force, atom.force);
+        potential      += k_*distance2(atom.x, com2)/2.0;
     }
 
 
@@ -114,6 +136,24 @@ void Template::broadcast_internal()
     {
         mpi_helper()->broadcast(&k_, 1);
     }
+}
+
+void Template::finish()
+{
+    // externalpotential::ForcePlotter plot;
+    // plot.start_plot_forces("forces.bild");
+    //
+    // for (auto atom :*group(x,0))
+    // {
+    //     plot.plot_force(atom.x, atom.force, 0);
+    // }
+    //
+    // for (auto atom :*group(x,1))
+    // {
+    //     plot.plot_force(atom.x, atom.force, 1);
+    // }
+    //
+    // plot.stop_plot_forces();
 }
 
 std::string TemplateInfo::name                        = "template";

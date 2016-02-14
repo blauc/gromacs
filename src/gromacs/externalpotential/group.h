@@ -50,11 +50,14 @@ struct gmx_mtop_t;
 namespace gmx
 {
 
+class AtomProperties;
+
 struct GroupAtom{
-    const real *x;
-    real       *force;
-    real        weight;
-    int         ii;
+    const real     *x;
+    real           *force;
+    AtomProperties *properties;
+    int             i_local;
+    int             i_global;
 };
 
 class Group
@@ -96,20 +99,20 @@ class Group
 
     private:
 
-        const rvec       *x_;
-        GroupAtom         atom_;
-        int               num_atoms_;       /**< Number of (global) atoms in this external potential group. */
-        int              *ind_;             /**< Global indices of the atoms in this group.*/
-        std::vector<int>  coll_ind_;        /**< map local atom indices to global atom indicices of atoms of this group (i.e. global_index=ind_[coll_ind_[local_index])]*/
+        const rvec                  *x_;
+        GroupAtom                    atom_;
+        int                          num_atoms_;     /**< Number of (global) atoms in this external potential group. */
+        int                         *ind_;           /**< Global indices of the atoms in this group.*/
+        std::vector<int>             coll_ind_;      /**< map local atom indices to global atom indicices of atoms of this group (i.e. global_index=ind_[coll_ind_[local_index])]*/
 
-        int               num_atoms_loc_;   /**< number of local atoms from index group; set by set_indices. */
-        std::vector<int>  ind_loc_;         /**< Local indices of the external potential atoms, used to add to local force; set by set_indices.*/
+        int                          num_atoms_loc_; /**< number of local atoms from index group; set by set_indices. */
+        std::vector<int>             ind_loc_;       /**< Local indices of the external potential atoms, used to add to local force; set by set_indices.*/
 
-        std::vector<RVec> f_loc_;           /**< the forces from external potential on the local node */
+        std::vector<RVec>            f_loc_;         /**< the forces from external potential on the local node */
 
-        real             *weight_loc_;      /**< Weights for the local indices */
+        std::vector<AtomProperties*> properties_;    /**< Weights for the local indices */
 
-        bool              bParallel_;
+        bool                         bParallel_;
 
 };
 

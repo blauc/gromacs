@@ -49,6 +49,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
+
 namespace gmx
 {
 
@@ -127,13 +128,13 @@ real ExternalPotential::sum_reduce_potential_virial()
 {
     if (impl_->mpi_ != nullptr)
     {
-        impl_->mpi_->buffer(impl_->virial_);
-        impl_->mpi_->buffer(impl_->potential_);
+        impl_->mpi_->to_reals_buffer(impl_->virial_);
+        impl_->mpi_->to_reals_buffer(impl_->potential_);
 
         impl_->mpi_->sum_reduce();
 
-        impl_->mpi_->buffer(impl_->virial_);
-        impl_->mpi_->buffer(impl_->potential_);
+        impl_->potential_ = impl_->mpi_->from_reals_buffer();
+        impl_->mpi_->from_reals_buffer(impl_->virial_);
 
         impl_->mpi_->finish();
 
@@ -158,6 +159,18 @@ void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
 
     }
 };
+
+void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc)
+{
+    for (auto &group : impl_->atom_groups_)
+    {
+        for (auto &atom : *group)
+        {
+            atom.properties = single_atom_properties(mdatoms + atom.i_local, topology_loc);
+        }
+    }
+}
+
 
 void ExternalPotential::add_group(std::shared_ptr<Group> &&group)
 {

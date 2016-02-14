@@ -74,6 +74,8 @@ class ExternalPotentialTemplateTest :
             runner_.useStringAsMdpFile(theMdpFile);
             runner_.useTopGroAndNdxFromDatabase("argon5832");
             EXPECT_EQ(0, runner_.callGrompp());
+            runner_.fullPrecisionTrajectoryFileName_    = fileManager_.getTemporaryFilePath("out.trr");
+            runner_.reducedPrecisionTrajectoryFileName_ = fileManager_.getTemporaryFilePath("out.xtc");
             gmx::TextWriter::writeFileFromString(theExternalPotentialInputFile, ExternalPotentialInputData);
             runner_.edrFileName_ = fileManager_.getTemporaryFilePath("argon5832-ener.edr");
             ASSERT_EQ(0, runner_.callMdrun());
@@ -88,41 +90,23 @@ typedef ExternalPotentialTemplateTest ExternalPotential;
 TEST_F(ExternalPotential, CanRun)
 {
     theMdpFile = gmx::formatString("integrator              = steep\n"
-                                   "nsteps                  = 1000\n"
+                                   "nsteps                  = -1\n"
                                    "external-potential      = yes\n"
                                    "external-potential-path = \n"
+                                   "nstxout-compressed      = 1\n"
+                                   "nstxout = 1\n"
+                                   "compressed-x-grps       = system\n"
                                    "template-input          = ") + theExternalPotentialInputFile +
         gmx::formatString("\ntemplate-output         = ") + theExternalPotentialOutputFile +
         gmx::formatString("\ntemplate-groups         = first_half second_half\n");
 
-    ExternalPotentialInputData = std::string("100");
+    ExternalPotentialInputData = std::string("1e4");
 
     runTest();
 }
 
-
-/* This test ensures mdrun can write various quantities at various frequencies */
-/*TEST_F(ExternalPotential, PullsAtomsToReferencePoints)
-   {
-    theMdpFile = gmx::formatString("integrator              = steep\n"
-                                   "nsteps                  = 100\n"
-                                   "external-potential      = yes\n"
-                                   "external-potential-path = \n"
-                                   "template-input          = ") + theExternalPotentialInputFile +
-        gmx::formatString("\ntemplate-output         = ") + theExternalPotentialOutputFile +
-        gmx::formatString("\ntemplate-groups         = first_half second_half\n");
-
-    ExternalPotentialInputData = std::string("100");
-
-    runTest();
-   }*/
-
 #ifdef __INTEL_COMPILER
 #pragma warning( disable : 177 )
 #endif
-
-// TEST_F(ExternalPotential,NoFatalErrorFrom);
-
-// TEST_F(ExternalPotential,EnergyReproducedFrom);
 
 } // namespace

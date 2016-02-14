@@ -44,7 +44,8 @@ class ForcePlotter
 {
     public:
         void start_plot_forces(std::string outfile);
-        void plot_forces(const rvec * x, rvec * f, int size, int id);
+        void plot_force(const rvec x, rvec f, int id);
+        void plot_forces(const rvec * x, rvec * f, int size, int id, int * ind);
         void stop_plot_forces();
     private:
         FILE * file_;

@@ -45,6 +45,8 @@
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/exceptions.h"
 
 namespace gmx
@@ -110,55 +112,28 @@ real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
     return 0;
 };
 
-Manager::Manager(struct ext_pot *external_potential, bool bMaster, bool bParallel, MPI_Comm mpi_comm_mygroup, int masterrank)
+Manager::Manager(struct ext_pot *external_potential)
 {
-    t_ext_pot_ir * ir_data;
-
     registerExternalPotentialModules(&modules_);
-
-    std::shared_ptr<MpiHelper> mpihelper(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
+    Modules::ModuleProperties curr_module;
 
     for (int i = 0; i < external_potential->number_external_potentials; ++i)
     {
-        ir_data = external_potential->inputrec_data[i];
-
-        Modules::ModuleProperties curr_module;
         try
         {
-            curr_module = modules_.module.at(ir_data->method);
+            curr_module = modules_.module.at(external_potential->inputrec_data[i]->method);
         }
         catch (std::out_of_range)
         {
-            GMX_THROW(gmx::InvalidInputError("Unknown Method : "+ std::string(ir_data->method) + ". Most likely this gromacs version is older than the one to generate the .tpr-file.\n" ));
+            GMX_THROW(gmx::InvalidInputError("Unknown Method : "+ std::string(external_potential->inputrec_data[i]->method) + ". Most likely this gromacs version is older than the one to generate the .tpr-file." ));
         }
 
-        potentials_.push_back(curr_module.create());
-
-        if (bParallel)
-        {
-            potentials_.back()->set_mpi_helper(mpihelper);
-        }
-
-        if (curr_module.numberIndexGroups != ir_data->number_index_groups)
+        if (curr_module.numberIndexGroups != external_potential->inputrec_data[i]->number_index_groups)
         {
             GMX_THROW(gmx::InconsistentInputError("Number of index groups found in tpr file for external potential does not match number of required index groups."));
         }
 
-        for (int i = 0; i < curr_module.numberIndexGroups; i++)
-        {
-            std::shared_ptr<Group> group(new Group(ir_data->nat[i], ir_data->ind[i], bParallel));
-            potentials_.back()->add_group(std::move(group));
-        }
-
-        if (bMaster)
-        {
-            std::shared_ptr<ExternalPotentialIO> input_output( new(ExternalPotentialIO));
-            input_output->set_input_file(std::string(external_potential->basepath), std::string(ir_data->inputfilename));
-            input_output->set_output_file(std::string(external_potential->basepath), std::string(ir_data->outputfilename));
-
-            potentials_.back()->set_input_output(std::move(input_output));
-            potentials_.back()->read_input();
-        }
+        potentials_.push_back(curr_module.create());
     }
 
     V_external_.resize(potentials_.size(), 0);
@@ -166,11 +141,69 @@ Manager::Manager(struct ext_pot *external_potential, bool bMaster, bool bParalle
     return;
 };
 
+void Manager::init_groups(struct ext_pot_ir ** ir_data, int n_potentials, bool bParallel)
+{
+    for (int i_potential = 0; i_potential < n_potentials; ++i_potential)
+    {
+        for (int i = 0; i < ir_data[i_potential]->number_index_groups; i++)
+        {
+            std::shared_ptr<Group> group(new Group(ir_data[i_potential]->nat[i], ir_data[i_potential]->ind[i], bParallel));
+            potentials_[i_potential]->add_group(std::move(group));
+        }
+    }
+}
+
+void Manager::set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * topology_loc)
+{
+    for (auto && potential : potentials_)
+    {
+        potential->set_atom_properties(mdatom, topology_loc);
+    }
+}
+
+void Manager::init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank)
+{
+    std::shared_ptr<MpiHelper> mpihelper(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
+    for (auto && potential : potentials_)
+    {
+        potential->set_mpi_helper(mpihelper);
+    }
+}
+
+void Manager::init_input_output(struct ext_pot_ir ** ir_data, int n_potentials, const char * basepath)
+{
+    for (int i = 0; i < n_potentials; ++i)
+    {
+        std::shared_ptr<ExternalPotentialIO> input_output( new(ExternalPotentialIO));
+        input_output->set_input_file(std::string(basepath), std::string(ir_data[i]->inputfilename));
+        input_output->set_output_file(std::string(basepath), std::string(ir_data[i]->outputfilename));
+        potentials_[i]->set_input_output(std::move(input_output));
+
+        potentials_[i]->read_input();
+    }
+}
+
+void Manager::broadcast_internal()
+{
+    for (auto &potential : potentials_)
+    {
+        potential->broadcast_internal();
+    }
+}
+
 void Manager::dd_make_local_groups(gmx_ga2la_t  * ga2la)
 {
-    for (auto && it : potentials_)
+    for (auto && potential : potentials_)
     {
-        it->dd_make_local_groups(ga2la);
+        potential->dd_make_local_groups(ga2la);
+    }
+};
+
+void Manager::finish()
+{
+    for (auto &potential : potentials_)
+    {
+        potential->finish();
     }
 };
 

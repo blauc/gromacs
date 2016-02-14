@@ -1304,8 +1304,35 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
         if (inputrec->bExternalPotential)
         {
-            /* Initialize the external potentials ; TODO smaller constructor, seperate domain decomposition initialisation */
-            inputrec->external_potential->manager = new gmx::externalpotential::Manager(inputrec->external_potential, MASTER(cr), PAR(cr), cr->mpi_comm_mygroup, MASTERRANK(cr));
+            /* Initialize the external potentials */
+            t_ext_pot * external_potential            = inputrec->external_potential;
+            gmx::externalpotential::Manager * manager = new  gmx::externalpotential::Manager(external_potential);
+
+            if (PAR(cr))
+            {
+                manager->init_mpi(MASTER(cr), cr->mpi_comm_mygroup, MASTERRANK(cr));
+            }
+
+            if (MASTER(cr))
+            {
+                manager->init_input_output(external_potential->inputrec_data, external_potential->number_external_potentials, external_potential->basepath);
+            }
+
+            manager->init_groups(external_potential->inputrec_data, external_potential->number_external_potentials, PAR(cr));
+
+            if (!DOMAINDECOMP(cr))
+            {
+                gmx_localtop_t * top_local = dd_init_local_top(mtop);
+                manager->set_atom_properties(mdatoms, top_local);
+            }
+
+            if (PAR(cr))
+            {
+                manager->broadcast_internal();
+            }
+
+            external_potential->manager = manager;
+
         }
 
         constr = init_constraints(fplog, mtop, inputrec, ed, state, cr);
@@ -1343,6 +1370,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (inputrec->bRot)
         {
             finish_rot(inputrec->rot);
+        }
+
+        if (inputrec->bExternalPotential)
+        {
+            inputrec->external_potential->manager->finish();
         }
 
     }
