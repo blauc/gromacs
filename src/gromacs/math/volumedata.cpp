@@ -123,7 +123,9 @@ class FiniteGrid::Impl
 
         IVec             extend_;    //!< The grid-size.
         matrix           cell_;      //!< r' = cell_ . (r-translate_)
+        matrix           unit_cell_; //!< cell_/extend_
         RVec             translate_; //!< r' = cell_ . (r-translate_)
+
 
         /*! \brief
          * Angle between two vectors in degree.
@@ -143,7 +145,10 @@ class FiniteGrid::Impl
          */
         void project(const rvec a, const rvec b, rvec c);
 
-
+        /*! \brief
+         * set unit cell; divide cell matrix by extend in respective direction
+         */
+        void set_unit_cell();
 };
 
 real FiniteGrid::Impl::deg_angle(rvec a, rvec b)
@@ -177,6 +182,13 @@ void FiniteGrid::Impl::QRDecomposition(const matrix A, matrix Q, matrix R)
 
     tmmul(A, Q, R);
 
+}
+
+void FiniteGrid::Impl::set_unit_cell()
+{
+    svmul(1./extend_[XX], cell_[XX], unit_cell_[XX]);
+    svmul(1./extend_[YY], cell_[YY], unit_cell_[YY]);
+    svmul(1./extend_[ZZ], cell_[ZZ], unit_cell_[ZZ]);
 }
 
 FiniteGrid::Impl::Impl()
@@ -226,6 +238,15 @@ int FiniteGrid::ndx3d_to_ndx1d(IVec i_xyz)
         return -1;
     }
     return i_xyz[XX] + impl_->extend_[XX] * i_xyz[YY]  + impl_->extend_[XX] * impl_->extend_[YY] * i_xyz[ZZ];
+}
+
+IVec FiniteGrid::ndx1d_to_ndx3d(int i)
+{
+    IVec result;
+    result[XX] = (i % impl_->extend_[XX]) % impl_->extend_[YY];
+    result[YY] = (i / impl_->extend_[XX]) % impl_->extend_[YY];
+    result[ZZ] = (i / impl_->extend_[XX]) / impl_->extend_[YY];
+    return result;
 }
 
 void FiniteGrid::set_translation(RVec translate)
@@ -283,7 +304,24 @@ void FiniteGrid::set_cell(RVec length, RVec angle)
     impl_->cell_[ZZ][YY] *= length[ZZ];
     impl_->cell_[ZZ][ZZ] *= length[ZZ];
 
+    if ((impl_->extend_[XX] > 0) && (impl_->extend_[YY] > 0) && (impl_->extend_[ZZ] > 0) )
+    {
+        impl_->set_unit_cell();
+    }
+
 };
+
+RVec FiniteGrid::gridpoint_coordinate(IVec i)
+{
+    RVec result;
+    mvmul(impl_->unit_cell_, RVec(i[XX], i[YY], i[ZZ]), result);
+    return result;
+};
+
+RVec FiniteGrid::gridpoint_coordinate(int i)
+{
+    return gridpoint_coordinate(ndx1d_to_ndx3d(i));
+}
 
 void FiniteGrid::rotation(matrix Q)
 {
@@ -376,6 +414,11 @@ real &GridReal::at(IVec index)
 {
     return impl_->data_.at(ndx3d_to_ndx1d(index));
 };
+
+std::vector<real> &GridReal::data()
+{
+    return impl_->data_;
+}
 
 
 GridReal::GridReal() : impl_(new GridReal::Impl())

@@ -99,16 +99,21 @@ class FiniteGrid
         /*! \brief
          * The extend of the grid.
          *
-         * Gird indices will alwasy run from (0,0,0) to extend = (extend[0],extend[1],extend[2])
+         * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX],extend[YY],extend[ZZ])
          */
         void   set_extend(IVec extend);
         IVec   extend();         //!< return the extend of the grid
         size_t num_gridpoints(); //!< evaluates extend[0]*extend[1]*extend[2]
 
         /*! \brief
-         * Unique one-dimensional grid index  = x + extend[0] * y + extend[0] * extend[1] * z.
+         * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] * extend[YY] * z.
          */
         int  ndx3d_to_ndx1d(IVec i_xyz);
+
+        /*! \brief
+         * Inverse for ndx3d_to_ndx1d ;
+         */
+        IVec ndx1d_to_ndx3d(int i);
 
         /*! \brief
          *
@@ -130,6 +135,10 @@ class FiniteGrid
          * \param[in,out] Q rotation matrix
          */
         void rotation(matrix Q);
+
+        RVec gridpoint_coordinate(int i);
+
+        RVec gridpoint_coordinate(IVec i);
 
     private:
         class Impl;
@@ -180,6 +189,11 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
          * \throws std::bad_alloc when unsuccesful
          */
         void resize();
+        /*! \brief
+         * Return the raw 1d grid data
+         *
+         */
+        std::vector<real> &data();
         /*! \brief
          * The size of the griddata in bytes.
          */

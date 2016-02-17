@@ -33,11 +33,12 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
- #include "gmxpre.h"
+#include "gmxpre.h"
 
- #include "modules.h"
+#include "modules.h"
 
- #include "gromacs/externalpotential/modules/template/template.h"
+#include "gromacs/externalpotential/modules/template/template.h"
+#include "gromacs/externalpotential/modules/densityfitting/densityfitting.h"
 
 namespace gmx
 {
@@ -69,6 +70,7 @@ void registerExternalPotentialModules(gmx::externalpotential::Modules *modules)
 {
     using namespace gmx::externalpotential;
     registerModule<TemplateInfo>(modules);
+    registerModule<DensityFittingInfo>(modules);
 
 }
 } // namespace externalpotential

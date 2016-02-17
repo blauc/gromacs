@@ -32,25 +32,61 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef _DENSITYFITTING_H
+#define _DENSITYFITTING_H
 
-#include <vector>
+#include <memory>
 #include <string>
-#include "gromacs/math/vec.h"
+
+#include "gromacs/externalpotential/externalpotential.h"
+#include "gromacs/externalpotential/modules.h"
+#include "gromacs/mdtypes/commrec.h"
+
+
 namespace gmx
 {
+
+class Ifgt;
+
+namespace volumedata
+{
+class GridReal;
+}
+
 namespace externalpotential
 {
-
-class ForcePlotter
+class DensityFitting : public ExternalPotential
 {
     public:
-        void start_plot_forces(std::string outfile);
-        void plot_force(const rvec x, rvec f, int id);
-        void plot_forces(const rvec * x, rvec * f, int size, int id, int * ind);
-        void stop_plot_forces();
+
+        static std::unique_ptr<ExternalPotential> create();
+        void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
+        void read_input();
+        void broadcast_internal();
+        AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
+        void finish();
+        real potential(std::vector<real> &P, std::vector<real> &Q);
+
     private:
-        FILE * file_;
+
+        void divide(std::vector<real> &target, const std::vector<real> & );
+        DensityFitting();
+        real k_;
+        std::unique_ptr<volumedata::GridReal>  target_density_;
+        std::unique_ptr<volumedata::GridReal>  simulated_density_;
+        std::unique_ptr<gmx::Ifgt>             gauss_transform_;
+        std::unique_ptr<gmx::Ifgt>             difference_transform_;
 };
 
-}
-}
+class DensityFittingInfo
+{
+    public:
+        static std::string name;
+        static std::string shortDescription;
+        static const int   numberIndexGroups;
+        static externalpotential::ModuleCreator create;
+};
+} // namespace externalpotential
+} // namespace gmx
+
+#endif
