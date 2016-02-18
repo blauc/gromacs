@@ -198,39 +198,44 @@ Ifgt::~Ifgt(){};
 
 void Ifgt::sum_reduce()
 {
-    int i_non_empty;
-    for (int i = 0; i < e_N_; i++)
+    if (mpi_ != nullptr)
     {
-        if (expansion_centers_[i] != nullptr)
+        int i_non_empty;
+        for (int i = 0; i < e_N_; i++)
         {
-            i_non_empty = i;
-            mpi_->broadcast(&i_non_empty, 1);
-        }
-
-        if (i == i_non_empty)
-        {
-            if (expansion_centers_[i] == nullptr)
+            if (expansion_centers_[i] != nullptr)
             {
-                expansion_centers_[i] = std::unique_ptr<ExpansionCenter>(new ExpansionCenter(this));
+                i_non_empty = i;
+                mpi_->broadcast(&i_non_empty, 1);
             }
-            mpi_->to_reals_buffer(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
-            mpi_->sum_reduce();
-            mpi_->from_reals_buffer(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
-        }
-    }
-    ;
 
+            if (i == i_non_empty)
+            {
+                if (expansion_centers_[i] == nullptr)
+                {
+                    expansion_centers_[i] = std::unique_ptr<ExpansionCenter>(new ExpansionCenter(this));
+                }
+                mpi_->to_reals_buffer(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
+                mpi_->sum_reduce();
+                mpi_->from_reals_buffer(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
+            }
+        }
+
+    }
 
 }
 
 void Ifgt::broadcast_internal()
 {
-    mpi_->broadcast(&sigma_, 1);
-    mpi_->broadcast(&maximum_expansion_order_, 1);
-    mpi_->broadcast(&h_, 1);
-    mpi_->broadcast(&h_inv_, 1);
-    mpi_->broadcast(&n_sigma_, 1);
-    mpi_->broadcast(&n_I_, 1);
+    if (mpi_ != nullptr)
+    {
+        mpi_->broadcast(&sigma_, 1);
+        mpi_->broadcast(&maximum_expansion_order_, 1);
+        mpi_->broadcast(&h_, 1);
+        mpi_->broadcast(&h_inv_, 1);
+        mpi_->broadcast(&n_sigma_, 1);
+        mpi_->broadcast(&n_I_, 1);
+    }
 }
 
 void Ifgt::init(real sigma, int maximum_expansion_order)
@@ -241,7 +246,9 @@ void Ifgt::init(real sigma, int maximum_expansion_order)
     h_inv_                   = 1./h_;
     n_sigma_                 = sqrt((maximum_expansion_order_ / 2)) + 1;
     n_I_                     = factorial(maximum_expansion_order_ + DIM) / (factorial(DIM) * factorial(maximum_expansion_order_));
+    multinomials_.resize(n_I_);
     powers_.resize(3);
+
     for (auto &power : powers_)
     {
         power.resize(maximum_expansion_order_+2);
@@ -263,7 +270,10 @@ void Ifgt::integrate_densities_at_expansion_centers(volumedata::GridReal &map)
 
     for (auto &center : expansion_centers_)
     {
-        center->total_density();
+        if (center != nullptr)
+        {
+            center->total_density();
+        }
     }
 
     for (size_t i = 0; i < map.num_gridpoints(); i++)
@@ -451,18 +461,21 @@ void Ifgt::do_force(const rvec x, rvec f, real map_sigma, volumedata::GridReal &
 
 void Ifgt::broadcast_expansion()
 {
-    if (!mpi_->isMaster())
+    if (mpi_ != nullptr)
     {
-        expansion_centers_.clear();
-        expansion_centers_.resize(e_N_);
-    }
-    for (int i = 0; i < e_N_; i++)
-    {
-
-        if (mpi_->isMaster() && expansion_centers_[i] != nullptr)
+        if (!mpi_->isMaster())
         {
-            expansion_centers_[i] = std::unique_ptr<ExpansionCenter>(new ExpansionCenter(this));
-            mpi_->broadcast(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
+            expansion_centers_.clear();
+            expansion_centers_.resize(e_N_);
+        }
+        for (int i = 0; i < e_N_; i++)
+        {
+
+            if (mpi_->isMaster() && expansion_centers_[i] != nullptr)
+            {
+                expansion_centers_[i] = std::unique_ptr<ExpansionCenter>(new ExpansionCenter(this));
+                mpi_->broadcast(expansion_centers_[i]->coefficients_.data(), expansion_centers_[i]->coefficients_.size());
+            }
         }
     }
 }
@@ -576,7 +589,7 @@ void Ifgt::set_box(const matrix box)
 
     e_nbs_.resize(e_N_);
     ivec nb;
-    std::vector<t_nb>::iterator i;
+    std::vector<t_nb>::iterator i = e_nbs_.begin();
 
     for (nb[XX] = 0; nb[XX] < e_n_[XX]; ++nb[XX])
     {

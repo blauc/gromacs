@@ -850,6 +850,8 @@ void MrcFile::Impl::open_file(std::string filename, bool bRead)
         GMX_THROW(gmx::FileIOError("Filename empty."));
     }
 
+    filename.erase(std::remove(filename.begin(), filename.end(), '\n'), filename.end());
+
     if (bRead)
     {
         if (!known_extension(filename) )

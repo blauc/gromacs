@@ -96,7 +96,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 
     gauss_transform_->sum_reduce();
 
-    if (mpi_helper()->isMaster())
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
         gauss_transform_->expand_at_ref(*simulated_density_, *target_density_, threshold);
         pot          = -k_ * potential(target_density_->data(), simulated_density_->data());
@@ -121,9 +121,13 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
-                                   target_density_(std::unique_ptr<volumedata::GridReal>()),
-                                   simulated_density_(std::unique_ptr<volumedata::GridReal>()),
-                                   gauss_transform_(std::unique_ptr<Ifgt>()) {};
+                                   target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
+                                   simulated_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
+                                   gauss_transform_(std::unique_ptr<Ifgt>(new Ifgt())),
+                                   difference_transform_(std::unique_ptr<Ifgt>(new Ifgt()))
+{
+    ;
+}
 
 
 real DensityFitting::potential(std::vector<real> &P, std::vector<real> &Q)
