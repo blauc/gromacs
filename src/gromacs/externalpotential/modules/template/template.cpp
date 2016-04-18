@@ -140,20 +140,7 @@ void Template::broadcast_internal()
 
 void Template::finish()
 {
-    // externalpotential::ForcePlotter plot;
-    // plot.start_plot_forces("forces.bild");
-    //
-    // for (auto atom :*group(x,0))
-    // {
-    //     plot.plot_force(atom.x, atom.force, 0);
-    // }
-    //
-    // for (auto atom :*group(x,1))
-    // {
-    //     plot.plot_force(atom.x, atom.force, 1);
-    // }
-    //
-    // plot.stop_plot_forces();
+
 }
 
 std::string TemplateInfo::name                        = "template";

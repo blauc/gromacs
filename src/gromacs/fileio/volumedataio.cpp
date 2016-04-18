@@ -50,11 +50,13 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <set>
 
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/futil.h"
+#include "gromacs/math/units.h"
 
 
 namespace gmx
@@ -82,9 +84,11 @@ class MrcFile::Impl
         void read_file_size();
         void read_format_identifier();
 
-        void do_mrc(volumedata::GridReal * grid_data, bool bRead);
-        void do_mrc_data_(volumedata::GridReal * grid_data, bool bRead);
-        void do_mrc_header_(volumedata::GridReal * grid_data, bool bRead);
+        std::string print_to_string();
+
+        void do_mrc(volumedata::GridReal &grid_data, bool bRead);
+        void do_mrc_data_(volumedata::GridReal &grid_data, bool bRead);
+        void do_mrc_header_(volumedata::GridReal &grid_data, bool bRead);
 
         void set_mrc_data_mode(int mode);
 
@@ -124,6 +128,8 @@ class MrcFile::Impl
         void write_float32_(real data);
         void write_float32_rvec_(RVec i);
 
+        bool colummn_row_section_order_valid_(IVec crs_to_xyz);
+
         void swap_int32_(gmx_int32_t &result);
         void swap_float32_(float &result);
 
@@ -135,10 +141,45 @@ class MrcFile::Impl
         const int header_bytes;
         const std::vector<std::string> filetypes;
 
-
-        MrcMetaData meta_;
+        MrcMetaData                    meta_;
 };
 
+std::string MrcFile::Impl::print_to_string()
+{
+    std::remove_if(meta_.labels[0].begin(), meta_.labels[0].end(), [](int i){return i == '\000'; });
+    std::string result;
+    result += "\n---MrcFile Info--file size:" + std::to_string(file_size_) + "---\n";
+
+    result += "swap_bytes        : " + (meta_.swap_bytes == true ? std::string("true") : std::string("false"))    + " | swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture\n";
+    result += "mrc_data_mode     : " + std::to_string(meta_.mrc_data_mode) + " | data mode, currently only mode 2 is supported (32-bit float real values)\n";
+    result += "machine_stamp     : " + std::to_string(meta_.machine_stamp) + " | endianess of map writing architecture (big endian " + std::to_string(0x44410000) + " little endian "+ std::to_string(0x11110000) + "\n";
+    result += "format_identifier : '";
+    result.push_back(meta_.format_identifier[0]);
+    result.push_back(meta_.format_identifier[1]);
+    result.push_back(meta_.format_identifier[2]);
+    result.push_back(meta_.format_identifier[3]);
+    result += "' | for all density formats: four 1-byte chars reading MAP \n";
+    result += "num_labels        : " + std::to_string(meta_.num_labels)    + " number of used crystallographic labels, 0 for imagestacks, 1 for em data\n";
+    result += "labels            : '" + std::string(meta_.labels[0].c_str()) + " crystallographic labels or ::::EMDataBank.org::::EMD-1234:::: for EMDB entries\n";
+    result += "crs_to_xyz        : " + std::to_string(meta_.crs_to_xyz[0]) + " " + std::to_string(meta_.crs_to_xyz[1]) + " " + std::to_string(meta_.crs_to_xyz[2]) + " Axis order\n";
+    result += "xyz_to_crs        : " + std::to_string(meta_.xyz_to_crs[0]) + " " + std::to_string(meta_.xyz_to_crs[1]) + " " + std::to_string(meta_.xyz_to_crs[2]) + " reversed Axis order\n";
+    result += "num_crs           : " + std::to_string(meta_.num_crs[0])    + " " + std::to_string(meta_.num_crs[1]) + " " + std::to_string(meta_.num_crs[2]) + " extend in column row section redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10\n";
+    result += "extend            : " + std::to_string(meta_.extend[0])    + " " + std::to_string(meta_.extend[1]) + " " + std::to_string(meta_.extend[2]) + " grid extend in x, y, z \n";
+    result += "crs_start         : " + std::to_string(meta_.crs_start[0])  + " " + std::to_string(meta_.crs_start[0]) + " " + std::to_string(meta_.crs_start[0])+" Start of values in grid, typically 0,0,0\n";
+    result += "min_value         : " + std::to_string(meta_.min_value)     + " minimum voxel value may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)\n";
+    result += "max_value         : " + std::to_string(meta_.max_value)     + " maximum voxel value may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)\n";
+    result += "mean_value        : " + std::to_string(meta_.mean_value)    + " mean voxel value   (not always reported,as evident from density)\n";
+    result += "rms_value         : " + std::to_string(meta_.rms_value)     + " rms of the density (not always reported,as evident from density)\n";
+    result += "is_crystallographic: " + std::to_string(meta_.is_crystallographic) +" true if crystallographic data is to be read\n";
+    result += "has_skew_matrix   : " + (meta_.has_skew_matrix == true ? std::string("true") : std::string("false"))  + " only crystallographic data: true if skew matrix is stored\n";
+    // result+= "skew_matrix: " + std::to_string(meta_.skew_matrix)              +" only crystallographic data: skew matrix or, if skew flag is zero, data in place \n";
+    // result+= "skew_translation: " + std::to_string(meta_.skew_translation)         +" only crystallographic data: skew translatation or, if skew flag is zero, data in place of skew translation\n";
+    result += "num_bytes_extened_header : " + std::to_string(meta_.num_bytes_extened_header) +" only crystallographic data: the size of the symbol table in bytes\n";
+    // result+= "extended_header: " + std::to_string(meta_.extended_header)          +" only crystallographic data: extended header, usually symbol tables\n";
+    // result+= "extraskew: " + std::to_string(meta_.extraskew)                +" fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)\n";
+    // result+= "extra: " + std::to_string(meta_.extra)                    +" extra data in header, currently unused\n";
+    return result;
+}
 
 IVec MrcFile::Impl::xyz_to_crs(IVec order)
 {
@@ -159,9 +200,9 @@ IVec MrcFile::Impl::to_xyz_order(IVec i_crs)
 {
     IVec i_xyz;
 
-    i_xyz[meta_.crs_to_xyz[XX]] = i_crs[XX] - meta_.crs_start[XX];
-    i_xyz[meta_.crs_to_xyz[YY]] = i_crs[YY] - meta_.crs_start[YY];
-    i_xyz[meta_.crs_to_xyz[ZZ]] = i_crs[ZZ] - meta_.crs_start[ZZ];
+    i_xyz[meta_.crs_to_xyz[XX]] = i_crs[XX];
+    i_xyz[meta_.crs_to_xyz[YY]] = i_crs[YY];
+    i_xyz[meta_.crs_to_xyz[ZZ]] = i_crs[ZZ];
 
     return i_xyz;
 }
@@ -334,8 +375,29 @@ void MrcFile::Impl::write_int32_ivec_(IVec i)
     write_int32_(i[ZZ]);
 }
 
-void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
+bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
 {
+    const std::set<int> valid_crs_set {
+        0, 1, 2
+    };
+    std::set<int> crs_set {
+        crs_to_xyz[XX], crs_to_xyz[YY], crs_to_xyz[ZZ]
+    };
+    return valid_crs_set == crs_set;
+};
+
+void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
+{
+
+    if (bRead)
+    {
+        check_swap_bytes();
+        read_file_size();
+        if (file_size_ < header_bytes)
+        {
+            GMX_THROW(gmx::FileIOError("Density format file is smaller than expected header."));
+        }
+    }
 
     /* Supports reading according to
        ftp://ftp.wwpdb.org/pub/emdb/doc/Map-format/current/EMDB_map_format.pdf
@@ -352,9 +414,8 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(to_crs_order(grid_data->extend()));
+        write_int32_ivec_(to_crs_order(grid_data.extend()));
     }
-
 
     /* 4   | MODE | signed int | 0,1,2,3,4
      * voxel datatype
@@ -391,11 +452,12 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
 
     if (bRead)
     {
-        grid_data->set_extend(read_int32_ivec_());
+        meta_.extend = read_int32_ivec_();
+        grid_data.set_extend(meta_.extend);
     }
     else
     {
-        write_int32_ivec_(grid_data->extend());
+        write_int32_ivec_(grid_data.extend());
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -415,13 +477,16 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
     if (bRead)
     {
         RVec cell_length = read_float32_rvec_();
+        svmul(A2NM, cell_length, cell_length);
         RVec cell_angle  = read_float32_rvec_();
-        grid_data->set_cell(cell_length, cell_angle);
+        grid_data.set_cell(cell_length, cell_angle);
     }
     else
     {
-        write_float32_rvec_(grid_data->cell_lengths());
-        write_float32_rvec_(grid_data->cell_angles());
+        RVec cell_length_AA;
+        svmul(NM2A, grid_data.cell_lengths(), cell_length_AA);
+        write_float32_rvec_(cell_length_AA);
+        write_float32_rvec_(grid_data.cell_angles());
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -434,7 +499,17 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
         crs_to_xyz[XX] -= 1;
         crs_to_xyz[YY] -= 1;
         crs_to_xyz[ZZ] -= 1;
-        set_crs_to_xyz(crs_to_xyz);
+        if (colummn_row_section_order_valid_(crs_to_xyz))
+        {
+            set_crs_to_xyz(crs_to_xyz);
+        }
+        else
+        {
+            crs_to_xyz[XX] = 0;
+            crs_to_xyz[YY] = 1;
+            crs_to_xyz[ZZ] = 2;
+            set_crs_to_xyz(crs_to_xyz);
+        }
     }
     else
     {
@@ -468,11 +543,11 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
      * For image stacks ISPG = 0 */
     if (bRead)
     {
-        grid_data->set_space_group(read_int32_());
+        grid_data.set_space_group(read_int32_());
     }
     else
     {
-        write_int32_(grid_data->space_group());
+        write_int32_(grid_data.space_group());
     }
 
     /* 24 | NSYMBT | signed int | 80n
@@ -503,6 +578,7 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
 
         if (has_skew_matrix())
         {
+            /* TODO: A2NM conversion for skew matrix if necessary */
             /* 26-34 | SKWMAT | floating pt
              * skew matrix-S11, S12, S13, S21, S22, S23, S31, S32, S33
              * emdb convention: not set
@@ -557,6 +633,7 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
      * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB.
      * EMDB might use fields 50,51 and 52 for setting the coordinate system origin */
 
+    /* TODO: A2NM conversion */
     if (bRead)
     {
         for (auto && i : meta_.extra)
@@ -574,7 +651,8 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal * grid_data, bool bRead)
 
     if (!is_crystallographic())
     {
-        grid_data->set_translation({meta_.extra[size_extrarecord-3], meta_.extra[size_extrarecord-2], meta_.extra[size_extrarecord-1]});
+        /* TODO: A2NM conversion */
+        grid_data.set_translation({meta_.extra[size_extrarecord-3], meta_.extra[size_extrarecord-2], meta_.extra[size_extrarecord-1]});
     }
 
     /* 53 | MAP | ASCII char
@@ -739,20 +817,34 @@ void MrcFile::Impl::write_float32_(real data)
     fwrite(&to_write, sizeof(to_write), 1, file_);
 }
 
-void MrcFile::Impl::do_mrc_data_(volumedata::GridReal * grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_data_(volumedata::GridReal &grid_data, bool bRead)
 {
-
-    IVec num_crs = to_crs_order(grid_data->extend());
     if (bRead)
     {
-        grid_data->resize();
+        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(grid_data.num_gridpoints()*sizeof(float)) )
+        {
+            GMX_THROW(gmx::FileIOError("Density format file is smaller than indicated in its header."));
+        }
+        else
+        {
+            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(grid_data.num_gridpoints()*sizeof(float)) )
+            {
+                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, grid_data.num_gridpoints()*sizeof(float));
+            }
+        }
+    }
+
+    IVec num_crs = to_crs_order(grid_data.extend());
+    if (bRead)
+    {
+        grid_data.resize();
         for (int section = 0; section  < num_crs[ZZ]; section++)
         {
             for (int row  = 0; row  < num_crs[YY]; row++)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    grid_data->at(to_xyz_order({column, row, section})) = read_float32_();
+                    grid_data.at(to_xyz_order({column, row, section})) = read_float32_();
                 }
             }
         }
@@ -766,7 +858,7 @@ void MrcFile::Impl::do_mrc_data_(volumedata::GridReal * grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    write_float32_(grid_data->at(to_xyz_order({column, row, section})));
+                    write_float32_(grid_data.at(to_xyz_order({column, row, section})));
                 }
             }
         }
@@ -805,34 +897,10 @@ void MrcFile::Impl::check_swap_bytes()
 
 }
 
-void MrcFile::Impl::do_mrc(volumedata::GridReal * grid_data, bool bRead)
+void MrcFile::Impl::do_mrc(volumedata::GridReal &grid_data, bool bRead)
 {
-    if (bRead)
-    {
-        check_swap_bytes();
-        read_file_size();
-        if (file_size_ < header_bytes)
-        {
-            GMX_THROW(gmx::FileIOError("Density format file is smaller than expected header."));
-        }
-    }
 
     do_mrc_header_(grid_data, bRead);
-
-    if (bRead)
-    {
-        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(grid_data->num_gridpoints()*sizeof(float)) )
-        {
-            GMX_THROW(gmx::FileIOError("Density format file is smaller than indicated in its header."));
-        }
-        else
-        {
-            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(grid_data->num_gridpoints()*sizeof(float)) )
-            {
-                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, grid_data->num_gridpoints()*sizeof(float));
-            }
-        }
-    }
 
     do_mrc_data_(grid_data, bRead);
 }
@@ -879,6 +947,7 @@ void MrcFile::Impl::set_metadata_mrc_default()
     meta_.has_skew_matrix          = false;
     meta_.crs_start                = {0, 0, 0};
     meta_.crs_to_xyz               = {0, 1, 2};
+    meta_.xyz_to_crs               = {0, 1, 2};
     meta_.skew_matrix              = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
     meta_.skew_translation         = {0, 0, 0};
     meta_.is_crystallographic      = false;
@@ -893,16 +962,16 @@ void MrcFile::Impl::set_metadata_mrc_default()
 
     meta_.num_labels               = 1;
     meta_.labels                   = {
-        {"::::EMDataBank.org::::EMD-xxxx::::Own Data Following EMDB convention:::::::::::"},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "},
-        {"                                                                               "}
+        {"::::EMDataBank.org::::EMD-xxxx::::Own Data Following EMDB convention::::::::::::"},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "},
+        {"                                                                                "}
     };
     meta_.extended_header = {};
 }
@@ -940,27 +1009,23 @@ MrcFile::~MrcFile()
 {
 }
 
-void MrcFile::write_with_own_meta(std::string filename, GridReal *grid_data, MrcMetaData *meta, bool bOwnGridStats)
+std::string MrcFile::print_to_string()
+{
+    return impl_->print_to_string();
+}
+
+void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta, bool bOwnGridStats)
 {
     bool bRead = false;
 
-    if (meta == nullptr)
-    {
-        GMX_THROW(gmx::InternalError("Cannot write MrcFile with own metadata, MrcMetaData pointer is null."));
-    }
-    if (grid_data == nullptr)
-    {
-        GMX_THROW(gmx::InternalError("Cannot write MrcFile, GridReal pointer to grid_data is null."));
-    }
-
-    impl_->meta_ = *meta;
+    impl_->meta_ = meta;
 
     if (bOwnGridStats)
     {
-        impl_->meta_.min_value  = grid_data->min();
-        impl_->meta_.max_value  = grid_data->max();
-        impl_->meta_.mean_value = grid_data->mean();
-        impl_->meta_.rms_value  = grid_data->rms();
+        impl_->meta_.min_value  = grid_data.min();
+        impl_->meta_.max_value  = grid_data.max();
+        impl_->meta_.mean_value = grid_data.mean();
+        impl_->meta_.rms_value  = grid_data.rms();
     }
 
     impl_->open_file(filename, bRead);
@@ -969,34 +1034,32 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal *grid_data, Mrc
 }
 
 
-void MrcFile::write(std::string filename, volumedata::GridReal *grid_data)
+void MrcFile::write(std::string filename, volumedata::GridReal &grid_data)
 {
-    if (grid_data == nullptr)
-    {
-        GMX_THROW(gmx::InternalError("Cannot write MrcFile, GridReal pointer to grid_data is null."));
-    }
     bool bRead = false;
     impl_->open_file(filename, bRead);
     impl_->do_mrc(grid_data, bRead);
     impl_->close_file();
 }
 
-void MrcFile::read_meta(std::string filename, GridReal *grid_data, MrcMetaData *meta)
+void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
 {
-    if (meta == nullptr)
-    {
-        GMX_THROW(gmx::InternalError("Cannot read MrcFile with own metadata, MrcMetaData pointer is null."));
-    }
-    read(filename, grid_data);
-    *meta = impl_->meta_;
+    GridReal griddata;
+    bool     bRead = true;
+    impl_->open_file(filename, bRead);
+    impl_->do_mrc_header_(griddata, bRead);
+    impl_->close_file();
+    meta = impl_->meta_;
 }
 
-void MrcFile::read(std::string filename, GridReal *grid_data)
+void MrcFile::read_with_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta)
 {
-    if (grid_data == nullptr)
-    {
-        GMX_THROW(gmx::InternalError("Cannot read MrcFile with own metadata, GridReal pointer to grid_data is null."));
-    }
+    read(filename, grid_data);
+    meta = impl_->meta_;
+}
+
+void MrcFile::read(std::string filename, GridReal &grid_data)
+{
     bool bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc(grid_data, bRead);

@@ -76,7 +76,7 @@ std::vector<real> Manager::calculate_weights()
     {
         weights.push_back(exp(-(V-V_max)));
     }
-    weight_normal = std::accumulate(weights.begin(), weights.end(), 0);
+    weight_normal = std::accumulate(weights.begin(), weights.end(), 0.);
 
     for (auto && w : weights)
     {

@@ -49,6 +49,7 @@
 #include "modules/angle.h"
 #include "modules/distance.h"
 #include "modules/freevolume.h"
+#include "modules/map.h"
 #include "modules/pairdist.h"
 #include "modules/rdf.h"
 #include "modules/sasa.h"
@@ -96,6 +97,7 @@ void registerTrajectoryAnalysisModules(CommandLineModuleManager *manager)
     registerModule<RdfInfo>(manager, group);
     registerModule<SasaInfo>(manager, group);
     registerModule<SelectInfo>(manager, group);
+    registerModule<MapInfo>(manager, group);
 }
 //! \endcond
 

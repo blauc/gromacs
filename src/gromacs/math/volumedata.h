@@ -76,6 +76,9 @@ class CrystalSymmetry
          * \returns space group according to "International Tables for Crystallography Table 12.3.4.1 Standard space-group symbol"
          */
         int space_group();
+        /*! \brief Writes all information about the grid of reals in human readable form to a string.
+         */
+        std::string print();
     private:
         class Impl;
         std::unique_ptr<CrystalSymmetry::Impl> impl_;
@@ -99,7 +102,7 @@ class FiniteGrid
         /*! \brief
          * The extend of the grid.
          *
-         * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX],extend[YY],extend[ZZ])
+         * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
          */
         void   set_extend(IVec extend);
         IVec   extend();         //!< return the extend of the grid
@@ -114,6 +117,11 @@ class FiniteGrid
          * Inverse for ndx3d_to_ndx1d ;
          */
         IVec ndx1d_to_ndx3d(int i);
+        /*! \brief
+         * Copy the properties from another grid to this one.
+         *  \param[in] grid Pointer to the grid from which the proterties will be copied
+         */
+        void copy_grid(FiniteGrid &grid);
 
         /*! \brief
          *
@@ -137,8 +145,26 @@ class FiniteGrid
         void rotation(matrix Q);
 
         RVec gridpoint_coordinate(int i);
-
+        RVec coordinate_to_gridindex(RVec x);
         RVec gridpoint_coordinate(IVec i);
+
+        real grid_cell_volume();
+
+        /*! \brief Check if all cell vectors are rectangular by calling cell_angles();
+         */
+        bool rectangular();
+
+        /*! \brief Check, if spacing is same in x,y,z -direction
+         */
+        bool spacing_is_same_xyz();
+
+        /*! \brief The average grid spacing.
+         */
+        real avg_spacing();
+
+        /*! \brief Writes all information about the grid of reals in human readable form to a string.
+         */
+        std::string print();
 
     private:
         class Impl;
@@ -185,6 +211,12 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         real var();
 
         /*! \brief
+         * Copy the properties from another grid to this one.
+         *  \param[in] grid Pointer to the grid from which the proterties will be copied
+         */
+        void copy_grid(FiniteGrid &grid);
+
+        /*! \brief
          * Adjust data vector size to given grid.
          * \throws std::bad_alloc when unsuccesful
          */
@@ -198,6 +230,17 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
          * The size of the griddata in bytes.
          */
         size_t data_size();
+        /*! \brief
+         * Add an offset to all values.
+         * \param[in] offset value to be added
+         */
+        void add_offset(real value);
+        /*! \brief Rescale values so their sum * grid_cell_volume is one.
+         */
+        void normalize();
+        /*! \brief Writes all information about the grid of reals in human readable form to a string.
+         */
+        std::string print();
     private:
         class Impl;
         std::unique_ptr<GridReal::Impl> impl_;

@@ -43,6 +43,11 @@ class t_nb
         ivec ndx;
 };
 
+namespace volumedata
+{
+class GaussTransform;
+}
+
 class ExpansionCenter
 {
     public:
@@ -58,14 +63,14 @@ class ExpansionCenter
         real inner(real * a, real * b, int o);
         real gamma_1_2(unsigned int i);
         bool is_even(int i);
-        std::vector<real>           coefficients_;
-        std::vector<real>::iterator I_;
-        std::vector<real>::iterator I_pre_;
-        std::vector<real>::iterator I_x_;
-        std::vector<real>::iterator I_y_;
-        std::vector<real>::iterator I_z_;
-        std::vector<real>::iterator mn_;
-        Ifgt * ifgt_;
+        std::vector<real>            coefficients_;
+        std::vector<real>::iterator  I_;
+        std::vector<real>::iterator  I_pre_;
+        std::vector<real>::iterator  I_x_;
+        std::vector<real>::iterator  I_y_;
+        std::vector<real>::iterator  I_z_;
+        std::vector<real>::iterator  mn_;
+        volumedata::GaussTransform * ifgt_;
         real   voxel_density_ = 0;
         real   total_density_ = 0;
 
@@ -92,7 +97,7 @@ class Ifgt
 
         void compress(const rvec x, real weight);
         void compress_density(volumedata::GridReal &map);
-        void expand_at_ref(volumedata::GridReal &map, volumedata::GridReal &ref, real threshold);
+        void expand(volumedata::GridReal &map);
         void matrix_inverse(const matrix m, matrix r);
 
         void coordinate_to_expansioncenter(const rvec r, ivec closest_e, rvec d);
@@ -112,8 +117,7 @@ class Ifgt
         void broadcast_internal();
         void broadcast_expansion();
         void sum_reduce();
-        void I2L_enb2v(volumedata::GridReal &map, ivec closest_e, int i_nb, int i,
-                       rvec d_r);
+        void I2L_enb2v(real &voxel, ivec closest_e, int i_nb, rvec d_r);
 
         void do_force(const rvec x, rvec f, real map_sigma, volumedata::GridReal &map);
         void voxel_sums(volumedata::GridReal &map);
@@ -138,15 +142,12 @@ class Ifgt
         real                                           h_;
         real                                           h_inv_;
         matrix                                         e_cell_;
-        ivec                                           n_g_;
         real                                           n_sigma_;
         std::vector<t_nb>                              e_nbs_;
         std::shared_ptr<MpiHelper>                     mpi_;
-        std::vector < std::vector < real>> c;
-        std::vector < std::vector < real>> cg;
-        std::vector < std::vector < real>> powers_;
-
-
+        std::vector < std::vector < real> >            c;
+        std::vector < std::vector < real> >            cg;
+        std::vector < std::vector < real> >            powers_;
 };
 
 }      // namespace gmx

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,62 +32,34 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \internal \file
+ * \brief
+ * Declares trajectory analysis module for spreading atom density on a grid.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \ingroup module_trajectoryanalysis
+ */
+#ifndef GMX_TRAJECTORYANALYSIS_MODULES_MAP_H
+#define GMX_TRAJECTORYANALYSIS_MODULES_MAP_H
 
-#include "forceplotter.h"
-
-#include <string>
-
-#include "gromacs/utility/futil.h"
+#include "gromacs/trajectoryanalysis/analysismodule.h"
 
 namespace gmx
 {
-namespace externalpotential
+
+namespace analysismodules
 {
 
-void ForcePlotter::start_plot_forces(std::string outfile)
+class MapInfo
 {
-    file_ = gmx_ffopen(outfile.c_str(), "a");
+    public:
+        static const char name[];
+        static const char shortDescription[];
+        static TrajectoryAnalysisModulePointer create();
 };
 
-void ForcePlotter::plot_force(const rvec x, rvec f, int id, real scale)
-{
-    int  palette_size = 2;
-    rvec xf;
-    rvec f_scaled;
-    svmul(scale, f, f_scaled);
-    if (norm(f_scaled) > 0.001)
-    {
-        rvec_add(f_scaled, x, xf);
-        fprintf(file_, ".color %.9f %.9f %.9f \n.arrow %.9f %.9f %.9f %.9f %.9f %.9f 0.02 0.05\n", (1.0/palette_size) * (id % palette_size),
-                (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size), 10*x[XX], 10*x[YY], 10*x[ZZ], 10*xf[XX], 10*xf[YY], 10*xf[ZZ]);
-    }
-    fflush(file_);
-}
+} // namespace analysismodules
 
-void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id, int * ind)
-{
-    real max_f = -1e20;
-    for (int i = 0; i < size; i++)
-    {
-        for (size_t j = 0; j <= ZZ; j++)
-        {
-            if (fabs(f[i][j]) < max_f)
-            {
-                max_f = f[i][j];
-            }
-            ;
-        }
-    }
-    for (int i = 0; i < size; i++)
-    {
-        plot_force(x[ind[i]], f[i], id, 1.0/max_f);
-    }
-};
+} // namespace gmx
 
-void ForcePlotter::stop_plot_forces()
-{
-    gmx_ffclose(file_);
-};
-
-}
-}
+#endif

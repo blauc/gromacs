@@ -32,7 +32,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-
+#ifndef _forceplotter_h_
+#define _forceplotter_h_
 #include <vector>
 #include <string>
 #include "gromacs/math/vec.h"
@@ -45,7 +46,7 @@ class ForcePlotter
 {
     public:
         void start_plot_forces(std::string outfile);
-        void plot_force(const rvec x, rvec f, int id);
+        void plot_force(const rvec x, rvec f, int id, real scale);
         void plot_forces(const rvec * x, rvec * f, int size, int id, int * ind);
         void stop_plot_forces();
     private:
@@ -54,3 +55,4 @@ class ForcePlotter
 
 }
 }
+#endif /* end of include guard: _forceplotter_h_ */

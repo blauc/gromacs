@@ -41,6 +41,7 @@
 #include "gmxpre.h"
 
 #include "volumedata.h"
+#include "invertmatrix.h"
 
 #include <algorithm>
 #include <numeric>
@@ -101,6 +102,12 @@ CrystalSymmetry::CrystalSymmetry() : impl_(new CrystalSymmetry::Impl())
 
 };
 
+std::string
+CrystalSymmetry::print()
+{
+    return "---crystal symmetry---\nspace group : "+std::to_string(space_group()) + "---\n";
+};
+
 CrystalSymmetry::~CrystalSymmetry()
 {
 
@@ -121,10 +128,11 @@ class FiniteGrid::Impl
         Impl();
         ~Impl();
 
-        IVec             extend_;    //!< The grid-size.
-        matrix           cell_;      //!< r' = cell_ . (r-translate_)
-        matrix           unit_cell_; //!< cell_/extend_
-        RVec             translate_; //!< r' = cell_ . (r-translate_)
+        IVec             extend_;        //!< The grid-size.
+        matrix           cell_;          //!< r' = cell_ . (r-translate_)
+        matrix           unit_cell_;     //!< cell_/extend_
+        matrix           unit_cell_inv_; //!< cell_/extend_
+        RVec             translate_;     //!< r' = cell_ . (r-translate_)
 
 
         /*! \brief
@@ -189,6 +197,7 @@ void FiniteGrid::Impl::set_unit_cell()
     svmul(1./extend_[XX], cell_[XX], unit_cell_[XX]);
     svmul(1./extend_[YY], cell_[YY], unit_cell_[YY]);
     svmul(1./extend_[ZZ], cell_[ZZ], unit_cell_[ZZ]);
+    invertMatrix(unit_cell_, unit_cell_inv_);
 }
 
 FiniteGrid::Impl::Impl()
@@ -231,12 +240,13 @@ IVec FiniteGrid::extend()
     return impl_->extend_;
 }
 
+real FiniteGrid::grid_cell_volume()
+{
+    return det(impl_->cell_)/(real) num_gridpoints();
+}
+
 int FiniteGrid::ndx3d_to_ndx1d(IVec i_xyz)
 {
-    if (i_xyz[XX] >= impl_->extend_[XX] || i_xyz[YY] >= impl_->extend_[YY] || i_xyz[ZZ] >= impl_->extend_[ZZ])
-    {
-        return -1;
-    }
     return i_xyz[XX] + impl_->extend_[XX] * i_xyz[YY]  + impl_->extend_[XX] * impl_->extend_[YY] * i_xyz[ZZ];
 }
 
@@ -311,6 +321,37 @@ void FiniteGrid::set_cell(RVec length, RVec angle)
 
 };
 
+bool FiniteGrid::rectangular()
+{
+    RVec angles = cell_angles();
+    for (int i = XX; i <= ZZ; ++i)
+    {
+        if ((angles[i] < 89.999) || (angles[i] > 90.001))
+        {
+            return false;
+        }
+    }
+    return true;
+};
+
+bool FiniteGrid::spacing_is_same_xyz()
+{
+    return (abs(impl_->unit_cell_[XX]-impl_->unit_cell_[YY]) < 1e-5) && (abs(impl_->unit_cell_[XX]-impl_->unit_cell_[ZZ]) < 1e-5);
+};
+
+RVec FiniteGrid::coordinate_to_gridindex(RVec x)
+{
+    RVec result;
+    mvmul(impl_->unit_cell_inv_, x, result);
+    return result;
+}
+
+real
+FiniteGrid::avg_spacing()
+{
+    return (impl_->unit_cell_[XX][XX] + impl_->unit_cell_[YY][YY]+impl_->unit_cell_[ZZ][ZZ])/3;
+}
+
 RVec FiniteGrid::gridpoint_coordinate(IVec i)
 {
     RVec result;
@@ -328,6 +369,27 @@ void FiniteGrid::rotation(matrix Q)
     matrix R;
     impl_->QRDecomposition(impl_->cell_, Q, R);
 }
+
+void FiniteGrid::copy_grid(FiniteGrid &grid)
+{
+    copy_mat(grid.impl_->cell_, this->impl_->cell_);
+    copy_ivec(grid.impl_->extend_, this->impl_->extend_);
+    copy_rvec(grid.impl_->translate_, this->impl_->translate_);
+    copy_mat(grid.impl_->unit_cell_, this->impl_->unit_cell_);
+}
+std::string
+FiniteGrid::print()
+{
+    std::string result("---finite grid---");
+    result += "extend       : " + std::to_string(extend()[0]) + " " + std::to_string(extend()[1]) + " " + std::to_string(extend()[2]) + "\n";
+    result += "translation  : " + std::to_string(translation()[0]) + " " + std::to_string(translation()[1]) + " " + std::to_string(translation()[2]) + "\n";
+    result += "cell_lengths :" + std::to_string(cell_lengths()[0]) + " " + std::to_string(cell_lengths()[1]) + " " + std::to_string(cell_lengths()[2]) + "\n";
+    result += "cell_angles  :" + std::to_string(cell_angles()[0]) + " " + std::to_string(cell_angles()[1]) + " " + std::to_string(cell_angles()[2]) + "\n";
+    result += "V_cell       : " + std::to_string(grid_cell_volume()) + "\n";
+    result += "ngridpoints  : " + std::to_string(num_gridpoints()) + "\n";
+    return result+"---end finite grid---";
+}
+
 
 /********************************************************************
  * GridReal::Impl
@@ -362,23 +424,23 @@ GridReal::Impl::~Impl()
  */
 real GridReal::min()
 {
-    return *std::min(std::begin(impl_->data_), std::end(impl_->data_));
+    return *std::min_element(std::begin(impl_->data_), std::end(impl_->data_));
 };
 
 real GridReal::max()
 {
-    return *std::max(std::begin(impl_->data_), std::end(impl_->data_));
+    return *std::max_element(std::begin(impl_->data_), std::end(impl_->data_));
 };
 
 real GridReal::mean()
 {
-    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0)/ static_cast<float>(impl_->data_.size());
+    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.)/ static_cast<float>(impl_->data_.size());
 };
 
 real GridReal::var()
 {
     real data_mean = mean();
-    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0,
+    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.,
                            [ = ](const real &a, real b){return a + (b - data_mean)*(b - data_mean); } );
 }
 
@@ -409,6 +471,11 @@ void GridReal::resize()
 {
     impl_->data_.resize(num_gridpoints());
 }
+void GridReal::normalize()
+{
+    real scale =  this->grid_cell_volume() / std::accumulate(impl_->data_.begin(), impl_->data_.end(), 0.);
+    std::for_each(impl_->data_.begin(), impl_->data_.end(), [ = ] (real &v) {v *= scale; });
+}
 
 real &GridReal::at(IVec index)
 {
@@ -420,6 +487,10 @@ std::vector<real> &GridReal::data()
     return impl_->data_;
 }
 
+void GridReal::add_offset(real value)
+{
+    std::for_each(impl_->data_.begin(), impl_->data_.end(), [ = ](real &datum){ datum += value; });
+}
 
 GridReal::GridReal() : impl_(new GridReal::Impl())
 {
@@ -427,6 +498,26 @@ GridReal::GridReal() : impl_(new GridReal::Impl())
 
 GridReal::~GridReal()
 {
+}
+
+std::string
+GridReal::print()
+{
+    std::string result;
+    result += "---real number grid ---\n";
+    result += FiniteGrid::print();
+    result += "min  :" + std::to_string(min()) + "\n";
+    result += "max  :" + std::to_string(max()) + "\n";
+    result += "mean :" + std::to_string(mean()) + "\n";
+    result += "var  :" + std::to_string(var()) + "\n";
+    result += "rms  :" + std::to_string(rms()) + "\n";
+    return result;
+}
+
+void GridReal::copy_grid(FiniteGrid &grid)
+{
+    FiniteGrid::copy_grid(grid);
+    resize();
 }
 
 } //namespace grid_data

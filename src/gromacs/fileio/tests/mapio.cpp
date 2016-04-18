@@ -89,7 +89,7 @@ TEST_F(MapTest, IORoundTripMapFile)
         filename + ".test"
     };
 
-    map_file.read_meta(filename, &grid_data, &metadata);
+    map_file.read_with_meta(filename, &grid_data, &metadata);
     map_file.write_with_own_meta(write_filename, &grid_data, &metadata, bOwnGridStats);
 
     // Files should be of same size and have at least 1024 bytes to contain the header

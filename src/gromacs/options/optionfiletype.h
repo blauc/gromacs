@@ -60,6 +60,7 @@ enum OptionFileType {
     eftIndex,
     eftPlot,
     eftGenericData,
+    eftVolumeData,
     eftOptionFileType_NR
 };
 

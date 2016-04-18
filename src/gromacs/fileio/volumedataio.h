@@ -75,6 +75,7 @@ struct MrcMetaData{
     IVec                       crs_to_xyz;               //!< Axis order
     IVec                       xyz_to_crs;               //!< reversed Axis order
     IVec                       num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
+    IVec                       extend;                   //!< the grid extend, check against num_crs
     IVec                       crs_start;                //!< Start of values in grid, typically 0,0,0
 
     float                      min_value;                //!< minimum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
@@ -117,7 +118,7 @@ class MrcFile
          * \param[in] filename name of the file to write the griddata to, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data real-valued, real-space data on a grid
          */
-        void write(std::string filename, GridReal *grid_data);
+        void write(std::string filename, GridReal &grid_data);
 
         /*! \brief Write real-spaced, real-valued griddata to file with user-defined metadata.
          *
@@ -126,22 +127,36 @@ class MrcFile
          * \param[in] meta struct with own metadata
          * \param[in] bOwnGridStats calculate min, max, mean and rms self if true, otherwise copy from metadata
          */
-        void write_with_own_meta(std::string filename, GridReal *grid_data, MrcMetaData *meta, bool bOwnGridStats);
+        void write_with_own_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta, bool bOwnGridStats);
 
         /*! \brief Reads real-spaced, real-valued griddata from file.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
          */
-        void read(std::string filename, GridReal *grid_data);
-        /*! \brief Reads real-spaced, real-valued griddata into voxel data.
+        void read(std::string filename, GridReal &grid_data);
+        /*! \brief Reads real-spaced, real-valued voxel data and the map header / metadata.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
          */
-        void read_meta(std::string filename, GridReal *grid_data, MrcMetaData *meta);
+        void read_with_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta);
 
+        /*! \brief Reads
+         *
+         * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
+         * \param[in] meta returns the metadata from reading; previous content will be overwritten
+         */
+        void read_meta(std::string filename, MrcMetaData &meta);
+
+
+        /*! \brief Write the current state of the MrcFile object into a string.
+         * Useful for checking the contents of an mrc/ccp4 file.
+         *
+         * \returns string conaining all available information from this object.
+         */
+        std::string print_to_string();
     private:
         class Impl;
         std::unique_ptr<Impl> impl_;

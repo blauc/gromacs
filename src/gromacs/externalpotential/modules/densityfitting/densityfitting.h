@@ -41,6 +41,7 @@
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/fileio/volumedataio.h"
 
 
 namespace gmx
@@ -50,6 +51,7 @@ class Ifgt;
 
 namespace volumedata
 {
+struct MrcMetaData;
 class GridReal;
 }
 
@@ -68,14 +70,20 @@ class DensityFitting : public ExternalPotential
         real potential(std::vector<real> &P, std::vector<real> &Q);
 
     private:
-
-        void divide(std::vector<real> &target, const std::vector<real> & );
+        void do_force_plain(const rvec x, rvec force, const matrix box);
+        RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
+        void inv_mul(std::vector<real> &target, const std::vector<real> & );
         DensityFitting();
         real k_;
         std::unique_ptr<volumedata::GridReal>  target_density_;
         std::unique_ptr<volumedata::GridReal>  simulated_density_;
         std::unique_ptr<gmx::Ifgt>             gauss_transform_;
         std::unique_ptr<gmx::Ifgt>             difference_transform_;
+        real                                   background_offset_;
+        volumedata::MrcMetaData                meta_;
+        std::vector<real>                      potential_contribution_;
+        std::vector<real>                      reference_density_;
+        real                                   potential_reference_sum_ = 0;
 };
 
 class DensityFittingInfo

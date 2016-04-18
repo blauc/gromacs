@@ -58,6 +58,7 @@ enum GromacsFileType {
     efCUB,
     efXPM,
     efRND,
+    efCCP4,
     efNR
 };
 

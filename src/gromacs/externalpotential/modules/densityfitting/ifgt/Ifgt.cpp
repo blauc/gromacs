@@ -8,6 +8,8 @@
 #include "Ifgt.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/volumedata.h"
+#include "gromacs/math/gausstransform.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include <algorithm>
 
@@ -35,7 +37,7 @@ bool ExpansionCenter::is_even(int i)
 
 void ExpansionCenter::total_density()
 {
-    real total_density_ = 0;
+    total_density_ = 0;
 
     int  i_x;
     int  i_y;
@@ -83,9 +85,6 @@ real ExpansionCenter::expand(rvec dx)
     real result = *I_;
     ++I_;
 
-    int i_x;
-    int i_y;
-
     mn_ = ifgt_->multinomials_.begin();
 
     *mn_ = 1;
@@ -93,16 +92,14 @@ real ExpansionCenter::expand(rvec dx)
     I_y_ = mn_;
     I_z_ = mn_;
 
-    int o;
-
-    for (o = 1; o <= ifgt_->maximum_expansion_order_; ++o)
+    for (int o = 1; o <= ifgt_->maximum_expansion_order_; ++o)
     {
 
         I_pre_ = I_x_;
         I_x_   = mn_ + 1;
-        for (i_x = o; i_x >= 1; --i_x)
+        for (int i_x = o; i_x >= 1; --i_x)
         {
-            for (i_y = o - i_x; i_y >= 0; --i_y)
+            for (int i_y = o - i_x; i_y >= 0; --i_y)
             {
 
                 ++mn_;
@@ -115,7 +112,7 @@ real ExpansionCenter::expand(rvec dx)
 
         I_pre_ = I_y_;
         I_y_   = mn_ + 1;
-        for (i_y = o; i_y >= 1; --i_y)
+        for (int i_y = o; i_y >= 1; --i_y)
         {
             ++mn_;
             *mn_    = *I_pre_ * dx[YY];
@@ -142,6 +139,7 @@ void ExpansionCenter::compress(rvec dist, real weight)
     mn_  = ifgt_->multinomials_.begin();
     *mn_ = 1;
     I_   = coefficients_.begin();
+    *I_ += pre;
     I_x_ = mn_;
     I_y_ = mn_;
     I_z_ = mn_;
@@ -242,9 +240,9 @@ void Ifgt::init(real sigma, int maximum_expansion_order)
 {
     sigma_                   = sigma;
     maximum_expansion_order_ = maximum_expansion_order;
-    h_                       = sqrt(2) * sigma_;
+    h_                       = sqrt(2.0) * sigma_;
     h_inv_                   = 1./h_;
-    n_sigma_                 = sqrt((maximum_expansion_order_ / 2)) + 1;
+    n_sigma_                 = sqrt(maximum_expansion_order_/ 2.0) + 1;
     n_I_                     = factorial(maximum_expansion_order_ + DIM) / (factorial(DIM) * factorial(maximum_expansion_order_));
     multinomials_.resize(n_I_);
     powers_.resize(3);
@@ -445,7 +443,6 @@ void Ifgt::do_force(const rvec x, rvec f, real map_sigma, volumedata::GridReal &
 
         if (expansion_centers_[e_i] != nullptr)
         {
-
             ivec_mmul(e_cell_, e_nbs_[i_nb].ndx, c_r);
             rvec_sub(dist, c_r, d_curr);
 
@@ -503,9 +500,7 @@ real Ifgt::pbc_dist(ivec i, ivec n, matrix b, ivec ndx)
             }
         }
     }
-
     return result;
-
 }
 
 
@@ -559,6 +554,11 @@ void Ifgt::vmmul(const matrix m, const rvec v, rvec r)
 
 void Ifgt::set_box(const matrix box)
 {
+    if (det(box) < 1e-9)
+    {
+        GMX_THROW(gmx::InconsistentInputError("Target box which spans no volume is not allowed for fast gauss transform."));
+        return;
+    }
     copy_mat(box, box_);
     matrix_inverse(box_, box_inv_);
 
@@ -571,6 +571,7 @@ void Ifgt::set_box(const matrix box)
     e_l_[ZZ] = norm(box_[ZZ]) / ((real) e_n_[ZZ]);
 
     e_N_ = e_n_[XX] * e_n_[YY] * e_n_[ZZ];
+
     expansion_centers_.clear();
     expansion_centers_.resize(e_N_);
 
@@ -597,14 +598,13 @@ void Ifgt::set_box(const matrix box)
         {
             for (nb[ZZ] = 0; nb[ZZ] < e_n_[ZZ]; ++nb[ZZ])
             {
-
-                i->d = pbc_dist(nb, e_n_, e_cell_, i->ndx);
+                i->d = pbc_dist(nb, e_n_, e_cell_, i->ndx)*h_inv_;
                 ++i;
             }
         }
     }
 
-    std::sort(e_nbs_.begin(), e_nbs_.end(), [](const t_nb &a, const t_nb &b) {return a.d > b.d; });
+    std::sort(e_nbs_.begin(), e_nbs_.end(), [](const t_nb &a, const t_nb &b) {return a.d <= b.d; });
 
 }
 
@@ -666,9 +666,9 @@ void Ifgt::grid_index_ivec(const rvec x, ivec i)
 {
     rvec g;
     vmmul(box_inv_, x, g);
-    i[XX] = (int) floor(g[XX] * (real) n_g_[XX]);
-    i[YY] = (int) floor(g[YY] * (real) n_g_[YY]);
-    i[ZZ] = (int) floor(g[ZZ] * (real) n_g_[ZZ]);
+    i[XX] = (int) floor(g[XX] * (real) e_n_[XX]);
+    i[YY] = (int) floor(g[YY] * (real) e_n_[YY]);
+    i[ZZ] = (int) floor(g[ZZ] * (real) e_n_[ZZ]);
 }
 
 
@@ -741,28 +741,6 @@ void Ifgt::rvec_splus(const real a, const rvec b, rvec r)
 }
 
 
-void Ifgt::I2L_enb2v(volumedata::GridReal &map, ivec closest_e, int i_nb, int i,
-                     rvec d_r)
-{
-    ivec e_icur;
-    rvec g_r;
-    rvec d_curr;
-    int e_i;
-
-    ivec_add(closest_e, e_nbs_[i_nb].ndx, e_icur);
-    e_i = ivec2i_mod(e_icur, e_n_);
-
-    if (expansion_centers_[e_i] != nullptr)
-    {
-
-        ivec_mmul(e_cell_, e_nbs_[i_nb].ndx, g_r);
-        rvec_sadd(d_r, -h_inv_, g_r, d_curr);
-
-        map.data()[i] += exp(-norm2(d_curr))
-            * expansion_centers_[e_i]->expand(d_curr);
-    }
-}
-
 void Ifgt::compress_density(volumedata::GridReal &map)
 {
     for (size_t i = 0; i < map.num_gridpoints(); ++i)
@@ -771,33 +749,33 @@ void Ifgt::compress_density(volumedata::GridReal &map)
     }
 }
 
-void Ifgt::expand_at_ref(volumedata::GridReal &map, volumedata::GridReal &ref, real threshold)
+void Ifgt::expand(volumedata::GridReal &map)
 {
-    auto refvox = ref.data();
-    auto mapvox = map.data();
     ivec closest_e;
     real minimum_distance;
     rvec d_r;
     int i_nb;
-    for (size_t i = 0; i < refvox.size(); i++)
+    int e_i;
+    ivec e_icur;
+    rvec d_curr;
+    rvec g_r;
+    std::fill(map.data().begin(), map.data().end(), 0.0);
+    for (size_t i = 0; i < map.num_gridpoints(); i++)
     {
-        if (refvox[i] > threshold)
+        coordinate_to_expansioncenter(map.gridpoint_coordinate(i), closest_e, d_r);
+        minimum_distance = 5/sqrt(2) + norm(d_r); // 5 sigma
+
+        // add contributinos to voxel from all expansion centers within minimum_distance
+        for (i_nb = 0; (i_nb < e_N_) && (e_nbs_[i_nb].d < minimum_distance); ++i_nb)
         {
+            ivec_add(closest_e, e_nbs_[i_nb].ndx, e_icur);
+            e_i = ivec2i_mod(e_icur, e_n_);
 
-            coordinate_to_expansioncenter(map.gridpoint_coordinate(i), closest_e, d_r);
-            minimum_distance = 3 * sigma_ + norm(d_r);
-
-            // add contributinos to voxel from all expansion centers within minimum_distance
-            // go beyond minmum_distance if voxel value would be zero
-            for (i_nb = 0; (i_nb < e_N_) && ((e_nbs_[i_nb].d < minimum_distance) || (mapvox[i] == 0)); ++i_nb)
+            if (expansion_centers_[e_i] != nullptr)
             {
-                I2L_enb2v(map, closest_e, i_nb, i, d_r);
-
-                // all expansion centers within the same range should also contribute
-                for (++i_nb; (i_nb < e_N_) && (e_nbs_[i_nb - 1].d + 1e-10 <= e_nbs_[i_nb].d); ++i_nb)
-                {
-                    I2L_enb2v(map, closest_e, i_nb, i, d_r);
-                }
+                ivec_mmul(e_cell_, e_nbs_[i_nb].ndx, g_r);
+                rvec_sadd(d_r, -h_inv_, g_r, d_curr);
+                map.data()[i] += exp(-norm2(d_curr)) * expansion_centers_[e_i]->expand(d_curr);
             }
         }
     }

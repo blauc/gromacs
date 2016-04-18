@@ -156,7 +156,8 @@ static const t_deffile deffile[efNR] =
     { eftASC, ".edi", "sam",    NULL, "ED sampling input"},
     { eftASC, ".cub", "pot",  NULL, "Gaussian cube file" },
     { eftASC, ".xpm", "root", NULL, "X PixMap compatible matrix file" },
-    { eftASC, "", "rundir", NULL, "Run directory" }
+    { eftASC, "", "rundir", NULL, "Run directory" },
+    { eftGEN, ".ccp4", "density", "-ccp4", "Volume data file in ccp4 format."}
 };
 
 const char *ftp2ext(int ftp)
@@ -305,7 +306,15 @@ int fn2ftp(const char *fn)
     }
     else
     {
-        return efNR;
+        // catch four-character extension used, e.g., in .ccp4 files
+        if ((len >= 5) && (fn[len - 5] == '.'))
+        {
+            feptr = &(fn[len - 5]);
+        }
+        else
+        {
+            return efNR;
+        }
     }
 
     for (i = 0; (i < efNR); i++)
