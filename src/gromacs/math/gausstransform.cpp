@@ -42,7 +42,6 @@
 #include "volumedata.h"
 #include "gausstransform.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/simd/simd.h"
 
 namespace gmx
 {
@@ -147,27 +146,12 @@ FastGaussianGridding::tensor_product_1d_(real weight)
         l_min[i] = grid_index_[i]-m_spread_ < 0 ? 0 : grid_index_[i]-m_spread_;
         l_max[i] = grid_index_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_[i]+m_spread_;
     }
-
-
-
     real   spread_zy;
     int    l_y, l_z;
     std::vector<real>::iterator voxel;
     int    l_x_min = l_min[XX]-grid_index_[XX]+m_spread_;
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
-
-   #ifdef GMX_SIMD_HAVE_REAL
-    GMX_ALIGNED(real, GMX_SIMD_REAL_WIDTH)  mem_voxel[GMX_SIMD_REAL_WIDTH];
-    GMX_ALIGNED(real, GMX_SIMD_REAL_WIDTH)  mem_spread_zy[GMX_SIMD_REAL_WIDTH];
-    GMX_ALIGNED(real, GMX_SIMD_REAL_WIDTH)  mem_spread_x[GMX_SIMD_REAL_WIDTH];
-    SimdReal spread_zy_simd;
-    SimdReal spread_1d_XX_simd;
-    SimdReal voxel_simd;
-    SimdReal result_simd;
-    real   * voxel_pointer;
-    int      padding;
-   #endif
 
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
@@ -178,51 +162,12 @@ FastGaussianGridding::tensor_product_1d_(real weight)
             spread_zy    = spread_2d_[l_z][l_y];
             voxel        = grid_->zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
             spread_1d_XX = &(spread_1d_[XX][l_x_min]);
-#ifdef GMX_SIMD_HAVE_REAL
-            voxel_pointer = &(*(voxel));
-            for (int l_x = 0; l_x <= n_l_x/GMX_SIMD_REAL_WIDTH; ++l_x)
-            {
-                if (l_x  == n_l_x / GMX_SIMD_REAL_WIDTH)
-                {
-                    padding = (l_x+1)  * GMX_SIMD_REAL_WIDTH - n_l_x;
-                }
-                else
-                {
-                    padding = 0;
-                }
-
-                for (int i = 0; i < GMX_SIMD_REAL_WIDTH-padding; i++)
-                {
-                    mem_voxel[i] = *(voxel_pointer);
-                    ++voxel_pointer;
-                    mem_spread_zy[i] = spread_zy;     // repeat vector contents to fill simd width
-                    mem_spread_x[i]  = *spread_1d_XX; // repeat vector contents to fill simd width
-                    ++spread_1d_XX;
-                }
-
-                voxel_simd        = load(mem_voxel);
-                spread_zy_simd    = load(mem_spread_zy);
-                spread_1d_XX_simd = load(mem_spread_x);
-
-                result_simd = fma(spread_zy_simd, spread_1d_XX_simd, voxel_simd);
-
-                store(mem_voxel, result_simd);
-
-                for (int i = 0; i < GMX_SIMD_REAL_WIDTH-padding; i++)
-                {
-                    *voxel = mem_voxel[i];
-                    ++voxel;
-                }
-
-            }
- #else
             for (int l_x = 0; l_x <= n_l_x; ++l_x)
             {
                 *voxel += spread_zy * (*spread_1d_XX);
                 ++spread_1d_XX;
                 ++voxel;
             }
-#endif
         }
     }
 };
