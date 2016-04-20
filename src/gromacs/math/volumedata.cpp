@@ -336,14 +336,18 @@ bool FiniteGrid::rectangular()
 
 bool FiniteGrid::spacing_is_same_xyz()
 {
-    return (abs(impl_->unit_cell_[XX]-impl_->unit_cell_[YY]) < 1e-5) && (abs(impl_->unit_cell_[XX]-impl_->unit_cell_[ZZ]) < 1e-5);
+    return (abs(norm2(impl_->unit_cell_[XX]) - norm2(impl_->unit_cell_[YY])) < 1e-5) && (abs(norm2(impl_->unit_cell_[XX])-norm2(impl_->unit_cell_[ZZ])) < 1e-5);
 };
 
-RVec FiniteGrid::coordinate_to_gridindex(RVec x)
+IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x)
 {
     RVec result;
-    mvmul(impl_->unit_cell_inv_, x, result);
-    return result;
+    rvec x_shifted;
+    rvec_sub(x, impl_->translate_, x_shifted);
+    mvmul(impl_->unit_cell_inv_, x_shifted, result);
+    return {
+               (int)floor(result[XX]), (int)floor(result[YY]), (int)floor(result[ZZ])
+    };
 }
 
 real
@@ -356,6 +360,7 @@ RVec FiniteGrid::gridpoint_coordinate(IVec i)
 {
     RVec result;
     mvmul(impl_->unit_cell_, RVec(i[XX], i[YY], i[ZZ]), result);
+    rvec_inc(result, impl_->translate_);
     return result;
 };
 
@@ -454,18 +459,23 @@ size_t GridReal::data_size()
     return impl_->data_.size();
 };
 
-std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::z_section(int section)
+std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::z_section(int z)
 {
-    std::vector<real>::iterator section_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*section;
-    std::vector<real>::iterator section_end   = impl_->data_.begin()+extend()[XX]*extend()[YY]*(section+1);
-    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (section_begin, section_end);
+    std::vector<real>::iterator z_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*z;
+    std::vector<real>::iterator z_end   = impl_->data_.begin()+extend()[XX]*extend()[YY]*(z+1);
+    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (z_begin, z_end);
 }
-std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::zy_row(int section, int row)
+std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::zy_column(int z, int y)
 {
-    std::vector<real>::iterator section_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*section + extend()[XX]*row;
-    std::vector<real>::iterator section_end   =   impl_->data_.begin()+extend()[XX]*extend()[YY]*section + extend()[XX]*(row+1);
-    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (section_begin, section_end);
+    std::vector<real>::iterator column_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*y;
+    std::vector<real>::iterator column_end   = impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*(y+1);
+    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (column_begin, column_end);
 };
+
+std::vector<real>::iterator GridReal::zy_column_begin(int z, int y)
+{
+    return impl_->data_.begin()+gmx::volumedata::FiniteGrid::impl_->extend_[XX]*gmx::volumedata::FiniteGrid::impl_->extend_[YY]*z + gmx::volumedata::FiniteGrid::impl_->extend_[XX]*y;
+}
 
 void GridReal::resize()
 {
@@ -519,6 +529,12 @@ void GridReal::copy_grid(FiniteGrid &grid)
     FiniteGrid::copy_grid(grid);
     resize();
 }
+
+void GridReal::zero()
+{
+    resize();
+    std::fill(impl_->data_.begin(), impl_->data_.end(), 0);
+};
 
 } //namespace grid_data
 

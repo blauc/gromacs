@@ -46,6 +46,7 @@ gmx_install_headers(
     vec.h
     vectypes.h
     volumedata.h
+    gausstransform.h
     )
 
 if (BUILD_TESTING)

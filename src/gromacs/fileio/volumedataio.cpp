@@ -128,6 +128,10 @@ class MrcFile::Impl
         void write_float32_(real data);
         void write_float32_rvec_(RVec i);
 
+        void set_meta(volumedata::GridReal &grid_data);
+        void set_grid_stats(volumedata::GridReal &grid_data);
+
+
         bool colummn_row_section_order_valid_(IVec crs_to_xyz);
 
         void swap_int32_(gmx_int32_t &result);
@@ -510,6 +514,11 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
             crs_to_xyz[ZZ] = 2;
             set_crs_to_xyz(crs_to_xyz);
         }
+        grid_data.set_translation({
+                                      meta_.crs_start[meta_.xyz_to_crs[XX]]*grid_data.cell_lengths()[XX],
+                                      meta_.crs_start[meta_.xyz_to_crs[YY]]*grid_data.cell_lengths()[YY],
+                                      meta_.crs_start[meta_.xyz_to_crs[ZZ]]*grid_data.cell_lengths()[ZZ]
+                                  });
     }
     else
     {
@@ -633,7 +642,6 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
      * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB.
      * EMDB might use fields 50,51 and 52 for setting the coordinate system origin */
 
-    /* TODO: A2NM conversion */
     if (bRead)
     {
         for (auto && i : meta_.extra)
@@ -651,8 +659,7 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
 
     if (!is_crystallographic())
     {
-        /* TODO: A2NM conversion */
-        grid_data.set_translation({meta_.extra[size_extrarecord-3], meta_.extra[size_extrarecord-2], meta_.extra[size_extrarecord-1]});
+        grid_data.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
     }
 
     /* 53 | MAP | ASCII char
@@ -899,9 +906,7 @@ void MrcFile::Impl::check_swap_bytes()
 
 void MrcFile::Impl::do_mrc(volumedata::GridReal &grid_data, bool bRead)
 {
-
     do_mrc_header_(grid_data, bRead);
-
     do_mrc_data_(grid_data, bRead);
 }
 
@@ -998,6 +1003,23 @@ MrcFile::Impl::~Impl()
     }
 };
 
+void MrcFile::Impl::set_meta(volumedata::GridReal &grid_data)
+{
+    set_grid_stats(grid_data);
+    IVec index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
+    meta_.crs_start = {-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]};
+}
+
+void
+MrcFile::Impl::set_grid_stats(volumedata::GridReal &grid_data)
+{
+    meta_.min_value  = grid_data.min();
+    meta_.max_value  = grid_data.max();
+    meta_.mean_value = grid_data.mean();
+    meta_.rms_value  = grid_data.rms();
+}
+
+
 /*******************************************************************************
  * MrcFile
  */
@@ -1022,10 +1044,7 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, Mrc
 
     if (bOwnGridStats)
     {
-        impl_->meta_.min_value  = grid_data.min();
-        impl_->meta_.max_value  = grid_data.max();
-        impl_->meta_.mean_value = grid_data.mean();
-        impl_->meta_.rms_value  = grid_data.rms();
+        impl_->set_grid_stats(grid_data);
     }
 
     impl_->open_file(filename, bRead);
@@ -1033,10 +1052,10 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, Mrc
     impl_->close_file();
 }
 
-
 void MrcFile::write(std::string filename, volumedata::GridReal &grid_data)
 {
     bool bRead = false;
+    impl_->set_meta(grid_data);
     impl_->open_file(filename, bRead);
     impl_->do_mrc(grid_data, bRead);
     impl_->close_file();

@@ -70,7 +70,7 @@ class ExpansionCenter
         std::vector<real>::iterator  I_y_;
         std::vector<real>::iterator  I_z_;
         std::vector<real>::iterator  mn_;
-        volumedata::GaussTransform * ifgt_;
+        Ifgt * ifgt_;
         real   voxel_density_ = 0;
         real   total_density_ = 0;
 

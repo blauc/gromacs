@@ -150,11 +150,10 @@ class MrcFile
          */
         void read_meta(std::string filename, MrcMetaData &meta);
 
-
         /*! \brief Write the current state of the MrcFile object into a string.
          * Useful for checking the contents of an mrc/ccp4 file.
          *
-         * \returns string conaining all available information from this object.
+         * \returns string containing all available information from this object.
          */
         std::string print_to_string();
     private:

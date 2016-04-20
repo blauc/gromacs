@@ -54,11 +54,10 @@ class GridReal;
 class GaussTransform
 {
     public:
-        GaussTransform();
         void set_grid(std::unique_ptr<GridReal> grid);
         void set_sigma(real sigma);
         void set_n_sigma(int n_sigma);
-        virtual void expand(rvec x, real weight) = 0;
+        virtual void transform(rvec x, real weight) = 0;
         virtual std::unique_ptr<GridReal> && finish_and_return_grid() = 0;
     protected:
         // no other object should have access to the grid while Gauss transform is in progress
@@ -67,12 +66,12 @@ class GaussTransform
         int                       n_sigma_;
 };
 
-/*\brief Efficient spreading of sources on a grid with a Gaussian kernel.
+/*! \brief Efficient spreading of sources on a grid with a Gaussian kernel.
  * For reference see:
  * Leslie Greengard and June-Yub Lee, Accelerating the Nonuniform Fast Fourier Transform
  * SIAM REV 2004 Vol. 46, No. 3, pp. 443–454
  * */
-class FastGaussianGridding : GaussTransform
+class FastGaussianGridding : public GaussTransform
 {
 
     public:
@@ -83,7 +82,7 @@ class FastGaussianGridding : GaussTransform
          *
          * Feed one source at a time.
          */
-        void expand(rvec x, real weight);
+        void transform(rvec x, real weight);
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
         std::unique_ptr<GridReal> && finish_and_return_grid();
@@ -93,7 +92,7 @@ class FastGaussianGridding : GaussTransform
         void set_grid_index_and_dx_(real * x);
         real nu_; // spacing/sigma
         RVec grid_index_r_;
-        ivec grid_index_;
+        IVec grid_index_;
         rvec dx_; // (x-nearest voxel)/sigma
         std::vector < std::vector < std::vector<real>>> spread_block_;
         std::array<std::vector<real>, 3> spread_1d_;

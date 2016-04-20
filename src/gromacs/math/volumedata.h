@@ -84,6 +84,7 @@ class CrystalSymmetry
         std::unique_ptr<CrystalSymmetry::Impl> impl_;
 };
 
+class GridReal;
 
 /*!
  * \brief
@@ -91,11 +92,12 @@ class CrystalSymmetry
  *
  * Represents a three dimensional grid with integer (x,y,z) indexing.
  * Relation of the integer indices,i, to real space vector, r, are given by cell and translation:
- * i = cell . (r-translate); r = cell^{-1}.i + translate
+ * i = cell^{-1} . (r - translate); r = cell . i + translate
  */
 class FiniteGrid
 {
     public:
+        friend GridReal;
         FiniteGrid();
         ~FiniteGrid();
 
@@ -125,7 +127,7 @@ class FiniteGrid
 
         /*! \brief
          *
-         * Set unit-cell parameters from unit-cell length and angle, aligning the first unit-cell vecor along x-axis, placing second vector in the xy-plane.
+         * Set unit-cell parameters from unit-cell length and angle [deg], aligning the first unit-cell vecor along x-axis, placing second vector in the xy-plane.
          */
         void set_cell(RVec length, RVec angle);
 
@@ -145,7 +147,7 @@ class FiniteGrid
         void rotation(matrix Q);
 
         RVec gridpoint_coordinate(int i);
-        RVec coordinate_to_gridindex(RVec x);
+        IVec coordinate_to_gridindex_floor_ivec(const rvec  x);
         RVec gridpoint_coordinate(IVec i);
 
         real grid_cell_volume();
@@ -154,7 +156,7 @@ class FiniteGrid
          */
         bool rectangular();
 
-        /*! \brief Check, if spacing is same in x,y,z -direction
+        /*! \brief Check, if spacing is same in x,y,z -direction.
          */
         bool spacing_is_same_xyz();
 
@@ -186,11 +188,18 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         /*! \brief
          * Access a section of the volume density data via start and end iterator.
          */
-        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> z_section(int section);
+        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> z_section(int z);
         /*! \brief
-         * Access row of the volume density data through start and end iterator.
+         * Access column of the volume density data through start and end iterator.
          */
-        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> zy_row(int section, int row);
+        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> zy_column(int z, int y);
+
+        /*! \brief
+         * Access the start of a column through iterator.
+         * No bounds checking for fast data access
+         */
+        std::vector<real>::iterator zy_column_begin(int z, int y);
+
         /*! \brief
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
@@ -241,6 +250,9 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         /*! \brief Writes all information about the grid of reals in human readable form to a string.
          */
         std::string print();
+        /*! \brief Set all voxel values to zero.
+         */
+        void zero();
     private:
         class Impl;
         std::unique_ptr<GridReal::Impl> impl_;

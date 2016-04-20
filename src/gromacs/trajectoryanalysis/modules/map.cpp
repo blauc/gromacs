@@ -52,7 +52,8 @@
 #include "gromacs/analysisdata/modules/histogram.h"
 #include "gromacs/analysisdata/modules/plot.h"
 #include "gromacs/fileio/volumedataio.h"
-#include "gromacs/externalpotential/modules/densityfitting/ifgt/Ifgt.h"
+// #include "gromacs/externalpotential/modules/densityfitting/ifgt/Ifgt.h"
+#include "gromacs/math/gausstransform.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/options/basicoptions.h"
@@ -93,25 +94,27 @@ class Map : public TrajectoryAnalysisModule
                                   TrajectoryAnalysisModuleData *pdata);
 
         virtual void finishAnalysis(int nframes);
+        void set_finitegrid_from_box(matrix box, rvec translation);
+        void set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation);
         virtual void writeOutput();
 
     private:
-        std::string                  fnmapinput_;
-        std::string                  fnmapoutput_;
-        float                        sigma_;
-        AnalysisData                 mapdata_;
-        Ifgt                         ifgt_;
-        gmx::volumedata::GridReal    inputdensity_;
-        gmx::volumedata::GridReal    outputdensity_;
-        gmx::volumedata::MrcMetaData metadata_;
-        bool                         bOnlyInputDensitySet_;
-        float                        spacing_;
+        std::string                           fnmapinput_;
+        std::string                           fnmapoutput_;
+        float                                 sigma_;
+        float                                 n_sigma_;
+        AnalysisData                          mapdata_;
+        volumedata::FastGaussianGridding      gt_;
+        volumedata::GridReal                  inputdensity_;
+        std::unique_ptr<volumedata::GridReal> outputdensity_;
+        real                                  spacing_;
+        bool                                  bPrint_;
 
 
 };
 
 Map::Map()
-    : sigma_(0.4)
+    : sigma_(0.4), n_sigma_(5), spacing_(0.2), bPrint_(false)
 {
 }
 
@@ -143,8 +146,13 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .description("CCP4 density map output file"));
     options->addOption(FloatOption("sigma").store(&sigma_)
                            .description("Create a simulated density by replacing the atoms by Gaussian functions of width sigma (nm)"));
+    options->addOption(FloatOption("N_sigma").store(&n_sigma_)
+                           .description("How many Gaussian width shall be used for spreading?"));
     options->addOption(FloatOption("spacing").store(&spacing_)
                            .description("Spacing of the density grid (nm)"));
+    options->addOption(BooleanOption("print").store(&bPrint_)
+                           .description("Output density information to terminal, then exit."));
+
 
 }
 
@@ -157,57 +165,87 @@ Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const Topolog
 void
 Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 {
-    bOnlyInputDensitySet_ = (!fnmapinput_.empty()) && (fnmapoutput_.empty());
-    volumedata::MrcFile ccp4inputfile;
-    ifgt_.init(sigma_, 5);
-    ccp4inputfile.read_with_meta(fnmapinput_, inputdensity_, metadata_);
-    if (!bOnlyInputDensitySet_)
+    gt_.set_sigma(sigma_);
+    gt_.set_n_sigma(5);
+    if (!fnmapinput_.empty())
     {
-        outputdensity_.copy_grid(inputdensity_);
+        volumedata::MrcFile ccp4inputfile;
+        ccp4inputfile.read(fnmapinput_, inputdensity_);
+        if (bPrint_)
+        {
+            fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
+            fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
+        }
     }
-    else
+    if (!fnmapoutput_.empty())
     {
-        fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
-        fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
+        outputdensity_ = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
     }
+}
+
+void
+Map::set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation)
+{
+    if (det(fr.box) > 1e-6)
+    {
+        copy_mat(fr.box, box);
+        return;
+    }
+
+    fprintf(stderr, "Did not find suitable box for atom in structure file, guessing from structure extend.\n");
+    clear_mat(box);
+    std::vector<RVec> x_RVec(fr.natoms);
+    x_RVec.assign(fr.x, fr.x+fr.natoms);
+    for (int i = XX; i <= ZZ; i++)
+    {
+        box[i][i]      = 2*n_sigma_*sigma_;
+        box[i][i]     += (*max_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        box[i][i]     -= (*min_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        translation[i] = -n_sigma_*sigma_+(*min_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+    }
+
+}
+
+void
+Map::set_finitegrid_from_box(matrix box, rvec translation)
+{
+    gmx::volumedata::IVec extend({(int)ceil(box[XX][XX]/spacing_), (int)ceil(box[YY][YY]/spacing_), (int)ceil(box[ZZ][ZZ]/spacing_)});
+    outputdensity_->set_extend(extend);
+    outputdensity_->set_cell({extend[XX]*spacing_, extend[YY]*spacing_, extend[ZZ]*spacing_}, {90, 90, 90});
+    outputdensity_->set_translation({roundf(translation[XX]/spacing_)*spacing_, roundf(translation[YY]/spacing_)*spacing_, roundf(translation[ZZ]/spacing_)*spacing_});
 }
 
 void
 Map::analyzeFrame(int /*frnr*/, const t_trxframe &fr, t_pbc * /*pbc*/,
                   TrajectoryAnalysisModuleData * /*pdata*/)
 {
-    if (!bOnlyInputDensitySet_)
+    if (!fnmapoutput_.empty())
     {
-        // Guess the extend of the map if no box is given in structure file
-        if (det(fr.box) < 1e-6)
+        if (fnmapinput_.empty())
         {
-            fprintf(stderr, "Did not find suitable box for atom in structure file, guessing map extend.\n");
-            matrix            box;
-            clear_mat(box);
-            std::vector<RVec> x_RVec(fr.natoms);
-            x_RVec.assign(fr.x, fr.x+fr.natoms);
-            for (int i = XX; i <= ZZ; i++)
-            {
-                box[i][i]  = 5*sigma_;
-                box[i][i] += (*max_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-                box[i][i] -= (*min_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-            }
-            ifgt_.set_box(box);
+            // Guess the extend of the map if no box is given in structure file
+            // and no other input density is given.
+            matrix box;
+            rvec   translation;
+            set_box_from_frame(fr, box, translation);
+            set_finitegrid_from_box(box, translation);
         }
         else
         {
-            ifgt_.set_box(fr.box);
+            // If a reference input density is given, copy the grid properties from here
+            outputdensity_->copy_grid(inputdensity_);
         }
+        outputdensity_->zero();
 
+        gt_.set_grid(std::move(outputdensity_));
         for (int i = 0; i < fr.natoms; ++i)
         {
-            ifgt_.compress(fr.x[i], 1);
+            gt_.transform(fr.x[i], 1);
         }
-        ifgt_.expand(outputdensity_);
-        fprintf(stderr, "\n\n%s\n", outputdensity_.print().c_str());
+        outputdensity_ = std::move(gt_.finish_and_return_grid());
+
         volumedata::MrcFile ccp4outputfile;
-        ccp4outputfile.write(fnmapoutput_, outputdensity_);
-        // ccp4outputfile.write_with_own_meta(fnmapoutput_, outputdensity_, metadata_, true);
+        ccp4outputfile.write(fnmapoutput_, *outputdensity_);
     }
 }
 
