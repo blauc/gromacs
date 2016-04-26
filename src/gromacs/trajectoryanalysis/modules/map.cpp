@@ -189,6 +189,7 @@ Map::set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation)
     if (det(fr.box) > 1e-6)
     {
         copy_mat(fr.box, box);
+        clear_rvec(translation); // TODO: more user options for setting translation
         return;
     }
 

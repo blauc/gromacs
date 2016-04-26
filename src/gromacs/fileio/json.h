@@ -33,61 +33,75 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "forceplotter.h"
-
+#include <memory>
 #include <string>
+#include <map>
+#include <vector>
+#include "gromacs/utility/real.h"
 
-#include "gromacs/utility/futil.h"
 
-namespace gmx
-{
-namespace externalpotential
+namespace json
 {
 
-void ForcePlotter::start_plot_forces(std::string outfile)
+class Entry
 {
-    file_ = gmx_ffopen(outfile.c_str(), "w");
+    public:
+        virtual std::string write() = 0;
 };
 
-void ForcePlotter::plot_force(const rvec x, rvec f, int id, real scale)
+class Object : public Entry
 {
-    int  palette_size = 2;
-    rvec xf;
-    rvec f_scaled;
-    svmul(scale, f, f_scaled);
-    if (norm(f_scaled) > 0.001)
-    {
-        rvec_add(f_scaled, x, xf);
-        fprintf(file_, ".color %.9f %.9f %.9f \n.arrow %.9f %.9f %.9f %.9f %.9f %.9f 0.02 0.05\n", (1.0/palette_size) * (id % palette_size),
-                (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size), 10*x[XX], 10*x[YY], 10*x[ZZ], 10*xf[XX], 10*xf[YY], 10*xf[ZZ]);
-    }
-    fflush(file_);
-}
-
-void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id, int * ind)
-{
-    real max_f = -1e20;
-    for (int i = 0; i < size; i++)
-    {
-        for (size_t j = 0; j <= ZZ; j++)
-        {
-            if (fabs(f[i][j]) < max_f)
-            {
-                max_f = f[i][j];
-            }
-            ;
-        }
-    }
-    for (int i = 0; i < size; i++)
-    {
-        plot_force(x[ind[i]], f[i], id, 1.0/max_f);
-    }
+    public:
+        Object(std::string &s);
+        std::string write();
+        std::string operator[](const std::string &key);
+    private:
+        std::map<std::string, std::unique_ptr<Entry> > value_;
 };
 
-void ForcePlotter::stop_plot_forces()
+class Array : public Entry
 {
-    gmx_ffclose(file_);
+    public:
+        Array(std::string &s);
+        std::string write();
+    private:
+        std::vector<std::unique_ptr<Entry> > value_;
 };
 
-}
-}
+class String : public Entry
+{
+    public:
+        String(std::string &s);
+        std::string write();
+
+    private:
+        std::string value_;
+};
+
+class Number : public Entry
+{
+    public:
+        Number(std::string &s);
+        std::string write();
+    private:
+        real value_;
+};
+
+class Bool : public Entry
+{
+    public:
+        Bool(std::string &s);
+        std::string write();
+
+    private:
+        bool value_;
+};
+
+class Null : public Entry
+{
+    public:
+        Null(std::string & /*s*/);
+        std::string write();
+};
+
+} //namespace json

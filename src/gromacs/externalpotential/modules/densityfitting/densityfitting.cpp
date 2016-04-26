@@ -50,6 +50,8 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/math/volumedata.h"
 #include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/json.h"
+#include "gromacs/math/gausstransform.h"
 #include "ifgt/Ifgt.h"
 
 namespace gmx
@@ -80,105 +82,82 @@ void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<rea
     }
 }
 
-RVec DensityFitting::pbc_dist(const rvec x, const rvec y, const matrix box)
-{
 
-    ivec im;
-    real min_dist = 1e10;
-    rvec dist;
-    rvec curr_im;
-    rvec shift;
-    rvec y_shifted;
-    RVec result;
-    for (im[XX] = -1; im[XX] <= 1; ++im[XX])
-    {
-        for (im[YY] = -1; im[YY] <= 1; ++im[YY])
-        {
-            for (im[ZZ] = -1; im[ZZ] <= 1; ++im[ZZ])
-            {
-                curr_im[XX] = im[XX];
-                curr_im[YY] = im[YY];
-                curr_im[ZZ] = im[ZZ];
-                mvmul(box, curr_im, shift);
-                rvec_add(y, shift, y_shifted);
-                rvec_sub(y_shifted, x, dist);
-                if (norm2(dist) < min_dist*min_dist)
-                {
-                    result   = dist;
-                    min_dist = norm(dist);
-                }
-            }
-        }
-    }
-    return result;
-}
-
-void DensityFitting::do_force_plain(const rvec x, rvec force, const matrix box)
+void DensityFitting::do_force_plain(const rvec x, rvec force)
 {
     clear_rvec(force);
     RVec d;
 
-    externalpotential::ForcePlotter plot;
-    plot.start_plot_forces("plain_forces.bild");
+    // externalpotential::ForcePlotter plot;
+    // plot.start_plot_forces("plain_forces.bild");
 
     for (size_t i = 0; i < simulated_density_->num_gridpoints(); i++)
     {
-        d = pbc_dist(simulated_density_->gridpoint_coordinate(i), x, box);
-        svmul(1/difference_transform_->sigma(), d, d);
-        svmul(-k_*simulated_density_->grid_cell_volume()*simulated_density_->data()[i]*exp(-norm2(d)/2.0), d, d);
-        plot.plot_force(simulated_density_->gridpoint_coordinate(i), d, 0, 1e-1);
+        rvec_sub(simulated_density_->gridpoint_coordinate(i), x, d);
+        svmul(1/(sigma_), d, d);
+        svmul(k_*simulated_density_->grid_cell_volume()*simulated_density_->data()[i]*exp(-norm2(d)/2.0), d, d);
+        // plot.plot_force(x, d, 0, 1);
         rvec_add(force, d, force);
     }
-    plot.stop_plot_forces();
 }
 
-void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
+void DensityFitting::do_potential( const matrix /*box*/, const rvec x[], const gmx_int64_t step)
 {
-    real pot       = 0;
-    gauss_transform_->set_box(box);
-    difference_transform_->set_box(box);
+    real                pot       = 0;
     volumedata::MrcFile simulated_output;
+    simulated_density_->zero();
+
+    gauss_transform_->set_sigma(sigma_); //TODO: real initialisation after broadcast internal
+    gauss_transform_->set_n_sigma(n_sigma_);
+
     /* compress local atom contributions to density in expansion centers*/
+    gauss_transform_->set_grid(std::move(simulated_density_));
+
     for (auto atom : *group(x, 0))
     {
-        gauss_transform_->compress(atom.x, 1);
+        gauss_transform_->transform(atom.x, 1);
     }
 
-    gauss_transform_->sum_reduce();
+    simulated_density_ = std::move(gauss_transform_->finish_and_return_grid());
+    simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
+    simulated_density_->normalize();
+
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->to_reals_buffer(simulated_density_->data().data(), simulated_density_->data().size() );
+        mpi_helper()->sum_reduce();
+        if (mpi_helper()->isMaster())
+        {
+            mpi_helper()->from_reals_buffer(simulated_density_->data().data(), simulated_density_->data().size());
+        }
+    }
 
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
-        gauss_transform_->expand(*simulated_density_);
-        simulated_output.write_with_own_meta("spread.ccp4", *simulated_density_, meta_, true);
-        simulated_density_->normalize();
-        simulated_density_->add_offset(background_offset_);
-        simulated_output.write_with_own_meta("target.ccp4", *target_density_, meta_, true);
         if (step == 0)
         {
             reference_density_ = simulated_density_->data();
         }
+
         pot                      = potential_reference_sum_-k_ * potential(target_density_->data(), simulated_density_->data());
+
         potential_reference_sum_ = pot;
         reference_density_       = simulated_density_->data();
 
         inv_mul(simulated_density_->data(), target_density_->data());
-        simulated_output.write_with_own_meta("divided.ccp4", *simulated_density_, meta_, true);
-        // difference_transform_->compress_density(*simulated_density_);
+        // simulated_output.write("divided.ccp4", *simulated_density_);
     }
     else
     {
         pot = 0;
     }
 
-    // difference_transform_->broadcast_expansion();
-
     externalpotential::ForcePlotter plot;
     plot.start_plot_forces("forces.bild");
     real max_f = -1;
     for (auto atom : *group(x, 0))
     {
-        // difference_transform_->do_force(atom.x, atom.force, gauss_transform_->sigma(), *simulated_density_);
-        do_force_plain(atom.x, atom.force, box);
+        do_force_plain(atom.x, atom.force);
         if (norm(atom.force) > max_f)
         {
             max_f = norm(atom.force);
@@ -191,13 +170,13 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
     plot.stop_plot_forces();
     fprintf(stderr, "\n\nPOTENTIAL: %g \n\n", pot);
     set_local_potential(pot);
+
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
                                    target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
                                    simulated_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
-                                   gauss_transform_(std::unique_ptr<Ifgt>(new Ifgt())),
-                                   difference_transform_(std::unique_ptr<Ifgt>(new Ifgt()))
+                                   gauss_transform_(std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding()))
 {
     ;
 }
@@ -233,33 +212,30 @@ void DensityFitting::read_input()
 {
     FILE      * inputfile       = input_output()->input_file();
     char      * line            = nullptr;
-    size_t      len             = 0;
-    real        sigma           = 0;
-    int         expansion_order = 0;
+    std::string file_as_string;
     std::string target_density_name;
     try
     {
-        getline(&line, &len, inputfile);
-        k_ = strtof(line, nullptr);
+        fseek(inputfile, 0, SEEK_END);
+        long fsize = ftell(inputfile);
+        fseek(inputfile, 0, SEEK_SET);  //same as rewind(f);
 
-        getline(&line, &len, inputfile);
-        sigma = strtof(line, nullptr);
+        line = (char*) malloc(fsize + 1);
+        fread(line, fsize, 1, inputfile);
+        file_as_string = std::string(line);
+        // TODO: implemetn json scheme for checking input consistency
+        json::Object parsed_json(file_as_string);
 
-        getline(&line, &len, inputfile);
-        expansion_order = strtof(line, nullptr);
+        k_                  = strtof(parsed_json["k"].c_str(), nullptr);
+        sigma_              = strtof(parsed_json["sigma"].c_str(), nullptr);
+        n_sigma_            = strtof(parsed_json["n_sigma"].c_str(), nullptr);
+        background_density_ = strtof(parsed_json["background_density"].c_str(), nullptr);
+        target_density_name = parsed_json["target_density"];
 
-        getline(&line, &len, inputfile);
-        background_offset_ = strtof(line, nullptr);
-
-        gauss_transform_->init(sigma, expansion_order);
-        difference_transform_->init(sigma, expansion_order);
-
-        getline(&line, &len, inputfile);
-        target_density_name = std::string(line);
         volumedata::MrcFile         target_input_file;
-        target_input_file.read_with_meta(target_density_name, *target_density_, meta_);
+        target_input_file.read(target_density_name, *target_density_);
+        target_density_->add_offset(target_density_->grid_cell_volume()*background_density_);
         target_density_->normalize();
-        target_density_->add_offset(background_offset_);
         simulated_density_->copy_grid(*target_density_);
         simulated_density_->resize();
     }
@@ -272,13 +248,11 @@ void DensityFitting::read_input()
 
 void DensityFitting::broadcast_internal()
 {
-    gauss_transform_->set_mpi_helper(mpi_helper());
-    difference_transform_->set_mpi_helper(mpi_helper());
     if (mpi_helper() != nullptr)
     {
         mpi_helper()->broadcast(&k_, 1);
-        gauss_transform_->broadcast_internal();
-        difference_transform_->broadcast_internal();
+        mpi_helper()->broadcast(&sigma_, 1);
+        mpi_helper()->broadcast(&n_sigma_, 1);
     }
 }
 

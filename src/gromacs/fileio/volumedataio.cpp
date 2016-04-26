@@ -483,6 +483,11 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
         RVec cell_length = read_float32_rvec_();
         svmul(A2NM, cell_length, cell_length);
         RVec cell_angle  = read_float32_rvec_();
+        // By convention, unset cell angles (all 0) are interpreted as 90 deg.
+        if (cell_angle[XX]*cell_angle[YY]*cell_angle[ZZ] < 1e-5)
+        {
+            cell_angle = {90, 90, 90};
+        }
         grid_data.set_cell(cell_length, cell_angle);
     }
     else

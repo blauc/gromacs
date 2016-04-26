@@ -61,7 +61,7 @@ GaussTransform::set_sigma(real sigma)
 };
 
 void
-GaussTransform::set_n_sigma(int n_sigma)
+GaussTransform::set_n_sigma(real n_sigma)
 {
     n_sigma_ = n_sigma;
 };
@@ -173,7 +173,7 @@ FastGaussianGridding::tensor_product_1d_(real weight)
 };
 
 void
-FastGaussianGridding::set_grid_index_and_dx_(real * x)
+FastGaussianGridding::set_grid_index_and_dx_(const real * x)
 {
     grid_index_ = grid_->coordinate_to_gridindex_floor_ivec(x);
     RVec nearest_grid_point_coordinate = grid_->gridpoint_coordinate(grid_index_);
@@ -185,7 +185,7 @@ FastGaussianGridding::set_grid_index_and_dx_(real * x)
 };
 
 void
-FastGaussianGridding::transform(real *x, real weight)
+FastGaussianGridding::transform(const rvec x, real weight)
 {
     set_grid_index_and_dx_(x);
     gauss_1d_();

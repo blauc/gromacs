@@ -56,14 +56,14 @@ class GaussTransform
     public:
         void set_grid(std::unique_ptr<GridReal> grid);
         void set_sigma(real sigma);
-        void set_n_sigma(int n_sigma);
-        virtual void transform(rvec x, real weight) = 0;
+        void set_n_sigma(real n_sigma);
+        virtual void transform(const rvec x, real weight) = 0;
         virtual std::unique_ptr<GridReal> && finish_and_return_grid() = 0;
     protected:
         // no other object should have access to the grid while Gauss transform is in progress
         std::unique_ptr<GridReal> grid_;
         real                      sigma_;
-        int                       n_sigma_;
+        real                      n_sigma_;
 };
 
 /*! \brief Efficient spreading of sources on a grid with a Gaussian kernel.
@@ -82,14 +82,14 @@ class FastGaussianGridding : public GaussTransform
          *
          * Feed one source at a time.
          */
-        void transform(rvec x, real weight);
+        void transform(const rvec x, real weight);
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
         std::unique_ptr<GridReal> && finish_and_return_grid();
     private:
         void gauss_1d_();
         void tensor_product_1d_(real weight);
-        void set_grid_index_and_dx_(real * x);
+        void set_grid_index_and_dx_(const rvec x);
         real nu_; // spacing/sigma
         RVec grid_index_r_;
         IVec grid_index_;

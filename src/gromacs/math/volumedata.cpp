@@ -380,19 +380,19 @@ void FiniteGrid::copy_grid(FiniteGrid &grid)
     copy_mat(grid.impl_->cell_, this->impl_->cell_);
     copy_ivec(grid.impl_->extend_, this->impl_->extend_);
     copy_rvec(grid.impl_->translate_, this->impl_->translate_);
-    copy_mat(grid.impl_->unit_cell_, this->impl_->unit_cell_);
+    this->impl_->set_unit_cell();
 }
 std::string
 FiniteGrid::print()
 {
-    std::string result("---finite grid---");
-    result += "extend       : " + std::to_string(extend()[0]) + " " + std::to_string(extend()[1]) + " " + std::to_string(extend()[2]) + "\n";
-    result += "translation  : " + std::to_string(translation()[0]) + " " + std::to_string(translation()[1]) + " " + std::to_string(translation()[2]) + "\n";
-    result += "cell_lengths :" + std::to_string(cell_lengths()[0]) + " " + std::to_string(cell_lengths()[1]) + " " + std::to_string(cell_lengths()[2]) + "\n";
-    result += "cell_angles  :" + std::to_string(cell_angles()[0]) + " " + std::to_string(cell_angles()[1]) + " " + std::to_string(cell_angles()[2]) + "\n";
-    result += "V_cell       : " + std::to_string(grid_cell_volume()) + "\n";
-    result += "ngridpoints  : " + std::to_string(num_gridpoints()) + "\n";
-    return result+"---end finite grid---";
+    std::string result("\n  ------- finite grid -------\n");
+    result += "    extend       : " + std::to_string(extend()[0]) + " " + std::to_string(extend()[1]) + " " + std::to_string(extend()[2]) + "\n";
+    result += "    ngridpoints  : " + std::to_string(num_gridpoints()) + "\n";
+    result += "    translation  : " + std::to_string(translation()[0]) + " " + std::to_string(translation()[1]) + " " + std::to_string(translation()[2]) + "\n";
+    result += "    cell_lengths : " + std::to_string(cell_lengths()[0]) + " " + std::to_string(cell_lengths()[1]) + " " + std::to_string(cell_lengths()[2]) + "\n";
+    result += "    cell_angles  : " + std::to_string(cell_angles()[0]) + " " + std::to_string(cell_angles()[1]) + " " + std::to_string(cell_angles()[2]) + "\n";
+    result += "    V_cell       : " + std::to_string(grid_cell_volume()) + "\n";
+    return result+"  ----- end finite grid -----\n\n";
 }
 
 
@@ -514,13 +514,14 @@ std::string
 GridReal::print()
 {
     std::string result;
-    result += "---real number grid ---\n";
+    result += "------- real number grid -------\n";
     result += FiniteGrid::print();
-    result += "min  :" + std::to_string(min()) + "\n";
-    result += "max  :" + std::to_string(max()) + "\n";
-    result += "mean :" + std::to_string(mean()) + "\n";
-    result += "var  :" + std::to_string(var()) + "\n";
-    result += "rms  :" + std::to_string(rms()) + "\n";
+    result += "  min  :" + std::to_string(min()) + "\n";
+    result += "  max  :" + std::to_string(max()) + "\n";
+    result += "  mean :" + std::to_string(mean()) + "\n";
+    result += "  var  :" + std::to_string(var()) + "\n";
+    result += "  rms  :" + std::to_string(rms()) + "\n";
+    result += "\n----- end real number grid -----\n\n";
     return result;
 }
 
