@@ -94,6 +94,12 @@ class Manager
         real add_forces( rvec f[], tensor vir, gmx_int64_t step);
 
         /*! \brief
+         * Call the initialize of all external potentials that
+         * sets the internal states after read_input and broadcast_internal.
+         */
+        void initialize(const matrix box, const rvec x[]);
+
+        /*! \brief
          * Keep the local indices in all applied potentials up-to-date after domain decomposition.
          *
          * Is called whenever the system is partioned.

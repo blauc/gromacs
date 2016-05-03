@@ -95,7 +95,11 @@ class Group
         void add_virial(tensor vir);
         const std::vector<int> &collective_index();
 
-        void set_x(const rvec x[]); // TODO: figure if x[] is ever changed, set then..
+        void parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function);
+
+        int num_atoms_loc();
+
+        void set_x(const rvec x[]);
 
     private:
 

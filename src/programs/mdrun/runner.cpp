@@ -1331,6 +1331,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                 manager->broadcast_internal();
             }
 
+            manager->initialize(state->box, state->x);
+
             external_potential->manager = manager;
 
         }

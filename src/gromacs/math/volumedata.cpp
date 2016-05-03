@@ -263,6 +263,7 @@ void FiniteGrid::set_translation(RVec translate)
 {
     impl_->translate_ = translate;
 }
+
 RVec FiniteGrid::translation()
 {
     return impl_->translate_;
@@ -334,10 +335,36 @@ bool FiniteGrid::rectangular()
     return true;
 };
 
+RVec FiniteGrid::unit_cell_XX()
+{
+    return impl_->unit_cell_[XX];
+}
+
+RVec FiniteGrid::unit_cell_YY()
+{
+    return impl_->unit_cell_[YY];
+}
+
+RVec FiniteGrid::unit_cell_ZZ()
+{
+    return impl_->unit_cell_[ZZ];
+}
+
 bool FiniteGrid::spacing_is_same_xyz()
 {
     return (abs(norm2(impl_->unit_cell_[XX]) - norm2(impl_->unit_cell_[YY])) < 1e-5) && (abs(norm2(impl_->unit_cell_[XX])-norm2(impl_->unit_cell_[ZZ])) < 1e-5);
 };
+
+IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
+{
+    RVec result;
+    rvec x_shifted;
+    rvec_sub(x, impl_->translate_, x_shifted);
+    mvmul(impl_->unit_cell_inv_, x_shifted, result);
+    return {
+               (int)ceil(result[XX]), (int)ceil(result[YY]), (int)ceil(result[ZZ])
+    };
+}
 
 IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x)
 {
@@ -349,6 +376,7 @@ IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x)
                (int)floor(result[XX]), (int)floor(result[YY]), (int)floor(result[ZZ])
     };
 }
+
 
 real
 FiniteGrid::avg_spacing()
@@ -444,9 +472,10 @@ real GridReal::mean()
 
 real GridReal::var()
 {
-    real data_mean = mean();
-    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.,
-                           [ = ](const real &a, real b){return a + (b - data_mean)*(b - data_mean); } );
+    real data_mean        = mean();
+    real square_deviation = std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.,
+                                            [ = ](const real &a, real b){return a + (b - data_mean)*(b - data_mean); } );
+    return square_deviation / static_cast<float>(impl_->data_.size());
 }
 
 real GridReal::rms()

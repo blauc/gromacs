@@ -519,11 +519,12 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
             crs_to_xyz[ZZ] = 2;
             set_crs_to_xyz(crs_to_xyz);
         }
-        grid_data.set_translation({
-                                      meta_.crs_start[meta_.xyz_to_crs[XX]]*grid_data.cell_lengths()[XX],
-                                      meta_.crs_start[meta_.xyz_to_crs[YY]]*grid_data.cell_lengths()[YY],
-                                      meta_.crs_start[meta_.xyz_to_crs[ZZ]]*grid_data.cell_lengths()[ZZ]
-                                  });
+        grid_data.set_translation(grid_data.gridpoint_coordinate(
+                                          IVec {
+                                              meta_.crs_start[meta_.xyz_to_crs[XX]],
+                                              meta_.crs_start[meta_.xyz_to_crs[YY]],
+                                              meta_.crs_start[meta_.xyz_to_crs[ZZ]]
+                                          }));
     }
     else
     {
@@ -662,10 +663,24 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
         }
     }
 
+
     if (!is_crystallographic())
     {
-        grid_data.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
+        /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
+         * values read here are ignored.
+         * Convention is not clear at this point, whether the translation here should be treated as extra shift,
+         * in observed cases this was not the case.
+         *
+         * Silently ignore if the map translation due to grid-index start shift
+         * does not match the shift reported here.
+         */
+
+        if (meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
+        {
+            grid_data.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
+        }
     }
+
 
     /* 53 | MAP | ASCII char
      * "MAP "

@@ -94,6 +94,10 @@ class ExternalPotential
         void add_forces(rvec f[], gmx_int64_t step, real weight);
 
         /*! \brief
+         * Initialization routine called after read_input and broadcast internal, but before the first step. */
+        virtual void initialize(const matrix box, const rvec x[]) = 0;
+
+        /*! \brief
          * Sums the contribution to the virial from this potential from all nodes
          * TODO: rename to sum
          */

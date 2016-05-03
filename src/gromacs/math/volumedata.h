@@ -136,6 +136,10 @@ class FiniteGrid
          * Set the real-space coordinate of gridpoint (0,0,0).
          */
         void set_translation(RVec translate);
+
+        /*! \brief
+         * Add a vector to the translation of the map.
+         */
         RVec translation();  //!< return real-space coordinate of gridpoint (0,0,0).
         RVec cell_lengths(); //!< return unit-cell lengths
         RVec cell_angles();  //!< return unit-cell angles
@@ -147,8 +151,13 @@ class FiniteGrid
         void rotation(matrix Q);
 
         RVec gridpoint_coordinate(int i);
+        IVec coordinate_to_gridindex_ceil_ivec(const rvec  x);
         IVec coordinate_to_gridindex_floor_ivec(const rvec  x);
         RVec gridpoint_coordinate(IVec i);
+
+        RVec unit_cell_XX();
+        RVec unit_cell_YY();
+        RVec unit_cell_ZZ();
 
         real grid_cell_volume();
 

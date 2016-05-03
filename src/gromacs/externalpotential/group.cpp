@@ -46,6 +46,9 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/utility/gmxomp.h"
+
 
 namespace gmx
 {
@@ -201,5 +204,19 @@ void Group::set_x(const rvec x[])
 {
     x_ = x;
 };
+
+int Group::num_atoms_loc()
+{
+    return num_atoms_loc_;
+};
+
+void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function)
+{
+#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) schedule(static)
+    for (int i = 0; i < num_atoms_loc_; i++)
+    {
+        loop_kernel_function((*this)[i], std::max(0, gmx_omp_get_thread_num()));
+    }
+}
 
 } // namespace gmx

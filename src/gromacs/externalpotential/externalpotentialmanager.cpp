@@ -207,5 +207,13 @@ void Manager::finish()
     }
 };
 
+void Manager::initialize(const matrix box, const rvec x[])
+{
+    for (auto &potential : potentials_)
+    {
+        potential->initialize(box, x);
+    }
+}
+
 } //namespace externalpotential
 } // namespace gmx

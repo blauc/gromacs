@@ -47,6 +47,7 @@
 namespace gmx
 {
 
+struct GroupAtom;
 class Ifgt;
 
 namespace volumedata
@@ -65,6 +66,7 @@ class DensityFitting : public ExternalPotential
         static std::unique_ptr<ExternalPotential> create();
         void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
         void read_input();
+        void initialize(const matrix box, const rvec x[]);
         void broadcast_internal();
         AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
         void finish();
@@ -72,8 +74,15 @@ class DensityFitting : public ExternalPotential
 
     private:
         void do_force_plain(const rvec x, rvec force);
+        void translation_removal(const matrix box, const rvec x[]);
+        void translate_atoms_into_map_(const matrix box, const rvec x[]);
+        void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
+        void spread_density_(const rvec x[]);
+        void sum_reduce_simulated_density_();
+        void ForceKernel_KL(GroupAtom &atom, const int &thread);
+        void plot_forces(const rvec x[]);
         DensityFitting();
 
         real k_;
@@ -82,12 +91,16 @@ class DensityFitting : public ExternalPotential
 
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
+        std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
+        std::vector < std::unique_ptr < volumedata::FastGaussianGridding>> force_gauss_transform_;
         std::unique_ptr<volumedata::FastGaussianGridding> gauss_transform_;
         real                                              background_density_;
         volumedata::MrcMetaData                           meta_;
         std::vector<real>                                 potential_contribution_;
+        RVec                                              translation_;
         std::vector<real>                                 reference_density_;
-        real                                              potential_reference_sum_ = 0;
+        real                                              relative_potential_ = 0;
+
 
 };
 

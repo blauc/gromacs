@@ -120,7 +120,11 @@ void Template::read_input()
     size_t len       = 0;
     try
     {
-        getline(&line, &len, inputfile);
+        size_t line_length = getline(&line, &len, inputfile);
+        if (line_length < 1)
+        {
+            throw std::ios_base::failure("Failure");
+        }
     }
     catch (const std::ios_base::failure &e)
     {
@@ -137,6 +141,8 @@ void Template::broadcast_internal()
         mpi_helper()->broadcast(&k_, 1);
     }
 }
+
+void Template::initialize(const matrix /*box*/, const rvec /*x*/[]){};
 
 void Template::finish()
 {

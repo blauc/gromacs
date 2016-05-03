@@ -181,7 +181,6 @@ FastGaussianGridding::set_grid_index_and_dx_(const real * x)
     {
         dx_[i]         = (x[i]-nearest_grid_point_coordinate[i])/sigma_;
     }
-    ;
 };
 
 void
