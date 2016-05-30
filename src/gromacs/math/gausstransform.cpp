@@ -153,6 +153,7 @@ FastGaussianGridding::tensor_product_1d_(real weight)
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
 
+
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
         l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
@@ -162,6 +163,7 @@ FastGaussianGridding::tensor_product_1d_(real weight)
             spread_zy    = spread_2d_[l_z][l_y];
             voxel        = grid_->zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
             spread_1d_XX = &(spread_1d_[XX][l_x_min]);
+
             for (int l_x = 0; l_x <= n_l_x; ++l_x)
             {
                 *voxel += spread_zy * (*spread_1d_XX);

@@ -84,7 +84,7 @@ void MpiHelper::to_reals_buffer(real value)
     inbuf_.push_back(value);
 }
 
-void MpiHelper::to_reals_buffer( real * vector, int size)
+void MpiHelper::to_reals_buffer(const real * vector, int size)
 {
     for (int i = 0; i < size; i++)
     {

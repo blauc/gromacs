@@ -43,7 +43,7 @@
 
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
-#include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/atomgroups/group.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/exceptions.h"

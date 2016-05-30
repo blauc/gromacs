@@ -51,7 +51,7 @@ class MpiHelper
         void from_reals_buffer(matrix result);
         void from_reals_buffer(real * vector, int size);
         void to_reals_buffer(real value);
-        void to_reals_buffer(real * vector, int size);
+        void to_reals_buffer(const real * vector, int size);
         void to_reals_buffer(real matrix[3][3]);
         void finish();
     private:

@@ -56,13 +56,14 @@ namespace externalpotential
  *
  * \ingroup module_trajectoryanalysis
  */
-template <class ModuleInfo>
+template <class TModuleInfo>
 void registerModule(gmx::externalpotential::Modules *modules)
 {
-    modules->module[ModuleInfo::name] = Modules::ModuleProperties {
-        .shortDescription  = ModuleInfo::shortDescription,
-        .numberIndexGroups = ModuleInfo::numberIndexGroups,
-        .create            = ModuleInfo::create
+    modules->module[TModuleInfo::name] = Modules::ModuleProperties {
+        .shortDescription          = TModuleInfo::shortDescription,
+        .numberIndexGroups         = TModuleInfo::numberIndexGroups,
+        .numberWholeMoleculeGroups = TModuleInfo::numberWholeMoleculeGroups,
+        .create                    = TModuleInfo::create
     };
 }
 

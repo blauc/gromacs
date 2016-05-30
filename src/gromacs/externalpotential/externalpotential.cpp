@@ -39,7 +39,8 @@
 
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/externalpotential/externalpotentialIO.h"
-#include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/atomgroups/group.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
@@ -75,6 +76,7 @@ class ExternalPotential::Impl
         std::shared_ptr<MpiHelper>           mpi_;
         std::shared_ptr<ExternalPotentialIO> input_output_;
         std::vector < std::shared_ptr < Group>> atom_groups_;
+        std::vector < std::shared_ptr < WholeMoleculeGroup>> wholemoleculegroups_;
 };
 
 ExternalPotential::Impl::Impl() :
@@ -171,10 +173,16 @@ void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t 
     }
 }
 
-
-void ExternalPotential::add_group(std::shared_ptr<Group> &&group)
+void
+ExternalPotential::add_wholemoleculegroup(std::shared_ptr<WholeMoleculeGroup> group)
 {
-    impl_->atom_groups_.push_back(std::move(group));
+    impl_->wholemoleculegroups_.push_back(group);
+}
+
+
+void ExternalPotential::add_group(std::shared_ptr<Group> group)
+{
+    impl_->atom_groups_.push_back(group);
 }
 
 
@@ -192,6 +200,13 @@ std::shared_ptr<Group> ExternalPotential::group(const rvec x[], int group_index)
 {
     impl_->atom_groups_[group_index]->set_x(x);
     return impl_->atom_groups_[group_index];
+}
+
+std::shared_ptr<WholeMoleculeGroup> ExternalPotential::wholemoleculegroup(const rvec x[], const matrix box, int group_index)
+{
+    impl_->wholemoleculegroups_[group_index]->set_x(x);
+    impl_->wholemoleculegroups_[group_index]->set_box(box);
+    return impl_->wholemoleculegroups_[group_index];
 }
 
 void ExternalPotential::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)

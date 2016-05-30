@@ -40,7 +40,8 @@
 
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/externalpotentialIO.h"
-#include "gromacs/externalpotential/group.h"
+#include "gromacs/externalpotential/atomgroups/group.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
@@ -115,25 +116,26 @@ real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
 Manager::Manager(struct ext_pot *external_potential)
 {
     registerExternalPotentialModules(&modules_);
-    Modules::ModuleProperties curr_module;
+    Modules::ModuleProperties curr_module_info;
 
     for (int i = 0; i < external_potential->number_external_potentials; ++i)
     {
         try
         {
-            curr_module = modules_.module.at(external_potential->inputrec_data[i]->method);
+            curr_module_info = modules_.module.at(external_potential->inputrec_data[i]->method);
         }
         catch (std::out_of_range)
         {
             GMX_THROW(gmx::InvalidInputError("Unknown Method : "+ std::string(external_potential->inputrec_data[i]->method) + ". Most likely this gromacs version is older than the one to generate the .tpr-file." ));
         }
 
-        if (curr_module.numberIndexGroups != external_potential->inputrec_data[i]->number_index_groups)
+        if (curr_module_info.numberIndexGroups != external_potential->inputrec_data[i]->number_index_groups)
         {
             GMX_THROW(gmx::InconsistentInputError("Number of index groups found in tpr file for external potential does not match number of required index groups."));
         }
 
-        potentials_.push_back(curr_module.create());
+/* TODO: set potentials name and numbers of index groups when creating ; find a better way of defining index groups (refer to index groups by name, instead of number .?)*/
+        potentials_.push_back(curr_module_info.create());
     }
 
     V_external_.resize(potentials_.size(), 0);
@@ -141,21 +143,53 @@ Manager::Manager(struct ext_pot *external_potential)
     return;
 };
 
-void Manager::init_groups(struct ext_pot_ir ** ir_data, int n_potentials, bool bParallel)
+void Manager::init_groups(struct ext_pot_ir ** ir_data, bool bParallel)
 {
-    for (int i_potential = 0; i_potential < n_potentials; ++i_potential)
+    /* TODO: make only the manager operator on group and call routines affecting groups, externalpotentials only read groups; enable sharing of groups across externalpotentials*/
+    for (size_t i_potential = 0; i_potential < potentials_.size(); ++i_potential)
     {
-        for (int i = 0; i < ir_data[i_potential]->number_index_groups; i++)
+        Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
+        for (int i_group = 0; i_group < ir_data[i_potential]->number_index_groups; i_group++)
         {
-            std::shared_ptr<Group> group(new Group(ir_data[i_potential]->nat[i], ir_data[i_potential]->ind[i], bParallel));
-            potentials_[i_potential]->add_group(std::move(group));
+            /* Inititalize a new atom group, then add it to an external potential */
+            std::shared_ptr<Group> group(new Group(ir_data[i_potential]->nat[i_group], ir_data[i_potential]->ind[i_group], bParallel));
+            potentials_[i_potential]->add_group(group);
         }
+    }
+}
+
+void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const rvec x[])
+{
+    /* TODO: make only the manager operator on group and call routines affecting groups, externalpotentials only read groups; enable sharing of groups across externalpotentials
+     * This method hsould not need to know ir_data anymore, since all information from there is in the already setup groups
+     */
+
+    for (size_t i_potential = 0; i_potential < potentials_.size(); ++i_potential)
+    {
+        Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
+        for (int i_group = 0; i_group < curr_module_info.numberWholeMoleculeGroups; i_group++)
+        {
+            std::shared_ptr<WholeMoleculeGroup> whole_molecule_group(new
+                                                                     WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_, top_global, ePBC, box, 3)
+                                                                     );
+            whole_groups_.push_back(std::shared_ptr<WholeMoleculeGroup>(whole_molecule_group));
+            potentials_[i_potential]->add_wholemoleculegroup(whole_molecule_group);
+        }
+    }
+}
+
+void
+Manager::update_whole_molecule_groups (const rvec x[], matrix box)
+{
+    for (auto &group : whole_groups_)
+    {
+        group->update_shifts_and_reference(x, box);
     }
 }
 
 void Manager::set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * topology_loc)
 {
-    for (auto && potential : potentials_)
+    for (auto &potential : potentials_)
     {
         potential->set_atom_properties(mdatom, topology_loc);
     }
@@ -164,7 +198,8 @@ void Manager::set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * topology
 void Manager::init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank)
 {
     std::shared_ptr<MpiHelper> mpihelper(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
-    for (auto && potential : potentials_)
+    this->mpi_helper_ = mpihelper;
+    for (auto &potential : potentials_)
     {
         potential->set_mpi_helper(mpihelper);
     }
@@ -193,6 +228,11 @@ void Manager::broadcast_internal()
 
 void Manager::dd_make_local_groups(gmx_ga2la_t  * ga2la)
 {
+    for (auto && group : this->whole_groups_)
+    {
+        group->set_indices(ga2la);
+    }
+
     for (auto && potential : potentials_)
     {
         potential->dd_make_local_groups(ga2la);

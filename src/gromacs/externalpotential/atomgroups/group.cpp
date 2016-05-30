@@ -118,6 +118,20 @@ GroupAtom &Group::operator[](int i)
     return *result;
 };
 
+Group::Group(const Group &group)
+{
+    this->ind_           = group.ind_;
+    this->ind_loc_       = group.ind_loc_;
+    this->coll_ind_      = group.coll_ind_;
+    this->properties_    = group.properties_;
+    this->atom_          = group.atom_;
+    this->bParallel_     = group.bParallel_;
+    this->f_loc_         = group.f_loc_;
+    this->num_atoms_     = group.num_atoms_;
+    this->num_atoms_loc_ = group.num_atoms_loc_;
+    this->x_             = group.x_;
+}
+
 Group::Group( int nat, int *ind, bool bParallel) :
     num_atoms_(nat), ind_(ind), bParallel_(bParallel)
 {
@@ -126,7 +140,7 @@ Group::Group( int nat, int *ind, bool bParallel) :
         num_atoms_loc_ = num_atoms_;
         ind_loc_.assign(ind, ind+num_atoms_);
         coll_ind_.resize(num_atoms_loc_);
-        std::iota (coll_ind_.begin(), coll_ind_.end(), 0);
+        std::iota(coll_ind_.begin(), coll_ind_.end(), 0);
         f_loc_.resize(num_atoms_, {0, 0, 0});
         properties_.resize(num_atoms_, nullptr);
     }
@@ -202,7 +216,11 @@ const std::vector<int> &Group::collective_index()
 
 void Group::set_x(const rvec x[])
 {
-    x_ = x;
+    /*
+     * For more general cases , x_ is not const but a modified version of x.
+     * However, in the plane case not copying atom coordinates saves plenty of time.
+     */
+    x_ = const_cast<rvec *>(x);
 };
 
 int Group::num_atoms_loc()

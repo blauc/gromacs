@@ -57,9 +57,9 @@ struct gmx_localtop_t;
 namespace gmx
 {
 
-class GroupCoordinates;
 class MpiHelper;
 class Group;
+class WholeMoleculeGroup;
 
 class AtomProperties
 {
@@ -110,7 +110,8 @@ class ExternalPotential
 
         void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
 
-        void add_group(std::shared_ptr<Group> &&group);
+        void add_group(std::shared_ptr<Group> group);
+        void add_wholemoleculegroup(std::shared_ptr<WholeMoleculeGroup> group);
 
         void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
         virtual void read_input()         = 0;
@@ -118,17 +119,19 @@ class ExternalPotential
         void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc);
         bool do_this_step(gmx_int64_t step);
 
-        virtual void finish() = 0;
-
-    protected:
-
-        ExternalPotential ();
-
         /*! \brief
          * Picks the local atoms that are in group "group_index".
          *
          */
         std::shared_ptr<Group> group(const rvec x[], int group_index);
+
+        std::shared_ptr<WholeMoleculeGroup> wholemoleculegroup(const rvec x[], const matrix box, int group_index);
+
+        virtual void finish() = 0;
+
+    protected:
+
+        ExternalPotential ();
 
         void set_local_potential(real potential);
 

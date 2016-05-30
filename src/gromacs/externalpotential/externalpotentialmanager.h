@@ -52,8 +52,11 @@ struct t_atomtypes;
 namespace gmx
 {
 
+class WholeMoleculeGroup;
+class MpiHelper;
 namespace externalpotential
 {
+
 
 /*! \brief
  * Manage iterations over external potentials.
@@ -110,11 +113,14 @@ class Manager
          */
         void dd_make_local_groups( gmx_ga2la_t *ga2la);
 
+
         void set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * types);
 
         void init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank);
         void init_input_output(struct ext_pot_ir ** ir_data, int n_potentials, const char * basepath);
-        void init_groups(struct ext_pot_ir ** ir_data, int n_potentials, bool bParallel);
+        void init_groups(struct ext_pot_ir ** ir_data, bool bParallel);
+        void init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const rvec x[]);
+        void update_whole_molecule_groups (const rvec x[], matrix box);
 
         void broadcast_internal();
 
@@ -123,8 +129,10 @@ class Manager
 
         std::vector<real> calculate_weights();
         std::vector<std::unique_ptr<ExternalPotential> > potentials_;
-        std::vector<real> V_external_;
-        Modules           modules_;
+        std::vector<real>          V_external_;
+        Modules                    modules_;
+        std::shared_ptr<MpiHelper> mpi_helper_;
+        std::vector < std::shared_ptr < WholeMoleculeGroup>> whole_groups_;
 
 };
 

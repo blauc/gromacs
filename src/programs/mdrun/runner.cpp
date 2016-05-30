@@ -125,7 +125,7 @@ matrix              deform_init_box_tpx;
 //! MPI variable for use in pressure scaling
 tMPI_Thread_mutex_t deform_init_box_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 
-#if GMX_THREAD_MPI
+#ifdef GMX_THREAD_MPI
 /* The minimum number of atoms per tMPI thread. With fewer atoms than this,
  * the number of threads will get lowered.
  */
@@ -1318,8 +1318,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                 manager->init_input_output(external_potential->inputrec_data, external_potential->number_external_potentials, external_potential->basepath);
             }
 
-            manager->init_groups(external_potential->inputrec_data, external_potential->number_external_potentials, PAR(cr));
+            manager->init_groups(external_potential->inputrec_data, PAR(cr));
+            manager->init_whole_molecule_groups(external_potential->inputrec_data, mtop, inputrec->ePBC, state->box, state->x);
 
+
+            /* With domain decomposition, these properties are set in dd_partition_system in domdec.cpp */
             if (!DOMAINDECOMP(cr))
             {
                 gmx_localtop_t * top_local = dd_init_local_top(mtop);

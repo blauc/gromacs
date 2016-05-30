@@ -32,7 +32,7 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-file(GLOB EXTERNALPOTENTIALMODULE_SOURCES *.cpp modules/*/*.cpp modules/*/*/*.cpp)
+file(GLOB EXTERNALPOTENTIALMODULE_SOURCES *.cpp atomgroups/*.cpp modules/*/*.cpp modules/*/*/*.cpp)
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${EXTERNALPOTENTIALMODULE_SOURCES} PARENT_SCOPE)
 
 gmx_install_headers(
@@ -40,10 +40,11 @@ gmx_install_headers(
     inputrecordIO.h
     externalpotentialIO.h
     mpi-helper.h
-    group.h
     forceplotter.h
     externalpotential.h
     externalpotentialmanager.h
+    atomgroups/group.h
+    atomgroups/wholemoleculegroup.h
     )
 
 if (BUILD_TESTING)

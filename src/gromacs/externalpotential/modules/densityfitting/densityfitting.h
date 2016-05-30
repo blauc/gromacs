@@ -70,7 +70,8 @@ class DensityFitting : public ExternalPotential
         void broadcast_internal();
         AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
         void finish();
-        real potential(std::vector<real> &P, std::vector<real> &Q);
+
+        real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference, std::vector<real> &buffer);
 
     private:
         void do_force_plain(const rvec x, rvec force);
@@ -83,6 +84,11 @@ class DensityFitting : public ExternalPotential
         void sum_reduce_simulated_density_();
         void ForceKernel_KL(GroupAtom &atom, const int &thread);
         void plot_forces(const rvec x[]);
+        void initialize_target_density_();
+        void initialize_buffers_();
+        void initialize_spreading_();
+        void initialize_reference_density(const rvec x[]);
+
         DensityFitting();
 
         real k_;
@@ -99,7 +105,7 @@ class DensityFitting : public ExternalPotential
         std::vector<real>                                 potential_contribution_;
         RVec                                              translation_;
         std::vector<real>                                 reference_density_;
-        real                                              relative_potential_ = 0;
+        real                                              reference_divergence_ = 0;
 
 
 };
@@ -110,6 +116,7 @@ class DensityFittingInfo
         static std::string name;
         static std::string shortDescription;
         static const int   numberIndexGroups;
+        static const int   numberWholeMoleculeGroups;
         static externalpotential::ModuleCreator create;
 };
 } // namespace externalpotential

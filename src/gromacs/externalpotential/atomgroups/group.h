@@ -87,6 +87,10 @@ class Group
         GroupIterator end();
         GroupAtom &operator[] (int i);
 
+        /*\brief
+         * copy constructor used for initialisation in derived classes
+         */
+        Group(const Group &group);
         Group(int nat, int *ind, bool bParallel);
         ~Group();
         void set_indices(gmx_ga2la_t  *ga2la);
@@ -101,9 +105,9 @@ class Group
 
         void set_x(const rvec x[]);
 
-    private:
+    protected:
 
-        const rvec                  *x_;
+        rvec                        *x_;             /**< The coordinates TODO: re-attach const attribute..*/
         GroupAtom                    atom_;
         int                          num_atoms_;     /**< Number of (global) atoms in this external potential group. */
         int                         *ind_;           /**< Global indices of the atoms in this group.*/

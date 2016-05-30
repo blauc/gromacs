@@ -55,6 +55,7 @@ struct Modules
     {
         std::string   shortDescription;
         int           numberIndexGroups;
+        int           numberWholeMoleculeGroups;
         ModuleCreator create;
     };
     std::map<ModuleName, ModuleProperties> module;
