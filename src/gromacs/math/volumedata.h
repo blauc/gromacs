@@ -153,11 +153,11 @@ class FiniteGrid
         RVec gridpoint_coordinate(int i);
         IVec coordinate_to_gridindex_ceil_ivec(const rvec  x);
         IVec coordinate_to_gridindex_floor_ivec(const rvec  x);
-        RVec gridpoint_coordinate(IVec i);
+        RVec gridpoint_coordinate(IVec i) const;
 
-        RVec unit_cell_XX();
-        RVec unit_cell_YY();
-        RVec unit_cell_ZZ();
+        RVec unit_cell_XX() const;
+        RVec unit_cell_YY() const;
+        RVec unit_cell_ZZ() const;
 
         real grid_cell_volume();
 
@@ -207,7 +207,7 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
          * Access the start of a column through iterator.
          * No bounds checking for fast data access
          */
-        std::vector<real>::iterator zy_column_begin(int z, int y);
+        std::vector<real>::iterator zy_column_begin(int z, int y) const;
 
         /*! \brief
          * Directly access an index element.
@@ -262,6 +262,10 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         /*! \brief Set all voxel values to zero.
          */
         void zero();
+        /*! \brief Center of mass as the weighted sum of gridpoint coordinates.
+         */
+        RVec center_of_mass();
+
     private:
         class Impl;
         std::unique_ptr<GridReal::Impl> impl_;

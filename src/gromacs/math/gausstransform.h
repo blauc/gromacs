@@ -86,21 +86,21 @@ class FastGaussianGridding : public GaussTransform
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
         std::unique_ptr<GridReal> && finish_and_return_grid();
-    private:
-        void gauss_1d_();
-        void tensor_product_1d_(real weight);
-        void set_grid_index_and_dx_(const rvec x);
-        real nu_; // spacing/sigma
-        RVec grid_index_r_;
+    protected:
+        void prepare_2d_grid(const rvec x, const real weight);
         IVec grid_index_;
-        rvec dx_; // (x-nearest voxel)/sigma
-        std::vector < std::vector < std::vector<real>>> spread_block_;
+        int                              m_spread_;
         std::array<std::vector<real>, 3> spread_1d_;
         std::vector < std::vector < real>> spread_2d_;
-        real                             E1_;       //< exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
-        real                             E2_;       //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
-        std::vector<real>                E3_;       //< exp(-l^2*nu^2/2) , following the naming convention of Greengard et al., ;
-        int                              m_spread_; // number of grid cells for spreading
+    private:
+        std::array<std::vector<real>, 3> spread_1d_xyz_(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3);
+        void tensor_product_2d_();
+        void tensor_product_();
+        real nu_; // spacing/sigma
+        RVec grid_index_r_;
+        std::vector < std::vector < std::vector<real>>> spread_block_;
+
+        std::vector<real>                E3_;      //< exp(-l^2*nu^2/2) , following the naming convention of Greengard et al., ;
 };
 
 

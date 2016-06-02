@@ -102,8 +102,10 @@ class Group
         void parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function);
 
         int num_atoms_loc();
+        int num_atoms_global() const;
 
         void set_x(const rvec x[]);
+        RVec local_coordinate_sum();
 
     protected:
 

@@ -56,7 +56,7 @@ namespace gmx
 WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const int npbcdim) :
     Group(base_group), mpi_helper_(mpi_helper), npbcdim_(npbcdim)
 {
-    // in hte whole molecule gruop, copy atom coordinates, then shift, rather then reference only
+    // in the whole molecule group, copy atom coordinates, then shift, rather then reference only
     snew(Group::x_, Group::num_atoms_loc_);
     snew(x_reference_, Group::num_atoms_);
     snew(shifts_, Group::num_atoms_);

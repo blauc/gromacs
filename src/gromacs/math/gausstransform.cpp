@@ -66,11 +66,6 @@ GaussTransform::set_n_sigma(real n_sigma)
     n_sigma_ = n_sigma;
 };
 
-std::unique_ptr<GridReal> grid_;
-real                      sigma_;
-int                       n_sigma_;
-
-
 void
 FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
 {
@@ -84,82 +79,87 @@ FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
     }
     if (grid_->spacing_is_same_xyz())
     {
-        nu_ = grid_->avg_spacing()/sigma_;
+        nu_       = grid_->avg_spacing()/sigma_;
+        m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
+        E3_.resize(2*m_spread_+1);
+
+        for (int i = -m_spread_; i <= m_spread_; ++i)
+        {
+            E3_[i+m_spread_] = exp( -i * i * nu_ * nu_ / 2. );
+        }
     }
     else
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
     }
     grid_->resize();
-    m_spread_ = int(ceil(n_sigma_/nu_));
-    for (int i = -m_spread_; i <= m_spread_; ++i)
-    {
-        E3_.push_back(exp( -i * i * nu_ * nu_ / 2. ));
-    }
 };
 
-void
-FastGaussianGridding::gauss_1d_()
+std::array<std::vector<real>, 3>
+FastGaussianGridding::spread_1d_xyz_(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3)
 {
-    real E2_power_l;
+    std::array<std::vector<real>, 3> result;
+
     for (size_t i = XX; i <= ZZ; i++)
     {
 
-        spread_1d_[i].resize(2*m_spread_+1);
+        result[i].resize(2*m_spread+1);
 
-        E1_        = exp(-dx_[i]*dx_[i]/2.0);
-        E2_        = exp(dx_[i]*nu_);
-        E2_power_l = E2_;
+        real E1         = weight*exp(-dx[i]*dx[i]/2.0); //< exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
+        real E2         = exp(dx[i]*nu);                //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
+        real E2_power_l = E2;
 
-        spread_1d_[i][m_spread_] = E1_;
-        for (int l = 1; l < m_spread_; l++)
+        result[i][m_spread] = E1;
+        for (int l = 1; l < m_spread; l++)
         {
+            result[i][m_spread-l] = (E1 / E2_power_l) * E3[m_spread-l];
+            result[i][m_spread+l] = (E1 * E2_power_l) * E3[m_spread+l];
 
-            spread_1d_[i][m_spread_-l] = (E1_ / E2_power_l) * E3_[m_spread_-l];
-            spread_1d_[i][m_spread_+l] = (E1_ * E2_power_l) * E3_[m_spread_+l];
-
-            E2_power_l *= E2_;
+            E2_power_l *= E2;
         }
     }
-
+    return result;
 };
 
 void
-FastGaussianGridding::tensor_product_1d_(real weight)
+FastGaussianGridding::tensor_product_2d_()
 {
     spread_2d_.resize(2*m_spread_+1);
     real spread_z;
     for (int l_z = 0; l_z < 2 * m_spread_ + 1; ++l_z)
     {
         spread_2d_[l_z].resize(2*m_spread_+1);
-        spread_z = weight*spread_1d_[ZZ][l_z];
+        spread_z = spread_1d_[ZZ][l_z];
         for (int l_y = 0; l_y < 2 * m_spread_ + 1; ++l_y)
         {
             spread_2d_[l_z][l_y] = spread_z*spread_1d_[YY][l_y];
         }
     }
+}
+
+void
+FastGaussianGridding::tensor_product_()
+{
 
     ivec l_min;
     ivec l_max;
-    for (size_t i = 0; i <= ZZ; ++i)
+    for (size_t i = XX; i <= ZZ; ++i)
     {
         l_min[i] = grid_index_[i]-m_spread_ < 0 ? 0 : grid_index_[i]-m_spread_;
         l_max[i] = grid_index_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_[i]+m_spread_;
     }
     real   spread_zy;
-    int    l_y, l_z;
     std::vector<real>::iterator voxel;
     int    l_x_min = l_min[XX]-grid_index_[XX]+m_spread_;
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
 
-
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
-        l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
+        int l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
         for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
         {
-            l_y          = l_grid_y - grid_index_[YY]+m_spread_;
+            int l_y          = l_grid_y - grid_index_[YY]+m_spread_;
             spread_zy    = spread_2d_[l_z][l_y];
             voxel        = grid_->zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
             spread_1d_XX = &(spread_1d_[XX][l_x_min]);
@@ -174,23 +174,23 @@ FastGaussianGridding::tensor_product_1d_(real weight)
     }
 };
 
-void
-FastGaussianGridding::set_grid_index_and_dx_(const real * x)
+void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
     grid_index_ = grid_->coordinate_to_gridindex_floor_ivec(x);
-    RVec nearest_grid_point_coordinate = grid_->gridpoint_coordinate(grid_index_);
+    RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        dx_[i]         = (x[i]-nearest_grid_point_coordinate[i])/sigma_;
+        dx[i]  = (x[i]-grid_->gridpoint_coordinate(grid_index_)[i])/sigma_;
     }
-};
+    spread_1d_ = spread_1d_xyz_(weight, m_spread_, dx, nu_, E3_);
+    tensor_product_2d_();
+}
 
 void
 FastGaussianGridding::transform(const rvec x, real weight)
 {
-    set_grid_index_and_dx_(x);
-    gauss_1d_();
-    tensor_product_1d_(weight);
+    prepare_2d_grid(x, weight);
+    tensor_product_();
 }
 
 std::unique_ptr<GridReal> &&
@@ -201,4 +201,4 @@ FastGaussianGridding::finish_and_return_grid()
 
 }    // namespace volumedata
 
-}    // namespace volumedata
+}    // namespace gmx

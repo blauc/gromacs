@@ -43,7 +43,6 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/fileio/volumedataio.h"
 
-
 namespace gmx
 {
 
@@ -55,10 +54,12 @@ namespace volumedata
 struct MrcMetaData;
 class GridReal;
 class FastGaussianGridding;
+class FastGaussianGriddingForce;
 }
 
 namespace externalpotential
 {
+
 class DensityFitting : public ExternalPotential
 {
     public:
@@ -75,8 +76,7 @@ class DensityFitting : public ExternalPotential
 
     private:
         void do_force_plain(const rvec x, rvec force);
-        void translation_removal(const matrix box, const rvec x[]);
-        void translate_atoms_into_map_(const matrix box, const rvec x[]);
+        void translate_atoms_into_map_(const rvec x[]);
         void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
@@ -98,7 +98,7 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
-        std::vector < std::unique_ptr < volumedata::FastGaussianGridding>> force_gauss_transform_;
+        std::vector < std::unique_ptr < volumedata::FastGaussianGriddingForce>> force_gauss_transform_;
         std::unique_ptr<volumedata::FastGaussianGridding> gauss_transform_;
         real                                              background_density_;
         volumedata::MrcMetaData                           meta_;

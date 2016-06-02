@@ -223,6 +223,11 @@ void Group::set_x(const rvec x[])
     x_ = const_cast<rvec *>(x);
 };
 
+int Group::num_atoms_global() const
+{
+    return num_atoms_;
+}
+
 int Group::num_atoms_loc()
 {
     return num_atoms_loc_;
@@ -235,6 +240,17 @@ void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_ker
     {
         loop_kernel_function((*this)[i], std::max(0, gmx_omp_get_thread_num()));
     }
+}
+
+RVec
+Group::local_coordinate_sum()
+{
+    return std::accumulate(
+            this->begin(), this->end(), RVec {0, 0, 0},
+            [] (RVec &coordinate_sum, GroupAtom local_atom) {
+                rvec_inc(coordinate_sum, local_atom.x);
+                return coordinate_sum;
+            });
 }
 
 } // namespace gmx

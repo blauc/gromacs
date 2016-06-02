@@ -335,17 +335,17 @@ bool FiniteGrid::rectangular()
     return true;
 };
 
-RVec FiniteGrid::unit_cell_XX()
+RVec FiniteGrid::unit_cell_XX() const
 {
     return impl_->unit_cell_[XX];
 }
 
-RVec FiniteGrid::unit_cell_YY()
+RVec FiniteGrid::unit_cell_YY() const
 {
     return impl_->unit_cell_[YY];
 }
 
-RVec FiniteGrid::unit_cell_ZZ()
+RVec FiniteGrid::unit_cell_ZZ() const
 {
     return impl_->unit_cell_[ZZ];
 }
@@ -384,7 +384,7 @@ FiniteGrid::avg_spacing()
     return (impl_->unit_cell_[XX][XX] + impl_->unit_cell_[YY][YY]+impl_->unit_cell_[ZZ][ZZ])/3;
 }
 
-RVec FiniteGrid::gridpoint_coordinate(IVec i)
+RVec FiniteGrid::gridpoint_coordinate(IVec i) const
 {
     RVec result;
     mvmul(impl_->unit_cell_, RVec(i[XX], i[YY], i[ZZ]), result);
@@ -501,7 +501,7 @@ std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::zy
     return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (column_begin, column_end);
 };
 
-std::vector<real>::iterator GridReal::zy_column_begin(int z, int y)
+std::vector<real>::iterator GridReal::zy_column_begin(int z, int y) const
 {
     return impl_->data_.begin()+gmx::volumedata::FiniteGrid::impl_->extend_[XX]*gmx::volumedata::FiniteGrid::impl_->extend_[YY]*z + gmx::volumedata::FiniteGrid::impl_->extend_[XX]*y;
 }
@@ -537,6 +537,21 @@ GridReal::GridReal() : impl_(new GridReal::Impl())
 
 GridReal::~GridReal()
 {
+}
+
+RVec
+GridReal::center_of_mass()
+{
+    real grid_mean = mean();
+    rvec weighted_grid_coordinate;
+    RVec com = {0, 0, 0};
+    for (size_t i = 0; i < num_gridpoints(); i++)
+    {
+        svmul(impl_->data_[i], gridpoint_coordinate(i), weighted_grid_coordinate);
+        rvec_inc(com, weighted_grid_coordinate);
+    }
+    svmul(1./(grid_mean*num_gridpoints()), com, com);
+    return com;
 }
 
 std::string

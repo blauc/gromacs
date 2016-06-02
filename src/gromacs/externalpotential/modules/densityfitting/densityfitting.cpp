@@ -53,13 +53,122 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/gausstransform.h"
-#include "ifgt/Ifgt.h"
+#include "gromacs/fileio/xtcio.h"
+
 
 namespace gmx
 {
 
+class volumedata::FastGaussianGriddingForce : public FastGaussianGridding
+{
+    public:
+        using FastGaussianGridding::FastGaussianGridding;
+        RVec force(const rvec x, const real weight,  const volumedata::GridReal &div);
+
+};
+
+RVec
+volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, const volumedata::GridReal &div)
+{
+    prepare_2d_grid(x, weight);
+    ivec l_min;
+    ivec l_max;
+    RVec force = {0, 0, 0};
+
+    for (size_t i = XX; i <= ZZ; ++i)
+    {
+        l_min[i] = grid_index_[i]-m_spread_ < 0 ? 0 : grid_index_[i]-m_spread_;
+        l_max[i] = grid_index_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_[i]+m_spread_;
+    }
+
+    real   spread_zy;
+    std::vector<real>::iterator density_ratio_iterator;
+    int    l_x_min = l_min[XX]-grid_index_[XX]+m_spread_;
+    int    n_l_x   = l_max[XX]-l_min[XX];
+    real * spread_1d_XX;
+
+
+    RVec     d_x       = div.unit_cell_XX();
+    RVec     d_y       = div.unit_cell_YY();
+    RVec     d_z       = div.unit_cell_ZZ();
+    RVec     shift_z;                                          //< (x-v_0) + dz
+    RVec     shift_yz;                                         //< ((x-v_0) + dz) + dy
+    RVec     shift_xyz;                                        //< (((x-v_0) + dz) + dy) + dx
+
+    rvec_sub(div.gridpoint_coordinate({0, 0, 0}), x, shift_z); // using the grid-origin as reference (x-v_0)
+
+
+    rvec voxel_force; //< The force each voxel contributes
+
+    /*
+     * To avoid repeated calculation of the distance from atom to voxel, (x-v)
+     * calculate instead for voxel v at i_x,i_y,i_z: (((x-v_0) + dz+...(i_z times)...+dz) + dy+...+dy) + dx...+dx
+     */
+
+    /*
+     * Use iterators to step though the grid.
+     * This relies on the assumption that the grid is stored with z the slowest and x the fasted changing dimension with no padding
+     * (x,y,z not being linked to any coordiante system, but short-hand for first, second, third dimension)
+     * Loosing generality through this approach, we save substantial time when we don't have to calculate the grid index.
+     */
+
+    RVec d_z_offset;
+    svmul(l_min[ZZ], d_z, d_z_offset);
+    rvec_inc(shift_z, d_z_offset);
+    RVec d_y_offset;
+    svmul(l_min[YY], d_y, d_y_offset);
+    RVec d_x_offset;
+    svmul(l_min[XX], d_x, d_x_offset);
+
+
+    for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
+    {
+        shift_yz = shift_z;             // start at the beginning of a "y-row"
+        rvec_inc(shift_yz, d_y_offset); // move in the "y-row" to the voxel where spreading starts
+
+        int l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
+        for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
+        {
+            shift_xyz = shift_yz;            // start at the beginning of an "x-column"
+            rvec_inc(shift_xyz, d_x_offset); // move in the "x-row" to the voxel where spreading starts
+
+            int l_y          = l_grid_y - grid_index_[YY]+m_spread_;
+            spread_zy                     = spread_2d_[l_z][l_y];
+            density_ratio_iterator        = div.zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
+
+            spread_1d_XX = &(spread_1d_[XX][l_x_min]);
+
+            for (int l_x = 0; l_x <= n_l_x; ++l_x)
+            {
+
+                /*
+                 * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
+                 *
+                 * *force_density_iterator = k*V/sigma exp(-(x-v)^2/2*sigma^2)
+                 * shift_xyz = (x-v)
+                 * *density_ratio_iterator = rho_div_v
+                 *
+                 */
+                svmul(spread_zy * (*spread_1d_XX) * (*density_ratio_iterator), shift_xyz, voxel_force);
+                /*
+                 * add the force to the total force from all voxels
+                 */
+                rvec_inc(force, voxel_force);
+
+                ++spread_1d_XX;
+                ++density_ratio_iterator;
+                rvec_inc(shift_xyz, d_x); // next step in grid x-direction
+            }
+            rvec_inc(shift_yz, d_y);      // next step in grid y-direction
+        }
+        rvec_inc(shift_z, d_z);           // next step in grid z-direction
+    }
+    return force;
+};
+
 namespace externalpotential
 {
+
 
 std::unique_ptr<ExternalPotential> DensityFitting::create()
 {
@@ -101,87 +210,44 @@ void DensityFitting::spread_density_(const rvec x[])
 
 }
 
-void DensityFitting::translate_atoms_into_map_(const matrix box, const rvec x[])
+void DensityFitting::translate_atoms_into_map_(const rvec x[])
 {
-    const real minimum_translation              = 0.2; //< Assuming that 1nm is the smallest reasonable map-shift for a good first approximation placeing the atoms within the density
-    const real maximum_number_box_vector_shifts = 4;   //< The search range in multiples of box-vector shifts, assuming it is unlikely that a user placed the atoms further away from the box than this number
     spread_density_(x);
-    real       ref_mean                         = simulated_density_->mean();
-    real       this_mean                        = simulated_density_->mean();
-    RVec       best_translation                 = { 0, 0, 0 };
-    RVec       translation_XX                   = box[XX];
-    RVec       translation_YY                   = box[YY];
-    RVec       translation_ZZ                   = box[ZZ];
-    RVec       last_best_translation(translation_);
-
-    for (real factor = maximum_number_box_vector_shifts; norm(translation_XX) > minimum_translation && norm(translation_YY) > minimum_translation && norm(translation_ZZ) > minimum_translation; factor /= 2)
+    /*
+     * Gather the local contributions to the overall spread density on the master node.
+     */
+    if (mpi_helper() != nullptr)
     {
-        for (int shift_XX = -1; shift_XX <= 1; ++shift_XX)
-        {
-            svmul(shift_XX*factor, box[XX], translation_XX);
-
-            for (int shift_YY = -1; shift_YY <= 1; ++shift_YY)
-            {
-                svmul(shift_YY*factor, box[YY], translation_YY);
-
-                for (int shift_ZZ = -1; shift_ZZ <= 1; ++shift_ZZ)
-                {
-                    svmul(shift_ZZ*factor, box[ZZ], translation_ZZ);
-                    rvec_add(last_best_translation, translation_XX, translation_);
-                    rvec_inc(translation_, translation_YY);
-                    rvec_inc(translation_, translation_ZZ);
-
-                    spread_density_(x);
-
-                    /*
-                     * Gather the local contributions to the overall spread density on the master node.
-                     */
-                    if (mpi_helper() != nullptr)
-                    {
-                        sum_reduce_simulated_density_();
-                    }
-
-                    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-                    {
-                        this_mean = simulated_density_->mean();
-
-                        if ( (this_mean > ref_mean))
-                        {
-                            ref_mean = this_mean;
-                            copy_rvec(translation_, best_translation);
-                        }
-                    }
-
-                }
-            }
-        }
-        copy_rvec(best_translation, last_best_translation);
+        sum_reduce_simulated_density_();
     }
-    copy_rvec(best_translation, translation_);
+
+    RVec center_of_geometry_fitatoms = group(x, 0)->local_coordinate_sum();
+
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->to_reals_buffer(center_of_geometry_fitatoms, 3);
+        mpi_helper()->sum_reduce();
+        if (mpi_helper()->isMaster())
+        {
+            mpi_helper()->from_reals_buffer(center_of_geometry_fitatoms, 3);
+        }
+    }
+
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+        svmul(1.0/group(x, 0)->num_atoms_global(), center_of_geometry_fitatoms, center_of_geometry_fitatoms);
+        RVec center_of_density = simulated_density_->center_of_mass();
+        rvec_sub(center_of_geometry_fitatoms, center_of_density, translation_);
+    }
+
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->broadcast(translation_, 3);
+    }
+    fprintf(stderr, "\n  best translation : %g %g %g \n", translation_[XX], translation_[YY], translation_[ZZ]);
 }
 
 
-void DensityFitting::translation_removal(const matrix box, const rvec x[])
-{
-
-/* Perform naive grid search for map translation.
- *
- * try coordinate translations in 27 box vector combination directions, scaled by factor
- * if a coordinate translation generates a map that fits better than the previous reference map
- * make this the new reference map, store the translation as best
- *
- * after all 27 translations tried, use the previous best translation as starting point
- * try translations half as large as before
- *
- * finish, if map translations become smaler than MD-relevant length-scales
- *
- * due to normalisation and off-setting, zero density might fit better than a density in the wrong spot
- * ( ---/\ better fits ----- than /\--- )
- * as a consequence, starting from very far, with very bad initial guesses
- * will result in sending the coordinates as far as possible from the target map.
- */
-    translate_atoms_into_map_(box, x);
-}
 
 void
 DensityFitting::initialize_target_density_()
@@ -200,7 +266,7 @@ DensityFitting::initialize_buffers_()
         /* Create a gauss transform object for each density buffer,
          * because the gauss transforms will be carried out simultaneously
          */
-        force_gauss_transform_.push_back((std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding())));
+        force_gauss_transform_.push_back((std::unique_ptr<volumedata::FastGaussianGriddingForce>(new volumedata::FastGaussianGriddingForce())));
         force_gauss_transform_[i]->set_sigma(sigma_);
         force_gauss_transform_[i]->set_n_sigma(n_sigma_);
     }
@@ -225,14 +291,19 @@ DensityFitting::initialize_reference_density(const rvec x[])
 }
 
 void
-DensityFitting::initialize(const matrix /*box*/, const rvec x[])
+DensityFitting::initialize(const matrix box, const rvec x[])
 {
     initialize_target_density_();
     initialize_buffers_();
     initialize_spreading_();
-
-    // translation_removal(box, x);
+    translate_atoms_into_map_(x);
     initialize_reference_density(x);
+    t_fileio  * out     = open_xtc("out.xtc", "w");
+    rvec       *x_write = const_cast<rvec*>(x);
+    matrix      box_write;
+    copy_mat(box, box_write);
+    write_xtc(out, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_write, 12);
+    close_xtc(out);
 
 }
 
@@ -275,69 +346,9 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
     /*
      * The atoms spread weight is k_*simulated_density_->grid_cell_volume()/sigma_, so we don't have to do that multiplication later in the force calculation loop
      */
-    force_gauss_transform_[thread]->transform(x_shifted, k_*simulated_density_->grid_cell_volume()/sigma_);
+    copy_rvec(force_gauss_transform_[thread]->force(x_shifted, k_*simulated_density_->grid_cell_volume()/sigma_,  *simulated_density_), atom.force);
+
     force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
-
-    /*
-     * To avoid repeated calculation of the distance from atom to voxel, (x-v)
-     * calculate instead for voxel v at i_x,i_y,i_z: (((x-v_0) + dz+...(i_z times)...+dz) + dy+...+dy) + dx...+dx
-     */
-    RVec d_x, d_y, d_z;
-    RVec shift_z;                                                              //< (x-v_0) + dz
-    RVec shift_yz;                                                             //< ((x-v_0) + dz) + dy
-    RVec shift_xyz;                                                            //< (((x-v_0) + dz) + dy) + dx
-
-    rvec_sub(simulated_density_->gridpoint_coordinate(0), x_shifted, shift_z); // using the grid-origin as reference (x-v_0)
-    shift_yz  = shift_z;
-    shift_xyz = shift_z;
-    d_x       = simulated_density_->unit_cell_XX();
-    d_y       = simulated_density_->unit_cell_YY();
-    d_z       = simulated_density_->unit_cell_ZZ();
-
-    rvec voxel_force; //< The force each
-
-    /*
-     * Use iterators to step though the grid.
-     * This relies on the assumption that the grid is stored with z the slowest and x the fasted changing dimension with no padding
-     * (x,y,z not being linked to any coordiante system, but short-hand for first, second, third dimension)
-     * Loosing generality through this approach, we save substantial time when we don't have to calculate the grid index.
-     */
-    std::vector<real>::iterator density_ratio_iterator     = simulated_density_->data().begin();
-    std::vector<real>::iterator force_density_iterator     = force_density_[thread]->data().begin();
-
-    ivec grid_extend {
-        simulated_density_->extend()[XX], simulated_density_->extend()[YY], simulated_density_->extend()[ZZ]
-    };                                                                                                                   //< save some function calls in the loop
-    for (int i_ZZ = 0; i_ZZ < grid_extend[ZZ]; i_ZZ++)
-    {
-        shift_yz = shift_z; // start at the beginning of a "y-row"
-        for (int i_YY = 0; i_YY < grid_extend[YY]; i_YY++)
-        {
-            shift_xyz = shift_yz; // start at the beginning of an "x-column"
-            for (int i_XX = 0; i_XX < grid_extend[XX]; i_XX++)
-            {
-                /*
-                 * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
-                 *
-                 * *force_density_iterator = k*V/sigma exp(-(x-v)^2/2*sigma^2)
-                 * shift_xyz = (x-v)
-                 * *density_ratio_iterator = rho_div_v
-                 *
-                 */
-                svmul(*force_density_iterator * *density_ratio_iterator, shift_xyz, voxel_force);
-
-                /*
-                 * add the force to the respective atom
-                 */
-                rvec_inc(atom.force, voxel_force);
-                ++density_ratio_iterator;
-                ++force_density_iterator;
-                rvec_inc(shift_xyz, d_x); // next step in grid x-direction
-            }
-            rvec_inc(shift_yz, d_y);      // next step in grid y-direction
-        }
-        rvec_inc(shift_z, d_z);           // next step in grid z-direction
-    }
 
 };
 
