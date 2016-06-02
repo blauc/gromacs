@@ -1,0 +1,2 @@
+# gromacs_externalpotentials
+
