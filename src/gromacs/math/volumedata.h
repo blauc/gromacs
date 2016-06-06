@@ -214,6 +214,8 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
          * \throws std::out_of_range if element is out of array bounds
          */
         real &at(IVec index);
+        /*! \brief The sum of all grid values. */
+        real sum();
         /*! \brief The minimum grid data value. */
         real min();
         /*! \brief The maximum grid data value. */

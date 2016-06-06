@@ -467,7 +467,7 @@ real GridReal::max()
 
 real GridReal::mean()
 {
-    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.)/ static_cast<float>(impl_->data_.size());
+    return sum()/ static_cast<float>(impl_->data_.size());
 };
 
 real GridReal::var()
@@ -539,10 +539,15 @@ GridReal::~GridReal()
 {
 }
 
+real
+GridReal::sum()
+{
+    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.);
+}
+
 RVec
 GridReal::center_of_mass()
 {
-    real grid_mean = mean();
     rvec weighted_grid_coordinate;
     RVec com = {0, 0, 0};
     for (size_t i = 0; i < num_gridpoints(); i++)
@@ -550,7 +555,7 @@ GridReal::center_of_mass()
         svmul(impl_->data_[i], gridpoint_coordinate(i), weighted_grid_coordinate);
         rvec_inc(com, weighted_grid_coordinate);
     }
-    svmul(1./(grid_mean*num_gridpoints()), com, com);
+    svmul(1./(sum()), com, com);
     return com;
 }
 

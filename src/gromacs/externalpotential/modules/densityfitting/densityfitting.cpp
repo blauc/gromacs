@@ -212,15 +212,6 @@ void DensityFitting::spread_density_(const rvec x[])
 
 void DensityFitting::translate_atoms_into_map_(const rvec x[])
 {
-    spread_density_(x);
-    /*
-     * Gather the local contributions to the overall spread density on the master node.
-     */
-    if (mpi_helper() != nullptr)
-    {
-        sum_reduce_simulated_density_();
-    }
-
     RVec center_of_geometry_fitatoms = group(x, 0)->local_coordinate_sum();
 
     if (mpi_helper() != nullptr)
@@ -236,7 +227,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[])
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
         svmul(1.0/group(x, 0)->num_atoms_global(), center_of_geometry_fitatoms, center_of_geometry_fitatoms);
-        RVec center_of_density = simulated_density_->center_of_mass();
+        RVec center_of_density = target_density_->center_of_mass();
         rvec_sub(center_of_geometry_fitatoms, center_of_density, translation_);
     }
 
@@ -244,7 +235,6 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[])
     {
         mpi_helper()->broadcast(translation_, 3);
     }
-    fprintf(stderr, "\n  best translation : %g %g %g \n", translation_[XX], translation_[YY], translation_[ZZ]);
 }
 
 
@@ -304,7 +294,6 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     copy_mat(box, box_write);
     write_xtc(out, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_write, 12);
     close_xtc(out);
-
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
