@@ -1332,13 +1332,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                      bVerbose, Flags);
         }
 
-        if (inputrec->eSwapCoords != eswapNO)
-        {
-            /* Initialize ion swapping code */
-            init_swapcoords(fplog, bVerbose, inputrec, opt2fn_master("-swap", nfile, fnm, cr),
-                            mtop, state->x, state->box, &state->swapstate, cr, oenv, Flags);
-        }
-
         if (inputrec->bExternalPotential)
         {
             /* Initialize the external potentials */

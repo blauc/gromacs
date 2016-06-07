@@ -85,10 +85,7 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
 
     for (auto atom : *r1_local)
     {
-        if (atom.x[0]*atom.x[0] > 1e2 || atom.x[1]*atom.x[1] > 1e2 || atom.x[2]*atom.x[2] > 1e2)
-        {
-            fprintf(stderr, " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
-        }
+
         rvec_sub(atom.x, com1, atom.force);
         svmul(-k_, atom.force, atom.force);
         potential      += k_*distance2(atom.x, com1)/2.0;
@@ -96,10 +93,6 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
 
     for (auto atom : *r2_local)
     {
-        if (atom.x[0]*atom.x[0] > 1e2 || atom.x[1]*atom.x[1] > 1e2 || atom.x[2]*atom.x[2] > 1e2)
-        {
-            fprintf(stderr, " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
-        }
         rvec_sub(atom.x, com2, atom.force);
         svmul(-k_, atom.force, atom.force);
         potential      += k_*distance2(atom.x, com2)/2.0;
