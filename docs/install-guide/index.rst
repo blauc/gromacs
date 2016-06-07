@@ -96,29 +96,36 @@ Getting good performance on an OS and architecture requires choosing a
 good compiler. In practice, many compilers struggle to do a good job
 optimizing the |Gromacs| architecture-optimized SIMD kernels.
 
-C++11 support requires both support in the compiler as well as in the
-C++ library. Multiple compilers do not provide their own library
-but use the system library. It is required to select a library with
-sufficient C++11 support. Both the Intel and clang compiler on Linux use
-the libstdc++ which comes with gcc as the default C++ library. 4.6.1 of
-that library is required. Also the C++ library version has to be
-supported by the compiler. To select the C++ library version use:
+C++11 support requires adequate support in both the compiler and the
+C++ library. The gcc compiler includes its own GNU standard library
+called libstdc++, which just works. Both the Intel and clang compiler
+on Linux use the libstdc++ which comes with gcc as the default C++
+library. Version 4.6.1 of that library is required to have enough
+language support for |Gromacs|, and the C++ library version must be
+supported by the compiler. To select a particular libstdc++ library,
+use:
 
-* For Intel: ``CXXFLAGS=-gcc-name=/path/to/gcc/binary`` or make sure
+* For Intel: ``-DGMX_STDLIB_CXX_FLAGS=-gcc-name=/path/to/gcc/binary`` or make sure
   that the correct gcc version is first in path (e.g. by loading the gcc
   module)
-* For clang: ``CFLAGS=--gcc-toolchain=/path/to/gcc/folder
-  CXXFLAGS=--gcc-toolchain=/path/to/gcc/folder``. This folder should
+* For clang: ``-DCMAKE_CXX_FLAGS=--gcc-toolchain=/path/to/gcc/folder``. This folder should
   contain ``include/c++``.
-* On Windows with e.g. Intel: at least MSVC 2013 is required. Load the
-  enviroment with vcvarsall.bat.
+
+On Windows with e.g. Intel, the MSVC standard library is used, and at
+least MSVC 2015 is required. Load the enviroment with vcvarsall.bat.
+
+To build with clang's libcxx standard library, use
+``-DGMX_STDLIB_CXX_FLAGS=-stdlib=libc++ -DGMX_STDLIB_LIBRARIES='-lc++abi -lc++'``.
 
 For best performance, the |Gromacs| team strongly recommends you get the
 most recent version of your preferred compiler for your platform.
 There is a large amount of |Gromacs| code that depends on effective
 compiler optimization to get high performance. This makes |Gromacs|
 performance sensitive to the compiler used, and the binary will often
-only work on the hardware for which it is compiled.
+only work on the hardware for which it is compiled. You may also need
+the most recent version compiler toolchain components beside the
+compiler itself (e.g. assembler or linker); these are often shipped by
+the distribution's binutils package.
 
 * In particular, |Gromacs| includes a lot of explicit SIMD (single
   instruction, multiple data) optimization that suits
@@ -191,14 +198,22 @@ but it could be faster to mix compiler versions to suit particular
 contexts.
 
 To make it possible to use other accelerators, |Gromacs| also includes
-OpenCL_ support. The current version is recommended for use with
-GCN-based AMD GPUs. It does work with NVIDIA GPUs, but using the latest
-NVIDIA driver (which includes the NVIDIA OpenCL runtime) is recommended,
-and please see the known limitations in the |Gromacs| user guide. The
-minimum OpenCL version required is |REQUIRED_OPENCL_MIN_VERSION|.
+OpenCL_ support. The minimum OpenCL version required is
+|REQUIRED_OPENCL_MIN_VERSION|.
 
+The current version is recommended for use with
+GCN-based AMD GPUs. It does work with NVIDIA GPUs, but using the latest
+NVIDIA driver (which includes the NVIDIA OpenCL runtime) is recommended.
+Additionally, there are known issues when using recent versions of the
+AMD APPSDK. For more details, please see the known limitations in the
+|Gromacs| user guide.
 It is not possible to configure both CUDA and OpenCL support in the
 same version of |Gromacs|.
+
+Please note that MSVC 2015 is the earliest version of MSVC supported
+by |Gromacs|, but that requires at least CUDA 8 for an officially
+supported CUDA build. This will likely not occur before |Gromacs| 2016
+is released.
 
 .. _mpi-support:
 
@@ -327,7 +342,6 @@ Optional build components
 * An external TNG library for trajectory-file handling can be used,
   but TNG 1.7.6 is bundled in the |Gromacs| source already
 * zlib is used by TNG for compressing some kinds of trajectory data
-* Running the |Gromacs| test suite requires libxml2
 * Building the |Gromacs| documentation requires ImageMagick, pdflatex,
   bibtex, doxygen, python 2.7, sphinx and pygments.
 * The |Gromacs| utility programs often write data files in formats
@@ -1168,7 +1182,7 @@ is currently tested on x86 with gcc versions ranging from 4.6 through
 5.1, and versions 14 and 15 of the Intel compiler as well as Clang
 version 3.4 through 3.6. For this, we use a variety of GNU/Linux
 flavors and versions as well as recent versions of Mac OS X and Windows.  Under
-Windows we test both MSVC and the Intel compiler. For details, you can
+Windows we test both MSVC 2015 and the Intel compiler. For details, you can
 have a look at the `continuous integration server used by GROMACS`_,
 which runs Jenkins_.
 

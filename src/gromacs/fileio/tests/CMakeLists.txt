@@ -35,6 +35,7 @@
 set(test_sources
     confio.cpp
     mapio.cpp
+    readinp.cpp
     )
 if (GMX_USE_TNG)
     list(APPEND test_sources tngio.cpp)

@@ -52,6 +52,8 @@
 #ifndef GMX_PROGRAMS_MDRUN_TESTS_ENERGYREADER_H
 #define GMX_PROGRAMS_MDRUN_TESTS_ENERGYREADER_H
 
+#include <cstdint>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -130,7 +132,7 @@ class EnergyFrameReader
          *
          * \param[in] indicesOfEnergyFields  Looks up energy fields by name to get the index into a t_enxframe structure read by the legacy API.
          * \param[in] energyFile             Open energy file object to manage, and from which to read frames */
-        explicit EnergyFrameReader(std::map<std::string, int> indicesOfEnergyFields,
+        explicit EnergyFrameReader(const std::map<std::string, int> &indicesOfEnergyFields,
                                    ener_file *energyFile);
     private:
         //! Convert energy field name to its index within a t_enxframe from this file.
@@ -181,7 +183,7 @@ class EnergyFrame
         //! Container for energy values, indexed by name
         std::map<std::string, real> values_;
         //! Step number read from the .edr file frame
-        gmx_int64_t                 step_;
+        std::int64_t                step_;
         //! Time read from the .edr file frame
         double time_;
 

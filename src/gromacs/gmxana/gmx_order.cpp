@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -349,7 +349,7 @@ static void calc_tetra_order_parm(const char *fnNDX, const char *fnTPS,
 
 /* Print name of first atom in all groups in index file */
 static void print_types(int index[], int a[], int ngrps,
-                        char *groups[], t_topology *top)
+                        char *groups[], const t_topology *top)
 {
     int i;
 
@@ -374,7 +374,7 @@ static void check_length(real length, int a, int b)
 
 void calc_order(const char *fn, int *index, int *a, rvec **order,
                 real ***slOrder, real *slWidth, int nslices, gmx_bool bSliced,
-                gmx_bool bUnsat, t_topology *top, int ePBC, int ngrps, int axis,
+                gmx_bool bUnsat, const t_topology *top, int ePBC, int ngrps, int axis,
                 gmx_bool permolecule, gmx_bool radial, gmx_bool distcalc, const char *radfn,
                 real ***distvals,
                 const gmx_output_env_t *oenv)
@@ -835,7 +835,7 @@ void order_plot(rvec order[], real *slOrder[], const char *afile, const char *bf
     xvgrclose(slOrd);
 }
 
-void write_bfactors(t_filenm  *fnm, int nfile, int *index, int *a, int nslices, int ngrps, real **order, t_topology *top, real **distvals, gmx_output_env_t *oenv)
+void write_bfactors(t_filenm  *fnm, int nfile, int *index, int *a, int nslices, int ngrps, real **order, const t_topology *top, real **distvals, gmx_output_env_t *oenv)
 {
     /*function to write order parameters as B factors in PDB file using
           first frame of trajectory*/
@@ -957,11 +957,11 @@ int gmx_order(int argc, char *argv[])
     t_filenm          fnm[] = {                       /* files for g_order    */
         { efTRX, "-f", NULL,  ffREAD },               /* trajectory file              */
         { efNDX, "-n", NULL,  ffREAD },               /* index file           */
-        { efNDX, "-nr", NULL,  ffREAD },              /* index for radial axis calculation	  */
+        { efNDX, "-nr", NULL,  ffOPTRD },             /* index for radial axis calculation */
         { efTPR, NULL, NULL,  ffREAD },               /* topology file                */
         { efXVG, "-o", "order", ffWRITE },            /* xvgr output file     */
         { efXVG, "-od", "deuter", ffWRITE },          /* xvgr output file           */
-        { efPDB, "-ob", NULL, ffWRITE },              /* write Scd as B factors to PDB if permolecule           */
+        { efPDB, "-ob", NULL, ffOPTWR },              /* write Scd as B factors to PDB if permolecule           */
         { efXVG, "-os", "sliced", ffWRITE },          /* xvgr output file           */
         { efXVG, "-Sg", "sg-ang", ffOPTWR },          /* xvgr output file           */
         { efXVG, "-Sk", "sk-dist", ffOPTWR },         /* xvgr output file           */

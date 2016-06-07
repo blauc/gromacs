@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,  by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -44,6 +44,8 @@
  */
 #include "config.h"
 
+#include <assert.h>
+
 /* Note that floating-point constants in CUDA code should be suffixed
  * with f (e.g. 0.5f), to stop the compiler producing intermediate
  * code that is in double precision.
@@ -63,12 +65,18 @@
 #define USE_TEXOBJ
 #endif
 
-#define CL_SIZE_LOG2 (3)  /* change this together with CL_SIZE !*/
-#define CL_SIZE_SQ   (CL_SIZE * CL_SIZE)
-#define FBUF_STRIDE  (CL_SIZE_SQ)
+/*! \brief Log of the i and j cluster size.
+ *  change this together with c_clSize !*/
+static const int    c_clSizeLog2  = 3;
+/*! \brief Square of cluster size. */
+static const int    c_clSizeSq    = c_clSize*c_clSize;
+/*! \brief j-cluster size after split (4 in the current implementation). */
+static const int    c_splitClSize = c_clSize/c_nbnxnGpuClusterpairSplit;
+/*! \brief Stride in the force accumualation buffer */
+static const int    c_fbufStride  = c_clSizeSq;
 
-#define ONE_SIXTH_F     0.16666667f
-#define ONE_TWELVETH_F  0.08333333f
+static const float  c_oneSixth    = 0.16666667f;
+static const float  c_oneTwelveth = 0.08333333f;
 
 /* With multiple compilation units this ensures that texture refs are available
    in the the kernels' compilation units. */
@@ -82,6 +90,21 @@ extern texture<float, 1, cudaReadModeElementType> nbfp_comb_texref;
 /*! Texture reference for Ewald coulomb force table; bound to cu_nbparam_t.coulomb_tab */
 extern texture<float, 1, cudaReadModeElementType> coulomb_tab_texref;
 #endif /* GMX_CUDA_NB_SINGLE_COMPILATION_UNIT */
+
+/*! Convert LJ sigma,epsilon parameters to C6,C12. */
+static __forceinline__ __device__
+void convert_sigma_epsilon_to_c6_c12(const float  sigma,
+                                     const float  epsilon,
+                                     float       *c6,
+                                     float       *c12)
+{
+    float sigma2, sigma6;
+
+    sigma2 = sigma * sigma;
+    sigma6 = sigma2 *sigma2 * sigma2;
+    *c6    = epsilon * sigma6;
+    *c12   = *c6 * sigma6;
+}
 
 /*! Apply force switch,  force + energy version. */
 static __forceinline__ __device__
@@ -276,7 +299,7 @@ void calculate_lj_ewald_comb_geom_F_E(const cu_nbparam_t nbparam,
 
     /* Shift should be applied only to real LJ pairs */
     sh_mask   = nbparam.sh_lj_ewald*int_bit;
-    *E_lj    += ONE_SIXTH_F*c6grid*(inv_r6_nm*(1.0f - expmcr2*poly) + sh_mask);
+    *E_lj    += c_oneSixth*c6grid*(inv_r6_nm*(1.0f - expmcr2*poly) + sh_mask);
 }
 
 /*! Calculate LJ-PME grid force + energy contribution (if E_lj != NULL) with
@@ -325,7 +348,7 @@ void calculate_lj_ewald_comb_LB_F_E(const cu_nbparam_t nbparam,
 
         /* Shift should be applied only to real LJ pairs */
         sh_mask   = nbparam.sh_lj_ewald*int_bit;
-        *E_lj    += ONE_SIXTH_F*c6grid*(inv_r6_nm*(1.0f - expmcr2*poly) + sh_mask);
+        *E_lj    += c_oneSixth*c6grid*(inv_r6_nm*(1.0f - expmcr2*poly) + sh_mask);
     }
 }
 
@@ -407,9 +430,9 @@ void reduce_force_j_generic(float *f_buf, float3 *fout,
     if (tidxi < 3)
     {
         float f = 0.0f;
-        for (int j = tidxj * CL_SIZE; j < (tidxj + 1) * CL_SIZE; j++)
+        for (int j = tidxj * c_clSize; j < (tidxj + 1) * c_clSize; j++)
         {
-            f += f_buf[FBUF_STRIDE * tidxi + j];
+            f += f_buf[c_fbufStride * tidxi + j];
         }
 
         atomicAdd((&fout[aidx].x)+tidxi, f);
@@ -462,9 +485,9 @@ void reduce_force_i_generic(float *f_buf, float3 *fout,
     if (tidxj < 3)
     {
         float f = 0.0f;
-        for (int j = tidxi; j < CL_SIZE_SQ; j += CL_SIZE)
+        for (int j = tidxi; j < c_clSizeSq; j += c_clSize)
         {
-            f += f_buf[tidxj * FBUF_STRIDE + j];
+            f += f_buf[tidxj * c_fbufStride + j];
         }
 
         atomicAdd(&fout[aidx].x + tidxj, f);
@@ -487,20 +510,22 @@ void reduce_force_i_pow2(volatile float *f_buf, float3 *fout,
     int     i, j;
     float   f;
 
-    /* Reduce the initial CL_SIZE values for each i atom to half
-     * every step by using CL_SIZE * i threads.
+    assert(c_clSize == 1 << c_clSizeLog2);
+
+    /* Reduce the initial c_clSize values for each i atom to half
+     * every step by using c_clSize * i threads.
      * Can't just use i as loop variable because than nvcc refuses to unroll.
      */
-    i = CL_SIZE/2;
+    i = c_clSize/2;
 #pragma unroll 5
-    for (j = CL_SIZE_LOG2 - 1; j > 0; j--)
+    for (j = c_clSizeLog2 - 1; j > 0; j--)
     {
         if (tidxj < i)
         {
 
-            f_buf[                  tidxj * CL_SIZE + tidxi] += f_buf[                  (tidxj + i) * CL_SIZE + tidxi];
-            f_buf[    FBUF_STRIDE + tidxj * CL_SIZE + tidxi] += f_buf[    FBUF_STRIDE + (tidxj + i) * CL_SIZE + tidxi];
-            f_buf[2 * FBUF_STRIDE + tidxj * CL_SIZE + tidxi] += f_buf[2 * FBUF_STRIDE + (tidxj + i) * CL_SIZE + tidxi];
+            f_buf[                   tidxj * c_clSize + tidxi] += f_buf[                   (tidxj + i) * c_clSize + tidxi];
+            f_buf[    c_fbufStride + tidxj * c_clSize + tidxi] += f_buf[    c_fbufStride + (tidxj + i) * c_clSize + tidxi];
+            f_buf[2 * c_fbufStride + tidxj * c_clSize + tidxi] += f_buf[2 * c_fbufStride + (tidxj + i) * c_clSize + tidxi];
         }
         i >>= 1;
     }
@@ -508,9 +533,9 @@ void reduce_force_i_pow2(volatile float *f_buf, float3 *fout,
     /* i == 1, last reduction step, writing to global mem */
     if (tidxj < 3)
     {
-        /* tidxj*FBUF_STRIDE selects x, y or z */
-        f = f_buf[tidxj * FBUF_STRIDE               + tidxi] +
-            f_buf[tidxj * FBUF_STRIDE + i * CL_SIZE + tidxi];
+        /* tidxj*c_fbufStride selects x, y or z */
+        f = f_buf[tidxj * c_fbufStride               + tidxi] +
+            f_buf[tidxj * c_fbufStride + i * c_clSize + tidxi];
 
         atomicAdd(&(fout[aidx].x) + tidxj, f);
 
@@ -530,7 +555,7 @@ void reduce_force_i(float *f_buf, float3 *f,
                     float *fshift_buf, bool bCalcFshift,
                     int tidxi, int tidxj, int ai)
 {
-    if ((CL_SIZE & (CL_SIZE - 1)))
+    if ((c_clSize & (c_clSize - 1)))
     {
         reduce_force_i_generic(f_buf, f, fshift_buf, bCalcFshift, tidxi, tidxj, ai);
     }
@@ -549,17 +574,17 @@ void reduce_force_i_warp_shfl(float3 fin, float3 *fout,
                               float *fshift_buf, bool bCalcFshift,
                               int tidxj, int aidx)
 {
-    fin.x += __shfl_down(fin.x, CL_SIZE);
-    fin.y += __shfl_up  (fin.y, CL_SIZE);
-    fin.z += __shfl_down(fin.z, CL_SIZE);
+    fin.x += __shfl_down(fin.x, c_clSize);
+    fin.y += __shfl_up  (fin.y, c_clSize);
+    fin.z += __shfl_down(fin.z, c_clSize);
 
     if (tidxj & 1)
     {
         fin.x = fin.y;
     }
 
-    fin.x += __shfl_down(fin.x, 2*CL_SIZE);
-    fin.z += __shfl_up  (fin.z, 2*CL_SIZE);
+    fin.x += __shfl_down(fin.x, 2*c_clSize);
+    fin.z += __shfl_up  (fin.z, 2*c_clSize);
 
     if (tidxj & 2)
     {
@@ -569,7 +594,7 @@ void reduce_force_i_warp_shfl(float3 fin, float3 *fout,
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if ((tidxj & 3) < 3)
     {
-        atomicAdd(&fout[aidx].x + (tidxj & ~4), fin.x);
+        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
 
         if (bCalcFshift)
         {
@@ -598,8 +623,8 @@ void reduce_energy_pow2(volatile float *buf,
     {
         if (tidx < i)
         {
-            buf[              tidx] += buf[              tidx + i];
-            buf[FBUF_STRIDE + tidx] += buf[FBUF_STRIDE + tidx + i];
+            buf[               tidx] += buf[               tidx + i];
+            buf[c_fbufStride + tidx] += buf[c_fbufStride + tidx + i];
         }
         i >>= 1;
     }
@@ -609,8 +634,8 @@ void reduce_energy_pow2(volatile float *buf,
     /* last reduction step, writing to global mem */
     if (tidx == 0)
     {
-        e1 = buf[              tidx] + buf[              tidx + i];
-        e2 = buf[FBUF_STRIDE + tidx] + buf[FBUF_STRIDE + tidx + i];
+        e1 = buf[               tidx] + buf[               tidx + i];
+        e2 = buf[c_fbufStride + tidx] + buf[c_fbufStride + tidx + i];
 
         atomicAdd(e_lj, e1);
         atomicAdd(e_el, e2);

@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
+# Copyright (c) 2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -59,12 +59,22 @@ if(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5")
     endif()
 endif()
 
+if(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6")
+    # Work around a bug in gmock-1.7 that is triggered in gcc-6
+    set(GMOCK_COMPILE_FLAGS "${GMOCK_COMPILE_FLAGS} -fno-delete-null-pointer-checks")
+endif()
+
 # GTest/GMock suggest linking with pthreads when available for thread safety
 set(CMAKE_THREAD_PREFER_PTHREAD 1)
 find_package(Threads)
 set(PTHREADS_LIBRARIES)
 if (CMAKE_USE_PTHREADS_INIT)
     set(PTHREADS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    list(APPEND GMOCK_COMPILE_DEFINITIONS "GTEST_HAS_PTHREAD=1")
+    set(GTEST_IS_THREADSAFE 1)
+else()
+    list(APPEND GMOCK_COMPILE_DEFINITIONS "GTEST_HAS_PTHREAD=0")
+    set(GTEST_IS_THREADSAFE 0)
 endif()
 
 # Skip variadic implementation of matchers if using GCC < 4.7 due to
@@ -101,3 +111,4 @@ set(GMOCK_INCLUDE_DIRS ${GMOCK_INCLUDE_DIRS} PARENT_SCOPE)
 set(GTEST_INCLUDE_DIRS ${GTEST_INCLUDE_DIRS} PARENT_SCOPE)
 set(GMOCK_COMPILE_DEFINITIONS ${GMOCK_COMPILE_DEFINITIONS} PARENT_SCOPE)
 set(GMOCK_COMPILE_FLAGS "${GMOCK_COMPILE_FLAGS}" PARENT_SCOPE)
+set(GTEST_IS_THREADSAFE "${GTEST_IS_THREADSAFE}" PARENT_SCOPE)

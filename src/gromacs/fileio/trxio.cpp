@@ -195,6 +195,7 @@ static void printcount_(t_trxstatus *status, const gmx_output_env_t *oenv,
     {
         fprintf(stderr, "\r%-14s %6d time %8.3f   ", l, status->__frame,
                 output_env_conv_time(oenv, t));
+        fflush(stderr);
     }
 }
 
@@ -209,6 +210,7 @@ static void printlast(t_trxstatus *status, const gmx_output_env_t *oenv, real t)
 {
     printcount_(status, oenv, "Last frame", t);
     fprintf(stderr, "\n");
+    fflush(stderr);
 }
 
 static void printincomp(t_trxstatus *status, t_trxframe *fr)
@@ -223,6 +225,7 @@ static void printincomp(t_trxstatus *status, t_trxframe *fr)
         fprintf(stderr, "WARNING: Incomplete frame: nr %d time %g\n",
                 status->__frame+1, fr->time);
     }
+    fflush(stderr);
 }
 
 int prec2ndec(real prec)
@@ -319,7 +322,7 @@ void set_trxframe_ePBC(t_trxframe *fr, int ePBC)
     fr->ePBC = ePBC;
 }
 
-int write_trxframe_indexed(t_trxstatus *status, t_trxframe *fr, int nind,
+int write_trxframe_indexed(t_trxstatus *status, const t_trxframe *fr, int nind,
                            const int *ind, gmx_conect gc)
 {
     char  title[STRLEN];
@@ -596,7 +599,7 @@ int write_trxframe(t_trxstatus *status, t_trxframe *fr, gmx_conect gc)
     return 0;
 }
 
-int write_trx(t_trxstatus *status, int nind, const int *ind, t_atoms *atoms,
+int write_trx(t_trxstatus *status, int nind, const int *ind, const t_atoms *atoms,
               int step, real time, matrix box, rvec x[], rvec *v,
               gmx_conect gc)
 {
@@ -608,7 +611,7 @@ int write_trx(t_trxstatus *status, int nind, const int *ind, t_atoms *atoms,
     fr.bTime  = TRUE;
     fr.time   = time;
     fr.bAtoms = atoms != NULL;
-    fr.atoms  = atoms;
+    fr.atoms  = const_cast<t_atoms *>(atoms);
     fr.bX     = TRUE;
     fr.x      = x;
     fr.bV     = v != NULL;

@@ -52,6 +52,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # the build tree (whether the build is from a source package or from a git
 # repository).  Also declares a few functions that will be used for generating
 # version info files later.
+include(gmxBuildTreeInfo)
 include(gmxVersionInfo)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND UNIX)
@@ -132,6 +133,12 @@ endif()
 include(gmxDetectTargetArchitecture)
 gmx_detect_target_architecture()
 
+# Permit the user to specify a particular standard library, e.g. compiling
+# with "-stdlib=libc++" and linking with "-lc++abi -lc++" to get clang's libcxx.
+set(GMX_STDLIB_CXX_FLAGS "" CACHE STRING "Compiler flag for a C++ standard library flavour")
+set(GMX_STDLIB_LIBRARIES "" CACHE STRING "Linker libraries for a particular C++ standard library")
+mark_as_advanced(GMX_STDLIB_CXX_FLAGS)
+mark_as_advanced(GMX_STDLIB_LIBRARIES)
 
 ########################################################################
 # Detect CXX11 support and flags
@@ -152,15 +159,13 @@ include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
 # This must come early, since some of our configuration flag tests
-# depend on being able to compile C++11 source files
+# depend on being able to compile C++11 source files.
 include(gmxTestCXX11)
-gmx_test_cxx11(GMX_CXX11_SUPPORTED GMX_CXX11_FLAGS)
-if(NOT GMX_CXX11_SUPPORTED)
-message(FATAL_ERROR "This version of GROMACS requires C++11. Please use a newer compiler or use the GROMACS 5.1.x release. Note it might be sufficient to instruct the compiler to use a newer STL version. See the installation guide for details.")
-endif()
+gmx_test_cxx11(GMX_CXX11_FLAGS GMX_STDLIB_CXX_FLAGS GMX_STDLIB_LIBRARIES)
 
-# Make sure all tests are run in C++11 mode
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GMX_CXX11_FLAGS}")
+# Make sure all C++ code will be compiled in C++11 mode, with the
+# expected standard library.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GMX_CXX11_FLAGS} ${GMX_STDLIB_CXX_FLAGS}")
 
 ########################################################################
 # User input options                                                   #
@@ -193,9 +198,9 @@ gmx_add_cache_dependency(GMX_COOL_QUOTES BOOL "NOT GMX_FAHCORE" OFF)
 option(GMX_USE_OPENCL "Enable OpenCL acceleration" OFF)
 
 # Decide on GPU settings based on user-settings and GPU/CUDA detection.
-# GCC 4.6 requires CUDA 5.0 and VS2013 requires CUDA 6.5
+# GCC 4.6 requires CUDA 5.0 and VS2015 requires CUDA 8.0
 if(MSVC)
-    set(REQUIRED_CUDA_VERSION 6.5)
+    set(REQUIRED_CUDA_VERSION 8.0)
 else()
     set(REQUIRED_CUDA_VERSION 5.0)
 endif()
@@ -230,7 +235,7 @@ gmx_option_multichoice(
     GMX_SIMD
     "SIMD instruction set for CPU kernels and compiler optimization"
     "${GMX_SUGGESTED_SIMD}"
-    None SSE2 SSE4.1 AVX_128_FMA AVX_256 AVX2_256 AVX_512F AVX_512ER MIC ARM_NEON ARM_NEON_ASIMD IBM_QPX IBM_VMX IBM_VSX Sparc64_HPC_ACE Reference)
+    None SSE2 SSE4.1 AVX_128_FMA AVX_256 AVX2_256 AVX_512 AVX_512_KNL MIC ARM_NEON ARM_NEON_ASIMD IBM_QPX IBM_VMX IBM_VSX Sparc64_HPC_ACE Reference)
 
 if(GMX_TARGET_MIC)
     set(GMX_FFT_LIBRARY_DEFAULT "mkl")
@@ -469,15 +474,15 @@ gmx_test_zlib(HAVE_ZLIB)
 # tests. This exports LIBXML2_FOUND, which we should not use because
 # it does not tell us that linking will succeed. Instead, we test that
 # next.
-if(DEFINED LIBXML2_LIBRARIES)
-  set(LibXml2_FIND_QUIETLY TRUE)
-endif()
-find_package(LibXml2)
-include(gmxTestLibXml2)
-gmx_test_libxml2(HAVE_LIBXML2)
-option(GMX_XML "Use libxml2 to parse xml files (currently has no effect)" ${HAVE_LIBXML2})
-set(PKG_XML "")
-mark_as_advanced(GMX_XML)
+#if(DEFINED LIBXML2_LIBRARIES)
+#  set(LibXml2_FIND_QUIETLY TRUE)
+#endif()
+#find_package(LibXml2)
+#include(gmxTestLibXml2)
+#gmx_test_libxml2(HAVE_LIBXML2)
+#option(GMX_XML "Use libxml2 to parse xml files (currently has no effect)" ${HAVE_LIBXML2})
+#set(PKG_XML "")
+#mark_as_advanced(GMX_XML)
 # Don't actually do anything, since libxml2 is currently not used by libgromacs
 #if(GMX_XML AND NOT HAVE_LIBXML2)
 #    message(FATAL_ERROR "libxml2 not found. Set GMX_XML=OFF to compile without XML support")
@@ -487,6 +492,25 @@ mark_as_advanced(GMX_XML)
 #    set(PKG_XML libxml-2.0)
 #    set(XML_LIBRARIES ${LIBXML2_LIBRARIES})
 #endif()
+
+if(DEFINED HWLOC_LIBRARIES)
+  set(Hwloc_FIND_QUIETLY TRUE)
+endif()
+find_package(Hwloc 1.5)
+if(HWLOC_FOUND)
+    set(GMX_HWLOC_DEFAULT ON)
+else()
+    set(GMX_HWLOC_DEFAULT OFF)
+endif()
+option(GMX_HWLOC "Add support for hwloc Portable Hardware locality library" ${GMX_HWLOC_DEFAULT})
+if(GMX_HWLOC)
+    if(HWLOC_FOUND)
+        include_directories(${HWLOC_INCLUDE_DIRS})
+        list(APPEND GMX_EXTRA_LIBRARIES ${HWLOC_LIBRARIES})
+    else()
+        message(FATAL_ERROR "Hwloc package support requested, but not found.")
+    endif()
+endif()
 
 option(GMX_EXTRAE "Add support for tracing using EXTRAE" OFF)
 mark_as_advanced(GMX_EXTRAE)
@@ -552,17 +576,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") #Work-around for cmake bug #10837
     endif()
 endif()
 
-if(NOT DEFINED GMX_BUILD_UNITTESTS AND NOT HAVE_LIBXML2)
-    message(WARNING "libxml2 not found. Will build GROMACS without unit-tests. This is not recommended, because the unit-tests help to verify that GROMACS functions correctly. Most likely you are missing the libxml2-dev(el) package. After you installed it, set GMX_BUILD_UNITTESTS=ON.")
-endif()
-option(GMX_BUILD_UNITTESTS "Build unit tests with BUILD_TESTING (uses Google C++ Testing and Mocking Frameworks, requires libxml2)" ${HAVE_LIBXML2})
+option(GMX_BUILD_UNITTESTS "Build unit tests with BUILD_TESTING" ON)
 mark_as_advanced(GMX_BUILD_UNITTESTS)
 gmx_add_cache_dependency(GMX_BUILD_UNITTESTS BOOL BUILD_TESTING OFF)
-if (GMX_BUILD_UNITTESTS AND NOT HAVE_LIBXML2)
-    message(FATAL_ERROR
-        "Cannot build unit tests without libxml2. "
-        "Either set GMX_BUILD_UNITTESTS=OFF or tell CMake how to find a working version of libxml2.")
-endif()
 
 ########################################################################
 # Our own GROMACS tests

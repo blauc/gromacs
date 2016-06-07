@@ -130,6 +130,8 @@ void print_time(FILE                     *out,
         fprintf(out, "\r");
     }
     fprintf(out, "step %s", gmx_step_str(step, buf));
+    fflush(out);
+
     if ((step >= ir->nstlist))
     {
         double seconds_since_epoch = gmx_gettime();
@@ -214,7 +216,10 @@ static void sum_forces(int start, int end, rvec f[], rvec flr[])
         pr_rvecs(debug, 0, "fsr", f+start, end-start);
         pr_rvecs(debug, 0, "flr", flr+start, end-start);
     }
-    for (i = start; (i < end); i++)
+    // cppcheck-suppress unreadVariable
+    int gmx_unused nt = gmx_omp_nthreads_get(emntDefault);
+#pragma omp parallel for num_threads(nt) schedule(static)
+    for (i = start; i < end; i++)
     {
         rvec_inc(f[i], flr[i]);
     }
@@ -734,6 +739,16 @@ gmx_bool use_GPU(const nonbonded_verlet_t *nbv)
     return nbv != NULL && nbv->bUseGPU;
 }
 
+static gmx_inline void clear_rvecs_omp_nowait(int n, rvec v[])
+{
+    int i;
+#pragma omp for nowait
+    for (i = 0; i < n; i++)
+    {
+        clear_rvec(v[i]);
+    }
+}
+
 void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
                          t_inputrec *inputrec,
                          gmx_int64_t step, t_nrnb *nrnb, gmx_wallcycle_t wcycle,
@@ -1042,12 +1057,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         {
             wallcycle_start(wcycle, ewcMOVEX);
             dd_move_x(cr->dd, box, x);
-
-            /* When we don't need the total dipole we sum it in global_stat */
-            if (bStateChanged && inputrecNeedMutot(inputrec))
-            {
-                gmx_sumd(2*DIM, mu, cr);
-            }
             wallcycle_stop(wcycle, ewcMOVEX);
 
             wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
@@ -1155,14 +1164,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             if (flags & GMX_FORCE_VIRIAL)
             {
                 fr->f_novirsum = fr->f_novirsum_alloc;
-                if (fr->bDomDec)
-                {
-                    clear_rvecs(fr->f_novirsum_n, fr->f_novirsum);
-                }
-                else
-                {
-                    clear_rvecs(homenr, fr->f_novirsum+start);
-                }
             }
             else
             {
@@ -1174,8 +1175,28 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             }
         }
 
-        /* Clear the short- and long-range forces */
-        clear_rvecs(fr->natoms_force_constr, f);
+        // cppcheck-suppress unreadVariable
+        int gmx_unused nth = gmx_omp_nthreads_get(emntDefault);
+#pragma omp parallel num_threads(nth)
+        {
+            if (fr->bF_NoVirSum)
+            {
+                if (flags & GMX_FORCE_VIRIAL)
+                {
+
+                    if (fr->bDomDec)
+                    {
+                        clear_rvecs_omp_nowait(fr->f_novirsum_n, fr->f_novirsum);
+                    }
+                    else
+                    {
+                        clear_rvecs_omp_nowait(homenr, fr->f_novirsum+start);
+                    }
+                }
+            }
+            /* Clear the short- and long-range forces */
+            clear_rvecs_omp_nowait(fr->natoms_force_constr, f);
+        }
 
         clear_rvec(fr->vir_diag_posres);
     }
@@ -2174,10 +2195,10 @@ void calc_enervirdiff(FILE *fplog, int eDispCorr, t_forcerec *fr)
             /* TODO This code depends on the logic in tables.c that
                constructs the table layout, which should be made
                explicit in future cleanup. */
-            GMX_ASSERT(fr->nblists[0].table_vdw->interaction == GMX_TABLE_INTERACTION_VDWREP_VDWDISP,
+            GMX_ASSERT(fr->dispersionCorrectionTable->interaction == GMX_TABLE_INTERACTION_VDWREP_VDWDISP,
                        "Dispersion-correction code needs a table with both repulsion and dispersion terms");
-            scale  = fr->nblists[0].table_vdw->scale;
-            vdwtab = fr->nblists[0].table_vdw->data;
+            scale  = fr->dispersionCorrectionTable->scale;
+            vdwtab = fr->dispersionCorrectionTable->data;
 
             /* Round the cut-offs to exact table values for precision */
             ri0  = static_cast<int>(floor(fr->rvdw_switch*scale));
@@ -2537,7 +2558,7 @@ void put_atoms_in_box_omp(int ePBC, const matrix box, int natoms, rvec x[])
 }
 
 // TODO This can be cleaned up a lot, and move back to runner.cpp
-void finish_run(FILE *fplog, t_commrec *cr,
+void finish_run(FILE *fplog, const gmx::MDLogger &mdlog, t_commrec *cr,
                 t_inputrec *inputrec,
                 t_nrnb nrnb[], gmx_wallcycle_t wcycle,
                 gmx_walltime_accounting_t walltime_accounting,
@@ -2614,7 +2635,7 @@ void finish_run(FILE *fplog, t_commrec *cr,
     {
         struct gmx_wallclock_gpu_t* gputimes = use_GPU(nbv) ? nbnxn_gpu_get_timings(nbv->gpu_nbv) : NULL;
 
-        wallcycle_print(fplog, cr->nnodes, cr->npmenodes, nthreads_pp, nthreads_pme,
+        wallcycle_print(fplog, mdlog, cr->nnodes, cr->npmenodes, nthreads_pp, nthreads_pme,
                         elapsed_time_over_all_ranks,
                         wcycle, cycle_sum, gputimes);
 

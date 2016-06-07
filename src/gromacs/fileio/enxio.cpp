@@ -965,6 +965,8 @@ gmx_bool do_enx(ener_file_t ef, t_enxframe *fr)
         {
             fprintf(stderr, "\rLast energy frame read %d time %8.3f         ",
                     ef->framenr-1, ef->frametime);
+            fflush(stderr);
+
             if (!bOK)
             {
                 fprintf(stderr,
@@ -1148,7 +1150,7 @@ static real find_energy(const char *name, int nre, gmx_enxnm_t *enm,
 }
 
 
-void get_enx_state(const char *fn, real t, gmx_groups_t *groups, t_inputrec *ir,
+void get_enx_state(const char *fn, real t, const gmx_groups_t *groups, t_inputrec *ir,
                    t_state *state)
 {
     /* Should match the names in mdebin.c */

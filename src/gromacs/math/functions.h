@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -158,17 +158,14 @@ greatestCommonDivisor(std::int64_t p, std::int64_t q);
  * \param  x  Positive value to calculate inverse square root for
  *
  * For now this is implemented with std::sqrt(x) since gcc seems to do a
- * decent job optimizing it if we remember the 'f' suffix. However, we might
- * decide to use instrinsics or compiler-specific functions in the future.
+ * decent job optimizing it. However, we might decide to use instrinsics
+ * or compiler-specific functions in the future.
  *
  * \return 1.0/sqrt(x)
  */
 static inline float
 invsqrt(float x)
 {
-    // Note that the 'f' suffix is IMPERATIVE. Without it, gcc will generate
-    // a sequence of very expensive sqrtsd and divsd instructions instead
-    // of using the reciprocal square root estimate.
     return 1.0f/std::sqrt(x);
 }
 
@@ -422,6 +419,26 @@ static inline real series_sinhx(real x)
     real x2 = x*x;
     return (1 + (x2/6.0)*(1 + (x2/20.0)*(1 + (x2/42.0)*(1 + (x2/72.0)*(1 + (x2/110.0))))));
 }
+
+/*! \brief Inverse error function, double precision.
+ *
+ *  \param x Argument, should be in the range -1.0 < x < 1.0
+ *
+ *  \return The inverse of the error function if the argument is inside the
+ *          range, +/- infinity if it is exactly 1.0 or -1.0, and NaN otherwise.
+ */
+double
+erfinv(double x);
+
+/*! \brief Inverse error function, single precision.
+ *
+ *  \param x Argument, should be in the range -1.0 < x < 1.0
+ *
+ *  \return The inverse of the error function if the argument is inside the
+ *          range, +/- infinity if it is exactly 1.0 or -1.0, and NaN otherwise.
+ */
+float
+erfinv(float x);
 
 } // namespace gmx
 

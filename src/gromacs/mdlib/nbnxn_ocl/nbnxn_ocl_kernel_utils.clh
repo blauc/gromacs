@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2016 by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -149,6 +149,22 @@ typedef struct {
 
 /*! i-cluster interaction mask for a super-cluster with all NCL_PER_SUPERCL bits set */
 __constant unsigned supercl_interaction_mask = ((1U << NCL_PER_SUPERCL) - 1U);
+
+/*! Convert LJ sigma,epsilon parameters to C6,C12. */
+__INLINE__ __device__
+void convert_sigma_epsilon_to_c6_c12(const float  sigma,
+                                     const float  epsilon,
+                                     float       *c6,
+                                     float       *c12)
+{
+    float sigma2, sigma6;
+
+    sigma2 = sigma * sigma;
+    sigma6 = sigma2 *sigma2 * sigma2;
+    *c6    = epsilon * sigma6;
+    *c12   = *c6 * sigma6;
+}
+
 
 /*! Apply force switch,  force + energy version. */
  __INLINE__ __device__
@@ -401,8 +417,8 @@ interpolate_coulomb_force_r(__constant float *coulomb_tab_climg2d,
     float   fract2     = normalized - index;
     float   fract1     = 1.0f - fract2;
 
-    /* sigma and epsilon are scaled to give 6*C6 */
-    return coulomb_tab_climg2d[index]*coulomb_tab_climg2d[index];
+    return fract1*coulomb_tab_climg2d[index] +
+           fract2*coulomb_tab_climg2d[index + 1];
 }
 
 /*! Calculate analytical Ewald correction term. */

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2010, The GROMACS development team.
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -52,6 +52,11 @@
 
 struct gmx_gpu_info_t;
 struct gmx_gpu_opt_t;
+
+namespace gmx
+{
+class MDLogger;
+}
 
 /*! \brief Detect all GPUs in the system.
  *
@@ -115,7 +120,7 @@ void free_gpu_info(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU
  * The varible \p mygpu is the index of the GPU to initialize in the
  * gpu_info.gpu_dev array.
  *
- * \param[out] fplog        log file to write to
+ * \param      mdlog        log file to write to
  * \param[in]  mygpu        index of the GPU to initialize
  * \param[out] result_str   the message related to the error that occurred
  *                          during the initialization (if there was any).
@@ -124,7 +129,7 @@ void free_gpu_info(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU
  * \returns                 true if no error occurs during initialization.
  */
 GPU_FUNC_QUALIFIER
-gmx_bool init_gpu(FILE *GPU_FUNC_ARGUMENT(fplog),
+gmx_bool init_gpu(const gmx::MDLogger &GPU_FUNC_ARGUMENT(mdlog),
                   int GPU_FUNC_ARGUMENT(mygpu),
                   char *GPU_FUNC_ARGUMENT(result_str),
                   const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
@@ -231,5 +236,45 @@ typedef void gmx_host_free_t (void *ptr);
 void gpu_set_host_malloc_and_free(bool               bUseGpuKernels,
                                   gmx_host_alloc_t **nb_alloc,
                                   gmx_host_free_t  **nb_free);
+
+
+
+/*! \brief Starts the GPU profiler if mdrun is being profiled.
+ *
+ *  When a profiler run is in progress (based on the presence of the NVPROF_ID
+ *  env. var.), the profiler is started to begin collecting data during the
+ *  rest of the run (or until stopGpuProfiler is called).
+ *
+ *  Note that this is implemented only for the CUDA API.
+ */
+CUDA_FUNC_QUALIFIER
+void startGpuProfiler(void) CUDA_FUNC_TERM
+
+
+/*! \brief Resets the GPU profiler if mdrun is being profiled.
+ *
+ * When a profiler run is in progress (based on the presence of the NVPROF_ID
+ * env. var.), the profiler data is restet in order to eliminate the data collected
+ * from the preceding part fo the run.
+ *
+ * This function should typically be called at the mdrun counter reset time.
+ *
+ * Note that this is implemented only for the CUDA API.
+ */
+CUDA_FUNC_QUALIFIER
+void resetGpuProfiler(void) CUDA_FUNC_TERM
+
+
+/*! \brief Stops the CUDA profiler if mdrun is being profiled.
+ *
+ *  This function can be called at cleanup when skipping recording
+ *  recording subsequent API calls from being traces/profiled is desired,
+ *  e.g. before uninitialization.
+ *
+ *  Note that this is implemented only for the CUDA API.
+ */
+CUDA_FUNC_QUALIFIER
+void stopGpuProfiler(void) CUDA_FUNC_TERM
+
 
 #endif

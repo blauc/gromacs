@@ -44,6 +44,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
+
 #include "thread_mpi/threads.h"
 
 #include "gromacs/commandline/filenm.h"
@@ -53,9 +55,9 @@
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/imd/imd.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/math/functions.h"
@@ -110,6 +112,7 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/logger.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -148,7 +151,7 @@ static void checkNumberOfBondedInteractions(FILE *fplog, t_commrec *cr, int tota
     }
 }
 
-static void reset_all_counters(FILE *fplog, t_commrec *cr,
+static void reset_all_counters(FILE *fplog, const gmx::MDLogger &mdlog, t_commrec *cr,
                                gmx_int64_t step,
                                gmx_int64_t *step_rel, t_inputrec *ir,
                                gmx_wallcycle_t wcycle, t_nrnb *nrnb,
@@ -158,12 +161,14 @@ static void reset_all_counters(FILE *fplog, t_commrec *cr,
     char sbuf[STEPSTRSIZE];
 
     /* Reset all the counters related to performance over the run */
-    md_print_warn(cr, fplog, "step %s: resetting all time and cycle counters\n",
-                  gmx_step_str(step, sbuf));
+    GMX_LOG(mdlog.warning).asParagraph().appendTextFormatted(
+            "step %s: resetting all time and cycle counters",
+            gmx_step_str(step, sbuf));
 
     if (use_GPU(nbv))
     {
         nbnxn_gpu_reset_timings(nbv);
+        resetGpuProfiler();
     }
 
     wallcycle_stop(wcycle, ewcRUN);
@@ -182,7 +187,7 @@ static void reset_all_counters(FILE *fplog, t_commrec *cr,
 }
 
 /*! \libinternal
-    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
+    \copydoc integrator_t (FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                            int nfile, const t_filenm fnm[],
                            const gmx_output_env_t *oenv, gmx_bool bVerbose,
                            int nstglobalcomm,
@@ -196,13 +201,13 @@ static void reset_all_counters(FILE *fplog, t_commrec *cr,
                            gmx_edsam_t ed,
                            t_forcerec *fr,
                            int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           gmx_membed_t *membed,
                            real cpt_period, real max_hours,
                            int imdport,
                            unsigned long Flags,
                            gmx_walltime_accounting_t walltime_accounting)
  */
-double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
+double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
+                  int nfile, const t_filenm fnm[],
                   const gmx_output_env_t *oenv, gmx_bool bVerbose,
                   int nstglobalcomm,
                   gmx_vsite_t *vsite, gmx_constr_t constr,
@@ -213,7 +218,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                   t_mdatoms *mdatoms,
                   t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                   gmx_edsam_t ed, t_forcerec *fr,
-                  int repl_ex_nst, int repl_ex_nex, int repl_ex_seed, gmx_membed_t *membed,
+                  int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
                   real cpt_period, real max_hours,
                   int imdport,
                   unsigned long Flags,
@@ -280,6 +285,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     /* Interactive MD */
     gmx_bool          bIMDstep = FALSE;
+    gmx_membed_t     *membed   = NULL;
 
 #ifdef GMX_FAHCORE
     /* Temporary addition for FAHCORE checkpointing */
@@ -322,7 +328,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         nstglobalcomm     = 1;
     }
 
-    nstglobalcomm   = check_nstglobalcomm(fplog, cr, nstglobalcomm, ir);
+    nstglobalcomm   = check_nstglobalcomm(mdlog, nstglobalcomm, ir);
     bGStatEveryStep = (nstglobalcomm == 1);
 
     if (bRerunMD)
@@ -330,6 +336,25 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         ir->nstxout_compressed = 0;
     }
     groups = &top_global->groups;
+
+    if (opt2bSet("-membed", nfile, fnm))
+    {
+        if (MASTER(cr))
+        {
+            fprintf(stderr, "Initializing membed");
+        }
+        /* Note that membed cannot work in parallel because mtop is
+         * changed here. Fix this if we ever want to make it run with
+         * multiple ranks. */
+        membed = init_membed(fplog, nfile, fnm, top_global, ir, state_global, cr, &cpt_period);
+    }
+
+    if (ir->eSwapCoords != eswapNO)
+    {
+        /* Initialize ion swapping code */
+        init_swapcoords(fplog, bVerbose, ir, opt2fn_master("-swap", nfile, fnm, cr),
+                        top_global, state_global->x, state_global->box, &state_global->swapstate, cr, oenv, Flags);
+    }
 
     /* Initial values */
     init_md(fplog, cr, ir, oenv, &t, &t0, state_global->lambda,
@@ -427,6 +452,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
 
         setup_bonded_threading(fr, &top->idef);
+
+        update_realloc(upd, state->nalloc);
     }
 
     /* Set up interactive MD (IMD) */
@@ -442,6 +469,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                             vsite, constr,
                             nrnb, NULL, FALSE);
         shouldCheckNumberOfBondedInteractions = true;
+        update_realloc(upd, state->nalloc);
     }
 
     update_mdatoms(mdatoms, state->lambda[efptMASS]);
@@ -494,7 +522,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 !(Flags & MD_REPRODUCIBLE));
     if (bPMETune)
     {
-        pme_loadbal_init(&pme_loadbal, cr, fplog, ir, state->box,
+        pme_loadbal_init(&pme_loadbal, cr, mdlog, ir, state->box,
                          fr->ic, fr->pmedata, use_GPU(fr->nbv),
                          &bPMETunePrinting);
     }
@@ -760,7 +788,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             /* PME grid + cut-off optimization with GPUs or PME nodes */
             pme_loadbal_do(pme_loadbal, cr,
                            (bVerbose && MASTER(cr)) ? stderr : NULL,
-                           fplog,
+                           fplog, mdlog,
                            ir, fr, state,
                            wcycle,
                            step, step_rel,
@@ -905,7 +933,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             }
         }
 
-        /* < 0 means stop at next step, > 0 means stop at next NS step */
+        /* < 0 means stop after this step, > 0 means stop at next NS step */
         if ( (gs.set[eglsSTOPCOND] < 0) ||
              ( (gs.set[eglsSTOPCOND] > 0) && (bNStList || ir->nstlist == 0) ) )
         {
@@ -963,6 +991,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                     nrnb, wcycle,
                                     do_verbose && !bPMETunePrinting);
                 shouldCheckNumberOfBondedInteractions = true;
+                update_realloc(upd, state->nalloc);
             }
         }
 
@@ -1266,30 +1295,31 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 #endif
             )
         {
+            int nsteps_stop = -1;
+
             /* this is just make gs.sig compatible with the hack
                of sending signals around by MPI_Reduce with together with
                other floats */
             if (gmx_get_stop_condition() == gmx_stop_cond_next_ns)
             {
                 gs.sig[eglsSTOPCOND] = 1;
+                nsteps_stop          = std::max(ir->nstlist, 2*nstglobalcomm);
             }
             if (gmx_get_stop_condition() == gmx_stop_cond_next)
             {
                 gs.sig[eglsSTOPCOND] = -1;
+                nsteps_stop          = nstglobalcomm + 1;
             }
-            /* < 0 means stop at next step, > 0 means stop at next NS step */
             if (fplog)
             {
                 fprintf(fplog,
-                        "\n\nReceived the %s signal, stopping at the next %sstep\n\n",
-                        gmx_get_signal_name(),
-                        gs.sig[eglsSTOPCOND] == 1 ? "NS " : "");
+                        "\n\nReceived the %s signal, stopping within %d steps\n\n",
+                        gmx_get_signal_name(), nsteps_stop);
                 fflush(fplog);
             }
             fprintf(stderr,
-                    "\n\nReceived the %s signal, stopping at the next %sstep\n\n",
-                    gmx_get_signal_name(),
-                    gs.sig[eglsSTOPCOND] == 1 ? "NS " : "");
+                    "\n\nReceived the %s signal, stopping within %d steps\n\n",
+                    gmx_get_signal_name(), nsteps_stop);
             fflush(stderr);
             handled_stop_condition = (int)gmx_get_stop_condition();
         }
@@ -1653,6 +1683,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                 vsite, constr,
                                 nrnb, wcycle, FALSE);
             shouldCheckNumberOfBondedInteractions = true;
+            update_realloc(upd, state->nalloc);
         }
 
         bFirstStep             = FALSE;
@@ -1729,7 +1760,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                           "resetting counters later in the run, e.g. with gmx "
                           "mdrun -resetstep.", step);
             }
-            reset_all_counters(fplog, cr, step, &step_rel, ir, wcycle, nrnb, walltime_accounting,
+            reset_all_counters(fplog, mdlog, cr, step, &step_rel, ir, wcycle, nrnb, walltime_accounting,
                                use_GPU(fr->nbv) ? fr->nbv : NULL);
             wcycle_set_reset_counters(wcycle, -1);
             if (!(cr->duty & DUTY_PME))
@@ -1782,7 +1813,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     if (bPMETune)
     {
-        pme_loadbal_done(pme_loadbal, cr, fplog, use_GPU(fr->nbv));
+        pme_loadbal_done(pme_loadbal, fplog, mdlog, use_GPU(fr->nbv));
     }
 
     done_shellfc(fplog, shellfc, step_rel);
@@ -1790,6 +1821,17 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     if (repl_ex_nst > 0 && MASTER(cr))
     {
         print_replica_exchange_statistics(fplog, repl_ex);
+    }
+
+    // Clean up swapcoords
+    if (ir->eSwapCoords != eswapNO)
+    {
+        finish_swapcoords(ir->swap);
+    }
+
+    if (membed != nullptr)
+    {
+        free_membed(membed);
     }
 
     /* IMD cleanup, if bIMD is TRUE. */

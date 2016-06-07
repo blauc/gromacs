@@ -143,7 +143,7 @@ void done_enxframe(t_enxframe *fr)
 
 // === EnergyFrameReader ===
 
-EnergyFrameReader::EnergyFrameReader(std::map<std::string, int> indicesOfEnergyFields,
+EnergyFrameReader::EnergyFrameReader(const std::map<std::string, int> &indicesOfEnergyFields,
                                      ener_file *energyFile)
     : indicesOfEnergyFields_(indicesOfEnergyFields),
       energyFileGuard_(energyFile),

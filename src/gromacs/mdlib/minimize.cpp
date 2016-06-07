@@ -61,7 +61,6 @@
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/mtxio.h"
-#include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/imd/imd.h"
@@ -95,6 +94,7 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/logger.h"
 #include "gromacs/utility/smalloc.h"
 
 //! Utility structure for manipulating states during EM
@@ -987,27 +987,26 @@ namespace gmx
 {
 
 /*! \brief Do conjugate gradients minimization
-    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
-                           int nfile, const t_filenm fnm[],
-                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                           int nstglobalcomm,
-                           gmx_vsite_t *vsite, gmx_constr_t constr,
-                           int stepout,
-                           t_inputrec *inputrec,
-                           gmx_mtop_t *top_global, t_fcdata *fcd,
-                           t_state *state_global,
-                           t_mdatoms *mdatoms,
-                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                           gmx_edsam_t ed,
-                           t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           gmx_membed_t *membed,
-                           real cpt_period, real max_hours,
-                           int imdport,
-                           unsigned long Flags,
-                           gmx_walltime_accounting_t walltime_accounting)
+    \copydoc integrator_t(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
+                          int nfile, const t_filenm fnm[],
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
+                          int nstglobalcomm,
+                          gmx_vsite_t *vsite, gmx_constr_t constr,
+                          int stepout,
+                          t_inputrec *inputrec,
+                          gmx_mtop_t *top_global, t_fcdata *fcd,
+                          t_state *state_global,
+                          t_mdatoms *mdatoms,
+                          t_nrnb *nrnb, gmx_wallcycle_t wcycle,
+                          gmx_edsam_t ed,
+                          t_forcerec *fr,
+                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          real cpt_period, real max_hours,
+                          int imdport,
+                          unsigned long Flags,
+                          gmx_walltime_accounting_t walltime_accounting)
  */
-double do_cg(FILE *fplog, t_commrec *cr,
+double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
              int nfile, const t_filenm fnm[],
              const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose,
              int gmx_unused nstglobalcomm,
@@ -1021,7 +1020,6 @@ double do_cg(FILE *fplog, t_commrec *cr,
              gmx_edsam_t gmx_unused ed,
              t_forcerec *fr,
              int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
-             gmx_membed_t gmx_unused *membed,
              real gmx_unused cpt_period, real gmx_unused max_hours,
              int imdport,
              unsigned long gmx_unused Flags,
@@ -1126,7 +1124,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
      * we either converge or reach the max number of steps.
      */
     converged = FALSE;
-    for (step = 0; (number_steps < 0 || (number_steps >= 0 && step <= number_steps)) && !converged; step++)
+    for (step = 0; (number_steps < 0 || step <= number_steps) && !converged; step++)
     {
 
         /* start taking steps in a new direction
@@ -1520,6 +1518,7 @@ double do_cg(FILE *fplog, t_commrec *cr,
                 fprintf(stderr, "\rStep %d, Epot=%12.6e, Fnorm=%9.3e, Fmax=%9.3e (atom %d)\n",
                         step, s_min->epot, s_min->fnorm/sqrtNumAtoms,
                         s_min->fmax, s_min->a_fmax+1);
+                fflush(stderr);
             }
             /* Store the new (lower) energies */
             upd_mdebin(mdebin, FALSE, FALSE, (double)step,
@@ -1634,27 +1633,26 @@ double do_cg(FILE *fplog, t_commrec *cr,
 
 
 /*! \brief Do L-BFGS conjugate gradients minimization
-    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
-                           int nfile, const t_filenm fnm[],
-                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                           int nstglobalcomm,
-                           gmx_vsite_t *vsite, gmx_constr_t constr,
-                           int stepout,
-                           t_inputrec *inputrec,
-                           gmx_mtop_t *top_global, t_fcdata *fcd,
-                           t_state *state_global,
-                           t_mdatoms *mdatoms,
-                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                           gmx_edsam_t ed,
-                           t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           gmx_membed_t *membed,
-                           real cpt_period, real max_hours,
-                           int imdport,
-                           unsigned long Flags,
-                           gmx_walltime_accounting_t walltime_accounting)
+    \copydoc integrator_t(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
+                          int nfile, const t_filenm fnm[],
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
+                          int nstglobalcomm,
+                          gmx_vsite_t *vsite, gmx_constr_t constr,
+                          int stepout,
+                          t_inputrec *inputrec,
+                          gmx_mtop_t *top_global, t_fcdata *fcd,
+                          t_state *state_global,
+                          t_mdatoms *mdatoms,
+                          t_nrnb *nrnb, gmx_wallcycle_t wcycle,
+                          gmx_edsam_t ed,
+                          t_forcerec *fr,
+                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          real cpt_period, real max_hours,
+                          int imdport,
+                          unsigned long Flags,
+                          gmx_walltime_accounting_t walltime_accounting)
  */
-double do_lbfgs(FILE *fplog, t_commrec *cr,
+double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                 int nfile, const t_filenm fnm[],
                 const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose,
                 int gmx_unused nstglobalcomm,
@@ -1668,7 +1666,6 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
                 gmx_edsam_t gmx_unused ed,
                 t_forcerec *fr,
                 int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
-                gmx_membed_t gmx_unused *membed,
                 real gmx_unused cpt_period, real gmx_unused max_hours,
                 int imdport,
                 unsigned long gmx_unused Flags,
@@ -1886,7 +1883,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
 
     /* Set the gradient from the force */
     converged = FALSE;
-    for (step = 0; (number_steps < 0 || (number_steps >= 0 && step <= number_steps)) && !converged; step++)
+    for (step = 0; (number_steps < 0 || step <= number_steps) && !converged; step++)
     {
 
         /* Write coordinates if necessary */
@@ -2359,6 +2356,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
                 double sqrtNumAtoms = sqrt(static_cast<double>(state_global->natoms));
                 fprintf(stderr, "\rStep %d, Epot=%12.6e, Fnorm=%9.3e, Fmax=%9.3e (atom %d)\n",
                         step, Epot, fnorm/sqrtNumAtoms, fmax, nfmax+1);
+                fflush(stderr);
             }
             /* Store the new (lower) energies */
             upd_mdebin(mdebin, FALSE, FALSE, (double)step,
@@ -2462,27 +2460,26 @@ double do_lbfgs(FILE *fplog, t_commrec *cr,
 }   /* That's all folks */
 
 /*! \brief Do steepest descents minimization
-    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
-                           int nfile, const t_filenm fnm[],
-                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                           int nstglobalcomm,
-                           gmx_vsite_t *vsite, gmx_constr_t constr,
-                           int stepout,
-                           t_inputrec *inputrec,
-                           gmx_mtop_t *top_global, t_fcdata *fcd,
-                           t_state *state_global,
-                           t_mdatoms *mdatoms,
-                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                           gmx_edsam_t ed,
-                           t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           gmx_membed_t *membed,
-                           real cpt_period, real max_hours,
-                           int imdport,
-                           unsigned long Flags,
-                           gmx_walltime_accounting_t walltime_accounting)
+    \copydoc integrator_t(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
+                          int nfile, const t_filenm fnm[],
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
+                          int nstglobalcomm,
+                          gmx_vsite_t *vsite, gmx_constr_t constr,
+                          int stepout,
+                          t_inputrec *inputrec,
+                          gmx_mtop_t *top_global, t_fcdata *fcd,
+                          t_state *state_global,
+                          t_mdatoms *mdatoms,
+                          t_nrnb *nrnb, gmx_wallcycle_t wcycle,
+                          gmx_edsam_t ed,
+                          t_forcerec *fr,
+                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          real cpt_period, real max_hours,
+                          int imdport,
+                          unsigned long Flags,
+                          gmx_walltime_accounting_t walltime_accounting)
  */
-double do_steep(FILE *fplog, t_commrec *cr,
+double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                 int nfile, const t_filenm fnm[],
                 const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose,
                 int gmx_unused nstglobalcomm,
@@ -2496,7 +2493,6 @@ double do_steep(FILE *fplog, t_commrec *cr,
                 gmx_edsam_t gmx_unused  ed,
                 t_forcerec *fr,
                 int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
-                gmx_membed_t gmx_unused *membed,
                 real gmx_unused cpt_period, real gmx_unused max_hours,
                 int imdport,
                 unsigned long gmx_unused Flags,
@@ -2596,6 +2592,7 @@ double do_steep(FILE *fplog, t_commrec *cr,
                 fprintf(stderr, "Step=%5d, Dmax= %6.1e nm, Epot= %12.5e Fmax= %11.5e, atom= %d%c",
                         count, ustep, s_try->epot, s_try->fmax, s_try->a_fmax+1,
                         ( (count == 0) || (s_try->epot < s_min->epot) ) ? '\n' : '\r');
+                fflush(stderr);
             }
 
             if ( (count == 0) || (s_try->epot < s_min->epot) )
@@ -2720,27 +2717,26 @@ double do_steep(FILE *fplog, t_commrec *cr,
 }   /* That's all folks */
 
 /*! \brief Do normal modes analysis
-    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
-                           int nfile, const t_filenm fnm[],
-                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                           int nstglobalcomm,
-                           gmx_vsite_t *vsite, gmx_constr_t constr,
-                           int stepout,
-                           t_inputrec *inputrec,
-                           gmx_mtop_t *top_global, t_fcdata *fcd,
-                           t_state *state_global,
-                           t_mdatoms *mdatoms,
-                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                           gmx_edsam_t ed,
-                           t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           gmx_membed_t *membed,
-                           real cpt_period, real max_hours,
-                           int imdport,
-                           unsigned long Flags,
-                           gmx_walltime_accounting_t walltime_accounting)
+    \copydoc integrator_t(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
+                          int nfile, const t_filenm fnm[],
+                          const gmx_output_env_t *oenv, gmx_bool bVerbose,
+                          int nstglobalcomm,
+                          gmx_vsite_t *vsite, gmx_constr_t constr,
+                          int stepout,
+                          t_inputrec *inputrec,
+                          gmx_mtop_t *top_global, t_fcdata *fcd,
+                          t_state *state_global,
+                          t_mdatoms *mdatoms,
+                          t_nrnb *nrnb, gmx_wallcycle_t wcycle,
+                          gmx_edsam_t ed,
+                          t_forcerec *fr,
+                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          real cpt_period, real max_hours,
+                          int imdport,
+                          unsigned long Flags,
+                          gmx_walltime_accounting_t walltime_accounting)
  */
-double do_nm(FILE *fplog, t_commrec *cr,
+double do_nm(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
              int nfile, const t_filenm fnm[],
              const gmx_output_env_t gmx_unused *oenv, gmx_bool bVerbose,
              int gmx_unused nstglobalcomm,
@@ -2754,7 +2750,6 @@ double do_nm(FILE *fplog, t_commrec *cr,
              gmx_edsam_t  gmx_unused ed,
              t_forcerec *fr,
              int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
-             gmx_membed_t gmx_unused *membed,
              real gmx_unused cpt_period, real gmx_unused max_hours,
              int imdport,
              unsigned long gmx_unused Flags,
@@ -2830,17 +2825,18 @@ double do_nm(FILE *fplog, t_commrec *cr,
      */
     if (EEL_FULL(fr->eeltype) || fr->rlist == 0.0)
     {
-        md_print_info(cr, fplog, "Non-cutoff electrostatics used, forcing full Hessian format.\n");
+        GMX_LOG(mdlog.warning).appendText("Non-cutoff electrostatics used, forcing full Hessian format.");
         bSparse = FALSE;
     }
     else if (atom_index.size() < 1000)
     {
-        md_print_info(cr, fplog, "Small system size (N=%d), using full Hessian format.\n", atom_index.size());
+        GMX_LOG(mdlog.warning).appendTextFormatted("Small system size (N=%d), using full Hessian format.",
+                                                   atom_index.size());
         bSparse = FALSE;
     }
     else
     {
-        md_print_info(cr, fplog, "Using compressed symmetric sparse Hessian format.\n");
+        GMX_LOG(mdlog.warning).appendText("Using compressed symmetric sparse Hessian format.");
         bSparse = TRUE;
     }
 
@@ -2889,14 +2885,14 @@ double do_nm(FILE *fplog, t_commrec *cr,
     /* if forces are not small, warn user */
     get_state_f_norm_max(cr, &(inputrec->opts), mdatoms, state_work);
 
-    md_print_info(cr, fplog, "Maximum force:%12.5e\n", state_work->fmax);
+    GMX_LOG(mdlog.warning).appendTextFormatted("Maximum force:%12.5e", state_work->fmax);
     if (state_work->fmax > 1.0e-3)
     {
-        md_print_info(cr, fplog,
-                      "The force is probably not small enough to "
-                      "ensure that you are at a minimum.\n"
-                      "Be aware that negative eigenvalues may occur\n"
-                      "when the resulting matrix is diagonalized.\n\n");
+        GMX_LOG(mdlog.warning).appendText(
+                "The force is probably not small enough to "
+                "ensure that you are at a minimum.\n"
+                "Be aware that negative eigenvalues may occur\n"
+                "when the resulting matrix is diagonalized.");
     }
 
     /***********************************************************

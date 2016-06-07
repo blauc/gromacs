@@ -317,10 +317,21 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         {
             warning_error(wi, "With Verlet lists only full pbc or pbc=xy with walls is supported");
         }
+
+        // We don't (yet) have general Verlet kernels for rcoulomb!=rvdw
         if (ir->rcoulomb != ir->rvdw)
         {
-            warning_error(wi, "With Verlet lists rcoulomb!=rvdw is not supported");
+            // Since we have PME coulomb + LJ cut-off kernels with rcoulomb>rvdw
+            // for PME load balancing, we can support this exception.
+            bool bUsesPmeTwinRangeKernel = (EEL_PME_EWALD(ir->coulombtype) &&
+                                            ir->vdwtype == evdwCUT &&
+                                            ir->rcoulomb > ir->rvdw);
+            if (!bUsesPmeTwinRangeKernel)
+            {
+                warning_error(wi, "With Verlet lists rcoulomb!=rvdw is not supported (except for rcoulomb>rvdw with PME electrostatics)");
+            }
         }
+
         if (ir->vdwtype == evdwSHIFT || ir->vdwtype == evdwSWITCH)
         {
             if (ir->vdw_modifier == eintmodNONE ||
@@ -618,10 +629,10 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
                 (int)fep->sc_r_power);
         CHECK(fep->sc_alpha != 0 && fep->sc_r_power != 6.0 && fep->sc_r_power != 48.0);
 
-        sprintf(err_buf, "Can't use postive delta-lambda (%g) if initial state/lambda does not start at zero", fep->delta_lambda);
+        sprintf(err_buf, "Can't use positive delta-lambda (%g) if initial state/lambda does not start at zero", fep->delta_lambda);
         CHECK(fep->delta_lambda > 0 && ((fep->init_fep_state > 0) ||  (fep->init_lambda > 0)));
 
-        sprintf(err_buf, "Can't use postive delta-lambda (%g) with expanded ensemble simulations", fep->delta_lambda);
+        sprintf(err_buf, "Can't use positive delta-lambda (%g) with expanded ensemble simulations", fep->delta_lambda);
         CHECK(fep->delta_lambda > 0 && (ir->efep == efepEXPANDED));
 
         sprintf(err_buf, "Can only use expanded ensemble with md-vv (for now)");
@@ -1360,6 +1371,20 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
 
     }
 
+    if (ir->bQMMM)
+    {
+        if (ir->cutoff_scheme != ecutsGROUP)
+        {
+            warning_error(wi, "QMMM is currently only supported with cutoff-scheme=group");
+        }
+        if (!EI_DYNAMICS(ir->eI))
+        {
+            char buf[STRLEN];
+            sprintf(buf, "QMMM is only supported with dynamics, not with integrator %s", ei_names[ir->eI]);
+            warning_error(wi, buf);
+        }
+    }
+
     if (ir->bAdress)
     {
         gmx_fatal(FARGS, "AdResS simulations are no longer supported");
@@ -1788,6 +1813,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     REM_TYPE("adress_do_hybridpairs");
     REM_TYPE("rlistlong");
     REM_TYPE("nstcalclr");
+    REM_TYPE("pull-print-com2");
 
     /* replace the following commands with the clearer new versions*/
     REPL_TYPE("unconstrained-start", "continuation");
@@ -1796,6 +1822,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     REPL_TYPE("nstxtcout", "nstxout-compressed");
     REPL_TYPE("xtc-grps", "compressed-x-grps");
     REPL_TYPE("xtc-precision", "compressed-x-precision");
+    REPL_TYPE("pull-print-com1", "pull-print-com");
 
     CCTYPE ("VARIOUS PREPROCESSING OPTIONS");
     CTYPE ("Preprocessor information: use cpp syntax.");
@@ -2720,7 +2747,8 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     int                     natoms, ai, aj, i, j, d, g, imin, jmin;
     t_iatom                *ia;
     int                    *nrdf2, *na_vcm, na_tot;
-    double                 *nrdf_tc, *nrdf_vcm, nrdf_uc, n_sub = 0;
+    double                 *nrdf_tc, *nrdf_vcm, nrdf_uc, *nrdf_vcm_sub;
+    ivec                   *dof_vcm;
     gmx_mtop_atomloop_all_t aloop;
     t_atom                 *atom;
     int                     mb, mol, ftype, as;
@@ -2745,7 +2773,9 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
      */
     snew(nrdf_tc, groups->grps[egcTC].nr+1);
     snew(nrdf_vcm, groups->grps[egcVCM].nr+1);
+    snew(dof_vcm, groups->grps[egcVCM].nr+1);
     snew(na_vcm, groups->grps[egcVCM].nr+1);
+    snew(nrdf_vcm_sub, groups->grps[egcVCM].nr+1);
 
     for (i = 0; i < groups->grps[egcTC].nr; i++)
     {
@@ -2753,7 +2783,10 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     }
     for (i = 0; i < groups->grps[egcVCM].nr+1; i++)
     {
-        nrdf_vcm[i] = 0;
+        nrdf_vcm[i]     = 0;
+        clear_ivec(dof_vcm[i]);
+        na_vcm[i]       = 0;
+        nrdf_vcm_sub[i] = 0;
     }
 
     snew(nrdf2, natoms);
@@ -2764,12 +2797,14 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
         if (atom->ptype == eptAtom || atom->ptype == eptNucleus)
         {
             g = ggrpnr(groups, egcFREEZE, i);
-            /* Double count nrdf for particle i */
             for (d = 0; d < DIM; d++)
             {
                 if (opts->nFreeze[g][d] == 0)
                 {
-                    nrdf2[i] += 2;
+                    /* Add one DOF for particle i (counted as 2*1) */
+                    nrdf2[i]                              += 2;
+                    /* VCM group i has dim d as a DOF */
+                    dof_vcm[ggrpnr(groups, egcVCM, i)][d]  = 1;
                 }
             }
             nrdf_tc [ggrpnr(groups, egcTC, i)]  += 0.5*nrdf2[i];
@@ -2899,20 +2934,35 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
 
     if (ir->nstcomm != 0)
     {
-        /* Subtract 3 from the number of degrees of freedom in each vcm group
-         * when com translation is removed and 6 when rotation is removed
-         * as well.
+        int ndim_rm_vcm;
+
+        /* We remove COM motion up to dim ndof_com() */
+        ndim_rm_vcm = ndof_com(ir);
+
+        /* Subtract ndim_rm_vcm (or less with frozen dimensions) from
+         * the number of degrees of freedom in each vcm group when COM
+         * translation is removed and 6 when rotation is removed as well.
          */
-        switch (ir->comm_mode)
+        for (j = 0; j < groups->grps[egcVCM].nr+1; j++)
         {
-            case ecmLINEAR:
-                n_sub = ndof_com(ir);
-                break;
-            case ecmANGULAR:
-                n_sub = 6;
-                break;
-            default:
-                gmx_incons("Checking comm_mode");
+            switch (ir->comm_mode)
+            {
+                case ecmLINEAR:
+                    nrdf_vcm_sub[j] = 0;
+                    for (d = 0; d < ndim_rm_vcm; d++)
+                    {
+                        if (dof_vcm[j][d])
+                        {
+                            nrdf_vcm_sub[j]++;
+                        }
+                    }
+                    break;
+                case ecmANGULAR:
+                    nrdf_vcm_sub[j] = 6;
+                    break;
+                default:
+                    gmx_incons("Checking comm_mode");
+            }
         }
 
         for (i = 0; i < groups->grps[egcTC].nr; i++)
@@ -2937,16 +2987,15 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
             nrdf_uc = nrdf_tc[i];
             if (debug)
             {
-                fprintf(debug, "T-group[%d] nrdf_uc = %g, n_sub = %g\n",
-                        i, nrdf_uc, n_sub);
+                fprintf(debug, "T-group[%d] nrdf_uc = %g\n", i, nrdf_uc);
             }
             nrdf_tc[i] = 0;
             for (j = 0; j < groups->grps[egcVCM].nr+1; j++)
             {
-                if (nrdf_vcm[j] > n_sub)
+                if (nrdf_vcm[j] > nrdf_vcm_sub[j])
                 {
                     nrdf_tc[i] += nrdf_uc*((double)na_vcm[j]/(double)na_tot)*
-                        (nrdf_vcm[j] - n_sub)/nrdf_vcm[j];
+                        (nrdf_vcm[j] - nrdf_vcm_sub[j])/nrdf_vcm[j];
                 }
                 if (debug)
                 {
@@ -2971,7 +3020,9 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     sfree(nrdf2);
     sfree(nrdf_tc);
     sfree(nrdf_vcm);
+    sfree(dof_vcm);
     sfree(na_vcm);
+    sfree(nrdf_vcm_sub);
 }
 
 static void decode_cos(char *s, t_cosines *cosine)
@@ -4080,7 +4131,7 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
         {
             sprintf(err_buf, "all tau_t must currently be equal using Andersen temperature control, violated for group %d", i);
             CHECK(ir->opts.tau_t[0] != ir->opts.tau_t[i]);
-            sprintf(err_buf, "all tau_t must be postive using Andersen temperature control, tau_t[%d]=%10.6f",
+            sprintf(err_buf, "all tau_t must be positive using Andersen temperature control, tau_t[%d]=%10.6f",
                     i, ir->opts.tau_t[i]);
             CHECK(ir->opts.tau_t[i] < 0);
         }
