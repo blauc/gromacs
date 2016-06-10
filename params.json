@@ -1,0 +1,6 @@
+{
+  "name": "Gromacs",
+  "tagline": "Experimental branch for experimental potentials in gromacs.",
+  "body": "# The external potential API\r\n\r\nThis is an unoffical gromacs branch.\r\n\r\nredmine\r\n-------\r\nhttp://redmine.gromacs.org/issues/1972\r\nrationale\r\n---------\r\nrequest for feedback\r\n\r\npublished\r\n---------\r\nno\r\n\r\nreferences\r\n----------\r\n",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
