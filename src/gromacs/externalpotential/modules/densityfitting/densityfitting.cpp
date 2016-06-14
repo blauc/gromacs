@@ -53,7 +53,7 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/gausstransform.h"
-// #include "gromacs/fileio/xtcio.h"
+#include "gromacs/fileio/xtcio.h"
 
 
 namespace gmx
@@ -290,7 +290,7 @@ DensityFitting::initialize(const matrix /*box*/, const rvec x[])
     translate_atoms_into_map_(x);
     initialize_reference_density(x);
 
-    // out_  = open_xtc("out.xtc", "a");
+    out_  = open_xtc("out.xtc", "a");
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
@@ -361,18 +361,22 @@ void DensityFitting::plot_forces(const rvec x[])
 
 }
 
-void DensityFitting::do_potential( const matrix /*box*/, const rvec x[], const gmx_int64_t /*step*/)
+void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
 
-    // matrix      box_write;
-    // copy_mat(box, box_write);
-    // rvec  x_out[group(x,0)->num_atoms_global()];
-    // int i=0;
-    // for (auto atom : *group(x,0))
-    // {
-    //     rvec_add(atom.x,translation_,x_out[i++]);
-    // }
-    // write_xtc(out_, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_out , 1000);//reinterpret_cast<const rvec *>((*group(x,0)->begin()).x)
+    if (step %100 == 0)
+    {
+
+        matrix      box_write;
+        copy_mat(box, box_write);
+        rvec        x_out[group(x, 0)->num_atoms_global()];
+        int         i = 0;
+        for (auto atom : *group(x, 0))
+        {
+            rvec_add(atom.x, translation_, x_out[i++]);
+        }
+        write_xtc(out_, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_out, 1000);
+    }
 
     /*
      * Spread all local atoms on a grid
@@ -392,7 +396,8 @@ void DensityFitting::do_potential( const matrix /*box*/, const rvec x[], const g
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
         simulated_density_->normalize();
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
-        set_local_potential(k_*simulated_density_->grid_cell_volume()*reference_divergence_);
+        // set_local_potential(k_*simulated_density_->grid_cell_volume()*reference_divergence_);
+        set_local_potential(-step*1e2);
         reference_density_ = simulated_density_->data();
     }
     else
@@ -497,7 +502,7 @@ void DensityFitting::broadcast_internal()
 
 void DensityFitting::finish()
 {
-    // close_xtc(out_);
+    close_xtc(out_);
 }
 
 std::string DensityFittingInfo::name                        = "densityfitting";
