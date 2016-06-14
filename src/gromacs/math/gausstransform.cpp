@@ -95,28 +95,24 @@ FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
     grid_->resize();
 };
 
-std::array<std::vector<real>, 3>
-FastGaussianGridding::spread_1d_xyz_(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3)
+std::vector<real>
+FastGaussianGridding::spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension)
 {
-    std::array<std::vector<real>, 3> result;
+    std::vector<real> result;
 
-    for (size_t i = XX; i <= ZZ; i++)
+    result.resize(2*m_spread+1);
+
+    real E1         = weight*exp(-dx[dimension]*dx[dimension]/2.0); //< weight * exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
+    real E2         = exp(dx[dimension]*nu);                        //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
+    real E2_power_l = E2;
+
+    result[m_spread] = E1;
+    for (int l = 1; l <= m_spread; l++)
     {
+        result[m_spread-l] = (E1 / E2_power_l) * E3[m_spread-l];
+        result[m_spread+l] = (E1 * E2_power_l) * E3[m_spread+l];
 
-        result[i].resize(2*m_spread+1);
-
-        real E1         = weight*exp(-dx[i]*dx[i]/2.0); //< exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
-        real E2         = exp(dx[i]*nu);                //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
-        real E2_power_l = E2;
-
-        result[i][m_spread] = E1;
-        for (int l = 1; l < m_spread; l++)
-        {
-            result[i][m_spread-l] = (E1 / E2_power_l) * E3[m_spread-l];
-            result[i][m_spread+l] = (E1 * E2_power_l) * E3[m_spread+l];
-
-            E2_power_l *= E2;
-        }
+        E2_power_l *= E2;
     }
     return result;
 };
@@ -145,21 +141,21 @@ FastGaussianGridding::tensor_product_()
     ivec l_max;
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        l_min[i] = grid_index_[i]-m_spread_ < 0 ? 0 : grid_index_[i]-m_spread_;
-        l_max[i] = grid_index_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_[i]+m_spread_;
+        l_min[i] = grid_index_of_spread_atom_[i]-m_spread_ < 0 ? 0 : grid_index_of_spread_atom_[i]-m_spread_;
+        l_max[i] = grid_index_of_spread_atom_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_of_spread_atom_[i]+m_spread_;
     }
     real   spread_zy;
     std::vector<real>::iterator voxel;
-    int    l_x_min = l_min[XX]-grid_index_[XX]+m_spread_;
+    int    l_x_min = l_min[XX]-grid_index_of_spread_atom_[XX]+m_spread_;
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
 
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
-        int l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
+        int l_z = l_grid_z - grid_index_of_spread_atom_[ZZ]+m_spread_;
         for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
         {
-            int l_y          = l_grid_y - grid_index_[YY]+m_spread_;
+            int l_y          = l_grid_y - grid_index_of_spread_atom_[YY]+m_spread_;
             spread_zy    = spread_2d_[l_z][l_y];
             voxel        = grid_->zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
             spread_1d_XX = &(spread_1d_[XX][l_x_min]);
@@ -176,13 +172,15 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    grid_index_ = grid_->coordinate_to_gridindex_floor_ivec(x);
+    grid_index_of_spread_atom_ = grid_->coordinate_to_gridindex_floor_ivec(x);
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        dx[i]  = (x[i]-grid_->gridpoint_coordinate(grid_index_)[i])/sigma_;
+        dx[i]  = (x[i]-grid_->gridpoint_coordinate(grid_index_of_spread_atom_)[i])/sigma_;
     }
-    spread_1d_ = spread_1d_xyz_(weight, m_spread_, dx, nu_, E3_);
+    spread_1d_[XX] = spread_1d(weight, m_spread_, dx, nu_, E3_, XX);
+    spread_1d_[YY] = spread_1d(1, m_spread_, dx, nu_, E3_, YY);
+    spread_1d_[ZZ] = spread_1d(1, m_spread_, dx, nu_, E3_, ZZ);
     tensor_product_2d_();
 }
 

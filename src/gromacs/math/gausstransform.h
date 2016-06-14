@@ -88,16 +88,16 @@ class FastGaussianGridding : public GaussTransform
         std::unique_ptr<GridReal> && finish_and_return_grid();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
-        IVec grid_index_;
+        IVec grid_index_of_spread_atom_;
         int                              m_spread_;
         std::array<std::vector<real>, 3> spread_1d_;
         std::vector < std::vector < real>> spread_2d_;
     private:
-        std::array<std::vector<real>, 3> spread_1d_xyz_(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3);
+        std::vector<real> spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension);
         void tensor_product_2d_();
         void tensor_product_();
         real nu_; // spacing/sigma
-        RVec grid_index_r_;
+        RVec grid_index_of_spread_atom_r_;
         std::vector < std::vector < std::vector<real>>> spread_block_;
 
         std::vector<real>                E3_;      //< exp(-l^2*nu^2/2) , following the naming convention of Greengard et al., ;

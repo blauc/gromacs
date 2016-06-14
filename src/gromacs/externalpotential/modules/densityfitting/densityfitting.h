@@ -43,11 +43,11 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/fileio/volumedataio.h"
 
+struct t_fileio;
 namespace gmx
 {
 
 struct GroupAtom;
-class Ifgt;
 
 namespace volumedata
 {
@@ -102,6 +102,7 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::FastGaussianGridding> gauss_transform_;
         real                                              background_density_;
         volumedata::MrcMetaData                           meta_;
+        t_fileio                                         *out_;
         std::vector<real>                                 potential_contribution_;
         RVec                                              translation_;
         std::vector<real>                                 reference_density_;

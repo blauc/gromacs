@@ -53,7 +53,7 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/gausstransform.h"
-#include "gromacs/fileio/xtcio.h"
+// #include "gromacs/fileio/xtcio.h"
 
 
 namespace gmx
@@ -77,13 +77,13 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
 
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        l_min[i] = grid_index_[i]-m_spread_ < 0 ? 0 : grid_index_[i]-m_spread_;
-        l_max[i] = grid_index_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_[i]+m_spread_;
+        l_min[i] = grid_index_of_spread_atom_[i] - m_spread_ < 0 ? 0 : grid_index_of_spread_atom_[i]-m_spread_;
+        l_max[i] = grid_index_of_spread_atom_[i] + m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_of_spread_atom_[i]+m_spread_;
     }
 
     real   spread_zy;
     std::vector<real>::iterator density_ratio_iterator;
-    int    l_x_min = l_min[XX]-grid_index_[XX]+m_spread_;
+    int    l_x_min = l_min[XX]-grid_index_of_spread_atom_[XX]+m_spread_;
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
 
@@ -95,7 +95,6 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
     RVec     shift_yz;                                         //< ((x-v_0) + dz) + dy
     RVec     shift_xyz;                                        //< (((x-v_0) + dz) + dy) + dx
 
-    rvec_sub(div.gridpoint_coordinate({0, 0, 0}), x, shift_z); // using the grid-origin as reference (x-v_0)
 
 
     rvec voxel_force; //< The force each voxel contributes
@@ -114,25 +113,26 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
 
     RVec d_z_offset;
     svmul(l_min[ZZ], d_z, d_z_offset);
-    rvec_inc(shift_z, d_z_offset);
     RVec d_y_offset;
     svmul(l_min[YY], d_y, d_y_offset);
     RVec d_x_offset;
     svmul(l_min[XX], d_x, d_x_offset);
 
+    rvec_sub(div.gridpoint_coordinate({0, 0, 0}), x, shift_z); // using the grid-origin as reference (v_0-x)
+    rvec_inc(shift_z, d_z_offset);                             // move in "z-slices" until spreading starts
 
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
-        shift_yz = shift_z;             // start at the beginning of a "y-row"
-        rvec_inc(shift_yz, d_y_offset); // move in the "y-row" to the voxel where spreading starts
+        shift_yz = shift_z;                                              // start at the beginning of a "y-row"
+        rvec_inc(shift_yz, d_y_offset);                                  // move in the "y-row" to the voxel where spreading starts
 
-        int l_z = l_grid_z - grid_index_[ZZ]+m_spread_;
+        int l_z = l_grid_z - grid_index_of_spread_atom_[ZZ] + m_spread_; // the grid index in the 2d spread grid around the atom
         for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
         {
             shift_xyz = shift_yz;            // start at the beginning of an "x-column"
             rvec_inc(shift_xyz, d_x_offset); // move in the "x-row" to the voxel where spreading starts
 
-            int l_y          = l_grid_y - grid_index_[YY]+m_spread_;
+            int l_y          = l_grid_y - grid_index_of_spread_atom_[YY]+m_spread_;
             spread_zy                     = spread_2d_[l_z][l_y];
             density_ratio_iterator        = div.zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
 
@@ -150,6 +150,7 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
                  *
                  */
                 svmul(spread_zy * (*spread_1d_XX) * (*density_ratio_iterator), shift_xyz, voxel_force);
+
                 /*
                  * add the force to the total force from all voxels
                  */
@@ -228,7 +229,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[])
     {
         svmul(1.0/group(x, 0)->num_atoms_global(), center_of_geometry_fitatoms, center_of_geometry_fitatoms);
         RVec center_of_density = target_density_->center_of_mass();
-        rvec_sub(center_of_geometry_fitatoms, center_of_density, translation_);
+        rvec_sub(center_of_density, center_of_geometry_fitatoms, translation_);
     }
 
     if (mpi_helper() != nullptr)
@@ -281,19 +282,15 @@ DensityFitting::initialize_reference_density(const rvec x[])
 }
 
 void
-DensityFitting::initialize(const matrix box, const rvec x[])
+DensityFitting::initialize(const matrix /*box*/, const rvec x[])
 {
     initialize_target_density_();
     initialize_buffers_();
     initialize_spreading_();
     translate_atoms_into_map_(x);
     initialize_reference_density(x);
-    t_fileio  * out     = open_xtc("out.xtc", "w");
-    rvec       *x_write = const_cast<rvec*>(x);
-    matrix      box_write;
-    copy_mat(box, box_write);
-    write_xtc(out, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_write, 12);
-    close_xtc(out);
+
+    // out_  = open_xtc("out.xtc", "a");
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
@@ -366,6 +363,17 @@ void DensityFitting::plot_forces(const rvec x[])
 
 void DensityFitting::do_potential( const matrix /*box*/, const rvec x[], const gmx_int64_t /*step*/)
 {
+
+    // matrix      box_write;
+    // copy_mat(box, box_write);
+    // rvec  x_out[group(x,0)->num_atoms_global()];
+    // int i=0;
+    // for (auto atom : *group(x,0))
+    // {
+    //     rvec_add(atom.x,translation_,x_out[i++]);
+    // }
+    // write_xtc(out_, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_out , 1000);//reinterpret_cast<const rvec *>((*group(x,0)->begin()).x)
+
     /*
      * Spread all local atoms on a grid
      */
@@ -489,13 +497,13 @@ void DensityFitting::broadcast_internal()
 
 void DensityFitting::finish()
 {
-
+    // close_xtc(out_);
 }
 
 std::string DensityFittingInfo::name                        = "densityfitting";
 std::string DensityFittingInfo::shortDescription            = "calculate forces from difference to target density";
 const int   DensityFittingInfo::numberIndexGroups           = 1;
-const int   DensityFittingInfo::numberWholeMoleculeGroups   = 0;
+const int   DensityFittingInfo::numberWholeMoleculeGroups   = 1;
 externalpotential::ModuleCreator DensityFittingInfo::create = DensityFitting::create;
 
 } // namespace externalpotential
