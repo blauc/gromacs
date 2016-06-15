@@ -91,7 +91,7 @@ GroupAtom &Group::GroupIterator::operator*()
 {
     int i_local = group_->ind_loc_[i_];
     group_->atom_.x          = group_->x_[i_local];
-    group_->atom_.force      = as_vec_array(group_->f_loc_.data())[i_];
+    group_->atom_.force      = group_->f_loc_[i_];
     group_->atom_.properties = group_->properties_[i_];
     group_->atom_.i_local    = i_local;
     group_->atom_.i_global   = group_->coll_ind_[i_];
@@ -238,7 +238,8 @@ void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_ker
 #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) schedule(static)
     for (int i = 0; i < num_atoms_loc_; i++)
     {
-        loop_kernel_function((*this)[i], std::max(0, gmx_omp_get_thread_num()));
+        GroupAtom privateAtom = (*this)[i];
+        loop_kernel_function(privateAtom, std::max(0, gmx_omp_get_thread_num()));
     }
 }
 

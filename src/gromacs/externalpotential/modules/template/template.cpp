@@ -67,21 +67,35 @@ gmx::AtomProperties * Template::single_atom_properties(t_mdatoms * mdatoms, gmx_
     return nullptr;
 }
 
+void Template::ForceKernel_(GroupAtom &atom, const int &thread)
+{
+    #pragma omp critical
+    {
+        // TODO: careful, this is a parallel region
+        rvec_sub(atom.x, com2_, atom.force);
+
+        //     if (norm(atom.force)>1e3)
+        // {
+        //     fprintf(stderr,"Large force therad %d, atom: %d, x: %g %g %g com2: %g %g %g k: %g f: %g %g %g\n",thread, atom.i_global, atom.x[0],atom.x[1],atom.x[2],com2_[0],com2_[1],com2_[2],k_,atom.force[0],atom.force[1],atom.force[2]);
+        // }
+
+        atom.force[XX]          *= -k_;
+        atom.force[YY]          *= -k_;
+        atom.force[ZZ]          *= -k_;
+        potential_[thread]      += k_*distance2(atom.x, com2_)/2.0;
+    }
+}
+
 void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
     std::shared_ptr<Group> r1_local = group(x, 0);
     std::shared_ptr<Group> r2_local = group(x, 1);
     RVec                   com1;
-    RVec                   com2;
     real                   potential = 0;
 
     com1[XX] = box[XX][XX]*0.25;
     com1[YY] = box[YY][YY]*0.25;
     com1[ZZ] = box[ZZ][ZZ]*0.25;
-
-    com2[XX] = 3*com1[XX];
-    com2[YY] = 3*com1[YY];
-    com2[ZZ] = 3*com1[ZZ];
 
     for (auto atom : *r1_local)
     {
@@ -91,13 +105,19 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
         potential      += k_*distance2(atom.x, com1)/2.0;
     }
 
-    for (auto atom : *r2_local)
-    {
-        rvec_sub(atom.x, com2, atom.force);
-        svmul(-k_, atom.force, atom.force);
-        potential      += k_*distance2(atom.x, com2)/2.0;
-    }
+    com2_[XX] = 3*com1[XX];
+    com2_[YY] = 3*com1[YY];
+    com2_[ZZ] = 3*com1[ZZ];
 
+    potential_.clear();
+    potential_.resize(std::max(1, gmx_omp_nthreads_get(emntDefault)));
+
+    r2_local->parallel_loop(std::bind( &Template::ForceKernel_, this, std::placeholders::_1, std::placeholders::_2));
+
+    for (int i = 0; i < std::max(1, gmx_omp_nthreads_get(emntDefault)); i++)
+    {
+        potential += potential_[i];
+    }
 
     set_local_potential(potential);
 
@@ -145,6 +165,7 @@ void Template::finish()
 std::string TemplateInfo::name                        = "template";
 std::string TemplateInfo::shortDescription            = "basic external potential example";
 const int   TemplateInfo::numberIndexGroups           = 2;
+const int   TemplateInfo::numberWholeMoleculeGroups   = 0;
 externalpotential::ModuleCreator TemplateInfo::create = Template::create;
 
 } // namespace externalpotential

@@ -70,8 +70,8 @@ void registerModule(gmx::externalpotential::Modules *modules)
 void registerExternalPotentialModules(gmx::externalpotential::Modules *modules)
 {
     using namespace gmx::externalpotential;
-    // registerModule<TemplateInfo>(modules);
-    registerModule<DensityFittingInfo>(modules);
+    registerModule<TemplateInfo>(modules);
+    // registerModule<DensityFittingInfo>(modules);
 
 }
 } // namespace externalpotential

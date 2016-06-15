@@ -38,20 +38,22 @@
 #include <memory>
 #include <string>
 
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/mdtypes/commrec.h"
 
 namespace gmx
 {
+class GroupAtom;
 namespace externalpotential
 {
 class Template : public ExternalPotential
 {
     public:
 
-        static std::unique_ptr<ExternalPotential> create();
         void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
+        static std::unique_ptr<ExternalPotential> create();
         void read_input();
         void broadcast_internal();
         AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
@@ -59,8 +61,11 @@ class Template : public ExternalPotential
         void initialize(const matrix box, const rvec x[]);
 
     private:
+        void ForceKernel_(GroupAtom &atom, const int &thread);
         Template();
-        real k_;
+        real              k_;
+        RVec              com2_;
+        std::vector<real> potential_;
 
 };
 
@@ -70,6 +75,7 @@ class TemplateInfo
         static std::string name;
         static std::string shortDescription;
         static const int   numberIndexGroups;
+        static const int   numberWholeMoleculeGroups;
         static externalpotential::ModuleCreator create;
 };
 } // namespace externalpotential
