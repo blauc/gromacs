@@ -48,7 +48,6 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/exceptions.h"
 
-
 namespace gmx
 {
 
@@ -69,24 +68,12 @@ gmx::AtomProperties * Template::single_atom_properties(t_mdatoms * mdatoms, gmx_
 
 void Template::ForceKernel_(GroupAtom &atom, const int &thread)
 {
-    #pragma omp critical
-    {
-        // TODO: careful, this is a parallel region
-        rvec_sub(atom.x, com2_, atom.force);
-
-        //     if (norm(atom.force)>1e3)
-        // {
-        //     fprintf(stderr,"Large force therad %d, atom: %d, x: %g %g %g com2: %g %g %g k: %g f: %g %g %g\n",thread, atom.i_global, atom.x[0],atom.x[1],atom.x[2],com2_[0],com2_[1],com2_[2],k_,atom.force[0],atom.force[1],atom.force[2]);
-        // }
-
-        atom.force[XX]          *= -k_;
-        atom.force[YY]          *= -k_;
-        atom.force[ZZ]          *= -k_;
-        potential_[thread]      += k_*distance2(atom.x, com2_)/2.0;
-    }
+    rvec_sub(atom.x, com2_, atom.force);
+    svmul(-k_, atom.force, atom.force);
+    potential_[thread]      += k_*distance2(atom.x, com2_)/2.0;
 }
 
-void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
+void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t /*step*/)
 {
     std::shared_ptr<Group> r1_local = group(x, 0);
     std::shared_ptr<Group> r2_local = group(x, 1);
@@ -121,7 +108,6 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
 
     set_local_potential(potential);
 
-    (void) step;
 };
 
 Template::Template() : ExternalPotential() {};

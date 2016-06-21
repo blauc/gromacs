@@ -118,6 +118,17 @@ GroupAtom &Group::operator[](int i)
     return *result;
 };
 
+std::shared_ptr<GroupAtom> Group::atom(int i)
+{
+    auto result = std::make_shared<GroupAtom>();
+    result->i_local    = ind_loc_[i];
+    result->i_global   = coll_ind_[i];
+    result->x          = x_[ind_loc_[i]];
+    result->force      = f_loc_[i];
+    result->properties = properties_[i];
+    return result;
+}
+
 Group::Group(const Group &group)
 {
     this->ind_           = group.ind_;
@@ -238,8 +249,7 @@ void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_ker
 #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) schedule(static)
     for (int i = 0; i < num_atoms_loc_; i++)
     {
-        GroupAtom privateAtom = (*this)[i];
-        loop_kernel_function(privateAtom, std::max(0, gmx_omp_get_thread_num()));
+        loop_kernel_function(*(this->atom(i)), std::max(0, gmx_omp_get_thread_num()));
     }
 }
 

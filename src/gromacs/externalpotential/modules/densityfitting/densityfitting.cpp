@@ -364,7 +364,7 @@ void DensityFitting::plot_forces(const rvec x[])
 void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
 
-    if (step %100 == 0)
+    if (step %10 == 0)
     {
 
         matrix      box_write;
@@ -396,8 +396,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
         simulated_density_->normalize();
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
-        // set_local_potential(k_*simulated_density_->grid_cell_volume()*reference_divergence_);
-        set_local_potential(-step*1e2);
+        set_local_potential(1e10*k_*simulated_density_->grid_cell_volume()*reference_divergence_);
         reference_density_ = simulated_density_->data();
     }
     else
