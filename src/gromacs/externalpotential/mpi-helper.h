@@ -53,6 +53,7 @@ class MpiHelper
         void to_reals_buffer(real value);
         void to_reals_buffer(const real * vector, int size);
         void to_reals_buffer(real matrix[3][3]);
+        real max(real value);
         void finish();
     private:
         std::vector<real> inbuf_;

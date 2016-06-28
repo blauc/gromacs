@@ -92,21 +92,27 @@ real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
     if (potentials_.size() != 0)
     {
 
-        int i = 0;
+        auto V = V_external_.begin();
         for (auto && it : potentials_)
         {
-            V_external_[i] = it->sum_reduce_potential_virial();
+            *V = it->sum_reduce_potential_virial();
+            ++V;
         }
 
-        std::vector<real> weights = calculate_weights();
-        real              V_total = 0;
+        std::vector<real> weights               = calculate_weights();
+        real              V_total               = 0;
+        real              largest_fraction_of_f = 1e-2;
 
+        auto              weight = weights.begin();
+        auto              V_it   = V_external_.begin();
         for (auto && it : potentials_)
         {
-            it->add_forces(f, step, weights[i]);
-            it->add_virial(vir, step, weights[i]);
-            V_total += weights[i]*V_external_[i];
-            ++i;
+            // it->add_forces(f, step, *weight);
+            it->add_forces_capped(f, step, *weight, largest_fraction_of_f);
+            it->add_virial(vir, step, *weight);
+            V_total += *weight* *V_it;
+            ++weight;
+            ++V_it;
         }
         return V_total;
     }

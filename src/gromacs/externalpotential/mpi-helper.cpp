@@ -63,6 +63,20 @@ void MpiHelper::from_reals_buffer(matrix result)
 
 }
 
+real
+MpiHelper::max(real value)
+{
+    inbuf_.clear();
+    inbuf_.push_back(value);
+    outbuf_.resize(inbuf_.size());
+#ifdef GMX_MPI
+    MPI_Reduce(inbuf_.data(), outbuf_.data(), inbuf_.size(), GMX_MPI_REAL, MPI_MAX, masterrank_, mpi_comm_mygroup_);
+#endif
+    inbuf_.clear();
+    buf_write_ = false;
+    return *outbuf_.begin();
+}
+
 
 real MpiHelper::from_reals_buffer()
 {

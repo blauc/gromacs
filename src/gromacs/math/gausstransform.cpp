@@ -102,8 +102,8 @@ FastGaussianGridding::spread_1d(real weight, int m_spread, rvec dx, real nu, con
 
     result.resize(2*m_spread+1);
 
-    real E1         = weight*exp(-dx[dimension]*dx[dimension]/2.0); //< weight * exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
-    real E2         = exp(dx[dimension]*nu);                        //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
+    real E1         = weight*(1.0)/(sqrt(2*M_PI)*nu_)*exp(-dx[dimension]*dx[dimension]/2.0); //< weight * exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
+    real E2         = exp(dx[dimension]*nu);                                                 //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
     real E2_power_l = E2;
 
     result[m_spread] = E1;

@@ -104,6 +104,7 @@ class DensityFitting : public ExternalPotential
         volumedata::MrcMetaData                           meta_;
         t_fileio                                         *out_;
         std::vector<real>                                 potential_contribution_;
+        bool                                              isCenterOfMassCentered_;
         RVec                                              translation_;
         std::vector<real>                                 reference_density_;
         real                                              reference_divergence_ = 0;

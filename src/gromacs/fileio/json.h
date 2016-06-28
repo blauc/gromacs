@@ -55,6 +55,7 @@ class Object : public Entry
         Object(std::string &s);
         std::string write();
         std::string operator[](const std::string &key);
+        std::string at(const std::string &key);
     private:
         std::map<std::string, std::unique_ptr<Entry> > value_;
 };

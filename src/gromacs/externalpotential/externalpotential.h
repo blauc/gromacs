@@ -92,6 +92,7 @@ class ExternalPotential
          * Sums the external potential forces on all nodes, after they have been previously calculated in do_potential.
          */
         void add_forces(rvec f[], gmx_int64_t step, real weight);
+        void add_forces_capped( rvec f[], gmx_int64_t step, real &weight, real largest_fraction_of_f);
 
         /*! \brief
          * Initialization routine called after read_input and broadcast internal, but before the first step. */

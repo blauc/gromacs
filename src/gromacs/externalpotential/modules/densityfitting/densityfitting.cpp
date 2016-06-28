@@ -287,7 +287,10 @@ DensityFitting::initialize(const matrix /*box*/, const rvec x[])
     initialize_target_density_();
     initialize_buffers_();
     initialize_spreading_();
-    translate_atoms_into_map_(x);
+    if (isCenterOfMassCentered_)
+    {
+        translate_atoms_into_map_(x);
+    }
     initialize_reference_density(x);
 
     out_  = open_xtc("out.xtc", "a");
@@ -396,7 +399,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
         simulated_density_->normalize();
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
-        set_local_potential(1e10*k_*simulated_density_->grid_cell_volume()*reference_divergence_);
+        set_local_potential(k_*simulated_density_->grid_cell_volume()*reference_divergence_);
         reference_density_ = simulated_density_->data();
     }
     else
@@ -479,6 +482,14 @@ void DensityFitting::read_input()
         n_sigma_            = strtof(parsed_json["n_sigma"].c_str(), nullptr);
         background_density_ = strtof(parsed_json["background_density"].c_str(), nullptr);
         target_density_name = parsed_json["target_density"];
+        try
+        {
+            isCenterOfMassCentered_ = parsed_json.at("center_to_density").compare("true");
+        }
+        catch (const std::out_of_range &e)
+        {
+            isCenterOfMassCentered_ = true;
+        }
 
         volumedata::MrcFile         target_input_file;
         target_input_file.read(target_density_name, *target_density_);

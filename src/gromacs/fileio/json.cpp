@@ -98,6 +98,13 @@ Object::operator[](const std::string &key)
 }
 
 std::string
+Object::at(const std::string &key)
+{
+    return value_.at(key)->write();
+}
+
+
+std::string
 pull_array_string_from_string(std::string &s)
 {
     return pull_matching_bracket_string_from_string(s, '[', ']');

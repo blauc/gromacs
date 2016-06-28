@@ -204,6 +204,30 @@ void Group::set_indices(gmx_ga2la_t *ga2la)
 
 };
 
+real Group::max_element(rvec arr[])
+{
+    real max_norm = 0;
+    for (int l = 0; l < num_atoms_loc_; l++)
+    {
+        if (norm2(arr[ind_loc_[l]]) > max_norm)
+        {
+            max_norm = norm2(arr[ind_loc_[l]]);
+        }
+        ;
+    }
+    return sqrt(max_norm);
+}
+
+real Group::max_set_f()
+{
+    RVec f_max = *std::max_element(f_loc_.begin(), f_loc_.end(),
+                                   [](const RVec &a, const RVec &b){
+                                       return norm2(a) < norm2(b);
+                                   }
+                                   );
+    return norm(f_max);
+}
+
 
 void Group::add_forces(rvec f[], real w)
 {

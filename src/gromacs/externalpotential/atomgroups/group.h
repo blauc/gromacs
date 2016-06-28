@@ -115,7 +115,8 @@ class Group
 
         int num_atoms_loc();
         int num_atoms_global() const;
-
+        real max_element(rvec array[]);
+        real max_set_f();
         void set_x(const rvec x[]);
         RVec local_coordinate_sum();
 
