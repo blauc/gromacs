@@ -257,7 +257,7 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         void add_offset(real value);
         /*! \brief Rescale values so their sum * grid_cell_volume is one.
          */
-        void normalize();
+        real normalize();
         /*! \brief Writes all information about the grid of reals in human readable form to a string.
          */
         std::string print();

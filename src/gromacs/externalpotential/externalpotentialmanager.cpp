@@ -101,16 +101,16 @@ real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
 
         std::vector<real> weights               = calculate_weights();
         real              V_total               = 0;
-        real              largest_fraction_of_f = 1e-2;
+        real              largest_fraction_of_f = 5e-2;
 
         auto              weight = weights.begin();
         auto              V_it   = V_external_.begin();
         for (auto && it : potentials_)
         {
             // it->add_forces(f, step, *weight);
+            V_total += *weight* *V_it;
             it->add_forces_capped(f, step, *weight, largest_fraction_of_f);
             it->add_virial(vir, step, *weight);
-            V_total += *weight* *V_it;
             ++weight;
             ++V_it;
         }

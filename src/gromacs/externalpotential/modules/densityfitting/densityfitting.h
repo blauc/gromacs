@@ -94,6 +94,7 @@ class DensityFitting : public ExternalPotential
         real k_;
         real sigma_;
         real n_sigma_;
+        real norm_simulated_;
 
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
@@ -108,6 +109,7 @@ class DensityFitting : public ExternalPotential
         RVec                                              translation_;
         std::vector<real>                                 reference_density_;
         real                                              reference_divergence_ = 0;
+        real                                              k_factor_;
 
 
 };

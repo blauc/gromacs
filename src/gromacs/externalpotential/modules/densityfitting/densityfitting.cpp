@@ -334,8 +334,9 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
     force_gauss_transform_[thread]->set_grid(std::move(force_density_[thread]));
     /*
      * The atoms spread weight is k_*simulated_density_->grid_cell_volume()/sigma_, so we don't have to do that multiplication later in the force calculation loop
+     * simulated_density_->grid_cell_volume()/
      */
-    copy_rvec(force_gauss_transform_[thread]->force(x_shifted, k_*simulated_density_->grid_cell_volume()/sigma_,  *simulated_density_), atom.force);
+    copy_rvec(force_gauss_transform_[thread]->force(x_shifted, k_/(norm_simulated_*sigma_*sigma_),  *simulated_density_), atom.force);
 
     force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
 
@@ -397,10 +398,12 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
-        simulated_density_->normalize();
+        norm_simulated_        = simulated_density_->normalize();
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
-        set_local_potential(k_*simulated_density_->grid_cell_volume()*reference_divergence_);
+        set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
+        fprintf(stderr, "Efit= %6.3f ", k_*reference_divergence_);
+        fprintf(stderr, "k= %6.3f ", k_);
     }
     else
     {
@@ -415,9 +418,11 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
     if (mpi_helper() != nullptr)
     {
         mpi_helper()->broadcast(simulated_density_->data().data(), simulated_density_->data().size());
+        mpi_helper()->broadcast(&norm_simulated_, 1);
     }
 
     group(x, 0)->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+    k_ *= k_factor_;
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
@@ -482,9 +487,19 @@ void DensityFitting::read_input()
         n_sigma_            = strtof(parsed_json["n_sigma"].c_str(), nullptr);
         background_density_ = strtof(parsed_json["background_density"].c_str(), nullptr);
         target_density_name = parsed_json["target_density"];
+        std::string k_factor_string;
         try
         {
-            isCenterOfMassCentered_ = parsed_json.at("center_to_density").compare("true");
+            k_factor_string         = parsed_json.at("k_factor");
+        }
+        catch (const std::out_of_range &e)
+        {
+            k_factor_string = "1";
+        }
+        k_factor_ = strtof(k_factor_string.c_str(), nullptr);
+        try
+        {
+            isCenterOfMassCentered_ = parsed_json.at("center_to_density") == "true";
         }
         catch (const std::out_of_range &e)
         {
@@ -505,6 +520,8 @@ void DensityFitting::broadcast_internal()
     if (mpi_helper() != nullptr)
     {
         mpi_helper()->broadcast(&k_, 1);
+        mpi_helper()->broadcast(&k_factor_, 1);
+        mpi_helper()->broadcast(&isCenterOfMassCentered_, 1);
         mpi_helper()->broadcast(&sigma_, 1);
         mpi_helper()->broadcast(&n_sigma_, 1);
     }

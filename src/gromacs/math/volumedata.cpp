@@ -510,10 +510,11 @@ void GridReal::resize()
 {
     impl_->data_.resize(num_gridpoints());
 }
-void GridReal::normalize()
+real GridReal::normalize()
 {
     real scale =  this->grid_cell_volume() / std::accumulate(impl_->data_.begin(), impl_->data_.end(), 0.);
     std::for_each(impl_->data_.begin(), impl_->data_.end(), [ = ] (real &v) {v *= scale; });
+    return 1./scale;
 }
 
 real &GridReal::at(IVec index)
