@@ -175,7 +175,7 @@ void ExternalPotential::add_forces_capped( rvec f[], gmx_int64_t step, real &wei
                 max_ff_force  = mpi_helper()->max(max_ff_force);
                 max_set_force = mpi_helper()->max(max_set_force);
             }
-            fprintf(stderr, " Fmax_fit= %g ", max_set_force);
+            fprintf(input_output()->output_file(), "%8g\t", max_set_force);
             if ( (max_ff_force != 0) && (max_set_force != 0) && max_set_force / max_ff_force  > largest_fraction_of_f)
             {
                 // weight *= largest_fraction_of_f * max_ff_force / max_set_force;

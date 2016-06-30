@@ -101,14 +101,18 @@ void ExternalPotentialIO::set_log_file(std::string basepath, std::string filenam
 
 FILE * ExternalPotentialIO::open_(std::string basename, std::string filename, const char * mode)
 {
-    if (!filename.empty() && gmx_fexist((basename + "/" + filename).c_str()))
+    if (!filename.empty())
     {
-        return gmx_ffopen((basename + "/" + filename).c_str(), mode);
+        if (std::string("w") == std::string(mode) || std::string("a") == std::string(mode))
+        {
+            return gmx_ffopen((basename + "/" + filename).c_str(), mode);
+        }
+        if (gmx_fexist((basename + "/" + filename).c_str()))
+        {
+            return gmx_ffopen((basename + "/" + filename).c_str(), mode);
+        }
     }
-    else
-    {
-        return nullptr;
-    }
+    return nullptr;
 }
 
 }       // namespace externalpotential

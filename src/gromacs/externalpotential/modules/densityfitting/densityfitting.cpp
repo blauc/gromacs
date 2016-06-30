@@ -402,8 +402,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        fprintf(stderr, "Efit= %6.3f ", k_*reference_divergence_);
-        fprintf(stderr, "k= %6.3f ", k_);
+        fprintf(input_output()->output_file(), "%8g\t%8g\n", k_*reference_divergence_, k_);
     }
     else
     {
@@ -513,6 +512,7 @@ void DensityFitting::read_input()
     {
         GMX_THROW(gmx::InvalidInputError("Reading input for external potential has failed."));
     }
+    fprintf(input_output()->output_file(), "Fmax        E          k\n");
 }
 
 void DensityFitting::broadcast_internal()
