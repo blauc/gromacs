@@ -59,7 +59,10 @@ void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t s
 {
     for (auto && it : potentials_)
     {
-        it->do_potential( box, x, step);
+        if (it->do_this_step(step))
+        {
+            it->do_potential( box, x, step);
+        }
     }
     return;
 };
@@ -176,8 +179,9 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
         for (int i_group = 0; i_group < curr_module_info.numberWholeMoleculeGroups; i_group++)
         {
             std::shared_ptr<WholeMoleculeGroup> whole_molecule_group(new
-                                                                     WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_, top_global, ePBC, box, 3)
+                                                                     WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_, box, 3)
                                                                      );
+            whole_molecule_group->make_whole_molecule_reference(x, top_global, ePBC);
             whole_groups_.push_back(std::shared_ptr<WholeMoleculeGroup>(whole_molecule_group));
             potentials_[i_potential]->add_wholemoleculegroup(whole_molecule_group);
         }

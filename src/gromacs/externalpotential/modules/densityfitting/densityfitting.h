@@ -69,6 +69,8 @@ class DensityFitting : public ExternalPotential
         void read_input();
         void initialize(const matrix box, const rvec x[]);
         void broadcast_internal();
+        bool do_this_step(gmx_int64_t step);
+
         AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
         void finish();
 
@@ -95,6 +97,12 @@ class DensityFitting : public ExternalPotential
         real sigma_;
         real n_sigma_;
         real norm_simulated_;
+        int  every_nth_step_;
+        real reference_divergence_expmean_shortlag_ = 0;
+        real reference_divergence_expmean_longlag_  = 0;
+        real longlag_factor_;
+        real shortlag_factor_;
+
 
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;

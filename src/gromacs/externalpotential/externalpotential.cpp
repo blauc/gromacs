@@ -121,10 +121,6 @@ void ExternalPotential::add_virial(tensor vir, gmx_int64_t step, real weight)
 
     }
 };
-bool ExternalPotential::do_this_step(gmx_int64_t step)
-{
-    return (step % impl_->nst_apply_ == 0 );
-}
 
 real ExternalPotential::sum_reduce_potential_virial()
 {

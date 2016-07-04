@@ -402,7 +402,17 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        fprintf(input_output()->output_file(), "%8g\t%8g\n", k_*reference_divergence_, k_);
+        // fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t%8g\n", k_*reference_divergence_, k_, reference_divergence_expmean_longlag_, reference_divergence_expmean_shortlag_);
+        // reference_divergence_expmean_longlag_  = (1-longlag_factor_)*reference_divergence_expmean_longlag_ +longlag_factor_*reference_divergence_;
+        // reference_divergence_expmean_shortlag_ = (1-shortlag_factor_)*reference_divergence_expmean_shortlag_ +shortlag_factor_*reference_divergence_;
+        // if ((1.01*reference_divergence_expmean_longlag_ < reference_divergence_expmean_shortlag_) || (reference_divergence_expmean_shortlag_ >= -1e-8))
+        // {
+        //     k_ *= k_factor_;
+        // }
+        // else
+        // {
+        //     k_ /= k_factor_;
+        // }
     }
     else
     {
@@ -421,7 +431,6 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
     }
 
     group(x, 0)->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
-    k_ *= k_factor_;
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
@@ -463,6 +472,12 @@ DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &
     return std::accumulate(buffer.begin(), buffer.end(), 0.0);
 }
 
+bool DensityFitting::do_this_step(gmx_int64_t step)
+{
+    return (step % every_nth_step_ == 0 );
+}
+
+
 void DensityFitting::read_input()
 {
     FILE      * inputfile       = input_output()->input_file();
@@ -481,10 +496,10 @@ void DensityFitting::read_input()
         // TODO: implemetn json scheme for checking input consistency
         json::Object parsed_json(file_as_string);
 
-        k_                  = strtof(parsed_json["k"].c_str(), nullptr);
-        sigma_              = strtof(parsed_json["sigma"].c_str(), nullptr);
-        n_sigma_            = strtof(parsed_json["n_sigma"].c_str(), nullptr);
-        background_density_ = strtof(parsed_json["background_density"].c_str(), nullptr);
+        k_                  = std::stof(parsed_json["k"]);
+        sigma_              = std::stof(parsed_json["sigma"]);
+        n_sigma_            = std::stof(parsed_json["n_sigma"]);
+        background_density_ = std::stof(parsed_json["background_density"]);
         target_density_name = parsed_json["target_density"];
         std::string k_factor_string;
         try
@@ -495,7 +510,7 @@ void DensityFitting::read_input()
         {
             k_factor_string = "1";
         }
-        k_factor_ = strtof(k_factor_string.c_str(), nullptr);
+        k_factor_ = std::stof(k_factor_string);
         try
         {
             isCenterOfMassCentered_ = parsed_json.at("center_to_density") == "true";
@@ -504,6 +519,34 @@ void DensityFitting::read_input()
         {
             isCenterOfMassCentered_ = true;
         }
+
+        try
+        {
+            every_nth_step_ = std::stoi(parsed_json.at("every_nth_step"));
+            k_             *= every_nth_step_;
+        }
+        catch (const std::out_of_range &e)
+        {
+            every_nth_step_ = 1;
+        }
+        //
+        // try
+        // {
+        //     shortlag_factor_ = std::stod(parsed_json.at("short_lag_factor"));
+        // }
+        // catch (const std::out_of_range &e)
+        // {
+        //     shortlag_factor_ = 1;
+        // }
+        //
+        // try
+        // {
+        //     longlag_factor_ = std::stod(parsed_json.at("long_lag_factor"));
+        // }
+        // catch (const std::out_of_range &e)
+        // {
+        //     longlag_factor_ = 0.05;
+        // }
 
         volumedata::MrcFile         target_input_file;
         target_input_file.read(target_density_name, *target_density_);
@@ -521,6 +564,7 @@ void DensityFitting::broadcast_internal()
     {
         mpi_helper()->broadcast(&k_, 1);
         mpi_helper()->broadcast(&k_factor_, 1);
+        mpi_helper()->broadcast(&every_nth_step_, 1);
         mpi_helper()->broadcast(&isCenterOfMassCentered_, 1);
         mpi_helper()->broadcast(&sigma_, 1);
         mpi_helper()->broadcast(&n_sigma_, 1);

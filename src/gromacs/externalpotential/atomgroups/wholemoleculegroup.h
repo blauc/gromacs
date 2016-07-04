@@ -76,15 +76,15 @@ class WholeMoleculeGroup : public Group
 {
     public:
 
-        WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const int npbcdim);
+        WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim);
         ~WholeMoleculeGroup();
 
         void update_shifts_and_reference(const rvec x[], const matrix box);
         void set_box(const matrix box);
         void set_x(const rvec x[]);
+        void make_whole_molecule_reference(const rvec x[], const gmx_mtop_t *top_global, const int ePBC);
 
     private:
-        void make_whole_molecule_reference_(const gmx_mtop_t *top_global, const int ePBC);
         void calculate_shifts_();
         void all_group_coordinates_to_master_();
 

@@ -58,6 +58,7 @@ class Template : public ExternalPotential
         void broadcast_internal();
         AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
         void finish();
+        bool do_this_step(gmx_int64_t step);
         void initialize(const matrix box, const rvec x[]);
 
     private:

@@ -118,7 +118,7 @@ class ExternalPotential
         virtual void read_input()         = 0;
         virtual void broadcast_internal() = 0;
         void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc);
-        bool do_this_step(gmx_int64_t step);
+        virtual bool do_this_step(gmx_int64_t step) = 0;
 
         /*! \brief
          * Picks the local atoms that are in group "group_index".

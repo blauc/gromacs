@@ -110,6 +110,11 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
 
 };
 
+bool Template::do_this_step(gmx_int64_t /*step*/)
+{
+    return true;
+}
+
 Template::Template() : ExternalPotential() {};
 
 void Template::read_input()

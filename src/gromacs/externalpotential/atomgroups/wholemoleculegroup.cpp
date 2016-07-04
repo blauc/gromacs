@@ -53,7 +53,7 @@
 namespace gmx
 {
 
-WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const int npbcdim) :
+WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim) :
     Group(base_group), mpi_helper_(mpi_helper), npbcdim_(npbcdim)
 {
     // in the whole molecule group, copy atom coordinates, then shift, rather then reference only
@@ -67,15 +67,6 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<
         snew(x_coll_, Group::num_atoms_);
     }
     all_group_coordinates_to_master_();
-    if ((mpi_helper_ == nullptr) || (mpi_helper_->isMaster()))
-    {
-        make_whole_molecule_reference_( top_global, ePBC);
-        calculate_shifts_();
-    }
-    if (mpi_helper != nullptr)
-    {
-        mpi_helper->broadcast(shifts_, DIM*Group::num_atoms_);
-    }
 }
 
 WholeMoleculeGroup::~WholeMoleculeGroup()
@@ -147,11 +138,11 @@ WholeMoleculeGroup::all_group_coordinates_to_master_()
 }
 
 void
-WholeMoleculeGroup::make_whole_molecule_reference_(const gmx_mtop_t *top_global, const int ePBC)
+WholeMoleculeGroup::make_whole_molecule_reference(const rvec x[], const gmx_mtop_t *top_global, const int ePBC)
 {
     rvec * x_pbc;
     snew(x_pbc, top_global->natoms);
-    copy_rvecn(Group::x_, x_pbc, 0, top_global->natoms);
+    copy_rvecn(x, x_pbc, 0, top_global->natoms);
 
     do_pbc_first_mtop(nullptr, int(ePBC), box_, top_global, x_pbc);
 
@@ -160,6 +151,12 @@ WholeMoleculeGroup::make_whole_molecule_reference_(const gmx_mtop_t *top_global,
         copy_rvec(x_pbc[Group::ind_[i]], x_reference_[i]);
     }
     sfree(x_pbc);
+    calculate_shifts_();
+    if (mpi_helper_ != nullptr)
+    {
+        mpi_helper_->broadcast(shifts_, DIM*Group::num_atoms_);
+    }
+
 }
 
 /** copied from groupcoords.cpp*/
