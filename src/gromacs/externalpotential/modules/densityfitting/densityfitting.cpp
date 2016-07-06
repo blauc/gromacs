@@ -397,22 +397,25 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
+        real delta_divergence;
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
         norm_simulated_        = simulated_density_->normalize();
-        reference_divergence_ -= relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
+        delta_divergence       = relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
+        reference_divergence_ -= delta_divergence;
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        // fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t%8g\n", k_*reference_divergence_, k_, reference_divergence_expmean_longlag_, reference_divergence_expmean_shortlag_);
-        // reference_divergence_expmean_longlag_  = (1-longlag_factor_)*reference_divergence_expmean_longlag_ +longlag_factor_*reference_divergence_;
+        fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t%8g\n", k_*reference_divergence_, k_, reference_divergence_expmean_longlag_, reference_divergence_expmean_shortlag_);
+        reference_divergence_expmean_longlag_  = (1-longlag_factor_)*reference_divergence_expmean_longlag_ +longlag_factor_*(k_*delta_divergence);
         // reference_divergence_expmean_shortlag_ = (1-shortlag_factor_)*reference_divergence_expmean_shortlag_ +shortlag_factor_*reference_divergence_;
-        // if ((1.01*reference_divergence_expmean_longlag_ < reference_divergence_expmean_shortlag_) || (reference_divergence_expmean_shortlag_ >= -1e-8))
-        // {
-        //     k_ *= k_factor_;
-        // }
-        // else
-        // {
-        //     k_ /= k_factor_;
-        // }
+        if (reference_divergence_expmean_longlag_ < 1)
+        {
+            k_ *= k_factor_;
+        }
+
+        if (reference_divergence_expmean_longlag_ > 1)
+        {
+            k_ /= k_factor_;
+        }
     }
     else
     {
@@ -539,14 +542,14 @@ void DensityFitting::read_input()
         //     shortlag_factor_ = 1;
         // }
         //
-        // try
-        // {
-        //     longlag_factor_ = std::stod(parsed_json.at("long_lag_factor"));
-        // }
-        // catch (const std::out_of_range &e)
-        // {
-        //     longlag_factor_ = 0.05;
-        // }
+        try
+        {
+            longlag_factor_ = std::stod(parsed_json.at("long_lag_factor"));
+        }
+        catch (const std::out_of_range &e)
+        {
+            longlag_factor_ = 0.05;
+        }
 
         volumedata::MrcFile         target_input_file;
         target_input_file.read(target_density_name, *target_density_);

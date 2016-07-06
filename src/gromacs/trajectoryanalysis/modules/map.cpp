@@ -34,9 +34,9 @@
  */
 /*! \internal \file
  * \brief
- * Implements gmx::analysismodules::Angle.
+ * Implements gmx::analysismodules::map.
  *
- * \author Teemu Murtola <teemu.murtola@gmail.com>
+ * \author Christian Blau <cblau@gwdg.de>
  * \ingroup module_trajectoryanalysis
  */
 #include "gmxpre.h"
