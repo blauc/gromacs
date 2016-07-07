@@ -32,6 +32,12 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \internal \file
+ * \brief
+ * Implements classes in atomsetmanager.h.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ */
 
 #include "atomsetmanager.h"
 #include "atomset.h"
@@ -44,6 +50,13 @@
 namespace gmx
 {
 
+/********************************************************************
+ * AtomSetManager::Impl
+ */
+
+/*! \internal \brief
+ * Private implementation class for AtomSetManager.
+ */
 class AtomSetManager::Impl
 {
     public:
@@ -56,31 +69,53 @@ class AtomSetManager::Impl
 AtomSetManager::Impl::Impl(bool bParallel) : bParallel_(bParallel)
 {};
 
+/********************************************************************
+ * AtomSetManager
+ */
+
+/*! \internal \brief
+ *  implementation class for TrajectoryAnalysisModuleData.
+ *
+ * \ingroup module_trajectoryanalysis
+ */
 
 AtomSetManager::AtomSetManager(bool bParallel) : impl_(new Impl(bParallel))
 {};
 
-void AtomSetManager::removeSet(const std::string &atom_set_name)
-{
-
-}
 AtomSetManager::~AtomSetManager(){};
 
-void AtomSetManager::addSet(const std::string &atom_set_name, const int nat, const int *ind)
+void AtomSetManager::erase(const std::string &atom_set_name)
 {
-    impl_->atom_sets_[atom_set_name] = AtomSet::create();
-    impl_->atom_sets_[atom_set_name]->init(nat, ind, impl_->bParallel_);
+    if (impl_->atom_sets_.count(atom_set_name) == 0)
+    {
+        GMX_THROW(InternalError("Cannot erase '" + atom_set_name + "'. Not found in atom sets."));
+    }
+    impl_->atom_sets_.erase(atom_set_name);
 };
 
-void AtomSetManager::set_indices(const gmx_ga2la_t  *ga2la)
+void AtomSetManager::add(const std::string &atom_set_name, const int number_of_atoms, const int *index)
 {
+    if (impl_->atom_sets_.count(atom_set_name) != 0)
+    {
+        GMX_THROW(InternalError("An atom set with this name already exists. Will not silently overwrite atom sets, use erase(atom_set_name) first."));
+    }
+    impl_->atom_sets_[atom_set_name] = AtomSet::create();
+    impl_->atom_sets_[atom_set_name]->init(number_of_atoms, index, impl_->bParallel_);
+};
+
+void AtomSetManager::set_indices_in_domain_decomposition(const gmx_ga2la_t  *ga2la)
+{
+    if (!impl_->bParallel_)
+    {
+        GMX_THROW(InternalError("Atom set manager may only set indices in domain decomposition when running in parallel."));
+    }
     for (const auto &atom_set : impl_->atom_sets_)
     {
-        atom_set.second->set_indices(ga2la);
+        atom_set.second->bparallel_set_local_and_collective_indices(ga2la);
     }
 };
 
-const AtomSet &AtomSetManager::getSet(const std::string &atom_set_name) const
+const AtomSet &AtomSetManager::get(const std::string &atom_set_name) const
 {
     if (impl_->atom_sets_.count(atom_set_name) == 0)
     {
@@ -88,7 +123,5 @@ const AtomSet &AtomSetManager::getSet(const std::string &atom_set_name) const
     }
     return *(impl_->atom_sets_.at(atom_set_name));
 };
-
-
 
 } // namespace gmx
