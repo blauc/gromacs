@@ -1533,6 +1533,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     if (inputrec->bExternalPotential)
     {
         wallcycle_start(wcycle, ewcEXTPOTadd);
+        sum_epot(&(enerd->grpp), enerd->term);
         enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, step);
         wallcycle_stop(wcycle, ewcEXTPOTadd);
     }

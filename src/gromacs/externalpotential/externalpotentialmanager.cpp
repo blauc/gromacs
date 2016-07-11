@@ -67,7 +67,7 @@ void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t s
     return;
 };
 
-std::vector<real> Manager::calculate_weights()
+std::vector<real> Manager::calculate_weights(real V_forcefield)
 {
     std::vector<real> weights;
 
@@ -90,11 +90,15 @@ std::vector<real> Manager::calculate_weights()
     return weights;
 }
 
-real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
+real
+Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_potential)
 {
     if (potentials_.size() != 0)
     {
-
+        if (step == 0)
+        {
+            forcefield_potential_reference_ = forcefield_potential;
+        }
         auto V = V_external_.begin();
         for (auto && it : potentials_)
         {
@@ -102,17 +106,15 @@ real Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step)
             ++V;
         }
 
-        std::vector<real> weights               = calculate_weights();
+        std::vector<real> weights               = calculate_weights(forcefield_potential-forcefield_potential_reference_);
         real              V_total               = 0;
-        real              largest_fraction_of_f = 5e-2;
 
         auto              weight = weights.begin();
         auto              V_it   = V_external_.begin();
         for (auto && it : potentials_)
         {
-            // it->add_forces(f, step, *weight);
             V_total += *weight* *V_it;
-            it->add_forces_capped(f, step, *weight, largest_fraction_of_f);
+            it->add_forces(f, step, *weight);
             it->add_virial(vir, step, *weight);
             ++weight;
             ++V_it;
