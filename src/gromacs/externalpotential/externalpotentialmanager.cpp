@@ -49,6 +49,7 @@
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/math/units.h"
 
 namespace gmx
 {
@@ -67,7 +68,7 @@ void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t s
     return;
 };
 
-std::vector<real> Manager::calculate_weights(real V_forcefield)
+std::vector<real> Manager::calculate_weights(real /*V_forcefield*/, real /*temperature*/)
 {
     std::vector<real> weights;
 
@@ -87,14 +88,27 @@ std::vector<real> Manager::calculate_weights(real V_forcefield)
         w /= weight_normal;
     }
 
+/* TODO: proper option reading for exp-averaging with system potential energy
+    for (int i = 0; i < V_external_.size(); ++i)
+    {
+        weights[i] *= exp(-(V_external_[i]-V_forcefield)/(BOLTZ*temperature));
+    }
+ */
+
     return weights;
 }
 
 real
-Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_potential)
+Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_potential, real temperature)
 {
     if (potentials_.size() != 0)
     {
+        if (mpi_helper_ != nullptr)
+        {
+            mpi_helper_->to_reals_buffer(forcefield_potential);
+            mpi_helper_->sum_reduce();
+            forcefield_potential = mpi_helper_->from_reals_buffer();
+        }
         if (step == 0)
         {
             forcefield_potential_reference_ = forcefield_potential;
@@ -106,18 +120,18 @@ Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_pote
             ++V;
         }
 
-        std::vector<real> weights               = calculate_weights(forcefield_potential-forcefield_potential_reference_);
-        real              V_total               = 0;
+        std::vector<real> weights = calculate_weights(forcefield_potential-forcefield_potential_reference_, temperature);
+        real              V_total = 0;
 
-        auto              weight = weights.begin();
-        auto              V_it   = V_external_.begin();
-        for (auto && it : potentials_)
+        auto              weight        = weights.begin();
+        auto              V_potential   = V_external_.begin();
+        for (auto && potential : potentials_)
         {
-            V_total += *weight* *V_it;
-            it->add_forces(f, step, *weight);
-            it->add_virial(vir, step, *weight);
+            V_total += *weight* *V_potential;
+            potential->add_forces(f, step, *weight);
+            potential->add_virial(vir, step, *weight);
             ++weight;
-            ++V_it;
+            ++V_potential;
         }
         return V_total;
     }

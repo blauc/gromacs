@@ -1529,15 +1529,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcROTadd);
     }
 
-    /* Add the forces and potential energy from external potentials (if any) */
-    if (inputrec->bExternalPotential)
-    {
-        wallcycle_start(wcycle, ewcEXTPOTadd);
-        sum_epot(&(enerd->grpp), enerd->term);
-        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, step);
-        wallcycle_stop(wcycle, ewcEXTPOTadd);
-    }
-
 
     /* Add forces from interactive molecular dynamics (IMD), if bIMD == TRUE. */
     IMD_apply_forces(inputrec->bIMD, inputrec->imd, cr, f, wcycle);
@@ -1550,13 +1541,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         pme_receive_force_ener(cr, wcycle, enerd, fr);
     }
 
-    if (bDoForces)
-    {
-        post_process_forces(cr, step, nrnb, wcycle,
-                            top, box, x, f, vir_force, mdatoms, graph, fr, vsite,
-                            flags);
-    }
-
     if (flags & GMX_FORCE_ENERGY)
     {
         /* Sum the potential energy terms from group contributions */
@@ -1567,6 +1551,23 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             checkPotentialEnergyValidity(enerd);
         }
     }
+
+    /* Add the forces and potential energy from external potentials (if any) */
+    if (inputrec->bExternalPotential)
+    {
+        wallcycle_start(wcycle, ewcEXTPOTadd);
+        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, step, enerd->term[F_EPOT], inputrec->opts.ref_t[0]);
+        enerd->term[F_EPOT]   += enerd->term[F_EXTPOT];
+        wallcycle_stop(wcycle, ewcEXTPOTadd);
+    }
+
+    if (bDoForces)
+    {
+        post_process_forces(cr, step, nrnb, wcycle,
+                            top, box, x, f, vir_force, mdatoms, graph, fr, vsite,
+                            flags);
+    }
+
 }
 
 void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
@@ -1939,14 +1940,6 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcROTadd);
     }
 
-    /* Add the forces and potential energy from external potentials (if any) */
-    if (inputrec->bExternalPotential)
-    {
-        wallcycle_start(wcycle, ewcEXTPOTadd);
-        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, step);
-        wallcycle_stop(wcycle, ewcEXTPOTadd);
-    }
-
     /* Add forces from interactive molecular dynamics (IMD), if bIMD == TRUE. */
     IMD_apply_forces(inputrec->bIMD, inputrec->imd, cr, f, wcycle);
 
@@ -1958,14 +1951,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         pme_receive_force_ener(cr, wcycle, enerd, fr);
     }
 
-    if (bDoForces)
-    {
-        post_process_forces(cr, step, nrnb, wcycle,
-                            top, box, x, f, vir_force, mdatoms, graph, fr, vsite,
-                            flags);
-    }
-
-    if (flags & GMX_FORCE_ENERGY)
+    if (flags & GMX_FORCE_ENERGY || inputrec->bExternalPotential)
     {
         /* Sum the potential energy terms from group contributions */
         sum_epot(&(enerd->grpp), enerd->term);
@@ -1974,6 +1960,22 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         {
             checkPotentialEnergyValidity(enerd);
         }
+    }
+
+    /* Add the forces and potential energy from external potentials (if any) */
+    if (inputrec->bExternalPotential)
+    {
+        wallcycle_start(wcycle, ewcEXTPOTadd);
+        enerd->term[F_EXTPOT] += inputrec->external_potential->manager->add_forces(f, vir_force, step, enerd->term[F_EPOT], inputrec->opts.ref_t[0]);
+        enerd->term[F_EPOT]   += enerd->term[F_EXTPOT];
+        wallcycle_stop(wcycle, ewcEXTPOTadd);
+    }
+
+    if (bDoForces)
+    {
+        post_process_forces(cr, step, nrnb, wcycle,
+                            top, box, x, f, vir_force, mdatoms, graph, fr, vsite,
+                            flags);
     }
 
 }

@@ -68,8 +68,8 @@ gmx::AtomProperties * Template::single_atom_properties(t_mdatoms * mdatoms, gmx_
 
 void Template::ForceKernel_(GroupAtom &atom, const int &thread)
 {
-    rvec_sub(atom.x, com2_, atom.force);
-    svmul(-k_, atom.force, atom.force);
+    rvec_sub(atom.x, com2_, *(atom.force));
+    svmul(-k_, *(atom.force), *(atom.force));
     potential_[thread]      += k_*distance2(atom.x, com2_)/2.0;
 }
 
@@ -87,8 +87,8 @@ void Template::do_potential( const matrix box, const rvec x[], const gmx_int64_t
     for (auto atom : *r1_local)
     {
 
-        rvec_sub(atom.x, com1, atom.force);
-        svmul(-k_, atom.force, atom.force);
+        rvec_sub(atom.x, com1, *(atom.force));
+        svmul(-k_, *(atom.force), *(atom.force));
         potential      += k_*distance2(atom.x, com1)/2.0;
     }
 

@@ -157,7 +157,7 @@ void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
             {
                 max_set_force = mpi_helper()->max(max_set_force);
             }
-            fprintf(input_output()->output_file(), "%8g\t", max_set_force);
+            fprintf(input_output()->output_file(), "%8g\t%8g\n", max_set_force, weight);
             group->add_forces(f, weight);
         }
 
@@ -170,7 +170,7 @@ void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t 
     {
         for (auto &atom : *group)
         {
-            atom.properties = single_atom_properties(mdatoms + atom.i_local, topology_loc);
+            *(atom.properties) = single_atom_properties(mdatoms + *(atom.i_local), topology_loc);
         }
     }
 }

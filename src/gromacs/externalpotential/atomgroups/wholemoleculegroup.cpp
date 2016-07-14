@@ -129,7 +129,7 @@ WholeMoleculeGroup::all_group_coordinates_to_master_()
         // put all node local atoms in the right position in a global array for later sum_reduction
         for (const auto &atom : *this)
         {
-            copy_rvec(atom.x, x_coll_[atom.i_global]);
+            copy_rvec(atom.x, x_coll_[*(atom.i_global)]);
         }
         mpi_helper_->to_reals_buffer(*x_coll_, 3*Group::num_atoms_);
         mpi_helper_->sum_reduce();

@@ -314,7 +314,7 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
      *
      */
 
-    clear_rvec(atom.force);
+    clear_rvec(*(atom.force));
 
     /*
      * to keep the potential translation invariant, use shifted atoms positions for force calculations.
@@ -330,13 +330,14 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
      * There is some double work done here, since all atoms have already been spread on a grid to calculate the total spread density.
      * However, keeping the spread grid for all atoms appears to be very memory intense. (natoms * voxelgridsize)
      */
-    force_density_[thread]->zero();
     force_gauss_transform_[thread]->set_grid(std::move(force_density_[thread]));
     /*
-     * The atoms spread weight is k_*simulated_density_->grid_cell_volume()/sigma_, so we don't have to do that multiplication later in the force calculation loop
+     * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
      * simulated_density_->grid_cell_volume()/
      */
-    copy_rvec(force_gauss_transform_[thread]->force(x_shifted, k_/(norm_simulated_*sigma_*sigma_),  *simulated_density_), atom.force);
+    copy_rvec(
+            force_gauss_transform_[thread]->force(x_shifted, k_/(norm_simulated_*sigma_*sigma_), *simulated_density_),
+            *(atom.force));
 
     force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
 
@@ -350,16 +351,16 @@ void DensityFitting::plot_forces(const rvec x[])
     real max_f = -1;
     for (auto &atom : *group(x, 0))
     {
-        if (norm(atom.force) > max_f)
+        if (norm(*(atom.force)) > max_f)
         {
-            max_f = norm(atom.force);
+            max_f = norm(*(atom.force));
         }
     }
     rvec x_translated;
     for (auto &atom : *group(x, 0))
     {
         rvec_add(atom.x, translation_, x_translated);
-        plot.plot_force(x_translated, atom.force, 0, 1.0/max_f);
+        plot.plot_force(x_translated, *(atom.force), 0, 1.0/max_f);
     }
     plot.stop_plot_forces();
 
@@ -404,15 +405,13 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         reference_divergence_ -= delta_divergence;
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t%8g\n", k_*reference_divergence_, k_, reference_divergence_expmean_longlag_, reference_divergence_expmean_shortlag_);
-        reference_divergence_expmean_longlag_  = (1-longlag_factor_)*reference_divergence_expmean_longlag_ +longlag_factor_*(k_*delta_divergence);
-        // reference_divergence_expmean_shortlag_ = (1-shortlag_factor_)*reference_divergence_expmean_shortlag_ +shortlag_factor_*reference_divergence_;
-        if (reference_divergence_expmean_longlag_ < 1)
+        fprintf(input_output()->output_file(), "%8g\t%8g", k_*reference_divergence_, k_);
+        if (k_*delta_divergence < 5)
         {
             k_ *= k_factor_;
         }
 
-        if (reference_divergence_expmean_longlag_ > 1)
+        if (k_*delta_divergence > 5)
         {
             k_ /= k_factor_;
         }
@@ -471,7 +470,6 @@ DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &
             *buf = *p * log(*q/(*q_reference));
         }
     }
-    std::sort(buffer.begin(), buffer.end());
     return std::accumulate(buffer.begin(), buffer.end(), 0.0);
 }
 
@@ -532,24 +530,6 @@ void DensityFitting::read_input()
         {
             every_nth_step_ = 1;
         }
-        //
-        // try
-        // {
-        //     shortlag_factor_ = std::stod(parsed_json.at("short_lag_factor"));
-        // }
-        // catch (const std::out_of_range &e)
-        // {
-        //     shortlag_factor_ = 1;
-        // }
-        //
-        try
-        {
-            longlag_factor_ = std::stod(parsed_json.at("long_lag_factor"));
-        }
-        catch (const std::out_of_range &e)
-        {
-            longlag_factor_ = 0.05;
-        }
 
         volumedata::MrcFile         target_input_file;
         target_input_file.read(target_density_name, *target_density_);
@@ -558,7 +538,7 @@ void DensityFitting::read_input()
     {
         GMX_THROW(gmx::InvalidInputError("Reading input for external potential has failed."));
     }
-    fprintf(input_output()->output_file(), "Fmax        E          k\n");
+    fprintf(input_output()->output_file(), "E\tk\tF_max\tweight\n");
 }
 
 void DensityFitting::broadcast_internal()

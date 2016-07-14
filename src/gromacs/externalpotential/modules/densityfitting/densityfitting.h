@@ -98,10 +98,6 @@ class DensityFitting : public ExternalPotential
         real n_sigma_;
         real norm_simulated_;
         int  every_nth_step_;
-        real reference_divergence_expmean_shortlag_ = 0;
-        real reference_divergence_expmean_longlag_  = 0;
-        real longlag_factor_;
-        real shortlag_factor_;
 
 
         std::unique_ptr<volumedata::GridReal>             target_density_;

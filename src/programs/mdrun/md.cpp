@@ -1066,6 +1066,11 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
             bCalcEner = TRUE;
         }
 
+        if (ir->bExternalPotential)
+        {
+            bCalcEner = TRUE;
+        }
+
         /* Do we need global communication ? */
         bGStat = (bCalcVir || bCalcEner || bStopCM ||
                   do_per_step(step, nstglobalcomm) ||

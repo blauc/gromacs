@@ -94,7 +94,7 @@ class Manager
          * \param[in,out] vir The updated virial
          * \result contribution to the total potential from external potentials, updated force and virial
          */
-        real add_forces( rvec f[], tensor vir, gmx_int64_t step, real forcefield_potential);
+        real add_forces( rvec f[], tensor vir, gmx_int64_t step, real forcefield_potential, real temperature);
 
         /*! \brief
          * Call the initialize of all external potentials that
@@ -127,7 +127,7 @@ class Manager
         void finish();
     private:
 
-        std::vector<real> calculate_weights(real V_forcefield);
+        std::vector<real> calculate_weights(real V_forcefield, real temperature);
         std::vector<std::unique_ptr<ExternalPotential> > potentials_;
         std::vector<real>          V_external_;
         Modules                    modules_;

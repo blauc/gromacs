@@ -53,36 +53,35 @@ namespace gmx
 class AtomProperties;
 
 struct GroupAtom{
-    const real     *x;
-    real           *force;
-    AtomProperties *properties;
-    int             i_local;
-    int             i_global;
+    const real                            *x;
+    std::vector<RVec>::iterator            force;
+    std::vector<AtomProperties*>::iterator properties;
+    std::vector<int>::const_iterator       i_local;
+    std::vector<int>::const_iterator       i_collective;
+    int                                 *  i_global;
+};
+class Group;
+
+class GroupIterator : std::iterator<std::forward_iterator_tag, GroupAtom>
+{
+    public:
+        GroupIterator(Group &group, int i = 0);
+        GroupIterator &operator++ ();
+        bool           operator== (const GroupIterator &rhs);
+        bool           operator!= (const GroupIterator &rhs);
+        GroupAtom  &operator*();
+    private:
+        GroupAtom   atom_;
+        const rvec *x_;
 };
 
 class Group
 {
     public:
 
-        class GroupIterator : std::iterator<std::forward_iterator_tag, GroupAtom>
-        {
-            public:
-                friend         Group;
-                GroupIterator &operator++ ();
-                GroupIterator  operator++ (int);
-                bool           operator== (const GroupIterator &rhs);
-                bool           operator!= (const GroupIterator &rhs);
-                GroupAtom &operator*();
-            private:
-                GroupIterator(Group * group);
-                GroupIterator(Group * group, int i);
-                GroupIterator(const GroupIterator * iterator);
-                Group * group_;
-                int     i_;
-        };
-
-        friend class GroupIterator;
-
+        friend GroupIterator;
+        GroupIterator begin(int thread_index, int num_threads);
+        GroupIterator end(int thread_index, int num_threads);
         GroupIterator begin();
         GroupIterator end();
         /*!\brief
@@ -123,7 +122,6 @@ class Group
     protected:
 
         rvec                        *x_;             /**< The coordinates TODO: re-attach const attribute..*/
-        GroupAtom                    atom_;
         int                          num_atoms_;     /**< Number of (global) atoms in this external potential group. */
         int                         *ind_;           /**< Global indices of the atoms in this group.*/
         std::vector<int>             coll_ind_;      /**< map local atom indices to global atom indicices of atoms of this group (i.e. global_index=ind_[coll_ind_[local_index])]*/

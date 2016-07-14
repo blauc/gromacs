@@ -55,77 +55,88 @@ namespace gmx
 /*******************************************************************************
  * Group::Iterator
  */
-Group::GroupIterator::GroupIterator(Group * group, int i)
-    : group_(group), i_(i) {}
-
-Group::GroupIterator::GroupIterator(Group * group)
-    : group_(group), i_(0) {}
-
-Group::GroupIterator::GroupIterator(const GroupIterator * iterator)
-    : group_(iterator->group_), i_(iterator->i_) {}
-
-Group::GroupIterator &Group::GroupIterator::operator++()
+GroupIterator::GroupIterator(Group &group, int i)
 {
-    ++i_;
+    atom_.i_local    = group.ind_loc_.begin() + i;
+    atom_.force      = group.f_loc_.begin() + i;
+    atom_.properties = group.properties_.begin() + i;
+    // if we never dereference group->end() or above , we are fines
+    atom_.i_global   = group.ind_+i;
+    x_               = group.x_;
+}
+
+GroupIterator &GroupIterator::operator++()
+{
+    ++atom_.i_local;
+    ++atom_.force;
+    ++atom_.properties;
+    ++atom_.i_global;
     return *this;
 }
 
-Group::GroupIterator Group::GroupIterator::operator++(int)
+bool GroupIterator::operator==(const GroupIterator &rhs)
 {
-    GroupIterator tmp(this);
-    operator++();
-    return tmp;
+    return (atom_.i_local == rhs.atom_.i_local);
 }
 
-bool Group::GroupIterator::operator==(const GroupIterator &rhs)
+bool GroupIterator::operator!=(const GroupIterator &rhs)
 {
-    return (i_ == rhs.i_) && (group_ == rhs.group_);
+    return (atom_.i_local != rhs.atom_.i_local);
 }
 
-bool Group::GroupIterator::operator!=(const GroupIterator &rhs)
+GroupAtom &GroupIterator::operator*()
 {
-    return (i_ != rhs.i_) || (group_ != rhs.group_);
-}
-
-GroupAtom &Group::GroupIterator::operator*()
-{
-    int i_local = group_->ind_loc_[i_];
-    group_->atom_.x          = group_->x_[i_local];
-    group_->atom_.force      = group_->f_loc_[i_];
-    group_->atom_.properties = group_->properties_[i_];
-    group_->atom_.i_local    = i_local;
-    group_->atom_.i_global   = group_->coll_ind_[i_];
-    return group_->atom_;
+    atom_.x  = x_[*atom_.i_local];
+    return atom_;
 }
 
 /*******************************************************************************
  * Group
  */
 
-Group::GroupIterator Group::begin()
+GroupIterator Group::begin(int thread_index, int num_threads)
 {
-    return GroupIterator(this);
+    return GroupIterator(*this, thread_index * (num_atoms_loc_ / num_threads ));
 };
 
-Group::GroupIterator Group::end()
+GroupIterator Group::end(int thread_index, int num_threads)
 {
-    return GroupIterator(this, num_atoms_loc_);
+    if (thread_index == num_threads-1)
+    {
+        return GroupIterator(*this, num_atoms_loc_);
+    }
+    else
+    {
+        return GroupIterator(*this, (thread_index+1) * (num_atoms_loc_ / num_threads));
+    }
+};
+
+
+GroupIterator Group::begin()
+{
+    return GroupIterator(*this);
+};
+
+GroupIterator Group::end()
+{
+    return GroupIterator(*this, num_atoms_loc_);
 };
 
 GroupAtom &Group::operator[](int i)
 {
-    GroupIterator result(this, i);
+    GroupIterator result(*this, i);
     return *result;
 };
 
 std::shared_ptr<GroupAtom> Group::atom(int i)
 {
     auto result = std::make_shared<GroupAtom>();
-    result->i_local    = ind_loc_[i];
-    result->i_global   = coll_ind_[i];
-    result->x          = x_[ind_loc_[i]];
-    result->force      = f_loc_[i];
-    result->properties = properties_[i];
+    result->i_local      = ind_loc_.begin()+i;
+    result->i_collective = coll_ind_.begin()+i;
+    result->i_global     = ind_+i;
+    result->x            = x_[ind_loc_[i]];
+    result->force        = f_loc_.begin()+i;
+    result->properties   = properties_.begin()+i;
     return result;
 }
 
@@ -135,7 +146,6 @@ Group::Group(const Group &group)
     this->ind_loc_       = group.ind_loc_;
     this->coll_ind_      = group.coll_ind_;
     this->properties_    = group.properties_;
-    this->atom_          = group.atom_;
     this->bParallel_     = group.bParallel_;
     this->f_loc_         = group.f_loc_;
     this->num_atoms_     = group.num_atoms_;
@@ -270,10 +280,16 @@ int Group::num_atoms_loc()
 
 void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function)
 {
-#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) schedule(static)
-    for (int i = 0; i < num_atoms_loc_; i++)
+    const int number_of_threads = std::max(1, gmx_omp_nthreads_get(emntDefault));
+    #pragma omp parallel num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault)))
     {
-        loop_kernel_function(*(this->atom(i)), std::max(0, gmx_omp_get_thread_num()));
+        int           this_thread_index     = gmx_omp_get_thread_num();
+        GroupIterator first_atom_for_thread = begin(this_thread_index, number_of_threads);
+        GroupIterator end_of_thread_atoms   = end(this_thread_index, number_of_threads);
+        for (auto atom = first_atom_for_thread; atom != end_of_thread_atoms; ++atom)
+        {
+            loop_kernel_function(*atom, this_thread_index);
+        }
     }
 }
 
