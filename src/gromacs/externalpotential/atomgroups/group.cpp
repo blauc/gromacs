@@ -281,7 +281,7 @@ int Group::num_atoms_loc()
 void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function)
 {
     const int number_of_threads = std::max(1, gmx_omp_nthreads_get(emntDefault));
-    #pragma omp parallel num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault)))
+    #pragma omp parallel num_threads(number_of_threads)
     {
         int           this_thread_index     = gmx_omp_get_thread_num();
         GroupIterator first_atom_for_thread = begin(this_thread_index, number_of_threads);

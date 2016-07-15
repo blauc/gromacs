@@ -193,22 +193,49 @@ void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<rea
     }
 }
 
+void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
+{
+    rvec x_translated;
+    rvec_add(atom.x, translation_, x_translated);
+    gauss_transform_[thread]->transform(x_translated, 1);
+}
 
 void DensityFitting::spread_density_(const rvec x[])
 {
     simulated_density_->zero();
-    rvec x_translated;
-    /* compress local atom contributions to density in expansion centers*/
-    gauss_transform_->set_grid(std::move(simulated_density_));
-
-    for (auto const &atom : *group(x, 0))
+    int number_of_threads = std::max(1, gmx_omp_nthreads_get(emntDefault));
+#pragma omp parallel for num_threads(number_of_threads)
+    for (int thread = 0; thread < number_of_threads; ++thread)
     {
-        rvec_add(atom.x, translation_, x_translated);
-        gauss_transform_->transform(x_translated, 1);
+        simulated_density_buffer_[thread]->zero();
+        gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
+
     }
 
-    simulated_density_ = std::move(gauss_transform_->finish_and_return_grid());
+    group(x, 0)->parallel_loop(std::bind( &DensityFitting::SpreadKernel, this, std::placeholders::_1, std::placeholders::_2));
 
+#pragma omp parallel for num_threads(number_of_threads)
+    for (int thread = 0; thread < number_of_threads; ++thread)
+    {
+        simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
+    }
+
+    int grid_size = simulated_density_->num_gridpoints();
+    std::vector<std::vector<real>::iterator> it_buffer(number_of_threads);
+    for (int thread = 0; thread < number_of_threads; ++thread)
+    {
+        it_buffer[thread] = simulated_density_buffer_[thread]->data().begin();
+    }
+    std::vector<real>::iterator it_simulated_density = simulated_density_->data().begin();
+    for (int i = 0; i < grid_size; i++)
+    {
+        for (int thread = 0; thread < number_of_threads; ++thread)
+        {
+            *it_simulated_density += *(it_buffer[thread]);
+            ++(it_buffer[thread]);
+        }
+        ++it_simulated_density;
+    }
 }
 
 void DensityFitting::translate_atoms_into_map_(const rvec x[])
@@ -249,17 +276,20 @@ DensityFitting::initialize_target_density_()
 void
 DensityFitting::initialize_buffers_()
 {
-    for (int i = 0; i < std::max(1, gmx_omp_nthreads_get(emntDefault)); i++)
+    for (int thread = 0; thread < std::max(1, gmx_omp_nthreads_get(emntDefault)); thread++)
     {
         force_density_.push_back((std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())));
-        force_density_[i]->copy_grid(*target_density_);
+        force_density_[thread]->copy_grid(*target_density_);
 
         /* Create a gauss transform object for each density buffer,
          * because the gauss transforms will be carried out simultaneously
          */
         force_gauss_transform_.push_back((std::unique_ptr<volumedata::FastGaussianGriddingForce>(new volumedata::FastGaussianGriddingForce())));
-        force_gauss_transform_[i]->set_sigma(sigma_);
-        force_gauss_transform_[i]->set_n_sigma(n_sigma_);
+        force_gauss_transform_[thread]->set_sigma(sigma_);
+        force_gauss_transform_[thread]->set_n_sigma(n_sigma_);
+        simulated_density_buffer_.push_back(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal()));
+        simulated_density_buffer_[thread]->copy_grid(*target_density_);
+        gauss_transform_.push_back(std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding()));
     }
 }
 
@@ -268,8 +298,11 @@ DensityFitting::initialize_spreading_()
 {
     simulated_density_->copy_grid(*target_density_);
     simulated_density_->resize();
-    gauss_transform_->set_sigma(sigma_);
-    gauss_transform_->set_n_sigma(n_sigma_);
+    for (int thread = 0; thread < std::max(1, gmx_omp_nthreads_get(emntDefault)); ++thread)
+    {
+        gauss_transform_[thread]->set_sigma(sigma_);
+        gauss_transform_[thread]->set_n_sigma(n_sigma_);
+    }
 }
 
 void
@@ -438,11 +471,10 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 DensityFitting::DensityFitting() : ExternalPotential(),
                                    target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
                                    simulated_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
-                                   gauss_transform_(std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding())),
                                    translation_({0, 0, 0}
                                                 )
 {
-    ;
+
 }
 
 
@@ -460,16 +492,16 @@ DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &
     auto q           = Q.begin();
     auto q_reference = Q_reference.begin();
     auto buf         = buffer.begin();
-    for (;
-         (p != P.end() && q != Q.end() && q_reference != Q_reference.end());
-         (++p, ++q, ++q_reference, ++buf)
-         )
+    int  size        = Q.size();
+    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault)))
+    for (int i = 0; i < size; ++i)
     {
-        if ((*p > 0) && (*q > 0 ) && ( *q_reference > 0 ))
+        if ((p[i] > 0) && (q[i] > 0 ) && ( q_reference[i] > 0 ))
         {
-            *buf = *p * log(*q/(*q_reference));
+            buf[i] = p[i] * log(q[i]/(q_reference[i]));
         }
     }
+
     return std::accumulate(buffer.begin(), buffer.end(), 0.0);
 }
 

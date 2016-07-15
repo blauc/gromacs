@@ -82,6 +82,7 @@ class DensityFitting : public ExternalPotential
         void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
+        void SpreadKernel(GroupAtom &atom, const int &thread);
         void spread_density_(const rvec x[]);
         void sum_reduce_simulated_density_();
         void ForceKernel_KL(GroupAtom &atom, const int &thread);
@@ -104,7 +105,8 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
         std::vector < std::unique_ptr < volumedata::FastGaussianGriddingForce>> force_gauss_transform_;
-        std::unique_ptr<volumedata::FastGaussianGridding> gauss_transform_;
+        std::vector < std::unique_ptr < volumedata::FastGaussianGridding>> gauss_transform_;
+        std::vector < std::unique_ptr < volumedata::GridReal>>                simulated_density_buffer_;
         real                                              background_density_;
         volumedata::MrcMetaData                           meta_;
         t_fileio                                         *out_;
