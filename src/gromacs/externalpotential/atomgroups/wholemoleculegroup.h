@@ -89,9 +89,9 @@ class WholeMoleculeGroup : public Group
         void all_group_coordinates_to_master_();
 
         matrix                     box_;
-        rvec                      *x_reference_;
-        rvec                      *x_coll_; //< a collective array for the group coordinates used to collect coordinates on the master node
-        ivec                      *shifts_;
+        rvec                      *x_collective_; //< a collective array for the group coordinates to calculate the shifts on the master node
+        rvec                      *x_reference_;  //< a collective array for the group coordinates used to collect coordinates on the master node
+        ivec                      *shifts_;       // a collective array for the atom shifts, calculated on master
         std::shared_ptr<MpiHelper> mpi_helper_;
         const int                  npbcdim_;
 };
