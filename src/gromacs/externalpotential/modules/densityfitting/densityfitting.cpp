@@ -441,12 +441,12 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
         fprintf(input_output()->output_file(), "%8g\t%8g", k_*reference_divergence_, k_);
-        if (k_*delta_divergence < 5)
+        if (k_*delta_divergence < .005*every_nth_step_)
         {
             k_ *= k_factor_;
         }
 
-        if (k_*delta_divergence > 5)
+        if (k_*delta_divergence > .005*every_nth_step_)
         {
             k_ /= k_factor_;
         }
