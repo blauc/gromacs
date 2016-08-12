@@ -37,6 +37,7 @@
 #include "externalpotentialmanager.h"
 
 #include <algorithm>
+#include <numeric>
 
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/externalpotentialIO.h"
@@ -50,6 +51,7 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/math/units.h"
+#include "gromacs/topology/mtop_util.h"
 
 namespace gmx
 {
@@ -213,11 +215,13 @@ Manager::update_whole_molecule_groups (const rvec x[], matrix box)
     }
 }
 
-void Manager::set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * topology_loc)
+void Manager::setAtomProperties( t_mdatoms * mdatom, gmx_localtop_t * topology_loc, const gmx_mtop_t * mtop)
 {
+    gmx_mtop_atomlookup * topology_atomlookup = gmx_mtop_atomlookup_init(mtop);
+
     for (auto &potential : potentials_)
     {
-        potential->set_atom_properties(mdatom, topology_loc);
+        potential->set_atom_properties(mdatom, topology_loc, mtop, topology_atomlookup);
     }
 }
 

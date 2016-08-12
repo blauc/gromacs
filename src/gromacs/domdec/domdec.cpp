@@ -9623,7 +9623,7 @@ void dd_partition_system(FILE                *fplog,
         /* Update the box vector shifts and reference structure to make molecules whole again */
         ir->external_potential->manager->update_whole_molecule_groups(state_local->x, state_local->box );
         /* Update the local atom properties */
-        ir->external_potential->manager->set_atom_properties(mdatoms, top_local);
+        ir->external_potential->manager->setAtomProperties(mdatoms, top_local, top_global);
     }
 
     /* Update the local atoms to be communicated via the IMD protocol if bIMD is TRUE. */

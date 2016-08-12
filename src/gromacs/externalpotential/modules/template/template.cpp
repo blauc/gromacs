@@ -59,11 +59,9 @@ std::unique_ptr<ExternalPotential> Template::create()
     return std::unique_ptr<ExternalPotential> (new Template());
 }
 
-gmx::AtomProperties * Template::single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc)
+real Template::single_atom_properties(GroupAtom * /*atom*/, t_mdatoms * /*mdatoms*/, gmx_localtop_t * /*topology_loc*/, const gmx_mtop_t * /*topology_global*/, const gmx_mtop_atomlookup * /*atom_lookup*/)
 {
-    (void) mdatoms;
-    (void) topology_loc;
-    return nullptr;
+    return 0;
 }
 
 void Template::ForceKernel_(GroupAtom &atom, const int &thread)

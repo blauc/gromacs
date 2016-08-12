@@ -57,7 +57,7 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<
     Group(base_group), mpi_helper_(mpi_helper), npbcdim_(npbcdim)
 {
     // in the whole molecule group, copy atom coordinates, then shift, rather then reference only
-    snew(Group::x_, Group::num_atoms_loc_);
+    snew(Group::x_, Group::num_atoms_);
     snew(x_reference_, Group::num_atoms_);
     snew(shifts_, Group::num_atoms_);
 

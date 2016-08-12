@@ -39,6 +39,7 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <numeric>
 #include <ios>
 
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
@@ -54,7 +55,9 @@
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/gausstransform.h"
 #include "gromacs/fileio/xtcio.h"
-
+#include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/atoms.h"
+#include "emscatteringfactors.h"
 
 namespace gmx
 {
@@ -170,17 +173,16 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
 namespace externalpotential
 {
 
-
 std::unique_ptr<ExternalPotential> DensityFitting::create()
 {
     return std::unique_ptr<ExternalPotential> (new DensityFitting());
 }
 
-gmx::AtomProperties * DensityFitting::single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc)
+real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdatoms*/, gmx_localtop_t * /*topology_loc*/, const gmx_mtop_t * /*topology_global*/, const gmx_mtop_atomlookup * atom_lookup)
 {
-    (void) mdatoms;
-    (void) topology_loc;
-    return nullptr;
+    t_atom * single_atom;
+    gmx_mtop_atomnr_to_atom((const gmx_mtop_atomlookup_t)atom_lookup, *(atom->i_global), &single_atom);
+    return atomicnumber2emscatteringfactor(single_atom->atomnumber);
 }
 
 void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<real> &multiplier)
@@ -197,7 +199,7 @@ void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
 {
     rvec x_translated;
     rvec_add(atom.x, translation_, x_translated);
-    gauss_transform_[thread]->transform(x_translated, 1);
+    gauss_transform_[thread]->transform(x_translated, *(atom.properties));
 }
 
 void DensityFitting::spread_density_(const rvec x[])
@@ -369,7 +371,7 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
      * simulated_density_->grid_cell_volume()/
      */
     copy_rvec(
-            force_gauss_transform_[thread]->force(x_shifted, k_/(norm_simulated_*sigma_*sigma_), *simulated_density_),
+            force_gauss_transform_[thread]->force(x_shifted, *(atom.properties)*k_/(norm_simulated_*sigma_*sigma_), *simulated_density_),
             *(atom.force));
 
     force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());

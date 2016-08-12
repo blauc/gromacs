@@ -43,6 +43,7 @@
 struct ext_pot;
 struct t_mdatoms;
 struct t_atomtypes;
+struct gmx_mtop_t;
 
 #include <map>
 #include <string>
@@ -114,7 +115,7 @@ class Manager
         void dd_make_local_groups( gmx_ga2la_t *ga2la);
 
 
-        void set_atom_properties( t_mdatoms * mdatom, gmx_localtop_t * types);
+        void setAtomProperties( t_mdatoms * mdatom, gmx_localtop_t * types, const gmx_mtop_t * mtop);
 
         void init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank);
         void init_input_output(struct ext_pot_ir ** ir_data, int n_potentials, const char * basepath);

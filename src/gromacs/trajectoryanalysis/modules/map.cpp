@@ -52,6 +52,7 @@
 #include "gromacs/analysisdata/modules/histogram.h"
 #include "gromacs/analysisdata/modules/plot.h"
 #include "gromacs/fileio/volumedataio.h"
+#include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 // #include "gromacs/externalpotential/modules/densityfitting/ifgt/Ifgt.h"
 #include "gromacs/math/gausstransform.h"
 #include "gromacs/math/units.h"
@@ -68,6 +69,10 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/topology/atoms.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/fileio/pdbio.h"
+#include "gromacs/topology/atomprop.h"
 
 namespace gmx
 {
@@ -109,8 +114,7 @@ class Map : public TrajectoryAnalysisModule
         std::unique_ptr<volumedata::GridReal> outputdensity_;
         real                                  spacing_;
         bool                                  bPrint_;
-
-
+        std::vector<float>                    weight_;
 };
 
 Map::Map()
@@ -152,21 +156,26 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .description("Spacing of the density grid (nm)"));
     options->addOption(BooleanOption("print").store(&bPrint_)
                            .description("Output density information to terminal, then exit."));
-
-
 }
 
 void
-Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const TopologyInformation & /*top*/)
+Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const TopologyInformation &top)
 {
-
+    if (top.topology())
+    {
+        get_pdb_atomnumber(&(top.topology()->atoms), gmx_atomprop_init() );
+        for (int i_atom = 0; i_atom < top.topology()->atoms.nr; i_atom++)
+        {
+            weight_.push_back(externalpotential::atomicnumber2emscatteringfactor(top.topology()->atoms.atom[i_atom].atomnumber));
+        }
+    }
 }
 
 void
 Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 {
     gt_.set_sigma(sigma_);
-    gt_.set_n_sigma(5);
+    gt_.set_n_sigma(n_sigma_);
     if (!fnmapinput_.empty())
     {
         volumedata::MrcFile ccp4inputfile;
@@ -200,9 +209,9 @@ Map::set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation)
     for (int i = XX; i <= ZZ; i++)
     {
         box[i][i]      = 2*n_sigma_*sigma_;
-        box[i][i]     += (*max_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-        box[i][i]     -= (*min_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-        translation[i] = -n_sigma_*sigma_+(*min_element(x_RVec.begin(), x_RVec.end(), [ = ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        box[i][i]     += (*max_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        box[i][i]     -= (*min_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        translation[i] = -n_sigma_*sigma_+(*min_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
     }
 
 }
@@ -220,6 +229,11 @@ void
 Map::analyzeFrame(int /*frnr*/, const t_trxframe &fr, t_pbc * /*pbc*/,
                   TrajectoryAnalysisModuleData * /*pdata*/)
 {
+    if (weight_.size() < std::size_t(fr.natoms))
+    {
+        weight_.assign(fr.natoms, 1);
+        fprintf(stderr, "\nSetting atom weights to unity.\n");
+    }
     if (!fnmapoutput_.empty())
     {
         if (fnmapinput_.empty())
@@ -241,7 +255,7 @@ Map::analyzeFrame(int /*frnr*/, const t_trxframe &fr, t_pbc * /*pbc*/,
         gt_.set_grid(std::move(outputdensity_));
         for (int i = 0; i < fr.natoms; ++i)
         {
-            gt_.transform(fr.x[i], 1);
+            gt_.transform(fr.x[i], weight_[i]);
         }
         outputdensity_ = std::move(gt_.finish_and_return_grid());
 

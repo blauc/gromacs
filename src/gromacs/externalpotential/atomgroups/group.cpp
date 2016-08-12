@@ -36,6 +36,7 @@
 #include "group.h"
 
 #include <algorithm>
+#include <numeric>
 #include <memory>
 
 #include "gromacs/domdec/ga2la.h"
@@ -59,7 +60,7 @@ GroupIterator::GroupIterator(Group &group, int i)
 {
     atom_.i_local    = group.ind_loc_.begin() + i;
     atom_.force      = group.f_loc_.begin() + i;
-    atom_.properties = group.properties_.begin() + i;
+    atom_.properties = group.weights_.begin() + i;
     // if we never dereference group->end() or above , we are fines
     atom_.i_global   = group.ind_+i;
     x_               = group.x_;
@@ -136,7 +137,7 @@ std::shared_ptr<GroupAtom> Group::atom(int i)
     result->i_global     = ind_+i;
     result->x            = x_[ind_loc_[i]];
     result->force        = f_loc_.begin()+i;
-    result->properties   = properties_.begin()+i;
+    result->properties   = weights_.begin()+i;
     return result;
 }
 
@@ -145,7 +146,7 @@ Group::Group(const Group &group)
     this->ind_           = group.ind_;
     this->ind_loc_       = group.ind_loc_;
     this->coll_ind_      = group.coll_ind_;
-    this->properties_    = group.properties_;
+    this->weights_       = group.weights_;
     this->bParallel_     = group.bParallel_;
     this->f_loc_         = group.f_loc_;
     this->num_atoms_     = group.num_atoms_;
@@ -163,7 +164,7 @@ Group::Group( int nat, int *ind, bool bParallel) :
         coll_ind_.resize(num_atoms_loc_);
         std::iota(coll_ind_.begin(), coll_ind_.end(), 0);
         f_loc_.resize(num_atoms_, {0, 0, 0});
-        properties_.resize(num_atoms_, nullptr);
+        weights_.resize(num_atoms_, 1);
     }
 };
 
@@ -210,7 +211,7 @@ void Group::set_indices(gmx_ga2la_t *ga2la)
     }
 
     f_loc_.resize(num_atoms_loc_, {0, 0, 0});
-    properties_.resize(num_atoms_loc_, nullptr);
+    weights_.resize(num_atoms_loc_, 1);
 
 };
 

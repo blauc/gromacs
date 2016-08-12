@@ -1357,7 +1357,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
             if (!DOMAINDECOMP(cr))
             {
                 gmx_localtop_t * top_local = dd_init_local_top(mtop);
-                manager->set_atom_properties(mdatoms, top_local);
+                manager->setAtomProperties(mdatoms, top_local, mtop);
             }
 
             if (PAR(cr))

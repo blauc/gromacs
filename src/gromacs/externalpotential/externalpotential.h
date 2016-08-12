@@ -53,15 +53,17 @@ struct gmx_ga2la_t;
 struct gmx_mtop_t;
 struct t_mdatoms;
 struct gmx_localtop_t;
+struct gmx_mtop_atomlookup;
 
 namespace gmx
 {
 
 class MpiHelper;
 class Group;
+struct GroupAtom;
 class WholeMoleculeGroup;
 
-class AtomProperties
+class IAtomProperties
 {
 
 };
@@ -116,7 +118,7 @@ class ExternalPotential
         void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
         virtual void read_input()         = 0;
         virtual void broadcast_internal() = 0;
-        void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc);
+        void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global, const struct gmx_mtop_atomlookup* atom_lookup);
         virtual bool do_this_step(gmx_int64_t step) = 0;
 
         /*! \brief
@@ -144,7 +146,7 @@ class ExternalPotential
         /*! \brief
          * Fill provide the atom with properties that migth be needed to calculate the external potential
          */
-        virtual AtomProperties* single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc) = 0;
+        virtual real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup) = 0;
 
     private:
         class Impl;

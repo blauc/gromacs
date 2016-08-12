@@ -42,8 +42,11 @@
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/fileio/volumedataio.h"
+#include "gromacs/mdtypes/mdatom.h"
 
 struct t_fileio;
+struct gmx_mtop_atomlookup;
+
 namespace gmx
 {
 
@@ -60,6 +63,15 @@ class FastGaussianGriddingForce;
 namespace externalpotential
 {
 
+class FitAtomProperties : public IAtomProperties
+{
+    public:
+        explicit FitAtomProperties(real weight);
+        real weight();
+    private:
+        real weight_; //< The scattering factor of the atom determines how much weight is has for the gaussian spreading.
+};
+
 class DensityFitting : public ExternalPotential
 {
     public:
@@ -71,7 +83,7 @@ class DensityFitting : public ExternalPotential
         void broadcast_internal();
         bool do_this_step(gmx_int64_t step);
 
-        AtomProperties * single_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc);
+        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup);
         void finish();
 
         real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference, std::vector<real> &buffer);

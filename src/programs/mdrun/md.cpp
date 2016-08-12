@@ -699,7 +699,6 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         gmx_fatal( 3, __FILE__, __LINE__, "Checkpoint error on step %d\n", 0 );
     }
 #endif
-
     /***********************************************************
      *
      *             Loop over MD steps

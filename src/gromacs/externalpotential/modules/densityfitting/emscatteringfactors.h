@@ -32,54 +32,19 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef _PULLING_H
-#define _PULLING_H
+#ifndef _EM_SCATTERING_FACTORS_H
+#define _EM_SCATTERING_FACTORS_H
 
-#include <memory>
-#include <string>
-
-#include "gromacs/mdlib/gmx_omp_nthreads.h"
-#include "gromacs/externalpotential/externalpotential.h"
-#include "gromacs/externalpotential/modules.h"
-#include "gromacs/mdtypes/commrec.h"
+#include "gmxpre.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
-struct GroupAtom;
+
 namespace externalpotential
 {
-class Template : public ExternalPotential
-{
-    public:
+real atomicnumber2emscatteringfactor (int atomic_number);
+}
+}
 
-        void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
-        static std::unique_ptr<ExternalPotential> create();
-        void read_input();
-        void broadcast_internal();
-        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * /*atomlookup*/);
-        void finish();
-        bool do_this_step(gmx_int64_t step);
-        void initialize(const matrix box, const rvec x[]);
-
-    private:
-        void ForceKernel_(GroupAtom &atom, const int &thread);
-        Template();
-        real              k_;
-        RVec              com2_;
-        std::vector<real> potential_;
-
-};
-
-class TemplateInfo
-{
-    public:
-        static std::string name;
-        static std::string shortDescription;
-        static const int   numberIndexGroups;
-        static const int   numberWholeMoleculeGroups;
-        static externalpotential::ModuleCreator create;
-};
-} // namespace externalpotential
-} // namespace gmx
-
-#endif
+#endif /* end of include guard: _EM_SCATTERING_FACTORS_H */
