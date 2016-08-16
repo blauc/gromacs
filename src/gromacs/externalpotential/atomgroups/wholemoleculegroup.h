@@ -32,13 +32,15 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef _WHOLEMOLECULE_GROUP_H
+#define _WHOLEMOLECULE_GROUP_H
 
 #include <vector>
 #include <memory>
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
-
+#include "group.h"
 
 struct t_commrec;
 struct t_inputrec;
@@ -53,6 +55,8 @@ struct gmx_mtop_t;
 namespace gmx
 {
 class MpiHelper;
+
+typedef BasicVector<int> IVec;
 
 /* \!brief
  * Adds routines to a group to ensure a whole molecule by shifting atom coordinates according to periodic boundary conditions.
@@ -76,12 +80,11 @@ class WholeMoleculeGroup : public Group
 {
     public:
 
-        WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim);
+        explicit WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim,  const gmx_mtop_t *top_global, const int ePBC);
         ~WholeMoleculeGroup();
 
         void update_shifts_and_reference(const rvec x[], const matrix box);
-        void set_box(const matrix box);
-        void set_x(const rvec x[]);
+        void set_x(const rvec x[], const matrix box);
         void make_whole_molecule_reference(const rvec x[], const gmx_mtop_t *top_global, const int ePBC);
 
     private:
@@ -89,13 +92,14 @@ class WholeMoleculeGroup : public Group
         void all_group_coordinates_to_master_();
 
         matrix                     box_;
-        rvec                      *x_collective_; //< a collective array for the group coordinates to calculate the shifts on the master node
-        rvec                      *x_reference_;  //< a collective array for the group coordinates used to collect coordinates on the master node
-        ivec                      *shifts_;       // a collective array for the atom shifts, calculated on master
+        std::vector<RVec>          x_collective_; //< a collective array for the group coordinates to calculate the shifts on the master node
+        std::vector<RVec>          x_reference_;  //< a collective array for the group coordinates used to collect coordinates on the master node
+        std::vector<IVec>          shifts_;       // a collective array for the atom shifts, calculated on master
         std::shared_ptr<MpiHelper> mpi_helper_;
         const int                  npbcdim_;
 };
 
 
 
-} // namespace gmx
+}      // namespace gmx
+#endif /* end of include guard: _WHOLEMOLECULE_GROUP_H */

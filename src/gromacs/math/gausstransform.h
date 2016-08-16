@@ -39,6 +39,8 @@
  * \author Christian Blau <cblau@gwdg.de>
  * \inpublicapi
  */
+#ifndef _GAUSSTRANSFORM_H
+#define _GAUSSTRANSFORM_H
 
 #include "vec.h"
 #include <vector>
@@ -104,6 +106,8 @@ class FastGaussianGridding : public GaussTransform
 };
 
 
-}    // namespace volumedata
+}      // namespace volumedata
 
-}    // namespace volumedata
+}      // namespace volumedata
+
+#endif /* end of include guard: _GAUSSTRANSFORM_H */

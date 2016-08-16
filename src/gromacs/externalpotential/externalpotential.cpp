@@ -206,8 +206,7 @@ std::shared_ptr<Group> ExternalPotential::group(const rvec x[], int group_index)
 
 std::shared_ptr<WholeMoleculeGroup> ExternalPotential::wholemoleculegroup(const rvec x[], const matrix box, int group_index)
 {
-    impl_->wholemoleculegroups_[group_index]->set_x(x);
-    impl_->wholemoleculegroups_[group_index]->set_box(box);
+    impl_->wholemoleculegroups_[group_index]->set_x(x, box);
     return impl_->wholemoleculegroups_[group_index];
 }
 

@@ -32,6 +32,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef _GROUP_H
+#define _GROUP_H
 
 #include <vector>
 #include <memory>
@@ -137,7 +139,5 @@ class Group
         bool                          bParallel_;
 
 };
-
-
-
-} // namespace gmx
+}      // namespace gmx
+#endif /* end of include guard: _GROUP_H */
