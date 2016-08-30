@@ -144,6 +144,7 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
             for (int l_x = 0; l_x <= n_l_x; ++l_x)
             {
 
+
                 /*
                  * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
                  *

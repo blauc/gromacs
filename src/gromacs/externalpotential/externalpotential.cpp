@@ -73,7 +73,7 @@ class ExternalPotential::Impl
         real                                 potential_; /**< the (local) contribution to the potential */
         tensor                               virial_;
 
-        std::shared_ptr<MpiHelper>           mpi_;
+        MpiHelper                           *mpi_;
         std::shared_ptr<ExternalPotentialIO> input_output_;
         std::vector < std::shared_ptr < Group>> atom_groups_;
         std::vector < std::shared_ptr < WholeMoleculeGroup>> wholemoleculegroups_;
@@ -210,7 +210,7 @@ std::shared_ptr<WholeMoleculeGroup> ExternalPotential::wholemoleculegroup(const 
     return impl_->wholemoleculegroups_[group_index];
 }
 
-void ExternalPotential::set_mpi_helper(std::shared_ptr<MpiHelper> mpi)
+void ExternalPotential::set_mpi_helper(MpiHelper * mpi)
 {
     impl_->mpi_ = mpi;
 }
@@ -225,7 +225,7 @@ std::shared_ptr<ExternalPotentialIO> ExternalPotential::input_output()
     return impl_->input_output_;
 }
 
-std::shared_ptr<MpiHelper> ExternalPotential::mpi_helper()
+MpiHelper * ExternalPotential::mpi_helper()
 {
     return impl_->mpi_;
 };

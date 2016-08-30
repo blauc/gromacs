@@ -196,7 +196,7 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
         Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
         for (int i_group = 0; i_group < curr_module_info.numberWholeMoleculeGroups; i_group++)
         {
-            whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_, box, 3, top_global, ePBC) );
+            whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_.get(), box, 3, top_global, ePBC) );
             potentials_[i_potential]->add_wholemoleculegroup(whole_groups_.back());
         }
     }
@@ -223,11 +223,10 @@ void Manager::setAtomProperties( t_mdatoms * mdatom, gmx_localtop_t * topology_l
 
 void Manager::init_mpi(bool bMaster, MPI_Comm mpi_comm_mygroup, int masterrank)
 {
-    std::shared_ptr<MpiHelper> mpihelper(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
-    this->mpi_helper_ = mpihelper;
+    mpi_helper_ = std::unique_ptr<MpiHelper>(new MpiHelper(mpi_comm_mygroup, masterrank, bMaster));
     for (auto &potential : potentials_)
     {
-        potential->set_mpi_helper(mpihelper);
+        potential->set_mpi_helper(mpi_helper_.get());
     }
 }
 

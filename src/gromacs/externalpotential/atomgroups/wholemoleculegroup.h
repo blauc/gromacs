@@ -80,7 +80,7 @@ class WholeMoleculeGroup : public Group
 {
     public:
 
-        explicit WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim,  const gmx_mtop_t *top_global, const int ePBC);
+        explicit WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_helper, const matrix box, const int npbcdim,  const gmx_mtop_t *top_global, const int ePBC);
         ~WholeMoleculeGroup();
 
         void update_shifts_and_reference(const rvec x[], const matrix box);
@@ -95,7 +95,7 @@ class WholeMoleculeGroup : public Group
         std::vector<RVec>          x_collective_; //< a collective array for the group coordinates to calculate the shifts on the master node
         std::vector<RVec>          x_reference_;  //< a collective array for the group coordinates used to collect coordinates on the master node
         std::vector<IVec>          shifts_;       // a collective array for the atom shifts, calculated on master
-        std::shared_ptr<MpiHelper> mpi_helper_;
+        MpiHelper                * mpi_helper_;
         const int                  npbcdim_;
 };
 

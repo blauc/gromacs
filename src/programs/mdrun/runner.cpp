@@ -1333,25 +1333,27 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                      bVerbose, Flags);
         }
 
+        /* set up external potentials on particle-particle nodes */
         if (inputrec->bExternalPotential)
         {
-            /* Initialize the external potentials */
+            /* Initialize external potentials */
             t_ext_pot * external_potential            = inputrec->external_potential;
             gmx::externalpotential::Manager * manager = new  gmx::externalpotential::Manager(external_potential);
-
-            if (PAR(cr))
+            bool        bParallelExtPot               = cr->nnodes - cr->npmenodes > 1;
+            /* Initialize common mpi communication for external potentials if they are run on more than one node*/
+            if (bParallelExtPot)
             {
                 manager->init_mpi(MASTER(cr), cr->mpi_comm_mygroup, MASTERRANK(cr));
             }
 
+            /* Initialize input and output for external potentials on the master node */
             if (MASTER(cr))
             {
                 manager->init_input_output(external_potential->inputrec_data, external_potential->number_external_potentials, external_potential->basepath);
             }
 
-            manager->init_groups(external_potential->inputrec_data, PAR(cr));
+            manager->init_groups(external_potential->inputrec_data, bParallelExtPot);
             manager->init_whole_molecule_groups(external_potential->inputrec_data, mtop, inputrec->ePBC, state->box, state->x);
-
 
             /* With domain decomposition, these properties are set in dd_partition_system in domdec.cpp */
             if (!DOMAINDECOMP(cr))
@@ -1360,7 +1362,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                 manager->setAtomProperties(mdatoms, top_local, mtop);
             }
 
-            if (PAR(cr))
+            if (bParallelExtPot)
             {
                 manager->broadcast_internal();
             }

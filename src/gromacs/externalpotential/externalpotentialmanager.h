@@ -133,7 +133,7 @@ class Manager
         std::vector<real>          V_external_;
         Modules                    modules_;
         real                       forcefield_potential_reference_;
-        std::shared_ptr<MpiHelper> mpi_helper_;
+        std::unique_ptr<MpiHelper> mpi_helper_;
         std::vector < std::shared_ptr < WholeMoleculeGroup>> whole_groups_;
 
 };

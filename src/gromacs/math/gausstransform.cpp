@@ -149,7 +149,7 @@ FastGaussianGridding::tensor_product_()
     int    l_x_min = l_min[XX]-grid_index_of_spread_atom_[XX]+m_spread_;
     int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
-
+    #pragma omp simd
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
         int l_z = l_grid_z - grid_index_of_spread_atom_[ZZ]+m_spread_;

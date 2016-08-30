@@ -53,8 +53,12 @@
 namespace gmx
 {
 
-WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, std::shared_ptr<MpiHelper> mpi_helper, const matrix box, const int npbcdim,  const gmx_mtop_t *top_global, const int ePBC) :
-    Group(base_group), mpi_helper_(mpi_helper), npbcdim_ {npbcdim}
+WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_helper, const matrix box, const int npbcdim,  const gmx_mtop_t *top_global, const int ePBC) :
+    Group {base_group}, mpi_helper_ {
+    mpi_helper
+}, npbcdim_ {
+    npbcdim
+}
 {
     copy_mat(box, box_);
     /* Prepare a whole reference group on the master node */

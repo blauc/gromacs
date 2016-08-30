@@ -110,7 +110,7 @@ class ExternalPotential
          */
         void dd_make_local_groups(gmx_ga2la_t  *ga2la);
 
-        void set_mpi_helper(std::shared_ptr<MpiHelper> mpi);
+        void set_mpi_helper(MpiHelper* mpi);
 
         void add_group(std::shared_ptr<Group> group);
         void add_wholemoleculegroup(std::shared_ptr<WholeMoleculeGroup> group);
@@ -139,7 +139,7 @@ class ExternalPotential
 
         void set_local_virial(tensor virial);
 
-        std::shared_ptr<MpiHelper> mpi_helper();
+        MpiHelper *mpi_helper();
 
         std::shared_ptr<ExternalPotentialIO> input_output();
 

@@ -42,7 +42,7 @@ namespace gmx
 class MpiHelper
 {
     public:
-        MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster);
+        explicit MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster);
         void cr(t_commrec *cr);
         void sum_reduce();
         bool isMaster();
