@@ -50,6 +50,8 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+struct pull_params_t;
+
 typedef struct {
     //! Number of terms
     int   n;
@@ -278,7 +280,8 @@ typedef struct t_swapcoords {
                                             * swapcoords.cpp                               */
 } t_swapcoords;
 
-typedef struct t_inputrec {
+struct t_inputrec
+{
     int             eI;                      /* Integration method                 */
     gmx_int64_t     nsteps;                  /* number of steps to be taken			*/
     int             simulation_part;         /* Used in checkpointing to separate chunks */
@@ -432,7 +435,7 @@ typedef struct t_inputrec {
     /* Fields for removed features go here (better caching) */
     gmx_bool        bAdress;       // Whether AdResS is enabled - always false if a valid .tpr was read
     gmx_bool        useTwinRange;  // Whether twin-range scheme is active - always false if a valid .tpr was read
-} t_inputrec;
+};
 
 int ir_optimal_nstcalcenergy(const t_inputrec *ir);
 
@@ -470,14 +473,6 @@ gmx_bool ir_vdw_is_zero_at_cutoff(const t_inputrec *ir);
  */
 gmx_bool ir_vdw_might_be_zero_at_cutoff(const t_inputrec *ir);
 
-/*! \brief Initiate input record structure
- *
- * Initialiazes all the arrays and pointers to NULL.
- *
- * \param[in] ir Inputrec must be pre-allocated
- */
-void init_inputrec(t_inputrec *ir);
-
 /*! \brief Free memory from input record.
  *
  * All arrays and pointers will be freed.
@@ -488,6 +483,11 @@ void done_inputrec(t_inputrec *ir);
 
 void pr_inputrec(FILE *fp, int indent, const char *title, const t_inputrec *ir,
                  gmx_bool bMDPformat);
+
+void cmp_inputrec(FILE *fp, const t_inputrec *ir1, const t_inputrec *ir2, real ftol, real abstol);
+
+void comp_pull_AB(FILE *fp, pull_params_t *pull, real ftol, real abstol);
+
 
 gmx_bool inputrecDeform(const t_inputrec *ir);
 

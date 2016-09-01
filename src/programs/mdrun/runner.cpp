@@ -89,6 +89,7 @@
 #include "gromacs/mdlib/sighandler.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdlib/tpi.h"
+#include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdrunutility/threadaffinity.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
@@ -113,6 +114,7 @@
 
 #include "deform.h"
 #include "md.h"
+#include "membed.h"
 #include "repl_ex.h"
 #include "resource-division.h"
 
@@ -726,13 +728,15 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_int64_t               reset_counters;
     gmx_edsam_t               ed           = NULL;
     int                       nthreads_pme = 1;
+    gmx_membed_t *            membed       = NULL;
     gmx_hw_info_t            *hwinfo       = NULL;
     /* The master rank decides early on bUseGPU and broadcasts this later */
     gmx_bool                  bUseGPU            = FALSE;
 
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
-    snew(inputrec, 1);
+    gmx::MDModules mdModules;
+    inputrec = mdModules.inputrec();
     snew(mtop, 1);
 
     if (Flags & MD_APPENDFILES)
@@ -740,6 +744,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fplog = NULL;
     }
 
+    bool doMembed = opt2bSet("-membed", nfile, fnm);
     bRerunMD     = (Flags & MD_RERUN);
     bForceUseGPU = (strncmp(nbpu_opt, "gpu", 3) == 0);
     bTryUseGPU   = (strncmp(nbpu_opt, "auto", 4) == 0) || bForceUseGPU;
@@ -852,7 +857,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         hw_opt->nthreads_tmpi = get_nthreads_mpi(hwinfo,
                                                  hw_opt,
                                                  inputrec, mtop,
-                                                 mdlog, bUseGPU);
+                                                 mdlog, bUseGPU,
+                                                 doMembed);
 
         if (hw_opt->nthreads_tmpi > 1)
         {
@@ -1167,6 +1173,19 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         wcycle_set_reset_counters(wcycle, reset_counters);
     }
 
+    // Membrane embedding must be initialized before we call init_forcerec()
+    if (doMembed)
+    {
+        if (MASTER(cr))
+        {
+            fprintf(stderr, "Initializing membed");
+        }
+        /* Note that membed cannot work in parallel because mtop is
+         * changed here. Fix this if we ever want to make it run with
+         * multiple ranks. */
+        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, state, cr, &cpt_period);
+    }
+
     snew(nrnb, 1);
     if (cr->duty & DUTY_PP)
     {
@@ -1394,6 +1413,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                                      fcd, state,
                                      mdatoms, nrnb, wcycle, ed, fr,
                                      repl_ex_nst, repl_ex_nex, repl_ex_seed,
+                                     membed,
                                      cpt_period, max_hours,
                                      imdport,
                                      Flags,
@@ -1436,6 +1456,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
     /* Free GPU memory and context */
     free_gpu_resources(fr, cr, &hwinfo->gpu_info, fr ? fr->gpu_opt : NULL);
+
+    if (doMembed)
+    {
+        free_membed(membed);
+    }
 
     gmx_hardware_info_free(hwinfo);
 
