@@ -46,6 +46,8 @@
 #include <algorithm>
 #include <numeric>
 #include <vector>
+#include <string>
+#include <cmath>
 
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -200,7 +202,24 @@ void FiniteGrid::Impl::set_unit_cell()
     invertMatrix(unit_cell_, unit_cell_inv_);
 }
 
-FiniteGrid::Impl::Impl()
+FiniteGrid::Impl::Impl() : unit_cell_
+{
+    {
+        1, 0, 0
+    }, {
+        0, 1, 0
+    }, {
+        0, 0, 1
+    }
+}, unit_cell_inv_ {{
+                       1, 0, 0
+                   }, {
+                       0, 1, 0
+                   }, {
+                       0, 0, 1
+                   }}, translate_ {
+    0, 0, 0
+}
 {
     // to avoid MSBuild Error C2536, use this intialization instead of braced list
     for (size_t i = XX; i <= ZZ; i++)

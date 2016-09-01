@@ -66,6 +66,7 @@ GaussTransform::set_n_sigma(real n_sigma)
     n_sigma_ = n_sigma;
 };
 
+
 void
 FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
 {
@@ -93,6 +94,8 @@ FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
     }
     grid_->resize();
+    minimumUsedGridIndex_ = {GMX_INT32_MAX, GMX_INT32_MAX, GMX_INT32_MAX};
+    maximumUsedGridIndex_ = {0, 0, 0};
 };
 
 std::vector<real>
@@ -133,34 +136,58 @@ FastGaussianGridding::tensor_product_2d_()
     }
 }
 
+IVec
+FastGaussianGridding::getMinimumUsedGridIndex()
+{
+    return minimumUsedGridIndex_;
+};
+
+IVec
+FastGaussianGridding::getMaximumUsedGridIndex()
+{
+    return maximumUsedGridIndex_;
+};
+
 void
 FastGaussianGridding::tensor_product_()
 {
 
-    ivec l_min;
-    ivec l_max;
+    IVec minimumGlobalGridIndex;
+    IVec maximumGlobalGridIndex;
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        l_min[i] = grid_index_of_spread_atom_[i]-m_spread_ < 0 ? 0 : grid_index_of_spread_atom_[i]-m_spread_;
-        l_max[i] = grid_index_of_spread_atom_[i]+m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_of_spread_atom_[i]+m_spread_;
+        minimumGlobalGridIndex[i] = std::max(0, grid_index_of_spread_atom_[i]-m_spread_);
+        minimumUsedGridIndex_[i]  = std::min(minimumGlobalGridIndex[i], minimumUsedGridIndex_[i]);
+        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->extend()[i]-1);
+        maximumUsedGridIndex_[i]  = std::max(maximumGlobalGridIndex[i], maximumUsedGridIndex_[i]);
     }
+
     real   spread_zy;
     std::vector<real>::iterator voxel;
-    int    l_x_min = l_min[XX]-grid_index_of_spread_atom_[XX]+m_spread_;
-    int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
     #pragma omp simd
-    for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
+    for (int globalGridIndexZZ = minimumGlobalGridIndex[ZZ]; globalGridIndexZZ <= maximumGlobalGridIndex[ZZ]; ++globalGridIndexZZ)
     {
-        int l_z = l_grid_z - grid_index_of_spread_atom_[ZZ]+m_spread_;
-        for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
-        {
-            int l_y          = l_grid_y - grid_index_of_spread_atom_[YY]+m_spread_;
-            spread_zy    = spread_2d_[l_z][l_y];
-            voxel        = grid_->zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
-            spread_1d_XX = &(spread_1d_[XX][l_x_min]);
+        int d_z              = globalGridIndexZZ - grid_index_of_spread_atom_[ZZ];
+        int localGridIndexZZ = d_z + m_spread_;
+        // spread spheres instead of cubes
+        int globalGridIndexYYStart = std::max(minimumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z)));
+        int globalGridIndexYYEnd   = std::min(maximumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z)));
 
-            for (int l_x = 0; l_x <= n_l_x; ++l_x)
+        for (int globalGridIndexYY = globalGridIndexYYStart; globalGridIndexYY <= globalGridIndexYYEnd; ++globalGridIndexYY)
+        {
+            int d_y              = globalGridIndexYY - grid_index_of_spread_atom_[YY];
+            int localGridIndexYY = d_y + m_spread_;
+            spread_zy    = spread_2d_[localGridIndexZZ][localGridIndexYY];
+            int globalGridIndexXXStart = std::max(minimumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y)));
+            int globalGridIndexXXEnd   = std::min(maximumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y)));
+            int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
+            int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
+            voxel        = grid_->zy_column_begin(globalGridIndexZZ, globalGridIndexYY)+globalGridIndexXXStart;
+
+            spread_1d_XX = &(spread_1d_[XX][localGridIndexXXStart]);
+
+            for (int l_x = 0; l_x <= numberSpreadVoxelsXX; ++l_x)
             {
                 *voxel += spread_zy * (*spread_1d_XX);
                 ++spread_1d_XX;

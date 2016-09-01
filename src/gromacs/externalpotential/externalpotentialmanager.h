@@ -74,7 +74,7 @@ class Manager
          * \todo: Parse info from input-files in xml/json format?.
          * \todo: Check input file consistency with checksums.
          */
-        Manager(struct ext_pot *external_potential);
+        explicit Manager(struct ext_pot *external_potential);
 
         /*! \brief
          * Trigger calculation of external potentials in the respective external potential module classes.
@@ -121,7 +121,7 @@ class Manager
         void init_input_output(struct ext_pot_ir ** ir_data, int n_potentials, const char * basepath);
         void init_groups(struct ext_pot_ir ** ir_data, bool bParallel);
         void init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const rvec x[]);
-        void update_whole_molecule_groups (const rvec x[], matrix box);
+        void update_whole_molecule_groups (const rvec x[], const matrix box);
 
         void broadcast_internal();
 

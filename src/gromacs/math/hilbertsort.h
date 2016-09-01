@@ -39,98 +39,91 @@
 #include <functional>
 #include <algorithm>
 #include "vec.h"
+#include <vector>
+#include <numeric>
 
 namespace gmx
 {
-template <class RandomAccessIterator, class Cmp>
-RandomAccessIterator
-hilbert_split (RandomAccessIterator begin, RandomAccessIterator end,
-               Cmp cmp = Cmp ())
+
+std::vector<int>::iterator
+median_split (std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates,
+              int dimension)
 {
     if (begin >= end)
     {
         return begin;
     }
-    RandomAccessIterator middle = begin + (end - begin) / 2;
-    std::nth_element(begin, middle, end, cmp);
+    auto middle = begin + (end - begin) / 2;
+    std::nth_element(begin, middle, end, [dimension, coordinates](const int i, const int j){return (coordinates[i][dimension] < coordinates[j][dimension]); });
     return middle;
 }
 
-template <int x> struct Hilbert_cmp_3;
-
-template <>
-struct Hilbert_cmp_3<XX>
+void hilbertMedianSortRecursion3d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates, int x = 0)
 {
-    bool operator() (const rvec &p, const rvec &q) const
+    const int y = (x + 1) % 3;
+    const int z = (x + 2) % 3;
+    if (end - begin <= 1)
     {
-        return (p[XX] < q[XX]);
+        return;
     }
-};
 
-template <>
-struct Hilbert_cmp_3<YY>
+    auto m0 = begin;
+    auto m8 = end;
+
+    auto m4 = median_split(m0, m8, coordinates, x);
+    auto m2 = median_split(m0, m4, coordinates, y);
+    auto m1 = median_split(m0, m2, coordinates, z);
+    auto m3 = median_split(m2, m4, coordinates, z);
+    auto m6 = median_split(m4, m8, coordinates, y);
+    auto m5 = median_split(m4, m6, coordinates, z);
+    auto m7 = median_split(m6, m8, coordinates, z);
+
+    hilbertMedianSortRecursion3d(m0, m1, coordinates, z);
+    hilbertMedianSortRecursion3d(m1, m2, coordinates, y);
+    hilbertMedianSortRecursion3d(m2, m3, coordinates, y);
+    hilbertMedianSortRecursion3d(m3, m4, coordinates, x);
+    hilbertMedianSortRecursion3d(m4, m5, coordinates, x);
+    hilbertMedianSortRecursion3d(m5, m6, coordinates, y);
+    hilbertMedianSortRecursion3d(m6, m7, coordinates, y);
+    hilbertMedianSortRecursion3d(m7, m8, coordinates, z);
+}
+
+void hilbertMedianSortRecursion2d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates, int x = 0, int y = 1)
 {
-    bool operator() (const rvec &p, const rvec &q) const
+    std::swap(x, y);
+    if (end - begin <= 1)
     {
-        return (p[YY] < q[YY]);
+        return;
     }
-};
 
-template <>
-struct Hilbert_cmp_3<ZZ>
+    auto m0 = begin;
+    auto m4 = end;
+
+    auto m2 = median_split(m0, m4, coordinates, x);
+    auto m1 = median_split(m0, m2, coordinates, y);
+    auto m3 = median_split(m2, m4, coordinates, y);
+
+    hilbertMedianSortRecursion2d(m0, m1, coordinates, y);
+    hilbertMedianSortRecursion2d(m1, m2, coordinates, x);
+    hilbertMedianSortRecursion2d(m2, m3, coordinates, x);
+    hilbertMedianSortRecursion2d(m3, m4, coordinates, y);
+}
+
+
+void
+hilbertMedianSort(const rvec * coordinates, std::vector<int> &index)
 {
-    bool operator() (const rvec &p, const rvec &q) const
+    std::vector<int> result(index.size());
+    std::iota(std::begin(result), std::end(result), 0);
+    hilbertMedianSortRecursion2d(std::begin(result), std::end(result), coordinates, YY, ZZ);
+    std::vector<int> new_index(index.size());
+    for (std::size_t i  = 0; i < index.size(); ++i)
     {
-        return (p[ZZ] < q[ZZ]);
+        new_index[i] = index[result[i]];
     }
-};
-
-class Hilbert_sort_median_3
-{
-
-    private:
-        std::ptrdiff_t _limit;
-
-        template <int x> struct Cmp : public Hilbert_cmp_3<x>
-        {
-            Cmp () : Hilbert_cmp_3<x> (){}
-        };
-
-    public:
-
-        template <int x, class RandomAccessIterator>
-        void sort (RandomAccessIterator begin, RandomAccessIterator end) const
-        {
-            const int y = (x + 1) % 3, z = (x + 2) % 3;
-            if (end - begin <= _limit) { return; }
-
-            RandomAccessIterator m0 = begin, m8 = end;
-
-            RandomAccessIterator m4 = hilbert_split (m0, m8, Cmp<x>());
-            RandomAccessIterator m2 = hilbert_split (m0, m4, Cmp<y>());
-            RandomAccessIterator m1 = hilbert_split (m0, m2, Cmp<z>());
-            RandomAccessIterator m3 = hilbert_split (m2, m4, Cmp<z>());
-            RandomAccessIterator m6 = hilbert_split (m4, m8, Cmp<y>());
-            RandomAccessIterator m5 = hilbert_split (m4, m6, Cmp<z>());
-            RandomAccessIterator m7 = hilbert_split (m6, m8, Cmp<z>());
-
-            sort<z>(m0, m1);
-            sort<y>(m1, m2);
-            sort<y>(m2, m3);
-            sort<x>(m3, m4);
-            sort<x>(m4, m5);
-            sort<y>(m5, m6);
-            sort<y>(m6, m7);
-            sort<z>(m7, m8);
-        }
-
-        template <class RandomAccessIterator>
-        void operator() (RandomAccessIterator begin, RandomAccessIterator end) const
-        {
-            sort<0>(begin, end);
-        }
-};
+    index = new_index;
+}
 
 }      // namespace gmx
 
-#endif //CGAL_HILBERT_SORT_MEDIAN_3_H
+#endif

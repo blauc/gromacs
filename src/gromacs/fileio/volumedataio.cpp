@@ -150,7 +150,7 @@ class MrcFile::Impl
 
 std::string MrcFile::Impl::print_to_string()
 {
-    std::remove_if(meta_.labels[0].begin(), meta_.labels[0].end(), [](int i){return i == '\000'; });
+    meta_.labels[0].erase(std::remove_if(meta_.labels[0].begin(), meta_.labels[0].end(), [](int i){return i == '\000'; }), meta_.labels[0].end());
     std::string result;
     result += "\n---MrcFile Info--file size:" + std::to_string(file_size_) + "---\n";
 

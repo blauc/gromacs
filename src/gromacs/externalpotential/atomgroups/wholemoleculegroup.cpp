@@ -49,6 +49,7 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/mdlib/groupcoord.h"
+#include "gromacs/math/hilbertsort.h"
 
 namespace gmx
 {
@@ -80,7 +81,17 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
     x_collective_.resize(Group::num_atoms_);
     // only on the master we keep the last known whole molecule configuration as reference to calculate the box vector shifts
     // all nodes get the shifts for all atoms
-    all_group_coordinates_to_master_();
+    if (mpi_helper_ != nullptr)
+    {
+        all_group_coordinates_to_master_();
+    }
+    else
+    {
+        for (const auto &atom : *this)
+        {
+            copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
+        }
+    }
 
     calculate_shifts_();
     if (mpi_helper_ != nullptr)
@@ -111,6 +122,7 @@ WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
         Group::x_[i][YY] = x[i_local][YY]+shifts_[i_global][YY]*box_[XX][YY]+shifts_[i_global][YY]*box_[YY][YY]+shifts_[i_global][YY]*box_[ZZ][YY];
         Group::x_[i][ZZ] = x[i_local][ZZ]+shifts_[i_global][ZZ]*box_[XX][ZZ]+shifts_[i_global][ZZ]*box_[YY][ZZ]+shifts_[i_global][ZZ]*box_[ZZ][ZZ];
     }
+    hilbertMedianSort(Group::x_, ind_loc_);
 }
 
 /* Ensure this is called after Group::set_indices */
@@ -121,7 +133,17 @@ WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box
     Group::set_x(x);
     copy_mat(box, box_);
 
-    all_group_coordinates_to_master_();
+    if (mpi_helper_ != nullptr)
+    {
+        all_group_coordinates_to_master_();
+    }
+    else
+    {
+        for (const auto &atom : *this)
+        {
+            copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
+        }
+    }
     if ((mpi_helper_ == nullptr) || (mpi_helper_->isMaster()) )
     {
         calculate_shifts_();
@@ -142,24 +164,15 @@ WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box
 void
 WholeMoleculeGroup::all_group_coordinates_to_master_()
 {
-    if (mpi_helper_ != nullptr)
+    // put all node local atoms in the right position in a global array for later sum_reduction
+    for (const auto &atom : *this)
     {
-        // put all node local atoms in the right position in a global array for later sum_reduction
-        for (const auto &atom : *this)
-        {
-            copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
-        }
-        mpi_helper_->to_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
-        mpi_helper_->sum_reduce();
-        mpi_helper_->from_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
+        copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
     }
-    else
-    {
-        for (const auto &atom : *this)
-        {
-            copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
-        }
-    }
+    mpi_helper_->to_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
+    mpi_helper_->sum_reduce();
+    mpi_helper_->from_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
+
 }
 
 /** copied from groupcoords.cpp*/

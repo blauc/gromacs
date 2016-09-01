@@ -80,7 +80,16 @@ class ExternalPotential::Impl
 };
 
 ExternalPotential::Impl::Impl() :
-    nst_apply_(1), potential_(0), mpi_(nullptr)
+    nst_apply_(1),  potential_(0), virial_
+{
+    {
+        0, 0, 0
+    }, {
+        0, 0, 0
+    }, {
+        0, 0, 0
+    }
+}, mpi_(nullptr)
 {
 };
 

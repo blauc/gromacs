@@ -275,6 +275,10 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         {
             md->bEner[i] = (ir->bPull && pull_have_potential(ir->pull_work));
         }
+        else if (i == F_EXTPOT)
+        {
+            md->bEner[i] = (ir->bExternalPotential);
+        }
         else if (i == F_ECONSERVED)
         {
             md->bEner[i] = ((ir->etc == etcNOSEHOOVER || ir->etc == etcVRESCALE) &&

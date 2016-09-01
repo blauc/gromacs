@@ -188,11 +188,10 @@ real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdat
 
 void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<real> &multiplier)
 {
-    auto q = to_invert.begin();
-    for (auto const &p : multiplier)
+#pragma omp parallel for num_threads(number_of_threads_)
+    for (std::size_t i = 0; i < to_invert.size(); ++i)
     {
-        *q = p/(*q);
-        ++q;
+        to_invert[i] = multiplier[i]/(to_invert[i]);
     }
 }
 
@@ -206,9 +205,8 @@ void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
 void DensityFitting::spread_density_(const rvec x[])
 {
     simulated_density_->zero();
-    int number_of_threads = std::max(1, gmx_omp_nthreads_get(emntDefault));
-#pragma omp parallel for num_threads(number_of_threads)
-    for (int thread = 0; thread < number_of_threads; ++thread)
+#pragma omp parallel for num_threads(number_of_threads_)
+    for (int thread = 0; thread < number_of_threads_; ++thread)
     {
         simulated_density_buffer_[thread]->zero();
         gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
@@ -217,28 +215,57 @@ void DensityFitting::spread_density_(const rvec x[])
 
     group(x, 0)->parallel_loop(std::bind( &DensityFitting::SpreadKernel, this, std::placeholders::_1, std::placeholders::_2));
 
-#pragma omp parallel for num_threads(number_of_threads)
-    for (int thread = 0; thread < number_of_threads; ++thread)
+#pragma omp parallel for num_threads(number_of_threads_)
+    for (int thread = 0; thread < number_of_threads_; ++thread)
     {
         simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
     }
 
-    int grid_size = simulated_density_->num_gridpoints();
-    std::vector<std::vector<real>::iterator> it_buffer(number_of_threads);
-    for (int thread = 0; thread < number_of_threads; ++thread)
+    std::vector<std::vector<real>::iterator> it_buffer(number_of_threads_);
+    std::vector<real>::iterator              it_simulated_density;
+
+    std::vector<volumedata::IVec>            minimumUsedGridIndex;
+    std::vector<volumedata::IVec>            maximumUsedGridIndex;
+    for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        it_buffer[thread] = simulated_density_buffer_[thread]->data().begin();
+        minimumUsedGridIndex.push_back(gauss_transform_[thread]->getMinimumUsedGridIndex());
+        maximumUsedGridIndex.push_back(gauss_transform_[thread]->getMaximumUsedGridIndex());
     }
-    std::vector<real>::iterator it_simulated_density = simulated_density_->data().begin();
-    for (int i = 0; i < grid_size; i++)
+    volumedata::IVec gridStart;
+    volumedata::IVec gridEnd;
+    for (int i = XX; i <= ZZ; ++i)
     {
-        for (int thread = 0; thread < number_of_threads; ++thread)
+        gridStart[i] = (*std::min_element(std::begin(minimumUsedGridIndex), std::end(minimumUsedGridIndex), [i](volumedata::IVec a, volumedata::IVec b){return a[i] < b[i]; }))[i];
+        gridEnd[i]   = (*std::max_element(std::begin(maximumUsedGridIndex), std::end(maximumUsedGridIndex), [i](volumedata::IVec a, volumedata::IVec b){return a[i] < b[i]; }))[i];
+    }
+
+    int nGridPointsXX = gridEnd[XX]-gridStart[XX];
+    for (int gridIndexZZ = gridStart[ZZ]; gridIndexZZ < gridEnd[ZZ]; ++gridIndexZZ)
+    {
+        for (int gridIndexYY = gridStart[YY]; gridIndexYY < gridEnd[YY]; ++gridIndexYY)
         {
-            *it_simulated_density += *(it_buffer[thread]);
-            ++(it_buffer[thread]);
+            it_buffer.resize(0);
+            for (int thread = 0; thread < number_of_threads_; ++thread)
+            {
+                if ((minimumUsedGridIndex[thread][ZZ] <= gridIndexZZ) && ( gridIndexZZ <= maximumUsedGridIndex[thread][ZZ] ) && (minimumUsedGridIndex[thread][YY] <= gridIndexYY) && (gridIndexYY <= maximumUsedGridIndex[thread][YY]))
+                {
+                    it_buffer.push_back(simulated_density_buffer_[thread]->zy_column_begin(gridIndexZZ, gridIndexYY)+gridStart[XX]);
+                }
+            }
+            it_simulated_density = simulated_density_->zy_column_begin(gridIndexZZ, gridIndexYY) + gridStart[XX];
+
+            for (int gridIndexXX = 0; gridIndexXX < nGridPointsXX; ++gridIndexXX)
+            {
+                for (auto voxel = it_buffer.begin(); voxel != it_buffer.end(); ++voxel)
+                {
+                    *it_simulated_density += **voxel;
+                    ++(*voxel);
+                }
+                ++it_simulated_density;
+            }
         }
-        ++it_simulated_density;
     }
+
 }
 
 void DensityFitting::translate_atoms_into_map_(const rvec x[])
@@ -407,7 +434,6 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 
     if (step %10 == 0)
     {
-
         matrix      box_write;
         copy_mat(box, box_write);
         rvec        x_out[group(x, 0)->num_atoms_global()];
@@ -475,9 +501,10 @@ DensityFitting::DensityFitting() : ExternalPotential(),
                                    target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
                                    simulated_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
                                    translation_({0, 0, 0}
-                                                )
+                                                ), number_of_threads_ {
+    std::max(1, gmx_omp_nthreads_get(emntDefault))
+}
 {
-
 }
 
 
@@ -494,18 +521,18 @@ DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &
     auto p           = P.begin();
     auto q           = Q.begin();
     auto q_reference = Q_reference.begin();
-    auto buf         = buffer.begin();
     int  size        = Q.size();
-    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault)))
+    real sum         = 0;
+    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum)
     for (int i = 0; i < size; ++i)
     {
         if ((p[i] > 0) && (q[i] > 0 ) && ( q_reference[i] > 0 ))
         {
-            buf[i] = p[i] * log(q[i]/(q_reference[i]));
+            sum += p[i] * log(q[i]/(q_reference[i]));
         }
     }
 
-    return std::accumulate(buffer.begin(), buffer.end(), 0.0);
+    return sum;
 }
 
 bool DensityFitting::do_this_step(gmx_int64_t step)

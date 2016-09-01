@@ -141,21 +141,30 @@ std::shared_ptr<GroupAtom> Group::atom(int i)
     return result;
 }
 
-Group::Group(const Group &group)
+Group::Group(const Group &group) : x_ {group.x_}, num_atoms_ {
+    group.num_atoms_
+}, ind_ {
+    group.ind_
+}, coll_ind_ {
+    group.coll_ind_
+},    num_atoms_loc_ {
+    group.num_atoms_loc_
+}, ind_loc_ {
+    group.ind_loc_
+}, f_loc_ {
+    group.f_loc_
+},     weights_ {
+    group.weights_
+}, bParallel_ {
+    group.bParallel_
+}, number_of_threads_ {
+    std::max(1, gmx_omp_nthreads_get(emntDefault))
+}
 {
-    this->ind_           = group.ind_;
-    this->ind_loc_       = group.ind_loc_;
-    this->coll_ind_      = group.coll_ind_;
-    this->weights_       = group.weights_;
-    this->bParallel_     = group.bParallel_;
-    this->f_loc_         = group.f_loc_;
-    this->num_atoms_     = group.num_atoms_;
-    this->num_atoms_loc_ = group.num_atoms_loc_;
-    this->x_             = group.x_;
 }
 
 Group::Group( int nat, int *ind, bool bParallel) :
-    num_atoms_(nat), ind_(ind), bParallel_(bParallel)
+    num_atoms_(nat), ind_(ind), bParallel_(bParallel), number_of_threads_ {std::max(1, gmx_omp_nthreads_get(emntDefault))}
 {
     if (!bParallel_)
     {
@@ -281,12 +290,11 @@ int Group::num_atoms_loc()
 
 void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function)
 {
-    const int number_of_threads = std::max(1, gmx_omp_nthreads_get(emntDefault));
-    #pragma omp parallel num_threads(number_of_threads)
+    #pragma omp parallel num_threads(number_of_threads_)
     {
         int           this_thread_index     = gmx_omp_get_thread_num();
-        GroupIterator first_atom_for_thread = begin(this_thread_index, number_of_threads);
-        GroupIterator end_of_thread_atoms   = end(this_thread_index, number_of_threads);
+        GroupIterator first_atom_for_thread = begin(this_thread_index, number_of_threads_);
+        GroupIterator end_of_thread_atoms   = end(this_thread_index, number_of_threads_);
         for (auto atom = first_atom_for_thread; atom != end_of_thread_atoms; ++atom)
         {
             loop_kernel_function(*atom, this_thread_index);

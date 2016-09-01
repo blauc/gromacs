@@ -45,6 +45,7 @@ namespace externalpotential
 class ForcePlotter
 {
     public:
+        ForcePlotter() = default;
         void start_plot_forces(std::string outfile);
         void plot_force(const rvec x, rvec f, int id, real scale);
         void plot_forces(const rvec * x, rvec * f, int size, int id, int * ind);

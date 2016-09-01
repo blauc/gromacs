@@ -137,6 +137,7 @@ class Group
         std::vector<real>             weights_;       /**< Weights for the local indices */
 
         bool                          bParallel_;
+        int                           number_of_threads_;
 
 };
 }      // namespace gmx

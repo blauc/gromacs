@@ -60,6 +60,7 @@ namespace externalpotential
 
 void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t step)
 {
+    update_whole_molecule_groups(x, box);
     for (auto && it : potentials_)
     {
         if (it->do_this_step(step))
@@ -140,7 +141,7 @@ Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_pote
     return 0;
 };
 
-Manager::Manager(struct ext_pot *external_potential)
+Manager::Manager(struct ext_pot *external_potential) : forcefield_potential_reference_ {0}
 {
     registerExternalPotentialModules(&modules_);
     Modules::ModuleProperties curr_module_info;
@@ -175,7 +176,6 @@ void Manager::init_groups(struct ext_pot_ir ** ir_data, bool bParallel)
     /* TODO: make only the manager operator on group and call routines affecting groups, externalpotentials only read groups; enable sharing of groups across externalpotentials*/
     for (size_t i_potential = 0; i_potential < potentials_.size(); ++i_potential)
     {
-        Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
         for (int i_group = 0; i_group < ir_data[i_potential]->number_index_groups; i_group++)
         {
             /* Inititalize a new atom group, then add it to an external potential */
@@ -203,7 +203,7 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
 }
 
 void
-Manager::update_whole_molecule_groups (const rvec x[], matrix box)
+Manager::update_whole_molecule_groups (const rvec x[], const matrix box)
 {
     for (auto &group : whole_groups_)
     {

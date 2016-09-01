@@ -130,6 +130,9 @@ class DensityFitting : public ExternalPotential
         real                                              k_factor_;
 
 
+        int                                               number_of_threads_;
+
+
 };
 
 class DensityFittingInfo
