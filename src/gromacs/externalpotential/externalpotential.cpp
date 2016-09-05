@@ -76,7 +76,7 @@ class ExternalPotential::Impl
         MpiHelper                           *mpi_;
         std::shared_ptr<ExternalPotentialIO> input_output_;
         std::vector < std::shared_ptr < Group>> atom_groups_;
-        std::vector < std::shared_ptr < WholeMoleculeGroup>> wholemoleculegroups_;
+        std::vector < WholeMoleculeGroup*>   wholemoleculegroups_;
 };
 
 ExternalPotential::Impl::Impl() :
@@ -166,6 +166,16 @@ void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
             {
                 max_set_force = mpi_helper()->max(max_set_force);
             }
+            // fprintf(input_output()->output_file(), "%8g\t%8g\n", max_set_force, weight);
+            group->add_forces(f, weight);
+        }
+        for (auto && group : impl_->wholemoleculegroups_)
+        {
+            real max_set_force = group->max_set_f();
+            if (mpi_helper() != nullptr)
+            {
+                max_set_force = mpi_helper()->max(max_set_force);
+            }
             fprintf(input_output()->output_file(), "%8g\t%8g\n", max_set_force, weight);
             group->add_forces(f, weight);
         }
@@ -182,10 +192,17 @@ void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t 
             *(atom.properties) = single_atom_properties(&atom, mdatoms + *(atom.i_local), topology_loc, topology_global, atom_lookup);
         }
     }
+    for (auto &group : impl_->wholemoleculegroups_)
+    {
+        for (auto &atom : *group)
+        {
+            *(atom.properties) = single_atom_properties(&atom, mdatoms + *(atom.i_local), topology_loc, topology_global, atom_lookup);
+        }
+    }
 }
 
 void
-ExternalPotential::add_wholemoleculegroup(std::shared_ptr<WholeMoleculeGroup> group)
+ExternalPotential::add_wholemoleculegroup(WholeMoleculeGroup * group)
 {
     impl_->wholemoleculegroups_.push_back(group);
 }
@@ -213,7 +230,7 @@ std::shared_ptr<Group> ExternalPotential::group(const rvec x[], int group_index)
     return impl_->atom_groups_[group_index];
 }
 
-std::shared_ptr<WholeMoleculeGroup> ExternalPotential::wholemoleculegroup(const rvec x[], const matrix box, int group_index)
+WholeMoleculeGroup * ExternalPotential::wholemoleculegroup(const rvec x[], const matrix box, int group_index)
 {
     impl_->wholemoleculegroups_[group_index]->set_x(x, box);
     return impl_->wholemoleculegroups_[group_index];

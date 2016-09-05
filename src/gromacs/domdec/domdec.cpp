@@ -9621,7 +9621,7 @@ void dd_partition_system(FILE                *fplog,
         /* Make a selection of the local atoms */
         ir->external_potential->manager->dd_make_local_groups(dd->ga2la);
         /* Update the box vector shifts and reference structure to make molecules whole again */
-        ir->external_potential->manager->update_whole_molecule_groups(state_local->x, state_local->box );
+        ir->external_potential->manager->update_whole_molecule_groups(state_local->x, state_local->box);
         /* Update the local atom properties */
         ir->external_potential->manager->setAtomProperties(mdatoms, top_local, top_global);
     }

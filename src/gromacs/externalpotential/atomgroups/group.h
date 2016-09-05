@@ -126,8 +126,8 @@ class Group
 
         rvec                         *x_;             /**< The coordinates TODO: re-attach const attribute..*/
         int                           num_atoms_;     /**< Number of (global) atoms in this external potential group. */
-        int                          *ind_;           /**< Global indices of the atoms in this group.*/
-        std::vector<int>              coll_ind_;      /**< map local atom indices to global atom indicices of atoms of this group (i.e. global_index=ind_[coll_ind_[local_index])]*/
+        int                          *ind_;           /**< Global indices of the atoms in this group as in the index group file -1.*/
+        std::vector<int>              coll_ind_;      /**< give the group atom positions in arrays used for global reducition, size num_atoms_loc_*/
 
         int                           num_atoms_loc_; /**< number of local atoms from index group; set by set_indices. */
         std::vector<int>              ind_loc_;       /**< Local indices of the external potential atoms, used to add to local force; set by set_indices.*/

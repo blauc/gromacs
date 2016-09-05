@@ -46,7 +46,8 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
-#include "gromacs/externalpotential/atomgroups/group.h"
+// #include "gromacs/externalpotential/atomgroups/group.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/exceptions.h"
@@ -202,7 +203,7 @@ void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
     gauss_transform_[thread]->transform(x_translated, *(atom.properties));
 }
 
-void DensityFitting::spread_density_(const rvec x[])
+void DensityFitting::spread_density_(WholeMoleculeGroup * spreadgroup)
 {
     simulated_density_->zero();
 #pragma omp parallel for num_threads(number_of_threads_)
@@ -213,7 +214,7 @@ void DensityFitting::spread_density_(const rvec x[])
 
     }
 
-    group(x, 0)->parallel_loop(std::bind( &DensityFitting::SpreadKernel, this, std::placeholders::_1, std::placeholders::_2));
+    spreadgroup->parallel_loop(std::bind( &DensityFitting::SpreadKernel, this, std::placeholders::_1, std::placeholders::_2));
 
 #pragma omp parallel for num_threads(number_of_threads_)
     for (int thread = 0; thread < number_of_threads_; ++thread)
@@ -336,16 +337,17 @@ DensityFitting::initialize_spreading_()
 }
 
 void
-DensityFitting::initialize_reference_density(const rvec x[])
+DensityFitting::initialize_reference_density(const rvec x[], const matrix box)
 {
-    spread_density_(x);
+    auto spreadgroup = wholemoleculegroup(x, box, 0);
+    spread_density_(spreadgroup);
     simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
     simulated_density_->normalize();
     reference_density_ = simulated_density_->data();
 }
 
 void
-DensityFitting::initialize(const matrix /*box*/, const rvec x[])
+DensityFitting::initialize(const matrix box, const rvec x[])
 {
     initialize_target_density_();
     initialize_buffers_();
@@ -354,9 +356,9 @@ DensityFitting::initialize(const matrix /*box*/, const rvec x[])
     {
         translate_atoms_into_map_(x);
     }
-    initialize_reference_density(x);
+    initialize_reference_density(x, box);
 
-    out_  = open_xtc("out.xtc", "a");
+    out_  = open_xtc("out.xtc", "w");
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
@@ -406,13 +408,14 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
 
 };
 
-void DensityFitting::plot_forces(const rvec x[])
+void DensityFitting::plot_forces(const rvec x[], const matrix box)
 {
 
     externalpotential::ForcePlotter plot;
     plot.start_plot_forces("forces.bild");
-    real max_f = -1;
-    for (auto &atom : *group(x, 0))
+    real max_f    = -1;
+    auto fitatoms = wholemoleculegroup(x, box, 0);
+    for (auto &atom : *fitatoms)
     {
         if (norm(*(atom.force)) > max_f)
         {
@@ -420,7 +423,7 @@ void DensityFitting::plot_forces(const rvec x[])
         }
     }
     rvec x_translated;
-    for (auto &atom : *group(x, 0))
+    for (auto &atom : *fitatoms)
     {
         rvec_add(atom.x, translation_, x_translated);
         plot.plot_force(x_translated, *(atom.force), 0, 1.0/max_f);
@@ -431,24 +434,25 @@ void DensityFitting::plot_forces(const rvec x[])
 
 void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
+    auto fitatoms = wholemoleculegroup(x, box, 0);
 
     if (step %10 == 0)
     {
         matrix      box_write;
         copy_mat(box, box_write);
-        rvec        x_out[group(x, 0)->num_atoms_global()];
+        rvec        x_out[fitatoms->num_atoms_global()];
         int         i = 0;
-        for (auto atom : *group(x, 0))
+        for (auto atom : *fitatoms)
         {
             rvec_add(atom.x, translation_, x_out[i++]);
         }
-        write_xtc(out_, group(x, 0)->num_atoms_global(), 0, 0, box_write, x_out, 1000);
+        write_xtc(out_, fitatoms->num_atoms_global(), 0, 0, box_write, x_out, 1000);
     }
 
     /*
      * Spread all local atoms on a grid
      */
-    spread_density_(x);
+    spread_density_(fitatoms);
 
     /*
      * Gather the local contributions to the overall spread density on the master node.
@@ -460,14 +464,13 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
-        real delta_divergence;
         simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
         norm_simulated_        = simulated_density_->normalize();
-        delta_divergence       = relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_, potential_contribution_);
+        auto delta_divergence  = relative_kl_divergence(target_density_->data(), simulated_density_->data(), reference_density_);
         reference_divergence_ -= delta_divergence;
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        fprintf(input_output()->output_file(), "%8g\t%8g\t", k_*reference_divergence_, k_);
+        fprintf(input_output()->output_file(), "%8g\t%8g\t", reference_divergence_, k_);
         if (k_*delta_divergence < .005*every_nth_step_)
         {
             k_ *= k_factor_;
@@ -494,7 +497,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         mpi_helper()->broadcast(&norm_simulated_, 1);
     }
 
-    group(x, 0)->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+    fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
@@ -507,17 +510,40 @@ DensityFitting::DensityFitting() : ExternalPotential(),
 {
 }
 
-
 real
-DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q,
-                                       std::vector<real> &Q_reference, std::vector<real> &buffer)
+DensityFitting::absolute_kl_divergence(std::vector<real> &P, std::vector<real> &Q)
 {
     // for numerical stability use a reference density
     if (P.size() != Q.size())
     {
         GMX_THROW(APIError("KL-Divergence calculation requires euqally sized input vectors."));
     }
-    buffer.resize(P.size());
+    auto p           = P.begin();
+    auto q           = Q.begin();
+    int  size        = Q.size();
+    real sum         = 0;
+    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum)
+    for (int i = 0; i < size; ++i)
+    {
+        if ((p[i] > 0) && (q[i] > 0 ))
+        {
+            sum += p[i] * log(q[i]);
+        }
+    }
+
+    return sum;
+}
+
+
+real
+DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q,
+                                       std::vector<real> &Q_reference)
+{
+    // for numerical stability use a reference density
+    if (P.size() != Q.size())
+    {
+        GMX_THROW(APIError("KL-Divergence calculation requires euqally sized input vectors."));
+    }
     auto p           = P.begin();
     auto q           = Q.begin();
     auto q_reference = Q_reference.begin();

@@ -106,7 +106,7 @@ Manager::add_forces(rvec f[], tensor vir, gmx_int64_t step, real forcefield_pote
 {
     if (potentials_.size() != 0)
     {
-        if (mpi_helper_ != nullptr)
+        if (mpi_helper_)
         {
             mpi_helper_->to_reals_buffer(forcefield_potential);
             mpi_helper_->sum_reduce();
@@ -196,8 +196,15 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
         Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
         for (int i_group = 0; i_group < curr_module_info.numberWholeMoleculeGroups; i_group++)
         {
-            whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_.get(), box, 3, top_global, ePBC) );
-            potentials_[i_potential]->add_wholemoleculegroup(whole_groups_.back());
+            if (mpi_helper_)
+            {
+                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_.get(), box, 3, top_global, ePBC) );
+            }
+            else
+            {
+                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), nullptr, box, 3, top_global, ePBC) );
+            }
+            potentials_[i_potential]->add_wholemoleculegroup(whole_groups_.back().get());
         }
     }
 }

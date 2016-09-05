@@ -50,6 +50,7 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/math/hilbertsort.h"
+// #include "gromacs/fileio/xtcio.h"
 
 namespace gmx
 {
@@ -61,8 +62,10 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
     npbcdim
 }
 {
+    shifts_.resize(Group::num_atoms_, {0, 0, 0});
     copy_mat(box, box_);
     /* Prepare a whole reference group on the master node */
+    x_reference_.resize(Group::num_atoms_);
     if (mpi_helper_ == nullptr || mpi_helper_->isMaster())
     {
         std::vector<RVec> x_pbc(top_global->natoms);
@@ -70,12 +73,14 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
 
         do_pbc_first_mtop(nullptr, ePBC, box_, top_global, as_rvec_array(x_pbc.data()));
 
-        x_reference_.resize(Group::num_atoms_);
         for (int i = 0; i < Group::num_atoms_; i++)
         {
             copy_rvec(x_pbc[Group::ind_[i]], x_reference_[i]);
         }
     }
+    // out_  = open_xtc("debug.xtc", "w");
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_reference_.data()), 1000);
+
 
     // each rank keeps a global number of atoms large array for atom coordinates for easy sum reduction
     x_collective_.resize(Group::num_atoms_);
@@ -83,7 +88,7 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
     // all nodes get the shifts for all atoms
     if (mpi_helper_ != nullptr)
     {
-        all_group_coordinates_to_master_();
+        all_group_coordinates_to_master_(x_collective_);
     }
     else
     {
@@ -92,8 +97,8 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
             copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
         }
     }
-
-    calculate_shifts_();
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_collective_.data()), 1000);
+    update_shifts_();
     if (mpi_helper_ != nullptr)
     {
         mpi_helper_->broadcast(*as_vec_array(shifts_.data()), DIM*Group::num_atoms_);
@@ -101,14 +106,67 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
     // in the whole molecule group, copy atom coordinates, then shift, rather then reference only
     // TODO: remove re-use of x_, x_ should stay const.
     rvec * xnew;
-    snew(xnew, Group::num_atoms_);
+    snew(xnew, Group::num_atoms_loc_);
     Group::x_ = xnew;
 }
 
 WholeMoleculeGroup::~WholeMoleculeGroup()
 {
+    // close_xtc(out_);
     sfree(Group::x_);
 };
+
+void
+WholeMoleculeGroup::reSort_(std::vector<int> &to_sort, const std::vector<int> &sortIndex)
+{
+    std::vector<int> sorted(sortIndex.size());
+    for (std::size_t i  = 0; i < to_sort.size(); ++i)
+    {
+        sorted[i] = to_sort[sortIndex[i]];
+    }
+    to_sort = sorted;
+}
+
+void
+WholeMoleculeGroup::reSortrVec_(rvec * to_sort, const std::vector<int> &sortIndex)
+{
+    std::vector<RVec> new_to_sort(sortIndex.size());
+    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    {
+        new_to_sort[i] = to_sort[sortIndex[i]];
+    }
+    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    {
+        copy_rvec(new_to_sort[i], to_sort[i]);
+    }
+}
+
+void
+WholeMoleculeGroup::reSortReal_(std::vector<real> &to_sort, const std::vector<int> &sortIndex)
+{
+    std::vector<real> sorted(sortIndex.size());
+    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    {
+        sorted[i] = to_sort[sortIndex[i]];
+    }
+    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    {
+        to_sort[i] = sorted[i];
+    }
+}
+
+
+void
+WholeMoleculeGroup::medianSort()
+{
+    hilbertMedianSort(Group::x_, Group::num_atoms_loc_, sortIndex_);
+    reSort_(ind_loc_, sortIndex_);
+    reSort_(coll_ind_, sortIndex_);
+    reSortrVec_(Group::x_, sortIndex_);
+    reSortrVec_(as_rvec_array(x_collective_.data()), sortIndex_);
+    reSortrVec_(as_rvec_array(x_reference_.data()), sortIndex_);
+    reSortReal_(Group::weights_, sortIndex_);
+}
 
 void
 WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
@@ -122,20 +180,19 @@ WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
         Group::x_[i][YY] = x[i_local][YY]+shifts_[i_global][YY]*box_[XX][YY]+shifts_[i_global][YY]*box_[YY][YY]+shifts_[i_global][YY]*box_[ZZ][YY];
         Group::x_[i][ZZ] = x[i_local][ZZ]+shifts_[i_global][ZZ]*box_[XX][ZZ]+shifts_[i_global][ZZ]*box_[YY][ZZ]+shifts_[i_global][ZZ]*box_[ZZ][ZZ];
     }
-    hilbertMedianSort(Group::x_, ind_loc_);
 }
 
 /* Ensure this is called after Group::set_indices */
 void
 WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box)
 {
-
-    Group::set_x(x);
     copy_mat(box, box_);
+    set_x(x, box);
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_reference_.data()), 1000);
 
     if (mpi_helper_ != nullptr)
     {
-        all_group_coordinates_to_master_();
+        all_group_coordinates_to_master_(x_collective_);
     }
     else
     {
@@ -144,40 +201,51 @@ WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box
             copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
         }
     }
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_collective_.data()), 1000);
     if ((mpi_helper_ == nullptr) || (mpi_helper_->isMaster()) )
     {
-        calculate_shifts_();
-        //< update the reference using the newly calculated shifts
-        for (int i = 0; i < Group::num_atoms_; i++)
-        {
-            x_reference_[i][XX] = x_collective_[i][XX]+shifts_[i][XX]*box_[XX][XX]+shifts_[i][XX]*box_[YY][XX]+shifts_[i][XX]*box_[ZZ][XX];
-            x_reference_[i][YY] = x_collective_[i][YY]+shifts_[i][YY]*box_[XX][YY]+shifts_[i][YY]*box_[YY][YY]+shifts_[i][YY]*box_[ZZ][YY];
-            x_reference_[i][ZZ] = x_collective_[i][ZZ]+shifts_[i][ZZ]*box_[XX][ZZ]+shifts_[i][ZZ]*box_[YY][ZZ]+shifts_[i][ZZ]*box_[ZZ][ZZ];
-        }
+        update_shifts_();
     }
     if (mpi_helper_ != nullptr)
     {
         mpi_helper_->broadcast(shifts_.data(), Group::num_atoms_);
     }
+
+    // re-calculated atom coordinates with the new shifts and take this as new reference
+    set_x(x, box);
+
+    if (mpi_helper_ != nullptr)
+    {
+        all_group_coordinates_to_master_(x_reference_);
+    }
+    else
+    {
+        for (const auto &atom : *this)
+        {
+            copy_rvec(atom.x, x_reference_[*(atom.i_global)]);
+        }
+    }
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_reference_.data()), 1000);
+    // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_collective_.data()), 1000);
 }
 
 void
-WholeMoleculeGroup::all_group_coordinates_to_master_()
+WholeMoleculeGroup::all_group_coordinates_to_master_(std::vector<RVec> &vec)
 {
     // put all node local atoms in the right position in a global array for later sum_reduction
     for (const auto &atom : *this)
     {
-        copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
+        copy_rvec(atom.x, vec[*(atom.i_global)]);
     }
-    mpi_helper_->to_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
+    mpi_helper_->to_reals_buffer(*as_rvec_array(vec.data()), 3*Group::num_atoms_);
     mpi_helper_->sum_reduce();
-    mpi_helper_->from_reals_buffer(*as_rvec_array(x_collective_.data()), 3*Group::num_atoms_);
+    mpi_helper_->from_reals_buffer(*as_rvec_array(vec.data()), 3*Group::num_atoms_);
 
 }
 
 /** copied from groupcoords.cpp*/
 void
-WholeMoleculeGroup::calculate_shifts_()
+WholeMoleculeGroup::update_shifts_()
 {
     rvec dx;
 
@@ -185,7 +253,6 @@ WholeMoleculeGroup::calculate_shifts_()
      * distance to its position at the last NS time step after shifting.
      * If we start with a whole group, and always keep track of
      * shift changes, the group will stay whole this way */
-    shifts_.resize(Group::num_atoms_, {0, 0, 0});
 
     for (int i = 0; i < Group::num_atoms_; i++)
     {

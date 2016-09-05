@@ -47,7 +47,7 @@ struct t_inputrec;
 struct gmx_ga2la_t;
 struct gmx_output_env_t;
 struct gmx_mtop_t;
-
+struct t_fileio;
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/gmxmpi.h"
@@ -86,17 +86,25 @@ class WholeMoleculeGroup : public Group
         void update_shifts_and_reference(const rvec x[], const matrix box);
         void set_x(const rvec x[], const matrix box);
         void make_whole_molecule_reference(const rvec x[], const gmx_mtop_t *top_global, const int ePBC);
+        void medianSort();
+
 
     private:
-        void calculate_shifts_();
-        void all_group_coordinates_to_master_();
+        void update_shifts_();
+        void all_group_coordinates_to_master_(std::vector<RVec> &vec);
+        void reSort_(std::vector<int> &index, const std::vector<int> &sortIndex);
+        void reSortrVec_(rvec * index, const std::vector<int> &sortIndex);
+        void reSortReal_(std::vector<real> &to_sort, const std::vector<int> &sortIndex);
 
         matrix                     box_;
-        std::vector<RVec>          x_collective_; //< a collective array for the group coordinates to calculate the shifts on the master node
-        std::vector<RVec>          x_reference_;  //< a collective array for the group coordinates used to collect coordinates on the master node
+        std::vector<RVec>          x_collective_; //< a collective array for the group coordinates used to collect coordinates on the master node
+        std::vector<RVec>          x_reference_;  //< a collective array for the group coordinates to calculate the shifts on the master node
         std::vector<IVec>          shifts_;       // a collective array for the atom shifts, calculated on master
         MpiHelper                * mpi_helper_;
         const int                  npbcdim_;
+        std::vector<int>           sortIndex_;
+        t_fileio                 * out_;
+
 };
 
 

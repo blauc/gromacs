@@ -109,19 +109,12 @@ void hilbertMedianSortRecursion2d(std::vector<int>::iterator begin, std::vector<
     hilbertMedianSortRecursion2d(m3, m4, coordinates, y);
 }
 
-
 void
-hilbertMedianSort(const rvec * coordinates, std::vector<int> &index)
+hilbertMedianSort(const rvec * coordinates, const int n_coordinates, std::vector<int> &result)
 {
-    std::vector<int> result(index.size());
+    result.resize(n_coordinates);
     std::iota(std::begin(result), std::end(result), 0);
     hilbertMedianSortRecursion2d(std::begin(result), std::end(result), coordinates, YY, ZZ);
-    std::vector<int> new_index(index.size());
-    for (std::size_t i  = 0; i < index.size(); ++i)
-    {
-        new_index[i] = index[result[i]];
-    }
-    index = new_index;
 }
 
 }      // namespace gmx

@@ -86,7 +86,9 @@ class DensityFitting : public ExternalPotential
         real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup);
         void finish();
 
-        real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference, std::vector<real> &buffer);
+        real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference);
+        real absolute_kl_divergence(std::vector<real> &P, std::vector<real> &Q);
+
 
     private:
         void do_force_plain(const rvec x, rvec force);
@@ -95,14 +97,14 @@ class DensityFitting : public ExternalPotential
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
         void SpreadKernel(GroupAtom &atom, const int &thread);
-        void spread_density_(const rvec x[]);
+        void spread_density_(WholeMoleculeGroup * spreadgroup);
         void sum_reduce_simulated_density_();
         void ForceKernel_KL(GroupAtom &atom, const int &thread);
-        void plot_forces(const rvec x[]);
+        void plot_forces(const rvec x[], const matrix box);
         void initialize_target_density_();
         void initialize_buffers_();
         void initialize_spreading_();
-        void initialize_reference_density(const rvec x[]);
+        void initialize_reference_density(const rvec x[], const matrix box);
 
         DensityFitting();
 
@@ -122,7 +124,6 @@ class DensityFitting : public ExternalPotential
         real                                              background_density_;
         volumedata::MrcMetaData                           meta_;
         t_fileio                                         *out_;
-        std::vector<real>                                 potential_contribution_;
         bool                                              isCenterOfMassCentered_;
         RVec                                              translation_;
         std::vector<real>                                 reference_density_;

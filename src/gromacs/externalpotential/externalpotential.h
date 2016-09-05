@@ -113,7 +113,7 @@ class ExternalPotential
         void set_mpi_helper(MpiHelper* mpi);
 
         void add_group(std::shared_ptr<Group> group);
-        void add_wholemoleculegroup(std::shared_ptr<WholeMoleculeGroup> group);
+        void add_wholemoleculegroup(WholeMoleculeGroup * group);
 
         void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
         virtual void read_input()         = 0;
@@ -127,7 +127,7 @@ class ExternalPotential
          */
         std::shared_ptr<Group> group(const rvec x[], int group_index);
 
-        std::shared_ptr<WholeMoleculeGroup> wholemoleculegroup(const rvec x[], const matrix box, int group_index);
+        WholeMoleculeGroup * wholemoleculegroup(const rvec x[], const matrix box, int group_index);
 
         virtual void finish() = 0;
 
