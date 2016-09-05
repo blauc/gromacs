@@ -56,6 +56,9 @@ namespace gmx
 {
 
 class IOptionsContainer;
+class KeyValueTreeObject;
+class KeyValueTreeValue;
+class Variant;
 
 namespace test
 {
@@ -275,6 +278,22 @@ class TestReferenceChecker
         void setDefaultTolerance(const FloatingPointTolerance &tolerance);
 
         /*! \brief
+         * Checks that all reference values have been compared against.
+         *
+         * All values under the compound represented by this checker are
+         * checked, and a non-fatal Google Test assertion is produced if some
+         * values have not been used.
+         *
+         * If not called explicitly, the same check will be done for all
+         * reference data values when the test ends.
+         *
+         * This method also marks the values used, so that subsequent checks
+         * (including the check at the end of the test) will not produce
+         * another assertion about the same values.
+         */
+        void checkUnusedEntries();
+
+        /*! \brief
          * Checks whether a data item is present.
          *
          * \param[in] bPresent  Whether to check for presence or absence.
@@ -351,6 +370,12 @@ class TestReferenceChecker
         void checkVector(const double value[3], const char *id);
         //! Check a single floating-point value from a string.
         void checkRealFromString(const std::string &value, const char *id);
+        //! Checks a variant value that contains a supported simple type.
+        void checkVariant(const Variant &value, const char *id);
+        //! Checks a key-value tree rooted at a object.
+        void checkKeyValueTreeObject(const KeyValueTreeObject &tree, const char *id);
+        //! Checks a generic key-value tree value.
+        void checkKeyValueTreeValue(const KeyValueTreeValue &value, const char *id);
 
         /*! \name Overloaded versions of simple checker methods
          *
@@ -415,6 +440,11 @@ class TestReferenceChecker
         void checkValue(const double value[3], const char *id)
         {
             checkVector(value, id);
+        }
+        //! Check a generic key-value tree value.
+        void checkValue(const KeyValueTreeValue &value, const char *id)
+        {
+            checkKeyValueTreeValue(value, id);
         }
         /*!\}*/
 
