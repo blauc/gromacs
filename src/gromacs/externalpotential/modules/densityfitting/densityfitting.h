@@ -89,7 +89,6 @@ class DensityFitting : public ExternalPotential
         real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference);
         real absolute_kl_divergence(std::vector<real> &P, std::vector<real> &Q);
 
-
     private:
         void do_force_plain(const rvec x, rvec force);
         void translate_atoms_into_map_(const rvec x[]);

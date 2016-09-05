@@ -58,9 +58,10 @@ namespace gmx
  */
 GroupIterator::GroupIterator(Group &group, int i)
 {
-    atom_.i_local    = group.ind_loc_.begin() + i;
-    atom_.force      = group.f_loc_.begin() + i;
-    atom_.properties = group.weights_.begin() + i;
+    atom_.i_local      = group.ind_loc_.begin() + i;
+    atom_.force        = group.f_loc_.begin() + i;
+    atom_.properties   = group.weights_.begin() + i;
+    atom_.xTransformed = group.xTransformed_.begin()+i;
     // if we never dereference group->end() or above , we are fines
     atom_.i_global   = group.ind_+i;
     x_               = group.x_;
@@ -72,6 +73,7 @@ GroupIterator &GroupIterator::operator++()
     ++atom_.force;
     ++atom_.properties;
     ++atom_.i_global;
+    ++atom_.xTransformed;
     return *this;
 }
 
@@ -136,26 +138,32 @@ std::shared_ptr<GroupAtom> Group::atom(int i)
     result->i_collective = coll_ind_.begin()+i;
     result->i_global     = ind_+i;
     result->x            = x_[ind_loc_[i]];
+    result->xTransformed = xTransformed_.begin()+i;
     result->force        = f_loc_.begin()+i;
     result->properties   = weights_.begin()+i;
     return result;
 }
 
-Group::Group(const Group &group) : x_ {group.x_}, num_atoms_ {
+Group::Group(const Group &group) : x_ {group.x_}, xTransformed_ {
+    group.xTransformed_
+}, num_atoms_ {
     group.num_atoms_
-}, ind_ {
+},
+ind_ {
     group.ind_
 }, coll_ind_ {
     group.coll_ind_
-},    num_atoms_loc_ {
+}, num_atoms_loc_ {
     group.num_atoms_loc_
-}, ind_loc_ {
+},
+ind_loc_ {
     group.ind_loc_
 }, f_loc_ {
     group.f_loc_
-},     weights_ {
+}, weights_ {
     group.weights_
-}, bParallel_ {
+},
+bParallel_ {
     group.bParallel_
 }, number_of_threads_ {
     std::max(1, gmx_omp_nthreads_get(emntDefault))
@@ -172,6 +180,7 @@ Group::Group( int nat, int *ind, bool bParallel) :
         ind_loc_.assign(ind, ind+num_atoms_);
         coll_ind_.resize(num_atoms_loc_);
         std::iota(coll_ind_.begin(), coll_ind_.end(), 0);
+        xTransformed_.resize(num_atoms_, {0, 0, 0});
         f_loc_.resize(num_atoms_, {0, 0, 0});
         weights_.resize(num_atoms_, 1);
     }
@@ -220,8 +229,8 @@ void Group::set_indices(gmx_ga2la_t *ga2la)
     }
 
     f_loc_.resize(num_atoms_loc_, {0, 0, 0});
+    xTransformed_.resize(num_atoms_loc_, {0, 0, 0});
     weights_.resize(num_atoms_loc_, 1);
-
 };
 
 real Group::max_element(rvec arr[])
@@ -290,7 +299,7 @@ int Group::num_atoms_loc()
 
 void Group::parallel_loop(std::function<void(GroupAtom &, const int &)> loop_kernel_function)
 {
-    #pragma omp parallel num_threads(number_of_threads_)
+#pragma omp parallel num_threads(number_of_threads_)
     {
         int           this_thread_index     = gmx_omp_get_thread_num();
         GroupIterator first_atom_for_thread = begin(this_thread_index, number_of_threads_);

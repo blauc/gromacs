@@ -46,7 +46,7 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
-// #include "gromacs/externalpotential/atomgroups/group.h"
+
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/externalpotential/mpi-helper.h"
 #include "gromacs/math/vec.h"
@@ -59,6 +59,10 @@
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/atoms.h"
 #include "emscatteringfactors.h"
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/utility/gmxomp.h"
+
+
 
 namespace gmx
 {
@@ -144,8 +148,6 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
 
             for (int l_x = 0; l_x <= n_l_x; ++l_x)
             {
-
-
                 /*
                  * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
                  *
@@ -189,7 +191,7 @@ real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdat
 
 void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<real> &multiplier)
 {
-#pragma omp parallel for num_threads(number_of_threads_)
+#pragma omp parallel for num_threads(number_of_threads_) schedule(static, to_invert.size()/number_of_threads_ + 1)
     for (std::size_t i = 0; i < to_invert.size(); ++i)
     {
         to_invert[i] = multiplier[i]/(to_invert[i]);
@@ -199,26 +201,27 @@ void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<rea
 void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
 {
     rvec x_translated;
-    rvec_add(atom.x, translation_, x_translated);
+    rvec_add(*atom.xTransformed, translation_, x_translated);
     gauss_transform_[thread]->transform(x_translated, *(atom.properties));
 }
 
 void DensityFitting::spread_density_(WholeMoleculeGroup * spreadgroup)
 {
     simulated_density_->zero();
-#pragma omp parallel for num_threads(number_of_threads_)
-    for (int thread = 0; thread < number_of_threads_; ++thread)
+
+#pragma omp parallel num_threads(number_of_threads_)
     {
+        int           thread     = gmx_omp_get_thread_num();
         simulated_density_buffer_[thread]->zero();
         gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
-
-    }
-
-    spreadgroup->parallel_loop(std::bind( &DensityFitting::SpreadKernel, this, std::placeholders::_1, std::placeholders::_2));
-
-#pragma omp parallel for num_threads(number_of_threads_)
-    for (int thread = 0; thread < number_of_threads_; ++thread)
-    {
+        GroupIterator first_atom_for_thread = spreadgroup->begin(thread, number_of_threads_);
+        GroupIterator end_of_thread_atoms   = spreadgroup->end(thread, number_of_threads_);
+        for (auto atom = first_atom_for_thread; atom != end_of_thread_atoms; ++atom)
+        {
+            rvec x_translated;
+            rvec_add(*(*atom).xTransformed, translation_, x_translated);
+            gauss_transform_[thread]->transform(x_translated, *(*atom).properties);
+        }
         simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
     }
 
@@ -340,6 +343,7 @@ void
 DensityFitting::initialize_reference_density(const rvec x[], const matrix box)
 {
     auto spreadgroup = wholemoleculegroup(x, box, 0);
+    // spreadgroup->medianSort();
     spread_density_(spreadgroup);
     simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
     simulated_density_->normalize();
@@ -386,7 +390,7 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
      * Atoms are translated, such that the potential is minimal with respect to coordinate shifts
      */
     RVec x_shifted;
-    rvec_add(atom.x, translation_, x_shifted);
+    rvec_add(*atom.xTransformed, translation_, x_shifted);
 
     /*
      * To speed up the expensive exp(-(x-v)^2/2*sigma^2) part of the force caluclation use fast gaussian gridding
@@ -425,7 +429,7 @@ void DensityFitting::plot_forces(const rvec x[], const matrix box)
     rvec x_translated;
     for (auto &atom : *fitatoms)
     {
-        rvec_add(atom.x, translation_, x_translated);
+        rvec_add(*atom.xTransformed, translation_, x_translated);
         plot.plot_force(x_translated, *(atom.force), 0, 1.0/max_f);
     }
     plot.stop_plot_forces();
@@ -444,7 +448,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         int         i = 0;
         for (auto atom : *fitatoms)
         {
-            rvec_add(atom.x, translation_, x_out[i++]);
+            rvec_add(*atom.xTransformed, translation_, x_out[i++]);
         }
         write_xtc(out_, fitatoms->num_atoms_global(), 0, 0, box_write, x_out, 1000);
     }
@@ -497,6 +501,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         mpi_helper()->broadcast(&norm_simulated_, 1);
     }
 
+
     fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
 };
 
@@ -522,7 +527,7 @@ DensityFitting::absolute_kl_divergence(std::vector<real> &P, std::vector<real> &
     auto q           = Q.begin();
     int  size        = Q.size();
     real sum         = 0;
-    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum)
+    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum) schedule(static, size/number_of_threads_ + 1)
     for (int i = 0; i < size; ++i)
     {
         if ((p[i] > 0) && (q[i] > 0 ))
@@ -549,7 +554,7 @@ DensityFitting::relative_kl_divergence(std::vector<real> &P, std::vector<real> &
     auto q_reference = Q_reference.begin();
     int  size        = Q.size();
     real sum         = 0;
-    #pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum)
+    #pragma omp parallel for num_threads(number_of_threads_) reduction(+:sum) schedule(static, size/number_of_threads_ + 1)
     for (int i = 0; i < size; ++i)
     {
         if ((p[i] > 0) && (q[i] > 0 ) && ( q_reference[i] > 0 ))

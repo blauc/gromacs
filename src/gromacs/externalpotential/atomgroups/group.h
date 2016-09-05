@@ -58,6 +58,7 @@ class IAtomProperties;
 struct GroupAtom{
     const real                             *x;
     std::vector<RVec>::iterator             force;
+    std::vector<RVec>::iterator             xTransformed;
     std::vector<real>::iterator             properties;
     std::vector<int>::const_iterator        i_local;
     std::vector<int>::const_iterator        i_collective;
@@ -124,7 +125,9 @@ class Group
 
     protected:
 
+
         rvec                         *x_;             /**< The coordinates TODO: re-attach const attribute..*/
+        std::vector<RVec>             xTransformed_;
         int                           num_atoms_;     /**< Number of (global) atoms in this external potential group. */
         int                          *ind_;           /**< Global indices of the atoms in this group as in the index group file -1.*/
         std::vector<int>              coll_ind_;      /**< give the group atom positions in arrays used for global reducition, size num_atoms_loc_*/

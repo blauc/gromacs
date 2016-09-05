@@ -46,7 +46,7 @@ namespace gmx
 {
 
 std::vector<int>::iterator
-median_split (std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates,
+median_split (std::vector<int>::iterator begin, std::vector<int>::iterator end, const std::vector<RVec> &coordinates,
               int dimension)
 {
     if (begin >= end)
@@ -58,7 +58,7 @@ median_split (std::vector<int>::iterator begin, std::vector<int>::iterator end, 
     return middle;
 }
 
-void hilbertMedianSortRecursion3d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates, int x = 0)
+void hilbertMedianSortRecursion3d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const std::vector<RVec> &coordinates, int x = 0)
 {
     const int y = (x + 1) % 3;
     const int z = (x + 2) % 3;
@@ -88,7 +88,7 @@ void hilbertMedianSortRecursion3d(std::vector<int>::iterator begin, std::vector<
     hilbertMedianSortRecursion3d(m7, m8, coordinates, z);
 }
 
-void hilbertMedianSortRecursion2d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const rvec * coordinates, int x = 0, int y = 1)
+void hilbertMedianSortRecursion2d(std::vector<int>::iterator begin, std::vector<int>::iterator end, const std::vector<RVec> &coordinates, int x = 0, int y = 1)
 {
     std::swap(x, y);
     if (end - begin <= 1)
@@ -110,9 +110,9 @@ void hilbertMedianSortRecursion2d(std::vector<int>::iterator begin, std::vector<
 }
 
 void
-hilbertMedianSort(const rvec * coordinates, const int n_coordinates, std::vector<int> &result)
+hilbertMedianSort(const std::vector<RVec> &coordinates,  std::vector<int> &result)
 {
-    result.resize(n_coordinates);
+    result.resize(coordinates.size());
     std::iota(std::begin(result), std::end(result), 0);
     hilbertMedianSortRecursion2d(std::begin(result), std::end(result), coordinates, YY, ZZ);
 }

@@ -103,17 +103,13 @@ WholeMoleculeGroup::WholeMoleculeGroup(const Group &base_group, MpiHelper * mpi_
     {
         mpi_helper_->broadcast(*as_vec_array(shifts_.data()), DIM*Group::num_atoms_);
     }
-    // in the whole molecule group, copy atom coordinates, then shift, rather then reference only
-    // TODO: remove re-use of x_, x_ should stay const.
-    rvec * xnew;
-    snew(xnew, Group::num_atoms_loc_);
-    Group::x_ = xnew;
+    Group::xTransformed_.resize(Group::num_atoms_loc_);
+    set_x(Group::x_, box);
 }
 
 WholeMoleculeGroup::~WholeMoleculeGroup()
 {
     // close_xtc(out_);
-    sfree(Group::x_);
 };
 
 void
@@ -159,10 +155,10 @@ WholeMoleculeGroup::reSortReal_(std::vector<real> &to_sort, const std::vector<in
 void
 WholeMoleculeGroup::medianSort()
 {
-    hilbertMedianSort(Group::x_, Group::num_atoms_loc_, sortIndex_);
+    hilbertMedianSort(Group::xTransformed_, sortIndex_);
     reSort_(ind_loc_, sortIndex_);
     reSort_(coll_ind_, sortIndex_);
-    reSortrVec_(Group::x_, sortIndex_);
+    reSortrVec_(as_rvec_array(Group::xTransformed_.data()), sortIndex_);
     reSortrVec_(as_rvec_array(x_collective_.data()), sortIndex_);
     reSortrVec_(as_rvec_array(x_reference_.data()), sortIndex_);
     reSortReal_(Group::weights_, sortIndex_);
@@ -176,9 +172,9 @@ WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
     {
         int i_local          = Group::ind_loc_[i];
         int i_global         = Group::coll_ind_[i];
-        Group::x_[i][XX] = x[i_local][XX]+shifts_[i_global][XX]*box_[XX][XX]+shifts_[i_global][XX]*box_[YY][XX]+shifts_[i_global][XX]*box_[ZZ][XX];
-        Group::x_[i][YY] = x[i_local][YY]+shifts_[i_global][YY]*box_[XX][YY]+shifts_[i_global][YY]*box_[YY][YY]+shifts_[i_global][YY]*box_[ZZ][YY];
-        Group::x_[i][ZZ] = x[i_local][ZZ]+shifts_[i_global][ZZ]*box_[XX][ZZ]+shifts_[i_global][ZZ]*box_[YY][ZZ]+shifts_[i_global][ZZ]*box_[ZZ][ZZ];
+        Group::xTransformed_[i][XX] = x[i_local][XX]+shifts_[i_global][XX]*box_[XX][XX]+shifts_[i_global][XX]*box_[YY][XX]+shifts_[i_global][XX]*box_[ZZ][XX];
+        Group::xTransformed_[i][YY] = x[i_local][YY]+shifts_[i_global][YY]*box_[XX][YY]+shifts_[i_global][YY]*box_[YY][YY]+shifts_[i_global][YY]*box_[ZZ][YY];
+        Group::xTransformed_[i][ZZ] = x[i_local][ZZ]+shifts_[i_global][ZZ]*box_[XX][ZZ]+shifts_[i_global][ZZ]*box_[YY][ZZ]+shifts_[i_global][ZZ]*box_[ZZ][ZZ];
     }
 }
 
@@ -198,7 +194,7 @@ WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box
     {
         for (const auto &atom : *this)
         {
-            copy_rvec(atom.x, x_collective_[*(atom.i_global)]);
+            x_collective_[*(atom.i_global)] = *atom.xTransformed;
         }
     }
     // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_collective_.data()), 1000);
@@ -222,7 +218,7 @@ WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box
     {
         for (const auto &atom : *this)
         {
-            copy_rvec(atom.x, x_reference_[*(atom.i_global)]);
+            x_reference_[*(atom.i_global)] = *atom.xTransformed;
         }
     }
     // write_xtc(out_, Group::num_atoms_, 0, 0, box, as_rvec_array(x_reference_.data()), 1000);
@@ -235,7 +231,7 @@ WholeMoleculeGroup::all_group_coordinates_to_master_(std::vector<RVec> &vec)
     // put all node local atoms in the right position in a global array for later sum_reduction
     for (const auto &atom : *this)
     {
-        copy_rvec(atom.x, vec[*(atom.i_global)]);
+        vec[*(atom.i_global)] = *atom.xTransformed;
     }
     mpi_helper_->to_reals_buffer(*as_rvec_array(vec.data()), 3*Group::num_atoms_);
     mpi_helper_->sum_reduce();
