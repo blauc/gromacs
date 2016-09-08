@@ -34,8 +34,10 @@
  */
 
 #include "json.h"
+#include "gromacs/utility/exceptions.h"
 #include <algorithm>
 #include <cctype>
+#include <ios>
 
 namespace json
 {
@@ -100,6 +102,14 @@ Object::operator[](const std::string &key)
 std::string
 Object::at(const std::string &key)
 {
+    try
+    {
+        value_.at(key);
+    }
+    catch (const std::ios_base::failure &e)
+    {
+        GMX_THROW(gmx::InvalidInputError("Cannot read " + key + " from json."));
+    }
     return value_.at(key)->write();
 }
 
@@ -206,7 +216,7 @@ std::unique_ptr<Entry> create_value_object_from_string(std::string &s)
     return std::unique_ptr<Entry>(new String(s));
 }
 
-Object::Object(std::string &s)
+Object::Object(std::string s)
 {
     // remove all whitespace
     s.erase( std::remove_if( s.begin(), s.end(), ::isspace ), s.end() );
@@ -222,6 +232,11 @@ Object::Object(std::string &s)
     }
 
 };
+
+bool Object::has(const std::string &key)
+{
+    return value_.count(key) > 0;
+}
 
 std::string Object::write()
 {

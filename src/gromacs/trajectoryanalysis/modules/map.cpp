@@ -166,7 +166,7 @@ Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const Topolog
         get_pdb_atomnumber(&(top.topology()->atoms), gmx_atomprop_init() );
         for (int i_atom = 0; i_atom < top.topology()->atoms.nr; i_atom++)
         {
-            weight_.push_back(externalpotential::atomicnumber2emscatteringfactor(top.topology()->atoms.atom[i_atom].atomnumber));
+            weight_.push_back(externalpotential::atomicNumber2EmScatteringFactor(top.topology()->atoms.atom[i_atom].atomnumber));
         }
     }
 }

@@ -43,9 +43,9 @@ namespace gmx
 namespace externalpotential
 {
 
-real atomicnumber2emscatteringfactor (int atomic_number)
+real atomicNumber2EmScatteringFactor (const int atomicNumber)
 {
-    static std::map < int, real > atomicnumber2factor {{
+    static std::map < int, real > atomicNumber2Factor {{
                                                            0, 1.0
                                                        }, {
                                                            1, 0.0444872
@@ -254,7 +254,7 @@ real atomicnumber2emscatteringfactor (int atomic_number)
                                                        }, {
                                                            103, 39.7949
                                                        }};
-    return atomicnumber2factor[atomic_number];
+    return atomicNumber2Factor.at(atomicNumber);
 }
 
 

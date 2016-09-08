@@ -322,4 +322,16 @@ Group::local_coordinate_sum()
             });
 }
 
+RVec
+Group::local_force_sum()
+{
+    return std::accumulate(
+            this->begin(), this->end(), RVec {0, 0, 0},
+            [] (RVec &coordinate_sum, GroupAtom local_atom) {
+                rvec_inc(coordinate_sum, *local_atom.force);
+                return coordinate_sum;
+            });
+}
+
+
 } // namespace gmx

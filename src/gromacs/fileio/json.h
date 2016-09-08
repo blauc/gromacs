@@ -52,10 +52,11 @@ class Entry
 class Object : public Entry
 {
     public:
-        Object(std::string &s);
+        Object(std::string s);
         std::string write();
         std::string operator[](const std::string &key);
         std::string at(const std::string &key);
+        bool has(const std::string &key);
     private:
         std::map<std::string, std::unique_ptr<Entry> > value_;
 };

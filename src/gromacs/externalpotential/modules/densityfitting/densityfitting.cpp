@@ -91,8 +91,6 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
 
     real   spread_zy;
     std::vector<real>::iterator density_ratio_iterator;
-    int    l_x_min = l_min[XX]-grid_index_of_spread_atom_[XX]+m_spread_;
-    int    n_l_x   = l_max[XX]-l_min[XX];
     real * spread_1d_XX;
 
 
@@ -132,21 +130,30 @@ volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, co
     for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
     {
         shift_yz = shift_z;                                              // start at the beginning of a "y-row"
-        rvec_inc(shift_yz, d_y_offset);                                  // move in the "y-row" to the voxel where spreading starts
+        rvec_inc(shift_yz, d_y_offset);                                  // move into the "y-row" to the voxel where spreading starts
 
-        int l_z = l_grid_z - grid_index_of_spread_atom_[ZZ] + m_spread_; // the grid index in the 2d spread grid around the atom
-        for (int l_grid_y = l_min[YY]; l_grid_y <= l_max[YY]; ++l_grid_y)
+        int d_l_z                  = l_grid_z - grid_index_of_spread_atom_[ZZ];
+        int l_z                    = d_l_z + m_spread_; // the grid index in the 2d spread grid around the atom
+        int globalGridIndexYYStart = std::max(l_min[YY], grid_index_of_spread_atom_[YY] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_l_z*d_l_z)));
+        int globalGridIndexYYEnd   = std::min(l_max[YY], grid_index_of_spread_atom_[YY] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_l_z*d_l_z)));
+        for (int l_grid_y = globalGridIndexYYStart; l_grid_y <= globalGridIndexYYEnd; ++l_grid_y)
         {
             shift_xyz = shift_yz;            // start at the beginning of an "x-column"
-            rvec_inc(shift_xyz, d_x_offset); // move in the "x-row" to the voxel where spreading starts
+            rvec_inc(shift_xyz, d_x_offset); // move into the "x-row" to the voxel where spreading starts
 
-            int l_y          = l_grid_y - grid_index_of_spread_atom_[YY]+m_spread_;
+            int d_l_y        =  l_grid_y - grid_index_of_spread_atom_[YY];
+            int l_y          = d_l_y+m_spread_;
             spread_zy                     = spread_2d_[l_z][l_y];
-            density_ratio_iterator        = div.zy_column_begin(l_grid_z, l_grid_y)+l_min[XX];
 
-            spread_1d_XX = &(spread_1d_[XX][l_x_min]);
+            int globalGridIndexXXStart = std::max(l_min[XX], grid_index_of_spread_atom_[XX] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_l_z*d_l_z- d_l_y*d_l_y)));
+            int globalGridIndexXXEnd   = std::min(l_max[XX], grid_index_of_spread_atom_[XX] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_l_z*d_l_z- d_l_y*d_l_y)));
+            int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
+            int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
+            density_ratio_iterator        = div.zy_column_begin(l_grid_z, l_grid_y)+globalGridIndexXXStart;
 
-            for (int l_x = 0; l_x <= n_l_x; ++l_x)
+            spread_1d_XX = &(spread_1d_[XX][localGridIndexXXStart]);
+
+            for (int l_x = 0; l_x <= numberSpreadVoxelsXX; ++l_x)
             {
                 /*
                  * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
@@ -186,7 +193,7 @@ real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdat
 {
     t_atom * single_atom;
     gmx_mtop_atomnr_to_atom((const gmx_mtop_atomlookup_t)atom_lookup, *(atom->i_global), &single_atom);
-    return atomicnumber2emscatteringfactor(single_atom->atomnumber);
+    return atomicNumber2EmScatteringFactor(single_atom->atomnumber);
 }
 
 void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<real> &multiplier)
@@ -272,10 +279,10 @@ void DensityFitting::spread_density_(WholeMoleculeGroup * spreadgroup)
 
 }
 
-void DensityFitting::translate_atoms_into_map_(const rvec x[])
+void DensityFitting::translate_atoms_into_map_(const rvec x[], const matrix box)
 {
-    RVec center_of_geometry_fitatoms = group(x, 0)->local_coordinate_sum();
-
+    auto translationgroup            = wholemoleculegroup(x, box, 0);
+    RVec center_of_geometry_fitatoms = translationgroup->local_coordinate_sum();
     if (mpi_helper() != nullptr)
     {
         mpi_helper()->to_reals_buffer(center_of_geometry_fitatoms, 3);
@@ -288,7 +295,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[])
 
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
-        svmul(1.0/group(x, 0)->num_atoms_global(), center_of_geometry_fitatoms, center_of_geometry_fitatoms);
+        svmul(1.0/translationgroup->num_atoms_global(), center_of_geometry_fitatoms, center_of_geometry_fitatoms);
         RVec center_of_density = target_density_->center_of_mass();
         rvec_sub(center_of_density, center_of_geometry_fitatoms, translation_);
     }
@@ -297,6 +304,101 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[])
     {
         mpi_helper()->broadcast(translation_, 3);
     }
+    const real minimum_step_size = 0.005;
+    real       step_size         = 1;
+    // calculate gradient vector
+    // normalize to step size
+    // move along gradient vector
+    // check new potential
+    // if better, accept, else flip gradient vector, half step-size
+    // move back along gradient vector
+    // stop if step size too small
+    real reference_divergence = 0;
+    real new_divergence       = 0;
+    while (step_size > minimum_step_size)
+    {
+        /* calculate the ridig body fitting force on the current atom configuration:
+         *  - spread local atoms on grid,
+         *  - communicate grid
+         *  - get a reference KL divergence ot target density on Master node
+         *  - calculate force on each atom
+         *  - the total sum of the forces is the rigid body fitting force
+         *  - communicate this force
+         *
+         */
+        spread_density_(translationgroup);
+        if (mpi_helper() != nullptr)
+        {
+            sum_reduce_simulated_density_();
+        }
+        if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+        {
+            simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
+            norm_simulated_        = simulated_density_->normalize();
+            reference_divergence   = absolute_kl_divergence(target_density_->data(), simulated_density_->data());
+        }
+
+        KLForceCalculation_(translationgroup);
+        auto force = translationgroup->local_force_sum();
+
+        if (mpi_helper() != nullptr)
+        {
+            mpi_helper()->to_reals_buffer(force, 3);
+            mpi_helper()->sum_reduce();
+            if (mpi_helper()->isMaster())
+            {
+                mpi_helper()->from_reals_buffer(force, 3);
+            }
+        }
+
+        if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+        {
+            unitv(force, force);
+        }
+
+        int direction = 1;
+        fprintf(stderr, "\nMoving into [ %g %g %g ] direction.\n", force[XX], force[YY], force[ZZ]);
+        do
+        {
+            RVec force_scaled;
+            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+            {
+                svmul(step_size*direction, force, force_scaled);
+                rvec_inc(translation_, force_scaled);
+                fprintf(stderr, "\nScaled force: [ %g %g %g ] .\n", force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
+            }
+            if (mpi_helper() != nullptr)
+            {
+                mpi_helper()->broadcast(&translation_, 1);
+            }
+            spread_density_(translationgroup);
+            if (mpi_helper() != nullptr)
+            {
+                sum_reduce_simulated_density_();
+            }
+            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+            {
+                simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
+                norm_simulated_        = simulated_density_->normalize();
+                new_divergence         = absolute_kl_divergence(target_density_->data(), simulated_density_->data());
+                fprintf(stderr, "new divergence: %g , reference: %g \n", new_divergence, reference_divergence);
+                if (std::abs(new_divergence) < std::abs(reference_divergence))
+                {
+                    reference_divergence = new_divergence;
+                    step_size           *= 2.;
+                    break;
+                }
+                else
+                {
+                    direction  = -1;
+                    step_size /= 2.;
+                }
+            }
+
+        }
+        while (step_size > minimum_step_size);
+    }
+
 }
 
 
@@ -343,7 +445,6 @@ void
 DensityFitting::initialize_reference_density(const rvec x[], const matrix box)
 {
     auto spreadgroup = wholemoleculegroup(x, box, 0);
-    // spreadgroup->medianSort();
     spread_density_(spreadgroup);
     simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
     simulated_density_->normalize();
@@ -356,13 +457,15 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     initialize_target_density_();
     initialize_buffers_();
     initialize_spreading_();
+    initialize_reference_density(x, box);
     if (isCenterOfMassCentered_)
     {
-        translate_atoms_into_map_(x);
+        translate_atoms_into_map_(x, box);
     }
-    initialize_reference_density(x, box);
-
-    out_  = open_xtc("out.xtc", "w");
+    absolute_target_divergence_ = std::abs(absolute_kl_divergence(target_density_->data(), simulated_density_->data()));
+    fprintf(stderr, "\n\tDENSITYFITTING: Absolute KL divergence between densitites : %g. \n", absolute_target_divergence_);
+    requested_delta_divergence_ = absolute_target_divergence_*(float)every_nth_step_/(float)nsteps_till_fit_;
+    out_  = open_xtc(trajectory_name_.c_str(), "w");
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
@@ -436,11 +539,59 @@ void DensityFitting::plot_forces(const rvec x[], const matrix box)
 
 }
 
+void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
+{
+    #pragma omp parallel num_threads(number_of_threads_) shared(fitatoms) default(none)
+    {
+        int           thread     = gmx_omp_get_thread_num();
+        real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
+
+        force_gauss_transform_[thread]->set_grid(std::move(force_density_[thread]));
+        auto         &threadlocal_force_gauss_transform = force_gauss_transform_[thread];
+
+        GroupIterator first_atom_for_thread = fitatoms->begin(thread, number_of_threads_);
+        GroupIterator end_of_thread_atoms   = fitatoms->end(thread, number_of_threads_);
+
+        for (auto atom = first_atom_for_thread; atom != end_of_thread_atoms; ++atom)
+        {
+            /* calculate for atom position x, voxel v, grid cell Volume V, force constant k:
+             *
+             * sum_v k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
+             *
+             */
+
+            clear_rvec(*(*atom).force);
+
+            /*
+             * to keep the potential translation invariant, use shifted atoms positions for force calculations.
+             * Atoms are translated, such that the potential is minimal with respect to coordinate shifts
+             */
+            RVec x_shifted;
+            rvec_add(*(*atom).xTransformed, translation_, x_shifted);
+
+            /*
+             * To speed up the expensive exp(-(x-v)^2/2*sigma^2) part of the force caluclation use fast gaussian gridding
+             * Each thread has its own pre-allocated memory for doing the fast gaussian gridding.
+             *
+             * There is some double work done here, since all atoms have already been spread on a grid to calculate the total spread density.
+             * However, keeping the spread grid for all atoms appears to be very memory intense. (natoms * voxelgridsize)
+             */
+            /*
+             * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
+             * simulated_density_->grid_cell_volume()/
+             */
+            copy_rvec( threadlocal_force_gauss_transform->force(x_shifted, *((*atom).properties)*prefactor, *simulated_density_), *((*atom).force));
+
+        }
+        force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
+    }
+}
+
 void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
     auto fitatoms = wholemoleculegroup(x, box, 0);
 
-    if (step %10 == 0)
+    if (step%(10*every_nth_step_) == 0)
     {
         matrix      box_write;
         copy_mat(box, box_write);
@@ -474,13 +625,12 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         reference_divergence_ -= delta_divergence;
         set_local_potential(k_*reference_divergence_);
         reference_density_ = simulated_density_->data();
-        fprintf(input_output()->output_file(), "%8g\t%8g\t", reference_divergence_, k_);
-        if (k_*delta_divergence < .005*every_nth_step_)
+        fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t", reference_divergence_, k_, -100*reference_divergence_/absolute_target_divergence_);
+        if (delta_divergence < requested_delta_divergence_)
         {
             k_ *= k_factor_;
         }
-
-        if (k_*delta_divergence > .005*every_nth_step_)
+        else
         {
             k_ /= k_factor_;
         }
@@ -501,8 +651,8 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
         mpi_helper()->broadcast(&norm_simulated_, 1);
     }
 
-
-    fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+    KLForceCalculation_(fitatoms);
+    // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
@@ -535,7 +685,6 @@ DensityFitting::absolute_kl_divergence(std::vector<real> &P, std::vector<real> &
             sum += p[i] * log(q[i]);
         }
     }
-
     return sum;
 }
 
@@ -575,63 +724,123 @@ bool DensityFitting::do_this_step(gmx_int64_t step)
 void DensityFitting::read_input()
 {
     FILE      * inputfile       = input_output()->input_file();
-    char      * line            = nullptr;
-    std::string file_as_string;
-    std::string target_density_name;
-    try
+    if (inputfile == nullptr)
     {
-        fseek(inputfile, 0, SEEK_END);
-        long fsize = ftell(inputfile);
-        fseek(inputfile, 0, SEEK_SET);  //same as rewind(f);
+        GMX_THROW(InconsistentInputError("Please provide an external potential input file."));
+    }
+    ;
 
-        line           = (char*) malloc(fsize + 1);
-        fsize          = fread(line, fsize, 1, inputfile);
-        file_as_string = std::string(line);
-        // TODO: implemetn json scheme for checking input consistency
-        json::Object parsed_json(file_as_string);
 
+    fseek(inputfile, 0, SEEK_END);
+    long fsize = ftell(inputfile);
+    fseek(inputfile, 0, SEEK_SET);  //same as rewind(f);
+
+    auto line = (char*) malloc(fsize + 1);;
+    fsize = fread(line, fsize, 1, inputfile);
+    // TODO: implement JSON scheme for checking input consistency
+    json::Object parsed_json {
+        std::string(line)
+    };
+
+    if (parsed_json.has("k"))
+    {
         k_                  = std::stof(parsed_json["k"]);
-        sigma_              = std::stof(parsed_json["sigma"]);
-        n_sigma_            = std::stof(parsed_json["n_sigma"]);
-        background_density_ = std::stof(parsed_json["background_density"]);
-        target_density_name = parsed_json["target_density"];
-        std::string k_factor_string;
-        try
-        {
-            k_factor_string         = parsed_json.at("k_factor");
-        }
-        catch (const std::out_of_range &e)
-        {
-            k_factor_string = "1";
-        }
-        k_factor_ = std::stof(k_factor_string);
-        try
-        {
-            isCenterOfMassCentered_ = parsed_json.at("center_to_density") == "true";
-        }
-        catch (const std::out_of_range &e)
-        {
-            isCenterOfMassCentered_ = true;
-        }
-
-        try
-        {
-            every_nth_step_ = std::stoi(parsed_json.at("every_nth_step"));
-            k_             *= every_nth_step_;
-        }
-        catch (const std::out_of_range &e)
-        {
-            every_nth_step_ = 1;
-        }
-
-        volumedata::MrcFile         target_input_file;
-        target_input_file.read(target_density_name, *target_density_);
     }
-    catch (const std::ios_base::failure &e)
+    else
     {
-        GMX_THROW(gmx::InvalidInputError("Reading input for external potential has failed."));
+        GMX_THROW(InconsistentInputError("Force constant needed for densityfitting. Please provide a real number " "k" " in JSON input file."));
+    };
+
+    if (parsed_json.has("sigma"))
+    {
+        sigma_              = std::stof(parsed_json["sigma"]);
     }
-    fprintf(input_output()->output_file(), "E\tk\tF_max\tweight\n");
+    else
+    {
+        fprintf(stderr, "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
+        sigma_ = 0.2;
+    }
+
+    if (parsed_json.has("n_sigma"))
+    {
+        n_sigma_            = std::stof(parsed_json["n_sigma"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No density spread range provided, guessing n_sigma = 5 . \n");
+        n_sigma_ = 5;
+    }
+    if (parsed_json.has("background_density"))
+    {
+        background_density_ = std::stof(parsed_json["background_density"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No background density given, guessing background_density = 0.01 nm^(-3). \n");
+        background_density_ = 1e-2;
+    }
+
+    if (parsed_json.has("nsteps_till_fit"))
+    {
+        nsteps_till_fit_ = std::stoi(parsed_json.at("nsteps_till_fit"));
+    }
+
+    if (parsed_json.has("k_factor"))
+    {
+        k_factor_ = std::stof(parsed_json.at("k_factor"));
+    }
+    else
+    {
+        k_factor_ = 1;
+    }
+    if (parsed_json.has("center_to_density"))
+    {
+        isCenterOfMassCentered_ = parsed_json.at("center_to_density") == "true" || parsed_json.at("center_to_density") == "yes";
+    }
+    else
+    {
+        isCenterOfMassCentered_ = false;
+    }
+
+    if (parsed_json.has("every_nth_step"))
+    {
+        every_nth_step_ = std::stoi(parsed_json.at("every_nth_step"));
+        k_             *= every_nth_step_;
+    }
+    else
+    {
+        every_nth_step_ = 1;
+    }
+
+    if (parsed_json.has("target_density"))
+    {
+        volumedata::MrcFile  target_input_file;
+        target_input_file.read(parsed_json["target_density"], *target_density_);
+        if (parsed_json.has("target_density_used"))
+        {
+            target_input_file.write(parsed_json["target_density_used"], *target_density_);
+        }
+        else
+        {
+            target_input_file.write("target.ccp4", *target_density_);
+        }
+    }
+    else
+    {
+        GMX_THROW(InconsistentInputError("No target_density name given in input file. A target em-density map is required for refining atom coordinates against it."));
+    }
+
+
+    if (parsed_json.has("trajectory"))
+    {
+        trajectory_name_ = parsed_json["trajectory"];
+    }
+    else
+    {
+        trajectory_name_ = "out.xtc";
+    }
+
+    fprintf(input_output()->output_file(), "KL-div\tk\t%%match\tF_max\tweight\n");
 }
 
 void DensityFitting::broadcast_internal()

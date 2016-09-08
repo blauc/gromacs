@@ -43,7 +43,7 @@ namespace gmx
 
 namespace externalpotential
 {
-real atomicnumber2emscatteringfactor (int atomic_number);
+real atomicNumber2EmScatteringFactor (const int atomicNumber);
 }
 }
 

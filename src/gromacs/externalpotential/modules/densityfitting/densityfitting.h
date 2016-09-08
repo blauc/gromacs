@@ -91,7 +91,7 @@ class DensityFitting : public ExternalPotential
 
     private:
         void do_force_plain(const rvec x, rvec force);
-        void translate_atoms_into_map_(const rvec x[]);
+        void translate_atoms_into_map_(const rvec x[], const matrix box);
         void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
@@ -104,6 +104,7 @@ class DensityFitting : public ExternalPotential
         void initialize_buffers_();
         void initialize_spreading_();
         void initialize_reference_density(const rvec x[], const matrix box);
+        void KLForceCalculation_(WholeMoleculeGroup * fitatoms);
 
         DensityFitting();
 
@@ -120,19 +121,19 @@ class DensityFitting : public ExternalPotential
         std::vector < std::unique_ptr < volumedata::FastGaussianGriddingForce>> force_gauss_transform_;
         std::vector < std::unique_ptr < volumedata::FastGaussianGridding>> gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GridReal>>                simulated_density_buffer_;
-        real                                              background_density_;
-        volumedata::MrcMetaData                           meta_;
-        t_fileio                                         *out_;
-        bool                                              isCenterOfMassCentered_;
-        RVec                                              translation_;
-        std::vector<real>                                 reference_density_;
-        real                                              reference_divergence_ = 0;
-        real                                              k_factor_;
-
-
-        int                                               number_of_threads_;
-
-
+        real                    background_density_;
+        volumedata::MrcMetaData meta_;
+        std::string             trajectory_name_;
+        t_fileio               *out_;
+        bool                    isCenterOfMassCentered_;
+        RVec                    translation_;
+        std::vector<real>       reference_density_;
+        real                    reference_divergence_ = 0;
+        real                    k_factor_;
+        int                     number_of_threads_;
+        int                     nsteps_till_fit_;
+        real                    absolute_target_divergence_;
+        real                    requested_delta_divergence_;
 };
 
 class DensityFittingInfo
