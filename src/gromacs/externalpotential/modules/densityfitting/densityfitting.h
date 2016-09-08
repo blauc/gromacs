@@ -105,6 +105,7 @@ class DensityFitting : public ExternalPotential
         void initialize_spreading_();
         void initialize_reference_density(const rvec x[], const matrix box);
         void KLForceCalculation_(WholeMoleculeGroup * fitatoms);
+        std::string dumpParsedInput();
 
         DensityFitting();
 
@@ -134,6 +135,8 @@ class DensityFitting : public ExternalPotential
         int                     nsteps_till_fit_;
         real                    absolute_target_divergence_;
         real                    requested_delta_divergence_;
+
+        std::string             target_density_name_;
 };
 
 class DensityFittingInfo

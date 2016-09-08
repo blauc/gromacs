@@ -215,6 +215,8 @@ void DensityFitting::SpreadKernel(GroupAtom &atom, const int &thread)
 void DensityFitting::spread_density_(WholeMoleculeGroup * spreadgroup)
 {
     simulated_density_->zero();
+    std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
+    std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);
 
 #pragma omp parallel num_threads(number_of_threads_)
     {
@@ -230,18 +232,13 @@ void DensityFitting::spread_density_(WholeMoleculeGroup * spreadgroup)
             gauss_transform_[thread]->transform(x_translated, *(*atom).properties);
         }
         simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
+        minimumUsedGridIndex[thread]      = gauss_transform_[thread]->getMinimumUsedGridIndex();
+        maximumUsedGridIndex[thread]      = gauss_transform_[thread]->getMaximumUsedGridIndex();
     }
 
     std::vector<std::vector<real>::iterator> it_buffer(number_of_threads_);
     std::vector<real>::iterator              it_simulated_density;
 
-    std::vector<volumedata::IVec>            minimumUsedGridIndex;
-    std::vector<volumedata::IVec>            maximumUsedGridIndex;
-    for (int thread = 0; thread < number_of_threads_; ++thread)
-    {
-        minimumUsedGridIndex.push_back(gauss_transform_[thread]->getMinimumUsedGridIndex());
-        maximumUsedGridIndex.push_back(gauss_transform_[thread]->getMaximumUsedGridIndex());
-    }
     volumedata::IVec gridStart;
     volumedata::IVec gridEnd;
     for (int i = XX; i <= ZZ; ++i)
@@ -357,7 +354,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[], const matrix box)
         }
 
         int direction = 1;
-        fprintf(stderr, "\nMoving into [ %g %g %g ] direction.\n", force[XX], force[YY], force[ZZ]);
+        fprintf(input_output()->output_file(), "#\tMinimization\n#\tMinimization - New direction:\t[ %g %g %g ]\n#Minimization - Step size:\t%g\n", force[XX], force[YY], force[ZZ], step_size);
         do
         {
             RVec force_scaled;
@@ -365,7 +362,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[], const matrix box)
             {
                 svmul(step_size*direction, force, force_scaled);
                 rvec_inc(translation_, force_scaled);
-                fprintf(stderr, "\nScaled force: [ %g %g %g ] .\n", force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
+                fprintf(input_output()->output_file(), "#\tMinimization - Move attemted to\t[ %g %g %g ]\n", force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
             }
             if (mpi_helper() != nullptr)
             {
@@ -381,7 +378,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[], const matrix box)
                 simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
                 norm_simulated_        = simulated_density_->normalize();
                 new_divergence         = absolute_kl_divergence(target_density_->data(), simulated_density_->data());
-                fprintf(stderr, "new divergence: %g , reference: %g \n", new_divergence, reference_divergence);
+                fprintf(input_output()->output_file(), "#\tMinimization - Divergence before move: %g , after move: %g\n", reference_divergence, new_divergence);
                 if (std::abs(new_divergence) < std::abs(reference_divergence))
                 {
                     reference_divergence = new_divergence;
@@ -390,6 +387,7 @@ void DensityFitting::translate_atoms_into_map_(const rvec x[], const matrix box)
                 }
                 else
                 {
+                    fprintf(input_output()->output_file(), "#\tMinimization - Moving back now.\n");
                     direction  = -1;
                     step_size /= 2.;
                 }
@@ -412,20 +410,33 @@ DensityFitting::initialize_target_density_()
 void
 DensityFitting::initialize_buffers_()
 {
-    for (int thread = 0; thread < std::max(1, gmx_omp_nthreads_get(emntDefault)); thread++)
+    force_density_.resize(number_of_threads_);
+    force_gauss_transform_.resize(number_of_threads_);
+    simulated_density_buffer_.resize(number_of_threads_);
+    gauss_transform_.resize(number_of_threads_);
+#pragma omp parallel num_threads(number_of_threads_)
     {
-        force_density_.push_back((std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())));
-        force_density_[thread]->copy_grid(*target_density_);
+        int           thread     = gmx_omp_get_thread_num();
+
+        auto          forceDensityTmp = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
+        forceDensityTmp->copy_grid(*target_density_);
+
+        force_density_[thread] = std::move(forceDensityTmp);
 
         /* Create a gauss transform object for each density buffer,
          * because the gauss transforms will be carried out simultaneously
          */
-        force_gauss_transform_.push_back((std::unique_ptr<volumedata::FastGaussianGriddingForce>(new volumedata::FastGaussianGriddingForce())));
-        force_gauss_transform_[thread]->set_sigma(sigma_);
-        force_gauss_transform_[thread]->set_n_sigma(n_sigma_);
-        simulated_density_buffer_.push_back(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal()));
-        simulated_density_buffer_[thread]->copy_grid(*target_density_);
-        gauss_transform_.push_back(std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding()));
+        auto forceGaussTransformTmp = std::unique_ptr<volumedata::FastGaussianGriddingForce>(new volumedata::FastGaussianGriddingForce());
+        forceGaussTransformTmp->set_sigma(sigma_);
+        forceGaussTransformTmp->set_n_sigma(n_sigma_);
+
+        force_gauss_transform_[thread] = std::move(forceGaussTransformTmp);
+
+        auto simulatedDensityTmp = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
+        simulatedDensityTmp->copy_grid(*target_density_);
+        simulated_density_buffer_[thread] = std::move(simulatedDensityTmp);
+        auto gaussTransformTmp = std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding());
+        gauss_transform_[thread] = std::move(gaussTransformTmp);
     }
 }
 
@@ -461,10 +472,12 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     if (isCenterOfMassCentered_)
     {
         translate_atoms_into_map_(x, box);
+        reference_density_ = simulated_density_->data();
     }
     absolute_target_divergence_ = std::abs(absolute_kl_divergence(target_density_->data(), simulated_density_->data()));
-    fprintf(stderr, "\n\tDENSITYFITTING: Absolute KL divergence between densitites : %g. \n", absolute_target_divergence_);
+    fprintf(input_output()->output_file(), "# KL-divergence(target|simulated): %g.\n", absolute_target_divergence_);
     requested_delta_divergence_ = absolute_target_divergence_*(float)every_nth_step_/(float)nsteps_till_fit_;
+    // wholemoleculegroup(x, box, 0)->medianSort();
     out_  = open_xtc(trajectory_name_.c_str(), "w");
 }
 
@@ -543,7 +556,9 @@ void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
 {
     #pragma omp parallel num_threads(number_of_threads_) shared(fitatoms) default(none)
     {
-        int           thread     = gmx_omp_get_thread_num();
+        int           thread             = gmx_omp_get_thread_num();
+        auto         &threadlocaldensity = *simulated_density_buffer_[thread];
+        threadlocaldensity.data() = (*simulated_density_).data();
         real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
 
         force_gauss_transform_[thread]->set_grid(std::move(force_density_[thread]));
@@ -580,10 +595,9 @@ void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
              * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
              * simulated_density_->grid_cell_volume()/
              */
-            copy_rvec( threadlocal_force_gauss_transform->force(x_shifted, *((*atom).properties)*prefactor, *simulated_density_), *((*atom).force));
-
+            copy_rvec( threadlocal_force_gauss_transform->force(x_shifted, *((*atom).properties)*prefactor, threadlocaldensity), *((*atom).force));
         }
-        force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
+        force_density_[thread] = std::move(threadlocal_force_gauss_transform->finish_and_return_grid());
     }
 }
 
@@ -591,7 +605,7 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
 {
     auto fitatoms = wholemoleculegroup(x, box, 0);
 
-    if (step%(10*every_nth_step_) == 0)
+    if (step%(100*every_nth_step_) == 0)
     {
         matrix      box_write;
         copy_mat(box, box_write);
@@ -784,6 +798,10 @@ void DensityFitting::read_input()
     {
         nsteps_till_fit_ = std::stoi(parsed_json.at("nsteps_till_fit"));
     }
+    else
+    {
+        nsteps_till_fit_ = 1000000;
+    }
 
     if (parsed_json.has("k_factor"))
     {
@@ -815,7 +833,8 @@ void DensityFitting::read_input()
     if (parsed_json.has("target_density"))
     {
         volumedata::MrcFile  target_input_file;
-        target_input_file.read(parsed_json["target_density"], *target_density_);
+        target_density_name_ = parsed_json["target_density"];
+        target_input_file.read(target_density_name_, *target_density_);
         if (parsed_json.has("target_density_used"))
         {
             target_input_file.write(parsed_json["target_density_used"], *target_density_);
@@ -840,7 +859,26 @@ void DensityFitting::read_input()
         trajectory_name_ = "out.xtc";
     }
 
+    fprintf(input_output()->output_file(), "%s", dumpParsedInput().c_str());
     fprintf(input_output()->output_file(), "KL-div\tk\t%%match\tF_max\tweight\n");
+
+}
+
+std::string
+DensityFitting::dumpParsedInput()
+{
+    std::string result("#input: \n");
+    result += "#input:\tk\t\t = " + std::to_string(k_) + "\n";
+    result += "#input:\tsigma\t\t = " + std::to_string(sigma_) + "\n";
+    result += "#input:\tn_sigma\t\t = " + std::to_string(n_sigma_) + "\n";
+    result += "#input:\tbackground_density\t\t = " + std::to_string(background_density_) + "\n";
+    result += "#input:\tnsteps_till_fit\t\t = " + std::to_string(nsteps_till_fit_) + "\n";
+    result += "#input:\tk_factor\t\t = " + std::to_string(k_factor_) + "\n";
+    result += "#input:\tcenter_to_density\t\t = " + std::to_string(isCenterOfMassCentered_) + "\n";
+    result += "#input:\tevery_nth_step\t\t = " + std::to_string(every_nth_step_) + "\n";
+    result += "#input:\ttarget_density\t\t = " + target_density_name_ + "\n";
+
+    return result;
 }
 
 void DensityFitting::broadcast_internal()
