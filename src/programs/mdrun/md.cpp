@@ -75,6 +75,7 @@
 #include "gromacs/mdlib/mdebin.h"
 #include "gromacs/mdlib/mdoutf.h"
 #include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/mdsetup.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
 #include "gromacs/mdlib/ns.h"
@@ -421,30 +422,11 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     }
     else
     {
-        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO);
-
-        forcerec_set_excl_load(fr, top);
-
         state    = serial_init_local_state(state_global);
 
-        atoms2md(top_global, ir, 0, NULL, top_global->natoms, mdatoms);
-
-        if (vsite)
-        {
-            set_vsite_top(vsite, top, mdatoms, cr);
-        }
-
-        if (ir->ePBC != epbcNONE && !fr->bMolPBC)
-        {
-            graph = mk_graph(fplog, &(top->idef), 0, top_global->natoms, FALSE, FALSE);
-        }
-
-        if (shellfc)
-        {
-            make_local_shells(cr, mdatoms, shellfc);
-        }
-
-        setup_bonded_threading(fr, &top->idef);
+        snew(top, 1);
+        mdAlgorithmsSetupAtomData(cr, ir, top_global, top, fr,
+                                  &graph, mdatoms, vsite, shellfc);
 
         update_realloc(upd, state->nalloc);
     }
@@ -471,7 +453,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
 
     if (ir->bExpanded)
     {
-        init_expanded_ensemble(startingFromCheckpoint, ir, &state->dfhist);
+        init_expanded_ensemble(startingFromCheckpoint, ir, state->dfhist);
     }
 
     if (MASTER(cr))
@@ -1261,9 +1243,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                statistics, but if performing simulated tempering, we
                do update the velocities and the tau_t. */
 
-            lamnew = ExpandedEnsembleDynamics(fplog, ir, enerd, state, &MassQ, state->fep_state, &state->dfhist, step, state->v, mdatoms);
+            lamnew = ExpandedEnsembleDynamics(fplog, ir, enerd, state, &MassQ, state->fep_state, state->dfhist, step, state->v, mdatoms);
             /* history is maintained in state->dfhist, but state_global is what is sent to trajectory and log output */
-            copy_df_history(&state_global->dfhist, &state->dfhist);
+            copy_df_history(state_global->dfhist, state->dfhist);
         }
 
         /* Now we have the energies and forces corresponding to the
@@ -1609,7 +1591,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
             {
                 /* only needed if doing expanded ensemble */
                 PrintFreeEnergyInfoToFile(fplog, ir->fepvals, ir->expandedvals, ir->bSimTemp ? ir->simtempvals : NULL,
-                                          &state_global->dfhist, state->fep_state, ir->nstlog, step);
+                                          state_global->dfhist, state->fep_state, ir->nstlog, step);
             }
             if (bCalcEner)
             {

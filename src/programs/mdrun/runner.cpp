@@ -1312,7 +1312,9 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         {
             status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
                                   mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
-                                  (Flags & MD_REPRODUCIBLE), nthreads_pme);
+                                  (Flags & MD_REPRODUCIBLE),
+                                  ewaldcoeff_q, ewaldcoeff_lj,
+                                  nthreads_pme);
             if (status != 0)
             {
                 gmx_fatal(FARGS, "Error %d initializing PME", status);
@@ -1453,6 +1455,12 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                fr ? fr->nbv : NULL,
                EI_DYNAMICS(inputrec->eI) && !MULTISIM(cr));
 
+    // Free PME data
+    if (pmedata)
+    {
+        gmx_pme_destroy(pmedata);
+        pmedata = NULL;
+    }
 
     /* Free GPU memory and context */
     free_gpu_resources(fr, cr, &hwinfo->gpu_info, fr ? fr->gpu_opt : NULL);

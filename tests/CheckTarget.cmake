@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+# Copyright (c) 2014,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -32,53 +32,36 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# make an "object library" for code that we re-use for both kinds of tests
-add_library(mdrun_test_objlib OBJECT
-    mdruncomparisonfixture.cpp
-    moduletest.cpp
-    terminationhelper.cpp
-    )
+# "tests" target builds all the separate test binaries.
+add_custom_target(tests)
+# "run-ctest" is an internal target that actually runs the tests.
+# This is necessary to be able to add separate targets that execute as part
+# of 'make check', but are ensured to be executed after the actual tests.
+add_custom_target(run-ctest
+                  COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+                  COMMENT "Running all tests"
+                  VERBATIM)
+add_dependencies(run-ctest tests)
+# "check" target builds and runs all tests.
+add_custom_target(check DEPENDS run-ctest)
 
-set(testname "MdrunTests")
-set(exename "mdrun-test")
+# Global property for collecting notices to show at the end of the "check"
+# target.
+set_property(GLOBAL PROPERTY GMX_TESTS_NOTICE)
 
-gmx_add_gtest_executable(
-    ${exename}
-    # files with code for tests
-    tabulated_bonded_interactions.cpp
-    energyreader.cpp
-    grompp.cpp
-    rerun.cpp
-    trajectory_writing.cpp
-    trajectoryreader.cpp
-    compressed_x_output.cpp
-    swapcoords.cpp
-    interactiveMD.cpp
-    termination.cpp
-    # pseudo-library for code for testing mdrun
-    $<TARGET_OBJECTS:mdrun_test_objlib>
-    # pseudo-library for code for mdrun
-    $<TARGET_OBJECTS:mdrun_objlib>
-    )
-gmx_register_gtest_test(${testname} ${exename} INTEGRATION_TEST)
+function (gmx_add_missing_tests_notice TEXT)
+    set_property(GLOBAL APPEND PROPERTY GMX_TESTS_NOTICE ${TEXT})
+endfunction()
 
-set(testname "MdrunMpiTests")
-set(exename "mdrun-mpi-test")
-
-gmx_add_gtest_executable(
-    ${exename} MPI
-    # files with code for tests
-    energyreader.cpp
-    multisim.cpp
-    multisimtest.cpp
-    replicaexchange.cpp
-    domain_decomposition.cpp
-    externalpotentialtests.cpp
-    # files with code for test fixtures
-    moduletest.cpp
-    # pseudo-library for code for testing mdrun
-    $<TARGET_OBJECTS:mdrun_test_objlib>
-    # pseudo-library for code for mdrun
-    $<TARGET_OBJECTS:mdrun_objlib>
-    )
-gmx_register_gtest_test(${testname} ${exename} MPI_RANKS 2 INTEGRATION_TEST)
+function (gmx_create_missing_tests_notice_target)
+    get_property(_text GLOBAL PROPERTY GMX_TESTS_NOTICE)
+    set(_cmds)
+    foreach (_line ${_text})
+        list(APPEND _cmds COMMAND ${CMAKE_COMMAND} -E echo "NOTE: ${_line}")
+    endforeach()
+    add_custom_target(missing-tests-notice
+        ${_cmds}
+        DEPENDS run-ctest
+        COMMENT "Some tests not available" VERBATIM)
+    add_dependencies(check missing-tests-notice)
+endfunction()
