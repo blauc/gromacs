@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,37 +32,54 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \libinternal \file
+ * \brief
+ * Declares quaternions
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \ingroup module_math
+ * \inlibraryapi
+ */
+#ifndef GMX_MATH_QUATERNION_H_
+#define GMX_MATH_QUATERNION_H_
 
-#include <vector>
-#include "gromacs/utility/real.h"
-#include "gromacs/mdtypes/commrec.h"
+#include "vectypes.h"
+#include <array>
+#include "gromacs/utility/classhelpers.h"
 
 namespace gmx
 {
-class MpiHelper
+
+class Quaternion
 {
     public:
-        explicit MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster);
-        void cr(t_commrec *cr);
-        void sum_reduce();
-        bool isMaster();
-        void broadcast(void * ptr, size_t size);
-        real from_reals_buffer();
-        void from_reals_buffer(matrix result);
-        void from_reals_buffer(real * vector, int size);
-        void to_reals_buffer(real value);
-        void to_reals_buffer(const real * vector, int size);
-        void to_reals_buffer(real matrix[3][3]);
-        real max(real value);
-        void finish();
-        void sum_reduce_rvec(rvec vector);
+        typedef std::array<real, 4> QVec;
+        /*! Construct a QVec from orientation direction and rotation angle.
+         * \param[in] direction Vector pointing into the orientation direction.
+         * \param[in] phi Rotation around direction in rad.
+         */
+        Quaternion(RVec direction, real phi);
+        Quaternion(RVec &x);
+        Quaternion(QVec q);
+        real &operator[](int i);
+        /*! \brief Invert this QVec.
+         * q^(-1) = q*
+         */
+        Quaternion operator*(Quaternion other) const;
+        Quaternion &operator*=(Quaternion other);
+        void operator=(const Quaternion &other);
+        void invert();
+        Quaternion inverse();
+        void normalize();
+        real norm();
+        /*! \brief Multiply q from right.
+         */
+        void rotate(RVec &x);
     private:
-        std::vector<real> inbuf_;
-        std::vector<real> outbuf_;
-        bool              buf_write_;
-        MPI_Comm          mpi_comm_mygroup_;
-        int               masterrank_;
-        bool              bMaster_;
+        QVec q_;
 };
 
-} // namespace gmx
+
+}
+
+#endif /* end of include guard: GMX_MATH_QUATERNIONS_H_ */

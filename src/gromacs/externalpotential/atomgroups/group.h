@@ -123,6 +123,7 @@ class Group
         void set_x(const rvec x[]);
         RVec local_coordinate_sum();
         RVec local_force_sum();
+        real local_weights_sum();
 
     protected:
 

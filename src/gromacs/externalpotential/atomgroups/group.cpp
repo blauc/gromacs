@@ -333,5 +333,15 @@ Group::local_force_sum()
             });
 }
 
+real
+Group::local_weights_sum()
+{
+    return std::accumulate(
+            this->begin(), this->end(), 0.,
+            [] (const real &weightsum, GroupAtom local_atom) {
+                return weightsum+*local_atom.properties;
+            });
+}
+
 
 } // namespace gmx

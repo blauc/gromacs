@@ -128,6 +128,16 @@ void MpiHelper::sum_reduce()
     buf_write_ = false;
 };
 
+void MpiHelper::sum_reduce_rvec(rvec vector)
+{
+    outbuf_.resize(3);
+#ifdef GMX_MPI
+    MPI_Reduce(vector, outbuf_.data(), 3, GMX_MPI_REAL, MPI_SUM, masterrank_, mpi_comm_mygroup_);
+#endif
+    buf_write_ = false;
+};
+
+
 void MpiHelper::finish()
 {
     if (outbuf_.size() != 0)

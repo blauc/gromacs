@@ -178,6 +178,46 @@ WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
     }
 }
 
+const std::vector<RVec> &
+WholeMoleculeGroup::xTransformed()
+{
+    return Group::xTransformed_;
+}
+
+const matrix *
+WholeMoleculeGroup::box()
+{
+    return &box_;
+}
+
+RVec
+WholeMoleculeGroup::local_torque_sum(RVec center)
+{
+    return std::accumulate(
+            this->begin(), this->end(), RVec {0, 0, 0},
+            [center] (RVec &torque_sum, GroupAtom local_atom) {
+                RVec xCentered;
+                RVec torque;
+                rvec_sub(*local_atom.xTransformed, center, xCentered);
+                cprod(*local_atom.force, xCentered, torque);
+                rvec_inc(torque_sum, torque);
+                return torque_sum;
+            });
+}
+
+RVec
+WholeMoleculeGroup::weighted_local_coordinate_sum()
+{
+    return std::accumulate(
+            this->begin(), this->end(), RVec {0, 0, 0},
+            [](RVec &coordinate_sum, GroupAtom local_atom) {
+                RVec weighted_coordinate;
+                svmul(*local_atom.properties, *local_atom.xTransformed, weighted_coordinate);
+                rvec_inc(coordinate_sum, weighted_coordinate);
+                return coordinate_sum;
+            });
+}
+
 /* Ensure this is called after Group::set_indices */
 void
 WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box)

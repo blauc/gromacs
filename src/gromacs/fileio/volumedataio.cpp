@@ -663,8 +663,7 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
         }
     }
 
-
-    if (!is_crystallographic())
+    if (!is_crystallographic() && bRead)
     {
         /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
          * values read here are ignored.
@@ -674,7 +673,6 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
          * Silently ignore if the map translation due to grid-index start shift
          * does not match the shift reported here.
          */
-
         if (meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
         {
             grid_data.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
@@ -732,7 +730,7 @@ void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
     }
     else
     {
-        write_int32_(meta_.num_labels);
+        write_int32_(meta_.labels.size());
     }
 
     /* 57-256 | LABEL_N | ASCII char
@@ -985,7 +983,6 @@ void MrcFile::Impl::set_metadata_mrc_default()
     meta_.machine_stamp            = 0x44410000;
 #endif
 
-    meta_.num_labels               = 1;
     meta_.labels                   = {
         {"::::EMDataBank.org::::EMD-xxxx::::Own Data Following EMDB convention::::::::::::"},
         {"                                                                                "},
@@ -998,7 +995,8 @@ void MrcFile::Impl::set_metadata_mrc_default()
         {"                                                                                "},
         {"                                                                                "}
     };
-    meta_.extended_header = {};
+    meta_.num_labels               = meta_.labels.size();
+    meta_.extended_header          = {};
 }
 
 void MrcFile::Impl::close_file()

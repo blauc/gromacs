@@ -87,7 +87,11 @@ class WholeMoleculeGroup : public Group
         void set_x(const rvec x[], const matrix box);
         void make_whole_molecule_reference(const rvec x[], const gmx_mtop_t *top_global, const int ePBC);
         void medianSort();
-
+        void centerOfMass();
+        const matrix * box();
+        const std::vector<RVec> &xTransformed();
+        RVec weighted_local_coordinate_sum();
+        RVec local_torque_sum(RVec center);
 
     private:
         void update_shifts_();
@@ -104,6 +108,7 @@ class WholeMoleculeGroup : public Group
         const int                  npbcdim_;
         std::vector<int>           sortIndex_;
         t_fileio                 * out_;
+        RVec                       com_;
 
 };
 

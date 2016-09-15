@@ -43,6 +43,7 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/mdtypes/mdatom.h"
+#include "gromacs/math/quaternion.h"
 
 struct t_fileio;
 struct gmx_mtop_atomlookup;
@@ -91,21 +92,29 @@ class DensityFitting : public ExternalPotential
 
     private:
         void do_force_plain(const rvec x, rvec force);
-        void translate_atoms_into_map_(const rvec x[], const matrix box);
+        void translate_atoms_into_map_(WholeMoleculeGroup * translationgroup);
         void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
         void SpreadKernel(GroupAtom &atom, const int &thread);
-        void spread_density_(WholeMoleculeGroup * spreadgroup);
+        void spreadLocalAtoms_(WholeMoleculeGroup * spreadgroup);
         void sum_reduce_simulated_density_();
         void ForceKernel_KL(GroupAtom &atom, const int &thread);
-        void plot_forces(const rvec x[], const matrix box);
+        void plot_forces(WholeMoleculeGroup * plotatoms);
         void initialize_target_density_();
         void initialize_buffers_();
         void initialize_spreading_();
-        void initialize_reference_density(const rvec x[], const matrix box);
+        void setCenterOfMass(WholeMoleculeGroup * atomgroup);
         void KLForceCalculation_(WholeMoleculeGroup * fitatoms);
         std::string dumpParsedInput();
+        void sumReduceNormalize_();
+        void invertMultiplySimulatedDensity_();
+        RVec shiftedAndOriented(const RVec x);
+        void writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step);
+        real KLDivergenceFromTargetOnMaster(WholeMoleculeGroup * atomgroup);
+        void alignComDensityAtoms();
+        bool optimizeTranslation(WholeMoleculeGroup * translationgroup);
+        bool optimizeOrientation(WholeMoleculeGroup * atomgroup);
 
         DensityFitting();
 
@@ -132,11 +141,13 @@ class DensityFitting : public ExternalPotential
         real                    reference_divergence_ = 0;
         real                    k_factor_;
         int                     number_of_threads_;
-        int                     nsteps_till_fit_;
         real                    absolute_target_divergence_;
-        real                    requested_delta_divergence_;
-
+        real                    optimalDeltaPotentialEnergy_;
+        real                    exponentialDeltaEnergyAverage_;
+        real                    maximumEnergyFluctuationPerAtom_;
         std::string             target_density_name_;
+        RVec                    centerOfMass_;
+        Quaternion              orientation_;
 };
 
 class DensityFittingInfo

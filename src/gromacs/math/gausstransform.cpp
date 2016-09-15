@@ -165,22 +165,31 @@ FastGaussianGridding::tensor_product_()
     real   spread_zy;
     std::vector<real>::iterator voxel;
     real * spread_1d_XX;
+    std::vector < std::vector < int>> ceilSqrtLUT(m_spread_+1);
+    for (int d_z = 0; d_z <= m_spread_; d_z++)
+    {
+        ceilSqrtLUT[d_z].resize( (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z))+1);
+        for (int d_y = 0; d_y*d_y <= m_spread_*m_spread_ - d_z*d_z; d_y++)
+        {
+            ceilSqrtLUT[d_z][d_y] = (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y));
+        }
+    }
     #pragma omp simd
     for (int globalGridIndexZZ = minimumGlobalGridIndex[ZZ]; globalGridIndexZZ <= maximumGlobalGridIndex[ZZ]; ++globalGridIndexZZ)
     {
         int d_z              = globalGridIndexZZ - grid_index_of_spread_atom_[ZZ];
         int localGridIndexZZ = d_z + m_spread_;
         // spread spheres instead of cubes
-        int globalGridIndexYYStart = std::max(minimumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z)));
-        int globalGridIndexYYEnd   = std::min(maximumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z)));
+        int globalGridIndexYYStart = std::max(minimumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] - ceilSqrtLUT[std::abs(d_z)][0]);
+        int globalGridIndexYYEnd   = std::min(maximumGlobalGridIndex[YY], grid_index_of_spread_atom_[YY] + ceilSqrtLUT[std::abs(d_z)][0]);
 
         for (int globalGridIndexYY = globalGridIndexYYStart; globalGridIndexYY <= globalGridIndexYYEnd; ++globalGridIndexYY)
         {
             int d_y              = globalGridIndexYY - grid_index_of_spread_atom_[YY];
             int localGridIndexYY = d_y + m_spread_;
             spread_zy    = spread_2d_[localGridIndexZZ][localGridIndexYY];
-            int globalGridIndexXXStart = std::max(minimumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] - (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y)));
-            int globalGridIndexXXEnd   = std::min(maximumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] + (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y)));
+            int globalGridIndexXXStart = std::max(minimumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] - ceilSqrtLUT[std::abs(d_z)][std::abs(d_y)]);
+            int globalGridIndexXXEnd   = std::min(maximumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] + ceilSqrtLUT[std::abs(d_z)][std::abs(d_y)]);
             int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
             int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
             voxel        = grid_->zy_column_begin(globalGridIndexZZ, globalGridIndexYY)+globalGridIndexXXStart;
