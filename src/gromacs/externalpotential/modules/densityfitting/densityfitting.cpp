@@ -529,12 +529,45 @@ DensityFitting::optimizeOrientation(WholeMoleculeGroup * atomgroup)
 void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationgroup)
 {
     alignComDensityAtoms();
+    std::array<real, 2> upperHalfGrid {{
+                                           1./3., 1.
+                                       }};
+    std::array<real, 4> gridPoints {{
+                                        -1, 0, 1
+                                    }};
+    Quaternion bestOrientation = orientation_;
+    RVec       bestTranslation = translation_;
+    real       bestDivergence  = KLDivergenceFromTargetOnMaster(translationgroup);
 
-    while (optimizeTranslation(translationgroup) || optimizeOrientation(translationgroup))
+    // save orientation
+    // optimize orientation and translation from there
+    // save if minimum divergence
+    // try next orientation
+    for (auto q0 : upperHalfGrid)
     {
+        for (auto q1 : gridPoints)
+        {
+            for (auto q2 : gridPoints)
+            {
+                for (auto q3 : gridPoints)
+                {
+                    orientation_ = Quaternion(Quaternion::QVec {{q0, q1, q2, q3}});
+                    while (optimizeTranslation(translationgroup) || optimizeOrientation(translationgroup))
+                    {
+                        real currentDivergence =  KLDivergenceFromTargetOnMaster(translationgroup);
+                        if (currentDivergence < bestDivergence)
+                        {
+                            bestTranslation = translation_;
+                            bestOrientation = orientation_;
+                            bestDivergence  = currentDivergence;
+                        }
+                    }
+                }
+            }
+        }
     }
-    ;
-
+    translation_ = bestTranslation;
+    orientation_ = bestOrientation;
 }
 
 

@@ -59,6 +59,7 @@ Quaternion::Quaternion(RVec &x) : q_
 Quaternion::Quaternion(QVec q) : q_ {q}
 {}
 
+
 Quaternion::Quaternion(RVec direction, real phi)
 {
     real sin_phi_half = std::sin(phi/2.0);
@@ -72,10 +73,11 @@ Quaternion::Quaternion(RVec direction, real phi)
     normalize();
 }
 
-void
+Quaternion
 Quaternion::operator=(const Quaternion &other)
 {
     q_ = other.q_;
+    return *this;
 }
 
 real &

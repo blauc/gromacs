@@ -67,7 +67,7 @@ class Quaternion
          */
         Quaternion operator*(Quaternion other) const;
         Quaternion &operator*=(Quaternion other);
-        void operator=(const Quaternion &other);
+        Quaternion operator=(const Quaternion &other);
         void invert();
         Quaternion inverse();
         void normalize();
