@@ -113,8 +113,15 @@ class DensityFitting : public ExternalPotential
         void writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step);
         real KLDivergenceFromTargetOnMaster(WholeMoleculeGroup * atomgroup);
         void alignComDensityAtoms();
-        bool optimizeTranslation(WholeMoleculeGroup * translationgroup);
-        bool optimizeOrientation(WholeMoleculeGroup * atomgroup);
+        bool optimizeTranslation(WholeMoleculeGroup * translationgroup, real &divergenceToCompareTo);
+        bool optimizeOrientation(WholeMoleculeGroup * atomgroup, real &divergenceToCompareTo);
+        void doPotentialKL_( const matrix box, const rvec x[], const gmx_int64_t step);
+        void doPotentialCC_( const matrix box, const rvec x[], const gmx_int64_t step);
+        void doPotentialINV_( const matrix box, const rvec x[], const gmx_int64_t step);
+        void CCMethod( const matrix box, const rvec x[], const gmx_int64_t step);
+        void initializeKL_(const matrix box, const rvec x[]);
+        void initializeCC_(const matrix box, const rvec x[]);
+        void initializeINV_(const matrix box, const rvec x[]);
 
         DensityFitting();
 
@@ -148,6 +155,11 @@ class DensityFitting : public ExternalPotential
         std::string             target_density_name_;
         RVec                    centerOfMass_;
         Quaternion              orientation_;
+        std::string             fitMethod_;
+        std::function<void(const matrix box, const rvec x[])> initialize_;
+        std::function<void(const matrix box, const rvec x[], const gmx_int64_t step)> doPotential_;
+        std::vector < std::unique_ptr < volumedata::GridReal>> invertedDensityForces_;
+
 };
 
 class DensityFittingInfo

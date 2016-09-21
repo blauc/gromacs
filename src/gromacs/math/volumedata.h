@@ -44,6 +44,7 @@
 #define GMX_MATH_VOLUMEDATA_H_
 #include <memory>
 #include <vector>
+#include <array>
 
 #include "gromacs/math/vectypes.h"
 
@@ -107,7 +108,7 @@ class FiniteGrid
          * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
          */
         void   set_extend(IVec extend);
-        IVec   extend();         //!< return the extend of the grid
+        IVec   extend() const;   //!< return the extend of the grid
         size_t num_gridpoints(); //!< evaluates extend[0]*extend[1]*extend[2]
 
         /*! \brief
@@ -155,9 +156,15 @@ class FiniteGrid
         IVec coordinate_to_gridindex_floor_ivec(const rvec  x);
         RVec gridpoint_coordinate(IVec i) const;
 
+        bool inGrid(IVec gridIndex) const;
+
         RVec unit_cell_XX() const;
         RVec unit_cell_YY() const;
         RVec unit_cell_ZZ() const;
+
+        void extendCellByUnitCellInXX();
+        void extendCellByUnitCellInYY();
+        void extendCellByUnitCellInZZ();
 
         real grid_cell_volume();
 
@@ -197,11 +204,16 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         /*! \brief
          * Access a section of the volume density data via start and end iterator.
          */
-        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> z_section(int z);
+        std::array<std::vector<real>::iterator, 2> z_section(int z);
         /*! \brief
          * Access column of the volume density data through start and end iterator.
          */
-        std::pair<std::vector<real>::iterator, std::vector<real>::iterator> zy_column(int z, int y);
+        std::array<std::vector<real>::iterator, 2> zy_column(int z, int y);
+
+        /*!\brief
+         * Interpolate neighbouring grid-points, doubling grid spacing.
+         */
+        void halfResolution();
 
         /*! \brief
          * Access the start of a column through iterator.
@@ -229,6 +241,14 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
          * Two pass algorithm, where mean is calculated fist, due to large expected amount of data. (Typical data size=1,000,000)
          */
         real var();
+
+        std::vector<real>::iterator next_column(std::vector<real>::iterator x);
+        std::vector<real>::iterator next_slice(std::vector<real>::iterator x);
+
+        void reduceHalfRows();
+        void reduceHalfColumns();
+        void reduceHalfSlices();
+
 
         /*! \brief
          * Copy the properties from another grid to this one.

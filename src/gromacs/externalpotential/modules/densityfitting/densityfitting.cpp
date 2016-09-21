@@ -252,7 +252,8 @@ void DensityFitting::spreadLocalAtoms_(WholeMoleculeGroup * spreadgroup)
         GroupIterator end_of_thread_atoms   = spreadgroup->end(thread, number_of_threads_);
         for (auto atom = first_atom_for_thread; atom != end_of_thread_atoms; ++atom)
         {
-            gauss_transform_[thread]->transform(shiftedAndOriented(*(*atom).xTransformed), *(*atom).properties);
+            RVec shiftedCoordiantes = shiftedAndOriented(*(*atom).xTransformed);
+            gauss_transform_[thread]->transform(shiftedCoordiantes, *(*atom).properties);
         }
         simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
         minimumUsedGridIndex[thread]      = gauss_transform_[thread]->getMinimumUsedGridIndex();
@@ -363,165 +364,129 @@ DensityFitting::alignComDensityAtoms()
 }
 
 bool
-DensityFitting::optimizeTranslation(WholeMoleculeGroup * translationgroup)
+DensityFitting::optimizeTranslation(WholeMoleculeGroup * translationgroup, real &divergenceToCompareTo)
 {
-    const real minimum_step_size          = 0.01;
-    const real maximum_step_size          = 0.5;
+    const real step_size                  = 0.02;
     bool       succededReducingDivergence = false;
-    real       step_size                  = maximum_step_size; //TODO: set this relative to box size
     // calculate gradient vector
     // normalize to step size
     // move along gradient vector
-    // check new potential
-    // if better, accept, else flip gradient vector, half step-size
-    // move back along gradient vector
-    // stop if step size too small
-    while (step_size > minimum_step_size)
+    // accept translation if new potential better
+    auto translationBeforeTrial = translation_;
+    spreadLocalAtoms_(translationgroup);
+    sumReduceNormalize_();
+    invertMultiplySimulatedDensity_();
+    KLForceCalculation_(translationgroup);
+    auto force = translationgroup->local_force_sum();
+    if (mpi_helper() != nullptr)
     {
-        //calculate the ridig body fitting force on the current atom configuration:
-        // - spread local atoms on grid,
-        // - communicate grid
-        // - get a reference KL divergence ot target density on Master node
-        // - calculate force on each atom
-        // - the total sum of the forces is the rigid body fitting force
-        // - communicate this force
-        auto reference_divergence = std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
-        invertMultiplySimulatedDensity_();
-        KLForceCalculation_(translationgroup);
-        auto force = translationgroup->local_force_sum();
+        mpi_helper()->sum_reduce_rvec(force);
+    }
 
-        if (mpi_helper() != nullptr)
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+        unitv(force, force);
+    }
+
+    fprintf(input_output()->output_file(), "#\tMinimization\n"
+            "#\tMinimization - New direction:\t[ %g %g %g ]\n"
+            "#\tMinimization - Step size:\t%g nm .\n", force[XX], force[YY], force[ZZ], step_size);
+    RVec force_scaled;
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+        svmul(step_size, force, force_scaled);
+        rvec_inc(translation_, force_scaled);
+        fprintf(input_output()->output_file(), "#\tMinimization - Move attemted to\t[ %g %g %g ]\n", force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
+    }
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->broadcast(&translation_, 1);
+    }
+    auto new_divergence =  std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+
+        fprintf(input_output()->output_file(), "#\tMinimization - Divergence before move: %g , after move: %g\n", divergenceToCompareTo, new_divergence);
+
+        if (new_divergence < divergenceToCompareTo)
         {
-            mpi_helper()->sum_reduce_rvec(force);
+            succededReducingDivergence   = true;
+            divergenceToCompareTo        = new_divergence;
         }
-
-        if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+        else
         {
-            unitv(force, force);
+            translation_ = translationBeforeTrial;
         }
-
-        int direction = 1;
-        fprintf(input_output()->output_file(), "#\tMinimization\n"
-                "#\tMinimization - New direction:\t[ %g %g %g ]\n"
-                "#\tMinimization - Step size:\t%g nm .\n", force[XX], force[YY], force[ZZ], step_size);
-        do
-        {
-            RVec force_scaled;
-            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-            {
-                svmul(step_size*direction, force, force_scaled);
-                rvec_inc(translation_, force_scaled);
-                fprintf(input_output()->output_file(), "#\tMinimization - Move attemted to\t[ %g %g %g ]\n", force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
-            }
-            if (mpi_helper() != nullptr)
-            {
-                mpi_helper()->broadcast(&translation_, 1);
-            }
-            auto new_divergence =  std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
-            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-            {
-
-                fprintf(input_output()->output_file(), "#\tMinimization - Divergence before move: %g , after move: %g\n", reference_divergence, new_divergence);
-
-                if (new_divergence < reference_divergence)
-                {
-                    succededReducingDivergence  = true;
-                    reference_divergence        = new_divergence;
-                    step_size                   = maximum_step_size;
-                    break;
-                }
-                else
-                {
-                    fprintf(input_output()->output_file(), "#\tMinimization - Moving back now.\n");
-                    direction  = -1;
-                    step_size /= 2;
-                }
-            }
-
-        }
-        while (step_size > minimum_step_size);
     }
     return succededReducingDivergence;
 }
 
 bool
-DensityFitting::optimizeOrientation(WholeMoleculeGroup * atomgroup)
+DensityFitting::optimizeOrientation(WholeMoleculeGroup * atomgroup, real &divergenceToCompareTo)
 {
-    const real minimumRotationAngle        = M_PI/1024.;
-    const real maximumRotationAngle        = M_PI/8.; // maximum range of rotations with quaternion representation goes from 0 ... +pi
-    real       rotationAngle               = maximumRotationAngle;
+    const real rotationAngle               = M_PI/128.;
     bool       succeededReducingDivergence = false;
+
     // calculate gradient vector
     // normalize to step size
     // move along gradient vector
-    // check new potential
-    // if better, accept, else flip gradient vector, half step-size
+    // accept if new potential better than old
     // move back along gradient vector
-    // stop if step size too small
-    while (rotationAngle > minimumRotationAngle)
+
+    spreadLocalAtoms_(atomgroup);
+    sumReduceNormalize_();
+    invertMultiplySimulatedDensity_();
+    KLForceCalculation_(atomgroup);
+
+    auto torque_direction = atomgroup->local_torque_sum(centerOfMass_); //TODO: check for sign of rotation
+
+    if (mpi_helper() != nullptr)
     {
-        //calculate the ridig body fitting force on the current atom configuration:
-        // - spread local atoms on grid,
-        // - communicate grid
-        // - get a reference KL divergence ot target density on Master node
-        // - calculate force on each atom
-        // - the total sum of the forces is the rigid body fitting force
-        // - communicate this force
-        auto reference_divergence = std::abs(KLDivergenceFromTargetOnMaster(atomgroup));
-        invertMultiplySimulatedDensity_();
-        KLForceCalculation_(atomgroup);
-        auto torque_direction = atomgroup->local_torque_sum(centerOfMass_); //TODO: check for sign of rotation
+        mpi_helper()->sum_reduce_rvec(torque_direction);
+    }
 
-        if (mpi_helper() != nullptr)
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+        unitv(torque_direction, torque_direction);
+    }
+
+    fprintf(input_output()->output_file(), "#\tMinimization in Orientation Space \n"
+            "#\tMinimization - Torque Vector:\t[ %g %g %g ]\n",
+            torque_direction[XX], torque_direction[YY], torque_direction[ZZ]);
+
+    auto orientationBeforeTrial = orientation_;
+
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+        orientation_ *= Quaternion(torque_direction, rotationAngle);
+    }
+    if (mpi_helper() != nullptr)
+    {
+        mpi_helper()->broadcast(&orientation_[0], 4);
+    }
+
+    auto new_divergence =  std::abs(KLDivergenceFromTargetOnMaster(atomgroup));
+
+    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    {
+
+        fprintf(input_output()->output_file(), "#\tMinimization - Divergence before rotation: %g , after rotation: %g\n", divergenceToCompareTo, new_divergence);
+
+        if (new_divergence < divergenceToCompareTo)
         {
-            mpi_helper()->sum_reduce_rvec(torque_direction);
+            succeededReducingDivergence = true;
+            divergenceToCompareTo       = new_divergence;
         }
-
-        if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+        else
         {
-            unitv(torque_direction, torque_direction);
-        }
-
-        int direction = 1;
-        fprintf(input_output()->output_file(), "#\tMinimization in Orientation Space \n"
-                "#\tMinimization - Torque Vector:\t[ %g %g %g ]\n"
-                "#\tMinimization - Step size:\t%g rad\n",
-                torque_direction[XX], torque_direction[YY], torque_direction[ZZ], rotationAngle);
-        do
-        {
-            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-            {
-                orientation_ *= Quaternion(torque_direction, direction * rotationAngle);
-                fprintf(input_output()->output_file(), "#\tMinimization - Rotating \t %g rad.\n", direction * rotationAngle);
-            }
+            orientation_ = orientationBeforeTrial;
             if (mpi_helper() != nullptr)
             {
                 mpi_helper()->broadcast(&orientation_[0], 4);
             }
-            auto new_divergence =  std::abs(KLDivergenceFromTargetOnMaster(atomgroup));
-            if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-            {
-
-                fprintf(input_output()->output_file(), "#\tMinimization - Divergence before rotation: %g , after rotation: %g\n", reference_divergence, new_divergence);
-
-                if (new_divergence < reference_divergence)
-                {
-                    succeededReducingDivergence = true;
-                    reference_divergence        = new_divergence;
-                    rotationAngle               = maximumRotationAngle;
-                    break;
-                }
-                else
-                {
-                    fprintf(input_output()->output_file(), "#\tMinimization - Moving back now.\n");
-                    direction      = -1;
-                    rotationAngle /= 2;
-                }
-            }
-
         }
-        while (rotationAngle > minimumRotationAngle);
     }
+
     return succeededReducingDivergence;
 }
 
@@ -529,20 +494,25 @@ DensityFitting::optimizeOrientation(WholeMoleculeGroup * atomgroup)
 void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationgroup)
 {
     alignComDensityAtoms();
-    std::array<real, 2> upperHalfGrid {{
-                                           1./3., 1.
-                                       }};
-    std::array<real, 4> gridPoints {{
-                                        -1, 0, 1
-                                    }};
-    Quaternion bestOrientation = orientation_;
-    RVec       bestTranslation = translation_;
-    real       bestDivergence  = KLDivergenceFromTargetOnMaster(translationgroup);
 
-    // save orientation
-    // optimize orientation and translation from there
+    std::vector<real> upperHalfGrid {
+        1.
+    };
+    std::vector<real> gridPoints {{
+                                      -1, 1
+                                  }};
+    Quaternion bestOrientation                  = orientation_;
+    RVec       bestTranslation                  = translation_;
+    real       bestDivergence                   = std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
+    auto       bestDivergenceCurrentOrientation = bestDivergence;
+    // Only optimizing orientation
+    // choose orientation from a relatively uniform cover of orientational space
+    // further optimize orientation and translation from there
     // save if minimum divergence
-    // try next orientation
+
+    auto totalNumberOrientations = upperHalfGrid.size()*gridPoints.size()*gridPoints.size()*gridPoints.size();
+    decltype(totalNumberOrientations) currentOrientationNumber = 0;
+
     for (auto q0 : upperHalfGrid)
     {
         for (auto q1 : gridPoints)
@@ -551,16 +521,25 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
             {
                 for (auto q3 : gridPoints)
                 {
+
+                    fprintf(stderr, "Optimizing Orientation: %3lu / %3lu = ", ++currentOrientationNumber, totalNumberOrientations);
+
                     orientation_ = Quaternion(Quaternion::QVec {{q0, q1, q2, q3}});
-                    while (optimizeTranslation(translationgroup) || optimizeOrientation(translationgroup))
+                    orientation_.normalize();
+                    fprintf(stderr, "[ %3g %3g %3g %3g ]", orientation_[0], orientation_[1], orientation_[2], orientation_[3]);
+
+                    bestDivergenceCurrentOrientation =  std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
+
+                    while (optimizeTranslation(translationgroup, bestDivergenceCurrentOrientation) || optimizeOrientation(translationgroup, bestDivergenceCurrentOrientation))
                     {
-                        real currentDivergence =  KLDivergenceFromTargetOnMaster(translationgroup);
-                        if (currentDivergence < bestDivergence)
-                        {
-                            bestTranslation = translation_;
-                            bestOrientation = orientation_;
-                            bestDivergence  = currentDivergence;
-                        }
+                        fprintf(stderr, "\r\t\t\t\t\t\t\tcurrent fit = %g ; best fit = %g \t\t\r", bestDivergenceCurrentOrientation, bestDivergence);
+                    }
+
+                    if (bestDivergenceCurrentOrientation < bestDivergence)
+                    {
+                        bestTranslation = translation_;
+                        bestOrientation = orientation_;
+                        bestDivergence  = bestDivergenceCurrentOrientation;
                     }
                 }
             }
@@ -575,6 +554,10 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
 void
 DensityFitting::initialize_target_density_()
 {
+    // while ( 5. * target_density_->avg_spacing() < sigma_)
+    // {
+    // target_density_->halfResolution();
+    // }
     target_density_->add_offset(target_density_->grid_cell_volume()*background_density_);
     target_density_->normalize();
 };
@@ -624,7 +607,7 @@ DensityFitting::initialize_spreading_()
 }
 
 void
-DensityFitting::initialize(const matrix box, const rvec x[])
+DensityFitting::initializeKL_(const matrix box, const rvec x[])
 {
     out_  = open_xtc(trajectory_name_.c_str(), "w");
     auto fitatoms = wholemoleculegroup(x, box, 0);
@@ -640,7 +623,8 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     if (isCenterOfMassCentered_)
     {
         translate_atoms_into_map_(fitatoms);
-        reference_density_ = simulated_density_->data();
+        absolute_target_divergence_ = std::abs(KLDivergenceFromTargetOnMaster(fitatoms));
+        reference_density_          = simulated_density_->data();
     }
 
     absolute_target_divergence_ = std::abs(absolute_kl_divergence(target_density_->data(), simulated_density_->data()));
@@ -649,13 +633,19 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     fprintf(input_output()->output_file(), "#---Step-size estimate in DensityFitting potential space---.\n");
 
     fprintf(input_output()->output_file(), "#   Maximum energy fluctuation per atom: %g.\n", maximumEnergyFluctuationPerAtom_);
-    const real timeStepNs = 0.001; // TODO: pass this from simulation input
+    const real timeStepNs = 0.004; // TODO: pass this from simulation input
     optimalDeltaPotentialEnergy_ = fitatoms->num_atoms_global()*std::sqrt((float)every_nth_step_) * timeStepNs * maximumEnergyFluctuationPerAtom_;
-    fprintf(input_output()->output_file(), "#   Number of refined atoms: %d .\n ", fitatoms->num_atoms_global());
-    fprintf(input_output()->output_file(), "#   Fitting every %dth step.\n ", every_nth_step_);
-    fprintf(input_output()->output_file(), "#   With time step %g.\n ", timeStepNs);
-    fprintf(input_output()->output_file(), "# Thus estimating optimal change in refinement potental energy: %g .\n ", optimalDeltaPotentialEnergy_);
+    fprintf(input_output()->output_file(), "#   Number of refined atoms: %d .\n", fitatoms->num_atoms_global());
+    fprintf(input_output()->output_file(), "#   Fitting every %dth step.\n", every_nth_step_);
+    fprintf(input_output()->output_file(), "#   With time step %g.\n", timeStepNs);
+    fprintf(input_output()->output_file(), "#   Thus estimating optimal change in refinement potental energy: %g .\n", optimalDeltaPotentialEnergy_);
     // fitatoms->medianSort();
+}
+
+void
+DensityFitting::initialize(const matrix box, const rvec x[])
+{
+    initialize_(box, x);
 }
 
 void DensityFitting::sum_reduce_simulated_density_()
@@ -686,8 +676,9 @@ void DensityFitting::ForceKernel_KL(GroupAtom &atom, const int &thread)
      * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
      * simulated_density_->grid_cell_volume()/
      */
+    RVec shiftedCoordinates = shiftedAndOriented(*atom.xTransformed);
     copy_rvec(
-            force_gauss_transform_[thread]->force(shiftedAndOriented(*atom.xTransformed), *(atom.properties)*k_/(norm_simulated_*sigma_*sigma_), *simulated_density_),
+            force_gauss_transform_[thread]->force(shiftedCoordinates, *(atom.properties)*k_/(norm_simulated_*sigma_*sigma_), *simulated_density_),
             *(atom.force));
 
     force_density_[thread] = std::move(force_gauss_transform_[thread]->finish_and_return_grid());
@@ -709,7 +700,8 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
     }
     for (auto &atom : *plotatoms)
     {
-        plot.plot_force(shiftedAndOriented(*atom.xTransformed), *atom.force, 0, 1.0/max_f);
+        RVec shiftedCoordinates = shiftedAndOriented(*atom.xTransformed);
+        plot.plot_force(shiftedCoordinates, *atom.force, 0, 1.0/max_f);
     }
     plot.stop_plot_forces();
 
@@ -746,7 +738,8 @@ void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
              * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
              * simulated_density_->grid_cell_volume()/
              */
-            copy_rvec( threadlocal_force_gauss_transform->force(shiftedAndOriented(*(*atom).xTransformed), *((*atom).properties)*prefactor, threadlocaldensity), *(*atom).force);
+            RVec shiftedCoordinates = shiftedAndOriented(*(*atom).xTransformed);
+            copy_rvec( threadlocal_force_gauss_transform->force(shiftedCoordinates, *((*atom).properties)*prefactor, threadlocaldensity), *(*atom).force);
         }
         force_density_[thread] = std::move(threadlocal_force_gauss_transform->finish_and_return_grid());
     }
@@ -781,7 +774,35 @@ DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step
 
 }
 
-void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
+void
+DensityFitting::doPotentialINV_( const matrix box, const rvec x[], const gmx_int64_t step)
+{
+    auto fitatoms = wholemoleculegroup(x, box, 0);
+#pragma omp parallel num_threads(number_of_threads_)
+    {
+        for (auto atom : *fitatoms)
+        {
+            RVec shiftedCoordinates = shiftedAndOriented(*atom.xTransformed);
+            IVec gridCoordinate     = target_density_->coordinate_to_gridindex_floor_ivec(shiftedCoordinates);
+            clear_rvec(*atom.force);
+            if (target_density_->inGrid(gridCoordinate))
+            {
+                for (size_t dim = XX; dim <= ZZ; dim++)
+                {
+                    *atom.force[dim] = invertedDensityForces_[dim]->at(gridCoordinate);
+                }
+            }
+        }
+    }
+}
+
+void
+DensityFitting::doPotentialCC_( const matrix box, const rvec x[], const gmx_int64_t step)
+{
+
+}
+
+void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx_int64_t step)
 {
     auto fitatoms = wholemoleculegroup(x, box, 0);
     setCenterOfMass(fitatoms);
@@ -825,7 +846,56 @@ void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_i
     invertMultiplySimulatedDensity_();
 
     KLForceCalculation_(fitatoms);
-    // fitatoms->parallel_loop(st d::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+    // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+
+}
+
+void
+DensityFitting::initializeINV_(const matrix box, const rvec *x)
+{
+    //
+    for (size_t dimension = 0; dimension <= ZZ; dimension++)
+    {
+        invertedDensityForces_.emplace_back(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal()));
+        invertedDensityForces_.back()->copy_grid(*target_density_);
+        invertedDensityForces_.back()->zero();
+        auto spacing = invertedDensityForces_.back()->avg_spacing();
+        // calculate numerical gradient of the map
+        for (int i_z = 1; i_z < invertedDensityForces_.back()->extend()[ZZ]-1; i_z++)
+        {
+            for (int i_y = 1; i_y < invertedDensityForces_.back()->extend()[ZZ]-1; i_y++)
+            {
+                for (int i_x = 1; i_x < invertedDensityForces_.back()->extend()[ZZ]-1; i_x++)
+                {
+                    auto ref = target_density_->at({i_x-1, i_y, i_z});
+                    decltype(ref) cumulant = 0.;
+                    ivec ii;
+                    for (ii[ZZ] = -1; ii[ZZ] <= 1; ++ii[ZZ])
+                    {
+                        for (ii[YY] = -1; ii[YY] <= 1; ++ii[YY])
+                        {
+                            for (ii[XX] = -1; ii[XX] <= 1; ++ii[XX])
+                            {
+                                cumulant += ii[dimension] * target_density_->at({i_x+ii[XX], i_y+ii[YY], i_z+ii[ZZ]});
+                            }
+                        }
+                    }
+                    invertedDensityForces_.back()->at({i_x, i_y, i_z}) = spacing * cumulant / 18.;
+                }
+            }
+        }
+    }
+}
+
+void
+DensityFitting::initializeCC_(const matrix box, const rvec *x)
+{
+
+}
+
+void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
+{
+    doPotential_(box, x, step);
 };
 
 DensityFitting::DensityFitting() : ExternalPotential(),
@@ -955,6 +1025,34 @@ void DensityFitting::read_input()
         background_density_ = 1e-2;
     }
 
+    if (parsed_json.has("method"))
+    {
+        fitMethod_ = parsed_json["method"];
+    }
+    else
+    {
+        fitMethod_ = "KL";
+    }
+
+    if (fitMethod_ == "KL")
+    {
+        initialize_  = std::bind(&DensityFitting::initializeKL_, this, std::placeholders::_1, std::placeholders::_2);
+        doPotential_ = std::bind(&DensityFitting::doPotentialKL_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    }
+
+    if (fitMethod_ == "INV")
+    {
+        initialize_  = std::bind(&DensityFitting::initializeINV_, this, std::placeholders::_1, std::placeholders::_2);
+        doPotential_ = std::bind(&DensityFitting::doPotentialINV_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    }
+
+
+    if (fitMethod_ == "CC")
+    {
+        initialize_  = std::bind(&DensityFitting::initializeCC_, this, std::placeholders::_1, std::placeholders::_2);
+        doPotential_ = std::bind(&DensityFitting::doPotentialCC_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    }
+
     if (parsed_json.has("energy_step"))
     {
         maximumEnergyFluctuationPerAtom_ = std::stof(parsed_json.at("energy_step"));
@@ -1025,6 +1123,7 @@ void DensityFitting::read_input()
     fprintf(input_output()->output_file(), "%s", dumpParsedInput().c_str());
     fprintf(input_output()->output_file(), "KL-div\tk\t%%match\tF_max\tweight\n");
 
+
 }
 
 std::string
@@ -1039,6 +1138,7 @@ DensityFitting::dumpParsedInput()
     result += "#input:\tk_factor\t\t = " + std::to_string(k_factor_) + "\n";
     result += "#input:\tcenter_to_density\t\t = " + std::to_string(isCenterOfMassCentered_) + "\n";
     result += "#input:\tevery_nth_step\t\t = " + std::to_string(every_nth_step_) + "\n";
+    result += "#input:\tmethod\t\t = " + fitMethod_ + "\n";
     result += "#input:\ttarget_density\t\t = " + target_density_name_ + "\n";
 
     return result;

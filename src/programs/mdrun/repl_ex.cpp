@@ -68,9 +68,9 @@
 #define MSRANK(ms, nodeid)  (nodeid)
 
 enum {
-    ereTEMP, ereLAMBDA, ereENDSINGLE, ereTL, ereNR
+    ereTEMP, ereLAMBDA, ereENDSINGLE, ereTL, ereEXTPOT, ereNR
 };
-const char *erename[ereNR] = { "temperature", "lambda", "end_single_marker", "temperature and lambda"};
+const char *erename[ereNR] = { "temperature", "lambda", "end_single_marker", "temperature and lambda", "densityfitting"};
 /* end_single_marker merely notes the end of single variable replica exchange. All types higher than
    it are multiple replica exchange methods */
 /* Eventually, should add 'pressure', 'temperature and pressure', 'lambda_and_pressure', 'temperature_lambda_pressure'?;
@@ -897,6 +897,20 @@ test_for_replica_exchange(FILE                 *fplog,
         }
         bVol               = TRUE;
         re->Vol[re->repl]  = vol;
+    }
+    if (re->type == ereEXTPOT)
+    {
+        for (i = 0; i < re->nrepl; i++)
+        {
+            re->Epot[i] = 0;
+        }
+        bEpot              = TRUE;
+        re->Epot[re->repl] = enerd->term[F_EXTPOT];
+        /* temperatures of different states*/
+        for (i = 0; i < re->nrepl; i++)
+        {
+            re->beta[i] = 1.0/(re->q[ereTEMP][i]*BOLTZ);
+        }
     }
     if ((re->type == ereTEMP || re->type == ereTL))
     {

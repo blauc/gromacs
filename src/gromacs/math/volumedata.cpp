@@ -254,7 +254,9 @@ void FiniteGrid::set_extend(IVec extend)
 {
     impl_->extend_ = extend;
 }
-IVec FiniteGrid::extend()
+
+IVec
+FiniteGrid::extend() const
 {
     return impl_->extend_;
 }
@@ -309,6 +311,27 @@ RVec FiniteGrid::cell_angles()
     };
 }
 
+void
+FiniteGrid::extendCellByUnitCellInXX()
+{
+    rvec_inc(impl_->cell_[XX], impl_->unit_cell_[XX]);
+    FiniteGrid::impl_->set_unit_cell();
+}
+
+
+void
+FiniteGrid::extendCellByUnitCellInYY()
+{
+    rvec_inc(impl_->cell_[YY], impl_->unit_cell_[YY]);
+    FiniteGrid::impl_->set_unit_cell();
+}
+
+void
+FiniteGrid::extendCellByUnitCellInZZ()
+{
+    rvec_inc(impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
+    FiniteGrid::impl_->set_unit_cell();
+}
 
 void FiniteGrid::set_cell(RVec length, RVec angle)
 {
@@ -371,7 +394,7 @@ RVec FiniteGrid::unit_cell_ZZ() const
 
 bool FiniteGrid::spacing_is_same_xyz()
 {
-    return (abs(norm2(impl_->unit_cell_[XX]) - norm2(impl_->unit_cell_[YY])) < 1e-5) && (abs(norm2(impl_->unit_cell_[XX])-norm2(impl_->unit_cell_[ZZ])) < 1e-5);
+    return (std::abs(norm2(impl_->unit_cell_[XX]) - norm2(impl_->unit_cell_[YY])) < 1e-5) && (std::abs(norm2(impl_->unit_cell_[XX])-norm2(impl_->unit_cell_[ZZ])) < 1e-5);
 };
 
 IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
@@ -401,6 +424,19 @@ real
 FiniteGrid::avg_spacing()
 {
     return (impl_->unit_cell_[XX][XX] + impl_->unit_cell_[YY][YY]+impl_->unit_cell_[ZZ][ZZ])/3;
+}
+
+bool
+FiniteGrid::inGrid(IVec gridIndex) const
+{
+    for (size_t dimension = XX; dimension <= ZZ; dimension++)
+    {
+        if ((gridIndex[dimension] >= extend()[dimension]) || gridIndex[dimension] < 0)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 RVec FiniteGrid::gridpoint_coordinate(IVec i) const
@@ -507,17 +543,21 @@ size_t GridReal::data_size()
     return impl_->data_.size();
 };
 
-std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::z_section(int z)
+std::array<std::vector<real>::iterator, 2>
+GridReal::z_section(int z)
 {
-    std::vector<real>::iterator z_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*z;
-    std::vector<real>::iterator z_end   = impl_->data_.begin()+extend()[XX]*extend()[YY]*(z+1);
-    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (z_begin, z_end);
+    return {{
+                impl_->data_.begin()+extend()[XX]*extend()[YY]*z,
+                    impl_->data_.begin()+extend()[XX]*extend()[YY]*(z+1)
+            }};
 }
-std::pair<std::vector<real>::iterator, std::vector<real>::iterator> GridReal::zy_column(int z, int y)
+
+std::array<std::vector<real>::iterator, 2> GridReal::zy_column(int z, int y)
 {
-    std::vector<real>::iterator column_begin = impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*y;
-    std::vector<real>::iterator column_end   = impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*(y+1);
-    return std::pair<std::vector<real>::iterator, std::vector<real>::iterator> (column_begin, column_end);
+    return {{
+                impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*y,
+                    impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*(y+1)
+            }};
 };
 
 std::vector<real>::iterator GridReal::zy_column_begin(int z, int y) const
@@ -605,6 +645,117 @@ void GridReal::zero()
     resize();
     std::fill(impl_->data_.begin(), impl_->data_.end(), 0);
 };
+
+std::vector<real>::iterator
+GridReal::next_column(std::vector<real>::iterator x)
+{
+    return x + FiniteGrid::extend()[XX];
+}
+
+std::vector<real>::iterator
+GridReal::next_slice(std::vector<real>::iterator x)
+{
+    return x + FiniteGrid::extend()[XX]*FiniteGrid::extend()[YY];
+}
+
+void
+GridReal::reduceHalfColumns()
+{
+    std::vector<real> new_data;
+    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++iz)
+    {
+        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++iy)
+        {
+            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++(++x))
+            {
+                if ( (x + 1) != zy_column(iz, iy).back())
+                {
+                    new_data.push_back((*x + *(x+1))/2.0);
+                }
+                else
+                {
+                    new_data.push_back(*x);
+                }
+            }
+        }
+    }
+
+    FiniteGrid::set_extend({FiniteGrid::extend()[XX]/2+FiniteGrid::extend()[XX]%2, FiniteGrid::extend()[YY], FiniteGrid::extend()[ZZ]});
+    if (FiniteGrid::extend()[XX] % 2 == 1)
+    {
+        FiniteGrid::extendCellByUnitCellInXX();
+    }
+    FiniteGrid::impl_->set_unit_cell();
+}
+
+void GridReal::reduceHalfRows()
+{
+    std::vector<real> new_data;
+    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++iz)
+    {
+        // step y in steps of two
+        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++(++iy))
+        {
+            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++x)
+            {
+                if (iy <  FiniteGrid::extend()[YY]-1)
+                {
+                    new_data.push_back((*x + *(next_column(x)))/2.0);
+                }
+                else
+                {
+                    new_data.push_back(*x);
+                }
+            }
+        }
+    }
+    FiniteGrid::set_extend({FiniteGrid::extend()[XX], FiniteGrid::extend()[YY]/2+FiniteGrid::extend()[YY]%2, FiniteGrid::extend()[ZZ]});
+
+    if (FiniteGrid::extend()[YY] % 2 == 1)
+    {
+        FiniteGrid::extendCellByUnitCellInYY();
+    }
+    FiniteGrid::impl_->set_unit_cell();
+}
+
+void
+GridReal::reduceHalfSlices()
+{
+    std::vector<real> new_data;
+    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++(++iz))
+    {
+        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++iy)
+        {
+            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++x)
+            {
+                if (iz <  FiniteGrid::extend()[ZZ]-1)
+                {
+                    new_data.push_back((*x + *(next_slice(x)))/2.0);
+                }
+                else
+                {
+                    new_data.push_back(*x);
+                }
+            }
+        }
+    }
+    data() = new_data;
+    FiniteGrid::set_extend({FiniteGrid::extend()[XX], FiniteGrid::extend()[YY]/2+FiniteGrid::extend()[YY]%2, FiniteGrid::extend()[ZZ]});
+
+    if (FiniteGrid::extend()[YY] % 2 == 1)
+    {
+        FiniteGrid::extendCellByUnitCellInYY();
+    }
+    FiniteGrid::impl_->set_unit_cell();
+}
+
+void GridReal::halfResolution()
+{
+    reduceHalfColumns();
+    reduceHalfRows();
+    reduceHalfSlices();
+
+}
 
 } //namespace grid_data
 
