@@ -88,7 +88,6 @@ class DensityFitting : public ExternalPotential
         void finish();
 
         real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference);
-        real absolute_kl_divergence(std::vector<real> &P, std::vector<real> &Q);
 
     private:
         void do_force_plain(const rvec x, rvec force);
@@ -96,7 +95,6 @@ class DensityFitting : public ExternalPotential
         void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
         void inv_mul(std::vector<real> &target, const std::vector<real> & );
-        void SpreadKernel(GroupAtom &atom, const int &thread);
         void spreadLocalAtoms_(WholeMoleculeGroup * spreadgroup);
         void sum_reduce_simulated_density_();
         void ForceKernel_KL(GroupAtom &atom, const int &thread);

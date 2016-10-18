@@ -44,9 +44,15 @@
 #define GMX_MATH_VOLUMEDATA_H_
 #include <memory>
 #include <vector>
+#include <algorithm>
+#include <numeric>
 #include <array>
+#include <cmath>
 
 #include "gromacs/math/vectypes.h"
+#include "gromacs/math/gmxcomplex.h"
+
+#include "gromacs/utility/exceptions.h"
 
 namespace gmx
 {
@@ -87,6 +93,38 @@ class CrystalSymmetry
 
 class GridReal;
 
+class Finite3DLatticeIndices
+{
+    public:
+        Finite3DLatticeIndices();
+        Finite3DLatticeIndices(IVec extend);
+        size_t num_gridpoints() const;  //!< returns pre-evaluated extend[0]*extend[1]*extend[2]
+        size_t numGridPointsXY() const; //!< returns pre-evaluated extend[0]*extend[1]
+        IVec   extend() const;          //!< return the extend of the grid
+        /*! \brief
+         * The extend of the grid.
+         *
+         * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
+         */
+        void set_extend(IVec extend);
+
+        /*! \brief
+         * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] * extend[YY] * z.
+         */
+        int  ndx3d_to_ndx1d(IVec i_xyz) const;
+
+        /*! \brief
+         * Inverse for ndx3d_to_ndx1d ;
+         */
+        IVec ndx1d_to_ndx3d(int i) const;
+
+        bool inGrid(IVec gridIndex) const;
+    private:
+        IVec   extend_;
+        size_t numGridPointsXY_;
+        size_t numGridPoints_;
+};
+
 /*!
  * \brief
  * A finite three-dimensional grid and conversion routines for different grid representations.
@@ -95,7 +133,7 @@ class GridReal;
  * Relation of the integer indices,i, to real space vector, r, are given by cell and translation:
  * i = cell^{-1} . (r - translate); r = cell . i + translate
  */
-class FiniteGrid
+class FiniteGrid : public Finite3DLatticeIndices
 {
     public:
         friend GridReal;
@@ -103,28 +141,10 @@ class FiniteGrid
         ~FiniteGrid();
 
         /*! \brief
-         * The extend of the grid.
-         *
-         * Grid indices will alwasy run from (0,0,0) to extend = (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
-         */
-        void   set_extend(IVec extend);
-        IVec   extend() const;   //!< return the extend of the grid
-        size_t num_gridpoints(); //!< evaluates extend[0]*extend[1]*extend[2]
-
-        /*! \brief
-         * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] * extend[YY] * z.
-         */
-        int  ndx3d_to_ndx1d(IVec i_xyz);
-
-        /*! \brief
-         * Inverse for ndx3d_to_ndx1d ;
-         */
-        IVec ndx1d_to_ndx3d(int i);
-        /*! \brief
          * Copy the properties from another grid to this one.
          *  \param[in] grid Pointer to the grid from which the proterties will be copied
          */
-        void copy_grid(FiniteGrid &grid);
+        void copy_grid(const FiniteGrid &grid);
 
         /*! \brief
          *
@@ -141,9 +161,9 @@ class FiniteGrid
         /*! \brief
          * Add a vector to the translation of the map.
          */
-        RVec translation();  //!< return real-space coordinate of gridpoint (0,0,0).
-        RVec cell_lengths(); //!< return unit-cell lengths
-        RVec cell_angles();  //!< return unit-cell angles
+        RVec translation() const; //!< return real-space coordinate of gridpoint (0,0,0).
+        RVec cell_lengths();      //!< return unit-cell lengths
+        RVec cell_angles();       //!< return unit-cell angles
 
         /*! \brief
          * Yields rotation matrix Q that will rotate grid towards canonical representation with first unit-cell vector aligned along x-axis, and second unit-cell vector aligned in xy-plane.
@@ -152,11 +172,11 @@ class FiniteGrid
         void rotation(matrix Q);
 
         RVec gridpoint_coordinate(int i);
-        IVec coordinate_to_gridindex_ceil_ivec(const rvec  x);
-        IVec coordinate_to_gridindex_floor_ivec(const rvec  x);
+        RVec coordinateToRealGridIndex(const rvec x) const;
+        IVec coordinate_to_gridindex_ceil_ivec(const rvec x);
+        IVec coordinate_to_gridindex_floor_ivec(const rvec x) const;
         RVec gridpoint_coordinate(IVec i) const;
 
-        bool inGrid(IVec gridIndex) const;
 
         RVec unit_cell_XX() const;
         RVec unit_cell_YY() const;
@@ -184,11 +204,202 @@ class FiniteGrid
          */
         std::string print();
 
+        /*! \brief
+         * set unit cell; divide cell matrix by extend in respective direction
+         */
+        void set_unit_cell();
+
     private:
         class Impl;
         std::unique_ptr<FiniteGrid::Impl> impl_;
 };
 
+
+template <class T>
+class BasicGridDataProperties
+{
+    public:
+        explicit BasicGridDataProperties(const std::vector<T> &data) : data_ {data}
+        {}
+        /*! \brief The sum of all grid values. */
+        T sum() const
+        {
+            return std::accumulate(std::begin(data_), std::end(data_), 0.);
+        }
+
+        /*! \brief The minimum grid data value. */
+        T min() const
+        {
+            return *std::min_element(std::begin(data_), std::end(data_));
+        };
+        /*! \brief The maximum grid data value. */
+        T max() const
+        {
+            return *std::max_element(std::begin(data_), std::end(data_));
+        };
+        /*! \brief The mean grid data value. */
+        T mean() const
+        {
+            return sum()/ static_cast<float>(data_.size());
+        };
+        /*! \brief
+         * The size of the griddata in bytes.
+         */
+        size_t data_size() const
+        {
+            return data_.size();
+        };
+
+        /*! \brief The variance of data values.
+         *
+         * Two pass algorithm, where mean is calculated fist, due to large expected amount of data. (Typical data size=1,000,000)
+         */
+        T var() const
+        {
+            T data_mean        = mean();
+            T square_deviation = std::accumulate(std::begin(data_), std::end(data_), 0.,
+                                                 [ = ](const T &a, T b){return a + (b - data_mean)*(b - data_mean); } );
+            return square_deviation / static_cast<real>(data_.size());
+        }
+    private:
+        const std::vector<T> &data_;
+};
+
+template <class T>
+class ScalarGridDataProperties : public BasicGridDataProperties<T>
+{
+    public:
+        explicit ScalarGridDataProperties(const std::vector<T> &data) : BasicGridDataProperties<T>{data}, data_ {data}
+        {};
+        /*! \brief The root mean square deviation of grid data values. */
+        T rms() const
+        {
+            return sqrt(BasicGridDataProperties<T>::var());
+        };
+
+    private:
+        const std::vector<T> &data_;
+};
+
+template <class T>
+class GridDataAccess
+{
+    public:
+        typedef typename std::vector<T>::iterator t_iterator;
+        GridDataAccess(const IVec extend, const std::vector<T> &data) : data_ {const_cast<std::vector<T> &>(data)}, latticeIndices3d_ {extend} {}; //TODO: this is very dirty. Think of proper const implementation
+        GridDataAccess(IVec extend, std::vector<T> &data) : data_ {data}, latticeIndices3d_ {extend} {
+            if (data.size() != latticeIndices3d_.num_gridpoints())
+            {
+                GMX_THROW(APIError("Data size does not match lattice.\n"));
+            }
+            ;
+        };
+        /*! \brief
+         * Return the raw 1d grid data
+         *
+         */
+        std::vector<T> &data()
+        {
+            return data_;
+        };
+        const std::vector<T> &data() const
+        {
+            return data_;
+        };
+        /*! \brief
+         * Access a section of the volume density data via start and end iterator.
+         */
+        std::array<t_iterator, 2> z_section(int z) const
+        {
+            return {{ zy_column_begin(z, 0), zy_column_begin(z+1, 0) }};
+        }
+        /*! \brief
+         * Access column of the volume density data through start and end iterator.
+         */
+        std::array<t_iterator, 2> zy_column(int z, int y) const
+        {
+            return {{ zy_column_begin(z, y), zy_column_begin(z, y+1) }};
+        }
+        /*! \brief
+         * Access the start of a column through iterator.
+         * No bounds checking for fast data access
+         */
+        t_iterator zy_column_begin(int z, int y) const
+        {
+            return std::begin(data_)+latticeIndices3d_.numGridPointsXY()*z + latticeIndices3d_.extend()[XX]*y;
+        };
+
+        t_iterator next_column(t_iterator x) const
+        {
+            return x + latticeIndices3d_.extend()[XX];
+        }
+        t_iterator next_slice(t_iterator x) const
+        {
+            return x + latticeIndices3d_.numGridPointsXY();
+        };
+
+        /*! \brief
+         * Directly access an index element.
+         * \throws std::out_of_range if element is out of array bounds
+         */
+        T &at(IVec index)
+        {
+            return data_.at(latticeIndices3d_.ndx3d_to_ndx1d(index));
+        };
+
+
+    private:
+        std::vector<T>        &data_;
+        Finite3DLatticeIndices latticeIndices3d_;
+};
+
+class GridMeasures
+{
+    public:
+        GridMeasures(const GridReal &reference);
+        real correlate(const GridReal &other, real threshold = 0) const;
+        real getRelativeKLCrossTermSameGrid(const GridReal &other, const std::vector<real> &other_reference) const;
+        real getRelativeKLCrossTerm(const GridReal &other, const std::vector<real> &other_reference) const;
+        real getKLCrossTermSameGrid(const GridReal &other) const;
+        real getKLCrossTerm(const GridReal &other) const;
+        real entropy() const;
+
+    private:
+        const GridReal &reference_;
+};
+
+template <class T>
+class Field : public FiniteGrid
+{
+    public:
+        GridDataAccess<T> access() const
+        {
+            return GridDataAccess<T>(extend(), data_);
+        };
+
+        GridDataAccess<T> access()
+        {
+            return GridDataAccess<T>(extend(), data_);
+        };
+        /*! \brief
+         * Copy the properties from another grid to this one.
+         *  \param[in] grid Pointer to the grid from which the proterties will be copied
+         */
+        void copy_grid(const FiniteGrid &grid)
+        {
+            FiniteGrid::copy_grid(grid);
+            data_.resize(num_gridpoints());
+        };
+
+        void set_extend(IVec extend)
+        {
+            FiniteGrid::set_extend(extend);
+            data_.resize(num_gridpoints());
+        };
+
+    private:
+        std::vector<T> data_;
+};
 
 /*!
  * \brief
@@ -196,80 +407,11 @@ class FiniteGrid
  *
  * Data is stored in 1d vector following (x,y,z) convention: x fastest, y medium, z slowest dimension
  */
-class GridReal : public FiniteGrid, public CrystalSymmetry
+class GridReal : public Field<real>, public CrystalSymmetry
 {
     public:
-        GridReal();
-        ~GridReal ();
-        /*! \brief
-         * Access a section of the volume density data via start and end iterator.
-         */
-        std::array<std::vector<real>::iterator, 2> z_section(int z);
-        /*! \brief
-         * Access column of the volume density data through start and end iterator.
-         */
-        std::array<std::vector<real>::iterator, 2> zy_column(int z, int y);
+        ScalarGridDataProperties<real> properties();
 
-        /*!\brief
-         * Interpolate neighbouring grid-points, doubling grid spacing.
-         */
-        void halfResolution();
-
-        /*! \brief
-         * Access the start of a column through iterator.
-         * No bounds checking for fast data access
-         */
-        std::vector<real>::iterator zy_column_begin(int z, int y) const;
-
-        /*! \brief
-         * Directly access an index element.
-         * \throws std::out_of_range if element is out of array bounds
-         */
-        real &at(IVec index);
-        /*! \brief The sum of all grid values. */
-        real sum();
-        /*! \brief The minimum grid data value. */
-        real min();
-        /*! \brief The maximum grid data value. */
-        real max();
-        /*! \brief The mean grid data value. */
-        real mean();
-        /*! \brief The root mean square deviation of grid data values. */
-        real rms();
-        /*! \brief The variance of data values.
-         *
-         * Two pass algorithm, where mean is calculated fist, due to large expected amount of data. (Typical data size=1,000,000)
-         */
-        real var();
-
-        std::vector<real>::iterator next_column(std::vector<real>::iterator x);
-        std::vector<real>::iterator next_slice(std::vector<real>::iterator x);
-
-        void reduceHalfRows();
-        void reduceHalfColumns();
-        void reduceHalfSlices();
-
-
-        /*! \brief
-         * Copy the properties from another grid to this one.
-         *  \param[in] grid Pointer to the grid from which the proterties will be copied
-         */
-        void copy_grid(FiniteGrid &grid);
-
-        /*! \brief
-         * Adjust data vector size to given grid.
-         * \throws std::bad_alloc when unsuccesful
-         */
-        void resize();
-        /*! \brief
-         * Return the raw 1d grid data
-         *
-         */
-        std::vector<real> &data();
-        /*! \brief
-         * The size of the griddata in bytes.
-         */
-        size_t data_size();
         /*! \brief
          * Add an offset to all values.
          * \param[in] offset value to be added
@@ -287,11 +429,28 @@ class GridReal : public FiniteGrid, public CrystalSymmetry
         /*! \brief Center of mass as the weighted sum of gridpoint coordinates.
          */
         RVec center_of_mass();
+};
+
+class GridInterpolator
+{
+    public:
+        GridInterpolator(const FiniteGrid &basis);
+        GridReal &interpolateLinearly(const GridReal &other);
 
     private:
-        class Impl;
-        std::unique_ptr<GridReal::Impl> impl_;
+        GridReal  interpolatedGrid_;
 };
+
+class FourierTransformRealToComplex3D
+{
+    public:
+        FourierTransformRealToComplex3D(const Field<real> &input);
+        std::unique_ptr < Field < t_complex>> transform();
+    private:
+        const Field<real> &input_;
+};
+
+
 
 }      // namespace grid_data
 

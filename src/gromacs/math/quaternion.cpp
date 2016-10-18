@@ -114,7 +114,14 @@ Quaternion::operator*=(Quaternion other)
 void
 Quaternion::rotate(RVec &x)
 {
-    auto result = this->inverse()*(Quaternion {x} *(*this));
+    auto result = this->inverse()*(Quaternion {x} **this);
+    x = {result[1], result[2], result[3]};
+}
+
+void
+Quaternion::rotate_backwards(RVec &x)
+{
+    auto result = *this * (Quaternion {x} *this->inverse());
     x = {result[1], result[2], result[3]};
 }
 

@@ -106,19 +106,30 @@ class Map : public TrajectoryAnalysisModule
     private:
         std::string                           fnmapinput_;
         std::string                           fnmapoutput_;
+        std::string                           fncorrelation_;
+        std::string                           fnmapundersample_;
+        std::string                           fouriertransform_;
+
         float                                 sigma_;
         float                                 n_sigma_;
         AnalysisData                          mapdata_;
         volumedata::FastGaussianGridding      gt_;
         volumedata::GridReal                  inputdensity_;
         std::unique_ptr<volumedata::GridReal> outputdensity_;
+        volumedata::GridReal                  outputDensityBuffer_;
         real                                  spacing_;
         bool                                  bPrint_;
         std::vector<float>                    weight_;
+        int                                   every_;
+        real                                  expAverage_;
+        real                                  correlationThreshold_;
+        FILE * correlationFile_;
 };
 
 Map::Map()
-    : sigma_(0.4), n_sigma_(5), spacing_(0.2), bPrint_(false)
+    : sigma_(0.4), n_sigma_(5), spacing_(0.2), bPrint_(false), every_(1), expAverage_ {1.}, correlationThreshold_ {
+    0.
+}
 {
 }
 
@@ -145,6 +156,9 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
     options->addOption(FileNameOption("mi").filetype(eftVolumeData).inputFile()
                            .store(&fnmapinput_).defaultBasename("ccp4in")
                            .description("CCP4 density map input file"));
+    options->addOption(FileNameOption("moversample").filetype(eftVolumeData).outputFile()
+                           .store(&fnmapundersample_).defaultBasename("undersampledccp4")
+                           .description("CCP4 density map interpolated file"));
     options->addOption(FileNameOption("mo").filetype(eftVolumeData).outputFile()
                            .store(&fnmapoutput_).defaultBasename("ccp4out")
                            .description("CCP4 density map output file"));
@@ -154,8 +168,19 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .description("How many Gaussian width shall be used for spreading?"));
     options->addOption(FloatOption("spacing").store(&spacing_)
                            .description("Spacing of the density grid (nm)"));
+    options->addOption(IntegerOption("every").store(&every_)
+                           .description("Analyse only -every frame."));
+    options->addOption(FileNameOption("corr").filetype(eftGenericData).outputFile().store(&fncorrelation_)
+                           .description("Correlation."));
     options->addOption(BooleanOption("print").store(&bPrint_)
                            .description("Output density information to terminal, then exit."));
+    options->addOption(FloatOption("expaverage").store(&expAverage_)
+                           .description("Factor for exponential averaging new_map = f*curr+(1-f)*old."));
+    options->addOption(FloatOption("corrthreshold").store(&correlationThreshold_)
+                           .description("Density threshold when calculating correlations."));
+    options->addOption(FileNameOption("fourier").filetype(eftVolumeData).outputFile()
+                           .store(&fouriertransform_).description("Fourier Transform."));
+
 }
 
 void
@@ -186,9 +211,36 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
         }
     }
-    if (!fnmapoutput_.empty())
+    if (!fnmapoutput_.empty() || !fncorrelation_.empty())
     {
         outputdensity_ = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
+    }
+    if (!fncorrelation_.empty())
+    {
+        if (fnmapinput_.empty())
+        {
+            fprintf(stderr, "Please provide map to correlate to with -mi.\n");
+            std::exit(0);
+        }
+        std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value){value = std::max(value, (real)0.); });
+        correlationFile_ = fopen(fncorrelation_.c_str(), "w");
+    }
+    if (!fouriertransform_.empty())
+    {
+        auto result {
+            volumedata::FourierTransformRealToComplex3D(inputdensity_).transform()
+        };
+        fprintf(stderr, " \n");
+        // fprintf(stderr,"%d ", result->numGridPointsXY();
+        for (int i = 0; i < 1; ++i)
+        {
+
+            for (auto x = result->access().zy_column(0, 0)[0]; x != result->access().zy_column(0, 0)[1]; ++x)
+            {
+                fprintf(stderr, "%g\n", std::sqrt((x)->re*(x)->re + (x)->im*(x)->im));
+            }
+            fprintf(stderr, "\n\n");
+        }
     }
 }
 
@@ -221,46 +273,99 @@ Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
     gmx::volumedata::IVec extend({(int)ceil(box[XX][XX]/spacing_), (int)ceil(box[YY][YY]/spacing_), (int)ceil(box[ZZ][ZZ]/spacing_)});
     outputdensity_->set_extend(extend);
+    outputDensityBuffer_.set_extend(extend);
     outputdensity_->set_cell({extend[XX]*spacing_, extend[YY]*spacing_, extend[ZZ]*spacing_}, {90, 90, 90});
+    outputDensityBuffer_.set_cell({extend[XX]*spacing_, extend[YY]*spacing_, extend[ZZ]*spacing_}, {90, 90, 90});
     outputdensity_->set_translation({roundf(translation[XX]/spacing_)*spacing_, roundf(translation[YY]/spacing_)*spacing_, roundf(translation[ZZ]/spacing_)*spacing_});
+    outputDensityBuffer_.set_translation({roundf(translation[XX]/spacing_)*spacing_, roundf(translation[YY]/spacing_)*spacing_, roundf(translation[ZZ]/spacing_)*spacing_});
 }
 
 void
-Map::analyzeFrame(int /*frnr*/, const t_trxframe &fr, t_pbc * /*pbc*/,
+Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                   TrajectoryAnalysisModuleData * /*pdata*/)
 {
-    if (weight_.size() < std::size_t(fr.natoms))
+    if (frnr % every_ == 0)
     {
-        weight_.assign(fr.natoms, 1);
-        fprintf(stderr, "\nSetting atom weights to unity.\n");
-    }
-    if (!fnmapoutput_.empty())
-    {
-        if (fnmapinput_.empty())
-        {
-            // Guess the extend of the map if no box is given in structure file
-            // and no other input density is given.
-            matrix box;
-            rvec   translation;
-            set_box_from_frame(fr, box, translation);
-            set_finitegrid_from_box(box, translation);
-        }
-        else
-        {
-            // If a reference input density is given, copy the grid properties from here
-            outputdensity_->copy_grid(inputdensity_);
-        }
-        outputdensity_->zero();
 
-        gt_.set_grid(std::move(outputdensity_));
-        for (int i = 0; i < fr.natoms; ++i)
+        if (weight_.size() < std::size_t(fr.natoms))
         {
-            gt_.transform(fr.x[i], weight_[i]);
+            weight_.assign(fr.natoms, 1);
+            fprintf(stderr, "\nSetting atom weights to unity.\n");
         }
-        outputdensity_ = std::move(gt_.finish_and_return_grid());
+        if (!fnmapoutput_.empty() || !fncorrelation_.empty())
+        {
+            if (fnmapinput_.empty())
+            {
+                // Guess the extend of the map if no box is given in structure file
+                // and no other input density is given.
+                matrix box;
+                rvec   translation;
+                set_box_from_frame(fr, box, translation);
+                set_finitegrid_from_box(box, translation);
+            }
+            else
+            {
+                // If a reference input density is given, copy the grid properties from here
+                outputdensity_->copy_grid(inputdensity_);
+                outputDensityBuffer_.copy_grid(inputdensity_);
+            }
+            if (frnr == 0)
+            {
+                outputDensityBuffer_.zero();
+            }
+            outputdensity_->zero();
 
-        volumedata::MrcFile ccp4outputfile;
-        ccp4outputfile.write(fnmapoutput_, *outputdensity_);
+            gt_.set_grid(std::move(outputdensity_));
+            for (int i = 0; i < fr.natoms; ++i)
+            {
+                gt_.transform(fr.x[i], weight_[i]);
+            }
+            outputdensity_ = std::move(gt_.finish_and_return_grid());
+            if (frnr == 0)
+            {
+                auto buffervoxel = std::begin(outputDensityBuffer_.access().data());
+                for (auto thisframevoxel : outputdensity_->access().data())
+                {
+                    *buffervoxel = thisframevoxel;
+                    ++buffervoxel;
+                }
+
+            }
+            else
+            {
+
+                auto buffervoxel = std::begin(outputDensityBuffer_.access().data());
+                for (auto thisframevoxel : outputdensity_->access().data())
+                {
+                    *buffervoxel = expAverage_ * thisframevoxel + (1-expAverage_) * *buffervoxel;
+                    ++buffervoxel;
+                }
+            }
+        }
+        if (!fncorrelation_.empty())
+        {
+            volumedata::MrcFile ccp4outputfile;
+            fprintf(correlationFile_, "%g\n", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
+        }
+        if (!fnmapoutput_.empty())
+        {
+            volumedata::MrcFile ccp4outputfile;
+            ccp4outputfile.write(fnmapoutput_.substr(0, fnmapoutput_.size()-5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
+            if (frnr == 0)
+            {
+                ccp4outputfile.write(fnmapoutput_.c_str(), outputDensityBuffer_);
+            }
+        }
+        if (!fnmapundersample_.empty())
+        {
+            volumedata::MrcFile    ccp4undersample;
+            volumedata::FiniteGrid undersampleGrid;
+            undersampleGrid.copy_grid(outputDensityBuffer_);
+            undersampleGrid.set_extend({2*outputDensityBuffer_.extend()[XX], 2*outputDensityBuffer_.extend()[YY], 2*outputDensityBuffer_.extend()[ZZ]});
+            undersampleGrid.set_cell({2*outputDensityBuffer_.cell_lengths()[XX], 2*outputDensityBuffer_.cell_lengths()[YY], 2*outputDensityBuffer_.cell_lengths()[ZZ]}, {90, 90, 90});
+            volumedata::GridInterpolator interpolator(undersampleGrid);
+            ccp4undersample.write(fnmapundersample_, interpolator.interpolateLinearly(outputDensityBuffer_));
+        }
     }
 }
 
@@ -274,7 +379,10 @@ Map::finishAnalysis(int /*nframes*/)
 void
 Map::writeOutput()
 {
-
+    if (!fncorrelation_.empty())
+    {
+        fclose(correlationFile_);
+    }
 }
 
 }       // namespace

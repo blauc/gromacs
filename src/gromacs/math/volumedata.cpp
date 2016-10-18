@@ -49,9 +49,15 @@
 #include <string>
 #include <cmath>
 
+#include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
+
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/exceptions.h"
+
 
 namespace gmx
 {
@@ -130,7 +136,6 @@ class FiniteGrid::Impl
         Impl();
         ~Impl();
 
-        IVec             extend_;        //!< The grid-size.
         matrix           cell_;          //!< r' = cell_ . (r-translate_)
         matrix           unit_cell_;     //!< cell_/extend_
         matrix           unit_cell_inv_; //!< cell_/extend_
@@ -155,10 +160,7 @@ class FiniteGrid::Impl
          */
         void project(const rvec a, const rvec b, rvec c);
 
-        /*! \brief
-         * set unit cell; divide cell matrix by extend in respective direction
-         */
-        void set_unit_cell();
+
 };
 
 real FiniteGrid::Impl::deg_angle(rvec a, rvec b)
@@ -194,12 +196,12 @@ void FiniteGrid::Impl::QRDecomposition(const matrix A, matrix Q, matrix R)
 
 }
 
-void FiniteGrid::Impl::set_unit_cell()
+void FiniteGrid::set_unit_cell()
 {
-    svmul(1./extend_[XX], cell_[XX], unit_cell_[XX]);
-    svmul(1./extend_[YY], cell_[YY], unit_cell_[YY]);
-    svmul(1./extend_[ZZ], cell_[ZZ], unit_cell_[ZZ]);
-    invertMatrix(unit_cell_, unit_cell_inv_);
+    svmul(1./extend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
+    svmul(1./extend()[YY], impl_->cell_[YY], impl_->unit_cell_[YY]);
+    svmul(1./extend()[ZZ], impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
+    invertMatrix(impl_->unit_cell_, impl_->unit_cell_inv_);
 }
 
 FiniteGrid::Impl::Impl() : unit_cell_
@@ -250,15 +252,28 @@ FiniteGrid::~FiniteGrid()
 {
 };
 
-void FiniteGrid::set_extend(IVec extend)
+Finite3DLatticeIndices::Finite3DLatticeIndices()
 {
-    impl_->extend_ = extend;
+}
+
+
+Finite3DLatticeIndices::Finite3DLatticeIndices(IVec extend)
+{
+    set_extend(extend);
+}
+
+
+void Finite3DLatticeIndices::set_extend(IVec extend)
+{
+    extend_          = extend;
+    numGridPointsXY_ = extend[XX] * extend[YY];
+    numGridPoints_   = numGridPointsXY_ * extend[ZZ];
 }
 
 IVec
-FiniteGrid::extend() const
+Finite3DLatticeIndices::extend() const
 {
-    return impl_->extend_;
+    return extend_;
 }
 
 real FiniteGrid::grid_cell_volume()
@@ -266,17 +281,17 @@ real FiniteGrid::grid_cell_volume()
     return det(impl_->cell_)/(real) num_gridpoints();
 }
 
-int FiniteGrid::ndx3d_to_ndx1d(IVec i_xyz)
+int Finite3DLatticeIndices::ndx3d_to_ndx1d(IVec ndx3D) const
 {
-    return i_xyz[XX] + impl_->extend_[XX] * i_xyz[YY]  + impl_->extend_[XX] * impl_->extend_[YY] * i_xyz[ZZ];
+    return ndx3D[XX] + extend_[XX] * ndx3D[YY]  + numGridPointsXY_ * ndx3D[ZZ];
 }
 
-IVec FiniteGrid::ndx1d_to_ndx3d(int i)
+IVec Finite3DLatticeIndices::ndx1d_to_ndx3d(int i) const
 {
     IVec result;
-    result[XX] = (i % impl_->extend_[XX]) % impl_->extend_[YY];
-    result[YY] = (i / impl_->extend_[XX]) % impl_->extend_[YY];
-    result[ZZ] = (i / impl_->extend_[XX]) / impl_->extend_[YY];
+    result[XX] = (i % extend_[XX]) % extend_[YY];
+    result[YY] = (i / extend_[XX]) % extend_[YY];
+    result[ZZ] = (i / extend_[XX]) / extend_[YY];
     return result;
 }
 
@@ -285,14 +300,20 @@ void FiniteGrid::set_translation(RVec translate)
     impl_->translate_ = translate;
 }
 
-RVec FiniteGrid::translation()
+RVec FiniteGrid::translation() const
 {
     return impl_->translate_;
 }
 
-size_t FiniteGrid::num_gridpoints()
+size_t Finite3DLatticeIndices::numGridPointsXY() const
 {
-    return impl_->extend_[XX]*impl_->extend_[YY]*impl_->extend_[ZZ];
+    return numGridPointsXY_;
+}
+
+
+size_t Finite3DLatticeIndices::num_gridpoints() const
+{
+    return numGridPoints_;
 }
 
 RVec FiniteGrid::cell_lengths()
@@ -315,7 +336,7 @@ void
 FiniteGrid::extendCellByUnitCellInXX()
 {
     rvec_inc(impl_->cell_[XX], impl_->unit_cell_[XX]);
-    FiniteGrid::impl_->set_unit_cell();
+    set_unit_cell();
 }
 
 
@@ -323,14 +344,14 @@ void
 FiniteGrid::extendCellByUnitCellInYY()
 {
     rvec_inc(impl_->cell_[YY], impl_->unit_cell_[YY]);
-    FiniteGrid::impl_->set_unit_cell();
+    set_unit_cell();
 }
 
 void
 FiniteGrid::extendCellByUnitCellInZZ()
 {
     rvec_inc(impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
-    FiniteGrid::impl_->set_unit_cell();
+    set_unit_cell();
 }
 
 void FiniteGrid::set_cell(RVec length, RVec angle)
@@ -357,9 +378,9 @@ void FiniteGrid::set_cell(RVec length, RVec angle)
     impl_->cell_[ZZ][YY] *= length[ZZ];
     impl_->cell_[ZZ][ZZ] *= length[ZZ];
 
-    if ((impl_->extend_[XX] > 0) && (impl_->extend_[YY] > 0) && (impl_->extend_[ZZ] > 0) )
+    if ((extend()[XX] > 0) && (extend()[YY] > 0) && (extend()[ZZ] > 0) )
     {
-        impl_->set_unit_cell();
+        set_unit_cell();
     }
 
 };
@@ -399,26 +420,28 @@ bool FiniteGrid::spacing_is_same_xyz()
 
 IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
 {
-    RVec result;
-    rvec x_shifted;
-    rvec_sub(x, impl_->translate_, x_shifted);
-    mvmul(impl_->unit_cell_inv_, x_shifted, result);
+    RVec result = coordinateToRealGridIndex(x);
     return {
                (int)ceil(result[XX]), (int)ceil(result[YY]), (int)ceil(result[ZZ])
     };
 }
 
-IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x)
+IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
 {
-    RVec result;
-    rvec x_shifted;
-    rvec_sub(x, impl_->translate_, x_shifted);
-    mvmul(impl_->unit_cell_inv_, x_shifted, result);
+    RVec result = coordinateToRealGridIndex(x);
     return {
                (int)floor(result[XX]), (int)floor(result[YY]), (int)floor(result[ZZ])
     };
 }
 
+RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
+{
+    RVec result;
+    rvec x_shifted;
+    rvec_sub(x, impl_->translate_, x_shifted);
+    mvmul(impl_->unit_cell_inv_, x_shifted, result);
+    return result;
+}
 
 real
 FiniteGrid::avg_spacing()
@@ -427,7 +450,7 @@ FiniteGrid::avg_spacing()
 }
 
 bool
-FiniteGrid::inGrid(IVec gridIndex) const
+Finite3DLatticeIndices::inGrid(IVec gridIndex) const
 {
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
     {
@@ -458,12 +481,12 @@ void FiniteGrid::rotation(matrix Q)
     impl_->QRDecomposition(impl_->cell_, Q, R);
 }
 
-void FiniteGrid::copy_grid(FiniteGrid &grid)
+void FiniteGrid::copy_grid(const FiniteGrid &grid)
 {
     copy_mat(grid.impl_->cell_, this->impl_->cell_);
-    copy_ivec(grid.impl_->extend_, this->impl_->extend_);
-    copy_rvec(grid.impl_->translate_, this->impl_->translate_);
-    this->impl_->set_unit_cell();
+    Finite3DLatticeIndices::set_extend(grid.extend());
+    set_translation(grid.translation());
+    set_unit_cell();
 }
 std::string
 FiniteGrid::print()
@@ -479,130 +502,235 @@ FiniteGrid::print()
 }
 
 
-/********************************************************************
- * GridReal::Impl
+GridInterpolator::GridInterpolator(const FiniteGrid &basis)
+{
+    interpolatedGrid_.copy_grid(basis);
+};
+
+/*
+ * for each target grid point:
+ *      find rational number grid cell index in input grid
+ *      use fractional part for weights
  */
-
-/*! \internal \brief
- * Private implementation class for GridReal.
- *
- */
-class GridReal::Impl
+GridReal &
+GridInterpolator::interpolateLinearly(const GridReal &other)
 {
-    public:
-        Impl();
-        ~Impl();
+    auto otherAccess            = other.access();
+    auto interpolatedGridAccess = interpolatedGrid_.access();
 
-        std::vector<real> data_; //!< The data on the grid, represented as one-dimensional vector
+    for (int i_z = 0; i_z < interpolatedGrid_.extend()[ZZ]; ++i_z)
+    {
+        for (int i_y = 0; i_y < interpolatedGrid_.extend()[YY]; ++i_y)
+        {
+            for (int i_x = 0; i_x < interpolatedGrid_.extend()[XX]; ++i_x)
+            {
+
+                auto r                 = interpolatedGrid_.gridpoint_coordinate({i_x, i_y, i_z});
+                auto rIndexInOtherGrid = other.coordinateToRealGridIndex(r);
+                auto iIndexInOtherGrid = other.coordinate_to_gridindex_floor_ivec(r);
+
+                auto w_x = rIndexInOtherGrid[XX] - (real)iIndexInOtherGrid[XX];
+                auto w_y = rIndexInOtherGrid[YY] - (real)iIndexInOtherGrid[YY];
+                auto w_z = rIndexInOtherGrid[ZZ] - (real)iIndexInOtherGrid[ZZ];
+
+                std::array<std::array<std::array<real, 2>, 2>, 2> cube;
+
+                for (int ii_z = 0; ii_z <= 1; ++ii_z)
+                {
+                    for (int ii_y = 0; ii_y <= 1; ++ii_y)
+                    {
+                        for (int ii_x = 0; ii_x <= 1; ++ii_x)
+                        {
+                            auto cube_index = iIndexInOtherGrid;
+                            cube_index[XX] += ii_x;
+                            cube_index[YY] += ii_y;
+                            cube_index[ZZ] += ii_z;
+                            if (other.inGrid(cube_index))
+                            {
+                                cube[ii_x][ii_y][ii_z] = otherAccess.at(cube_index);
+                            }
+                            else
+                            {
+                                cube[ii_x][ii_y][ii_z] = 0;
+                            }
+                        }
+                    }
+                }
+
+                std::array<std::array<real, 2>, 2> interpolated_x;
+                for (int ii_z = 0; ii_z <= 1; ++ii_z)
+                {
+                    for (int ii_y = 0; ii_y <= 1; ++ii_y)
+                    {
+                        interpolated_x[ii_y][ii_z] = (1-w_x)*cube[0][ii_y][ii_z] + (w_x)*cube[1][ii_y][ii_z];
+                    }
+                }
+
+                std::array<real, 2> interpolated_xy;
+                for (int ii_z = 0; ii_z <= 1; ++ii_z)
+                {
+                    interpolated_xy[ii_z] = (1-w_y)*interpolated_x[0][ii_z] + (w_y) * interpolated_x[1][ii_z];
+                }
+
+                interpolatedGridAccess.at({i_x, i_y, i_z}) = ((1-w_z) * interpolated_xy[0] + w_z * interpolated_xy[1])/8.0;
+
+            }
+        }
+    }
+    return interpolatedGrid_;
 };
 
-GridReal::Impl::Impl()
+
+GridMeasures::GridMeasures(const GridReal &reference) : reference_ {reference}
 {
 
 };
 
-GridReal::Impl::~Impl()
+real
+GridMeasures::correlate(const GridReal &other, real threshold) const
 {
+    real   this_mean        = 0;
+    real   this_var         = 0;
+    real   other_mean       = 0;
+    real   other_var        = 0;
+    auto   current_value    = reference_.access().data().begin();
+    auto   other_curr_value = other.access().data().begin();
+    size_t count            = 0;
+    real   result           = 0;
+    for (size_t i = 0; i < reference_.access().data().size(); i++)
+    {
+        if ((*other_curr_value > threshold) || (*current_value > threshold))
+        {
+            this_mean  +=  *current_value;
+            other_mean += *other_curr_value;
+            ++count;
+        }
+        ++current_value;
+        ++other_curr_value;
+    }
+    this_mean  /= count;
+    other_mean /= count;
 
+    current_value    = reference_.access().data().begin();
+    other_curr_value = other.access().data().begin();
+    for (size_t i = 0; i < reference_.access().data().size(); i++)
+    {
+        if ((*other_curr_value > threshold) || (*current_value > threshold))
+        {
+            this_var  +=  (*current_value )*(*current_value );
+            other_var += (*other_curr_value )*(*other_curr_value );
+        }
+        ++current_value;
+        ++other_curr_value;
+    }
+    this_var  = sqrt(this_var);
+    other_var = sqrt(other_var);
+
+    current_value    = reference_.access().data().begin();
+    other_curr_value = other.access().data().begin();
+    for (size_t i = 0; i < reference_.access().data().size(); i++)
+    {
+        if ((*other_curr_value > threshold) || (*current_value > threshold))
+        {
+            result += (*current_value ) * (*other_curr_value );
+        }
+        ++current_value;
+        ++other_curr_value;
+    }
+    result /= (this_var * other_var );
+    return result;
 };
 
+real
+GridMeasures::getRelativeKLCrossTermSameGrid(const GridReal &other, const std::vector<real> &other_reference) const
+{
+    auto P = reference_.access().data();
+    auto Q = other.access().data();
+    // for numerical stability use a reference density
+    if (P.size() != Q.size())
+    {
+        GMX_THROW(APIError("KL-Divergence calculation requires euqally sized input vectors."));
+    }
+    auto p           = P.begin();
+    auto q           = Q.begin();
+    auto q_reference = other_reference.begin();
+    int  size        = Q.size();
+    real sum         = 0;
+#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum) schedule(static, size/std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
+    for (int i = 0; i < size; ++i)
+    {
+        if ((p[i] > 0) && (q[i] > 0 ) && ( q_reference[i] > 0 ))
+        {
+            sum += p[i] * log(q[i]/(q_reference[i]));
+        }
+    }
+
+    return sum;
+}
+
+real
+GridMeasures::getKLCrossTermSameGrid(const GridReal &other) const
+{
+    auto P = reference_.access().data();
+    auto Q = other.access().data();
+    if (P.size() != Q.size())
+    {
+        GMX_THROW(APIError("KL-CrossTerm calculation requires euqally sized input vectors."));
+    }
+    auto p           = P.begin();
+    auto q           = Q.begin();
+    int  size        = Q.size();
+    real sum         = 0;
+#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum) schedule(static, size/std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
+    for (int i = 0; i < size; ++i)
+    {
+        if ((p[i] > 0) && (q[i] > 0 ))
+        {
+            sum += p[i] * log(q[i]);
+        }
+    }
+    return sum;
+};
+
+real
+GridMeasures::entropy() const
+{
+    auto P           = reference_.access().data();
+    auto p           = P.begin();
+    int  size        = P.size();
+    real sum         = 0;
+#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum) schedule(static, size/std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
+    for (int i = 0; i < size; ++i)
+    {
+        if (p[i] > 0)
+        {
+            sum += p[i] * log(p[i]);
+        }
+    }
+    return sum;
+};
 
 /********************************************************************
  * GridReal
  */
-real GridReal::min()
-{
-    return *std::min_element(std::begin(impl_->data_), std::end(impl_->data_));
-};
 
-real GridReal::max()
-{
-    return *std::max_element(std::begin(impl_->data_), std::end(impl_->data_));
-};
 
-real GridReal::mean()
-{
-    return sum()/ static_cast<float>(impl_->data_.size());
-};
-
-real GridReal::var()
-{
-    real data_mean        = mean();
-    real square_deviation = std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.,
-                                            [ = ](const real &a, real b){return a + (b - data_mean)*(b - data_mean); } );
-    return square_deviation / static_cast<float>(impl_->data_.size());
-}
-
-real GridReal::rms()
-{
-    return sqrt(var());
-};
-
-size_t GridReal::data_size()
-{
-    return impl_->data_.size();
-};
-
-std::array<std::vector<real>::iterator, 2>
-GridReal::z_section(int z)
-{
-    return {{
-                impl_->data_.begin()+extend()[XX]*extend()[YY]*z,
-                    impl_->data_.begin()+extend()[XX]*extend()[YY]*(z+1)
-            }};
-}
-
-std::array<std::vector<real>::iterator, 2> GridReal::zy_column(int z, int y)
-{
-    return {{
-                impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*y,
-                    impl_->data_.begin()+extend()[XX]*extend()[YY]*z + extend()[XX]*(y+1)
-            }};
-};
-
-std::vector<real>::iterator GridReal::zy_column_begin(int z, int y) const
-{
-    return impl_->data_.begin()+gmx::volumedata::FiniteGrid::impl_->extend_[XX]*gmx::volumedata::FiniteGrid::impl_->extend_[YY]*z + gmx::volumedata::FiniteGrid::impl_->extend_[XX]*y;
-}
-
-void GridReal::resize()
-{
-    impl_->data_.resize(num_gridpoints());
-}
 real GridReal::normalize()
 {
-    real scale =  this->grid_cell_volume() / std::accumulate(impl_->data_.begin(), impl_->data_.end(), 0.);
-    std::for_each(impl_->data_.begin(), impl_->data_.end(), [ = ] (real &v) {v *= scale; });
+    real scale =  this->grid_cell_volume() / properties().sum();
+    std::for_each(access().data().begin(), access().data().end(), [ scale ] (real &v) {v *= scale; });
     return 1./scale;
-}
-
-real &GridReal::at(IVec index)
-{
-    return impl_->data_.at(ndx3d_to_ndx1d(index));
-};
-
-std::vector<real> &GridReal::data()
-{
-    return impl_->data_;
 }
 
 void GridReal::add_offset(real value)
 {
-    std::for_each(impl_->data_.begin(), impl_->data_.end(), [ = ](real &datum){ datum += value; });
+    std::for_each(access().data().begin(), access().data().end(), [ = ](real &datum){ datum += value; });
 }
 
-GridReal::GridReal() : impl_(new GridReal::Impl())
+ScalarGridDataProperties<real>
+GridReal::properties()
 {
-}
-
-GridReal::~GridReal()
-{
-}
-
-real
-GridReal::sum()
-{
-    return std::accumulate(std::begin(impl_->data_), std::end(impl_->data_), 0.);
+    return ScalarGridDataProperties<real>(access().data());
 }
 
 RVec
@@ -612,10 +740,10 @@ GridReal::center_of_mass()
     RVec com = {0, 0, 0};
     for (size_t i = 0; i < num_gridpoints(); i++)
     {
-        svmul(impl_->data_[i], gridpoint_coordinate(i), weighted_grid_coordinate);
+        svmul(access().data()[i], gridpoint_coordinate(i), weighted_grid_coordinate);
         rvec_inc(com, weighted_grid_coordinate);
     }
-    svmul(1./(sum()), com, com);
+    svmul(1./(properties().sum()), com, com);
     return com;
 }
 
@@ -625,137 +753,47 @@ GridReal::print()
     std::string result;
     result += "------- real number grid -------\n";
     result += FiniteGrid::print();
-    result += "  min  :" + std::to_string(min()) + "\n";
-    result += "  max  :" + std::to_string(max()) + "\n";
-    result += "  mean :" + std::to_string(mean()) + "\n";
-    result += "  var  :" + std::to_string(var()) + "\n";
-    result += "  rms  :" + std::to_string(rms()) + "\n";
+    result += "  min  :" + std::to_string(properties().min()) + "\n";
+    result += "  max  :" + std::to_string(properties().max()) + "\n";
+    result += "  mean :" + std::to_string(properties().mean()) + "\n";
+    result += "  var  :" + std::to_string(properties().var()) + "\n";
+    result += "  rms  :" + std::to_string(properties().rms()) + "\n";
     result += "\n----- end real number grid -----\n\n";
     return result;
 }
 
-void GridReal::copy_grid(FiniteGrid &grid)
-{
-    FiniteGrid::copy_grid(grid);
-    resize();
-}
 
 void GridReal::zero()
 {
-    resize();
-    std::fill(impl_->data_.begin(), impl_->data_.end(), 0);
+    std::fill(access().data().begin(), access().data().end(), 0);
 };
 
-std::vector<real>::iterator
-GridReal::next_column(std::vector<real>::iterator x)
+FourierTransformRealToComplex3D::FourierTransformRealToComplex3D(const Field<real> &input) : input_ {input}
+{};
+
+std::unique_ptr < Field < t_complex>>
+FourierTransformRealToComplex3D::transform()
 {
-    return x + FiniteGrid::extend()[XX];
-}
+    gmx_parallel_3dfft_t fft = nullptr;
+    real               * rdata;
+    t_complex          * cdata;
+    MPI_Comm             mpiCommunicatorForFFT[]  = {MPI_COMM_NULL, MPI_COMM_NULL};
 
-std::vector<real>::iterator
-GridReal::next_slice(std::vector<real>::iterator x)
-{
-    return x + FiniteGrid::extend()[XX]*FiniteGrid::extend()[YY];
-}
+    gmx_parallel_3dfft_init(&fft, input_.extend(), &rdata, &cdata, mpiCommunicatorForFFT, false, 1);
 
-void
-GridReal::reduceHalfColumns()
-{
-    std::vector<real> new_data;
-    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++iz)
-    {
-        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++iy)
-        {
-            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++(++x))
-            {
-                if ( (x + 1) != zy_column(iz, iy).back())
-                {
-                    new_data.push_back((*x + *(x+1))/2.0);
-                }
-                else
-                {
-                    new_data.push_back(*x);
-                }
-            }
-        }
-    }
+    std::copy(input_.access().data().begin(), input_.access().data().end(), rdata);
+    gmx_parallel_3dfft_execute(fft, GMX_FFT_REAL_TO_COMPLEX, 0, nullptr);
 
-    FiniteGrid::set_extend({FiniteGrid::extend()[XX]/2+FiniteGrid::extend()[XX]%2, FiniteGrid::extend()[YY], FiniteGrid::extend()[ZZ]});
-    if (FiniteGrid::extend()[XX] % 2 == 1)
-    {
-        FiniteGrid::extendCellByUnitCellInXX();
-    }
-    FiniteGrid::impl_->set_unit_cell();
-}
 
-void GridReal::reduceHalfRows()
-{
-    std::vector<real> new_data;
-    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++iz)
-    {
-        // step y in steps of two
-        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++(++iy))
-        {
-            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++x)
-            {
-                if (iy <  FiniteGrid::extend()[YY]-1)
-                {
-                    new_data.push_back((*x + *(next_column(x)))/2.0);
-                }
-                else
-                {
-                    new_data.push_back(*x);
-                }
-            }
-        }
-    }
-    FiniteGrid::set_extend({FiniteGrid::extend()[XX], FiniteGrid::extend()[YY]/2+FiniteGrid::extend()[YY]%2, FiniteGrid::extend()[ZZ]});
+    std::unique_ptr < Field < t_complex>> output(new Field<t_complex>());
+    output->copy_grid(input_);
 
-    if (FiniteGrid::extend()[YY] % 2 == 1)
-    {
-        FiniteGrid::extendCellByUnitCellInYY();
-    }
-    FiniteGrid::impl_->set_unit_cell();
-}
+    std::copy(cdata, cdata+input_.num_gridpoints(), output->access().data().begin());
 
-void
-GridReal::reduceHalfSlices()
-{
-    std::vector<real> new_data;
-    for (int iz = 0; iz < FiniteGrid::extend()[ZZ]; ++(++iz))
-    {
-        for (size_t iy = 0; iy < FiniteGrid::extend()[YY]; ++iy)
-        {
-            for (auto x = zy_column(iz, iy).front(); x != zy_column(iz, iy).back(); ++x)
-            {
-                if (iz <  FiniteGrid::extend()[ZZ]-1)
-                {
-                    new_data.push_back((*x + *(next_slice(x)))/2.0);
-                }
-                else
-                {
-                    new_data.push_back(*x);
-                }
-            }
-        }
-    }
-    data() = new_data;
-    FiniteGrid::set_extend({FiniteGrid::extend()[XX], FiniteGrid::extend()[YY]/2+FiniteGrid::extend()[YY]%2, FiniteGrid::extend()[ZZ]});
+    gmx_parallel_3dfft_destroy(fft);
 
-    if (FiniteGrid::extend()[YY] % 2 == 1)
-    {
-        FiniteGrid::extendCellByUnitCellInYY();
-    }
-    FiniteGrid::impl_->set_unit_cell();
-}
-
-void GridReal::halfResolution()
-{
-    reduceHalfColumns();
-    reduceHalfRows();
-    reduceHalfSlices();
-
-}
+    return output;
+};
 
 } //namespace grid_data
 

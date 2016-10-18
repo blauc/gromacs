@@ -862,14 +862,14 @@ void MrcFile::Impl::do_mrc_data_(volumedata::GridReal &grid_data, bool bRead)
     IVec num_crs = to_crs_order(grid_data.extend());
     if (bRead)
     {
-        grid_data.resize();
+        auto gridDataAccess = grid_data.access();
         for (int section = 0; section  < num_crs[ZZ]; section++)
         {
             for (int row  = 0; row  < num_crs[YY]; row++)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    grid_data.at(to_xyz_order({column, row, section})) = read_float32_();
+                    gridDataAccess.at(to_xyz_order({column, row, section})) = read_float32_();
                 }
             }
         }
@@ -877,13 +877,14 @@ void MrcFile::Impl::do_mrc_data_(volumedata::GridReal &grid_data, bool bRead)
     }
     else
     {
+        auto gridDataAccess = grid_data.access();
         for (int section = 0; section  < num_crs[ZZ]; section++)
         {
             for (int row  = 0; row  < num_crs[YY]; row++)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    write_float32_(grid_data.at(to_xyz_order({column, row, section})));
+                    write_float32_(gridDataAccess.at(to_xyz_order({column, row, section})));
                 }
             }
         }
@@ -1031,10 +1032,11 @@ void MrcFile::Impl::set_meta(volumedata::GridReal &grid_data)
 void
 MrcFile::Impl::set_grid_stats(volumedata::GridReal &grid_data)
 {
-    meta_.min_value  = grid_data.min();
-    meta_.max_value  = grid_data.max();
-    meta_.mean_value = grid_data.mean();
-    meta_.rms_value  = grid_data.rms();
+    auto properties = grid_data.properties();
+    meta_.min_value  = properties.min();
+    meta_.max_value  = properties.max();
+    meta_.mean_value = properties.mean();
+    meta_.rms_value  = properties.rms();
 }
 
 

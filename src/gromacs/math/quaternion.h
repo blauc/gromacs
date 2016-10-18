@@ -75,6 +75,7 @@ class Quaternion
         /*! \brief Multiply q from right.
          */
         void rotate(RVec &x);
+        void rotate_backwards(RVec &x);
     private:
         QVec q_;
 };
