@@ -44,6 +44,7 @@
 #include "map.h"
 
 #include <algorithm>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,8 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/topology/atomprop.h"
+#include "gromacs/math/do_fit.h"
+#include "gromacs/math/vectypes.h"
 
 namespace gmx
 {
@@ -107,6 +110,7 @@ class Map : public TrajectoryAnalysisModule
         std::string                           fnmapinput_;
         std::string                           fnmapoutput_;
         std::string                           fncorrelation_;
+        std::string                           fnkldivergence_;
         std::string                           fnmapundersample_;
         std::string                           fouriertransform_;
 
@@ -123,12 +127,30 @@ class Map : public TrajectoryAnalysisModule
         int                                   every_;
         real                                  expAverage_;
         real                                  correlationThreshold_;
-        FILE * correlationFile_;
+        FILE                                * correlationFile_;
+        FILE                                * kldivergenceFile_;
+        real                                  klOffset_;
+        int                                   nFr_;
+        bool                                  bFit_;
+        int                                   nAtomsReference_;
+        std::vector<RVec>                     referenceX;
+        matrix                                referenceBox;
+        std::vector<real>                     fitWeights;
+        real                                  inputGridEntropy;
+        bool                                  bUseBox_;
 };
 
 Map::Map()
     : sigma_(0.4), n_sigma_(5), spacing_(0.2), bPrint_(false), every_(1), expAverage_ {1.}, correlationThreshold_ {
     0.
+}, klOffset_ {
+    0.
+}, nFr_ {
+    0
+}, bFit_ {
+    false
+}, bUseBox_ {
+    false
 }
 {
 }
@@ -152,6 +174,7 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
     };
 
     settings->setHelpText(desc);
+    settings->setFlag(TrajectoryAnalysisSettings::efUseTopX, true);
 
     options->addOption(FileNameOption("mi").filetype(eftVolumeData).inputFile()
                            .store(&fnmapinput_).defaultBasename("ccp4in")
@@ -172,12 +195,20 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .description("Analyse only -every frame."));
     options->addOption(FileNameOption("corr").filetype(eftGenericData).outputFile().store(&fncorrelation_)
                            .description("Correlation."));
+    options->addOption(FileNameOption("kl").filetype(eftGenericData).outputFile().store(&fnkldivergence_)
+                           .description("KL-divergence."));
     options->addOption(BooleanOption("print").store(&bPrint_)
                            .description("Output density information to terminal, then exit."));
+    options->addOption(BooleanOption("useBox").store(&bUseBox_)
+                           .description("Use the box information in the structure file to setup the grid."));
+    options->addOption(BooleanOption("fit").store(&bFit_)
+                           .description("Fit to structure."));
     options->addOption(FloatOption("expaverage").store(&expAverage_)
                            .description("Factor for exponential averaging new_map = f*curr+(1-f)*old."));
     options->addOption(FloatOption("corrthreshold").store(&correlationThreshold_)
                            .description("Density threshold when calculating correlations."));
+    options->addOption(FloatOption("klOffset").store(&klOffset_)
+                           .description("Threshold for KL-Divergence."));
     options->addOption(FileNameOption("fourier").filetype(eftVolumeData).outputFile()
                            .store(&fouriertransform_).description("Fourier Transform."));
 
@@ -193,6 +224,17 @@ Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const Topolog
         {
             weight_.push_back(externalpotential::atomicNumber2EmScatteringFactor(top.topology()->atoms.atom[i_atom].atomnumber));
         }
+    }
+    if (top.topology() && bFit_)
+    {
+        nAtomsReference_ = top.topology()->atoms.nr;
+        fitWeights.resize(nAtomsReference_, 1);
+
+        rvec * x = as_rvec_array(referenceX.data());
+        top.getTopologyConf(&x, referenceBox);
+
+        reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, x, fitWeights.data());
+        referenceX.assign(x, x+nAtomsReference_);
     }
 }
 
@@ -211,19 +253,32 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
         }
     }
-    if (!fnmapoutput_.empty() || !fncorrelation_.empty())
+    if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty())
     {
         outputdensity_ = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
     }
-    if (!fncorrelation_.empty())
+    if (!fncorrelation_.empty() || !fnkldivergence_.empty())
     {
         if (fnmapinput_.empty())
         {
             fprintf(stderr, "Please provide map to correlate to with -mi.\n");
             std::exit(0);
         }
+    }
+    if (!fncorrelation_.empty())
+    {
+        // set negative values to zero
+        inputdensity_.add_offset(klOffset_);
         std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value){value = std::max(value, (real)0.); });
         correlationFile_ = fopen(fncorrelation_.c_str(), "w");
+    }
+
+    if (!fnkldivergence_.empty())
+    {
+        inputdensity_.add_offset(klOffset_);
+        inputdensity_.normalize();
+        kldivergenceFile_ = fopen(fnkldivergence_.c_str(), "w");
+        inputGridEntropy  = volumedata::GridMeasures(inputdensity_).entropy();
     }
     if (!fouriertransform_.empty())
     {
@@ -247,7 +302,7 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 void
 Map::set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation)
 {
-    if (det(fr.box) > 1e-6)
+    if ((det(fr.box) > 1e-6) && bUseBox_)
     {
         copy_mat(fr.box, box);
         clear_rvec(translation); // TODO: more user options for setting translation
@@ -260,10 +315,12 @@ Map::set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation)
     x_RVec.assign(fr.x, fr.x+fr.natoms);
     for (int i = XX; i <= ZZ; i++)
     {
-        box[i][i]      = 2*n_sigma_*sigma_;
-        box[i][i]     += (*max_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-        box[i][i]     -= (*min_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
-        translation[i] = -n_sigma_*sigma_+(*min_element(x_RVec.begin(), x_RVec.end(), [ i ](RVec a, RVec b){ return a[i] < b[i]; }))[i];
+        auto compareIthComponent =  [ i ](RVec a, RVec b){
+                return a[i] < b[i];
+            };
+        auto minMaxX             = minmax_element(x_RVec.begin(), x_RVec.end(), compareIthComponent);
+        box[i][i]      = 2*n_sigma_*sigma_ + (*minMaxX.second)[i] - (*minMaxX.first)[i];
+        translation[i] = -n_sigma_*sigma_ + (*minMaxX.first)[i];
     }
 
 }
@@ -286,13 +343,19 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 {
     if (frnr % every_ == 0)
     {
+        ++nFr_;
+        if (bFit_)
+        {
+            reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, fr.x, fitWeights.data());
+            do_fit(nAtomsReference_, fitWeights.data(), as_rvec_array(referenceX.data()), fr.x);
+        }
 
         if (weight_.size() < std::size_t(fr.natoms))
         {
             weight_.assign(fr.natoms, 1);
             fprintf(stderr, "\nSetting atom weights to unity.\n");
         }
-        if (!fnmapoutput_.empty() || !fncorrelation_.empty())
+        if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty())
         {
             if (fnmapinput_.empty())
             {
@@ -323,29 +386,27 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             outputdensity_ = std::move(gt_.finish_and_return_grid());
             if (frnr == 0)
             {
-                auto buffervoxel = std::begin(outputDensityBuffer_.access().data());
-                for (auto thisframevoxel : outputdensity_->access().data())
-                {
-                    *buffervoxel = thisframevoxel;
-                    ++buffervoxel;
-                }
-
+                std::copy(std::begin(outputdensity_->access().data()), std::end(outputdensity_->access().data()), std::begin(outputDensityBuffer_.access().data()));
             }
             else
             {
-
-                auto buffervoxel = std::begin(outputDensityBuffer_.access().data());
-                for (auto thisframevoxel : outputdensity_->access().data())
-                {
-                    *buffervoxel = expAverage_ * thisframevoxel + (1-expAverage_) * *buffervoxel;
-                    ++buffervoxel;
-                }
+                // auto linearAveraging = [this](const real & current, const real & average){return (average * (nFr_ - 1) + current) / nFr_;};
+                auto exponentialAveraging = [this](const real &current, const real &average){
+                        return expAverage_ * current + (1-expAverage_) * average;
+                    };
+                std::transform(std::begin(outputdensity_->access().data()), std::end(outputdensity_->access().data()),
+                               std::begin(outputdensity_->access().data()), std::begin(outputDensityBuffer_.access().data()), exponentialAveraging);
             }
         }
         if (!fncorrelation_.empty())
         {
-            volumedata::MrcFile ccp4outputfile;
             fprintf(correlationFile_, "%g\n", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
+        }
+        if (!fnkldivergence_.empty())
+        {
+            outputdensity_->add_offset(this->klOffset_);
+            outputdensity_->normalize();
+            fprintf(kldivergenceFile_, "%g\n", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(*outputdensity_)-inputGridEntropy);
         }
         if (!fnmapoutput_.empty())
         {
