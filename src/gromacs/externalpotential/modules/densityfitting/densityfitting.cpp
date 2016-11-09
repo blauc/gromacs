@@ -340,7 +340,7 @@ real DensityFitting::KLDivergenceFromTargetOnMaster(WholeMoleculeGroup * atomgro
     sumReduceNormalize_();
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
-        return volumedata::GridMeasures(*target_density_).getKLCrossTermSameGrid(*simulated_density_);
+        return volumedata::GridMeasures(*target_density_).getKLSameGrid(*simulated_density_);
     }
     else
     {
@@ -498,9 +498,9 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
     std::vector<real> upperHalfGrid {
         1.
     };
-    std::vector<real> gridPoints {{
-                                      0
-                                  }};
+    std::vector<real> gridPoints {
+        0
+    };
     Quaternion bestOrientation                  = orientation_;
     RVec       bestTranslation                  = translation_;
     real       bestDivergence                   = std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
@@ -527,7 +527,7 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
 
                     while (optimizeTranslation(translationgroup, bestDivergenceCurrentOrientation) || optimizeOrientation(translationgroup, bestDivergenceCurrentOrientation))
                     {
-                        fprintf(stderr, "\r\t\t\t\t\t\t\tcurrent fit = %g ; best fit = %g \t\t\r", bestDivergenceCurrentOrientation, bestDivergence);
+                        fprintf(stderr, "\r\t\t\t\t\t\t\tcurrent fit = %g ; best fit = %g \t\t", bestDivergenceCurrentOrientation, bestDivergence);
                     }
 
                     if (bestDivergenceCurrentOrientation < bestDivergence)
@@ -550,9 +550,42 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
 void
 DensityFitting::initialize_target_density_()
 {
+
+    auto                   spreadingBorder = sigma_;
+    volumedata::FiniteGrid widerGrid;
+    widerGrid.copy_grid(*target_density_);
+    auto                   targetTranslation = target_density_->translation();
+    widerGrid.set_translation({targetTranslation[XX]-spreadingBorder, targetTranslation[YY]-spreadingBorder, targetTranslation[ZZ]-spreadingBorder});
+    auto                   targetLengths = target_density_->cell_lengths();
+    widerGrid.set_cell({targetLengths[XX]+2*spreadingBorder, targetLengths[YY]+2*spreadingBorder, targetLengths[ZZ]+2*spreadingBorder}, {90, 90, 90});
+    int                    extraGridpoints = int(ceil(2*spreadingBorder / target_density_->avg_spacing()));
+    auto                   targetExtend    = target_density_->extend();
+    widerGrid.set_extend({targetExtend[XX]+extraGridpoints, targetExtend[YY]+extraGridpoints, targetExtend[ZZ]+extraGridpoints});
+    widerGrid.set_unit_cell();
+    widerGrid.makeGridUniform();
+
+    volumedata::GridInterpolator interpolator(widerGrid);
+    target_density_ = interpolator.interpolateLinearly(*target_density_);
+
+    const RVec gridPointReductionFactor = {0.7, 0.7, 0.7};
+
+    while (2*target_density_->avg_spacing() < sigma_)
+    {
+        volumedata::FiniteGrid coarserGrid;
+        coarserGrid.copy_grid(*target_density_);
+        coarserGrid.multiplyGridPointNumber(gridPointReductionFactor);
+        coarserGrid.makeGridUniform();
+        volumedata::GridInterpolator interpolator(coarserGrid);
+        target_density_ = interpolator.interpolateLinearly(*target_density_);
+    }
+    ;
+
     target_density_->add_offset(target_density_->grid_cell_volume()*background_density_);
     target_density_->normalize();
-};
+
+    volumedata::MrcFile target_output_file;
+    target_output_file.write("target_undersampled.ccp4", *target_density_);
+}
 void
 DensityFitting::initialize_buffers_()
 {
@@ -589,6 +622,7 @@ DensityFitting::initialize_buffers_()
 void
 DensityFitting::initialize_spreading_()
 {
+
     simulated_density_->copy_grid(*target_density_);
     for (int thread = 0; thread < std::max(1, gmx_omp_nthreads_get(emntDefault)); ++thread)
     {
@@ -600,7 +634,10 @@ DensityFitting::initialize_spreading_()
 void
 DensityFitting::initializeKL_(const matrix box, const rvec x[])
 {
-    out_  = open_xtc(trajectory_name_.c_str(), "w");
+    if (bWriteXTC_)
+    {
+        out_  = open_xtc(trajectory_name_.c_str(), "w");
+    }
     auto fitatoms = wholemoleculegroup(x, box, 0);
     setCenterOfMass(fitatoms);
 
@@ -618,7 +655,7 @@ DensityFitting::initializeKL_(const matrix box, const rvec x[])
         reference_density_          = simulated_density_->access().data();
     }
 
-    absolute_target_divergence_ = volumedata::GridMeasures(*target_density_).getKLCrossTermSameGrid(*simulated_density_);
+    absolute_target_divergence_ = volumedata::GridMeasures(*target_density_).getKLSameGrid(*simulated_density_);
     fprintf(input_output()->output_file(), "#KL-divergence(target|simulated): %g.\n", absolute_target_divergence_);
 
     fprintf(input_output()->output_file(), "#---Step-size estimate in DensityFitting potential space---.\n");
@@ -682,8 +719,9 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
 {
 
     externalpotential::ForcePlotter plot;
-    plot.start_plot_forces("forces.bild");
-    real max_f    = -1;
+    static int i = 0;
+    plot.start_plot_forces("forces" + std::to_string(++i) + ".bild");
+    real       max_f    = -1;
     for (auto &atom : *plotatoms)
     {
         if (norm(*atom.force) > max_f)
@@ -691,6 +729,7 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
             max_f = norm(*atom.force);
         }
     }
+    fprintf(stderr, "max force:  %g \n", max_f);
     for (auto &atom : *plotatoms)
     {
         plot.plot_force(shiftedAndOriented(*atom.xTransformed), *atom.force, 0, 1.0/max_f);
@@ -701,7 +740,7 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
 
 void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
 {
-#pragma omp parallel num_threads(number_of_threads_) shared(fitatoms) default(none)
+#pragma omp parallel num_threads(number_of_threads_) shared(stderr,fitatoms) default(none)
     {
         int           thread             = gmx_omp_get_thread_num();
         auto         &threadlocaldensity = *simulated_density_buffer_[thread];
@@ -756,14 +795,16 @@ void
 DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step)
 {
 
-    std::vector<RVec> x_out(atoms->num_atoms_global());
-    int               i = 0;
-    for (auto atom : *atoms)
+    if (bWriteXTC_)
     {
-        x_out[i++] = shiftedAndOriented(*atom.xTransformed);
+        std::vector<RVec> x_out(atoms->num_atoms_global());
+        int               i = 0;
+        for (auto atom : *atoms)
+        {
+            x_out[i++] = shiftedAndOriented(*atom.xTransformed);
+        }
+        write_xtc(out_, atoms->num_atoms_global(), step, 0, *(atoms->box()), as_vec_array(x_out.data()), 1000);
     }
-    write_xtc(out_, atoms->num_atoms_global(), step, 0, *(atoms->box()), as_vec_array(x_out.data()), 1000);
-
 }
 
 void
@@ -800,7 +841,7 @@ void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx
     auto fitatoms = wholemoleculegroup(x, box, 0);
     setCenterOfMass(fitatoms);
 
-    if (step%(every_nth_step_) == 0)
+    if ( (step%(every_nth_step_) == 0) && (bWriteXTC_))
     {
         writeTranslatedCoordinates_(fitatoms, step);
     }
@@ -839,10 +880,11 @@ void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx
     invertMultiplySimulatedDensity_();
 
     KLForceCalculation_(fitatoms);
-    volumedata::MrcFile simulated_output;
+
+    // volumedata::MrcFile simulated_output;
     if (step % (every_nth_step_) == 0)
     {
-        simulated_output.write("simulated.mrc", *simulated_density_);
+        // simulated_output.write("simulated.mrc", *simulated_density_);
         plot_forces(fitatoms);
     }
     // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
@@ -1030,6 +1072,15 @@ void DensityFitting::read_input()
         isCenterOfMassCentered_ = false;
     }
 
+    if (parsed_json.has("write"))
+    {
+        bWriteXTC_ = parsed_json.at("write") == "true" || parsed_json.at("write") == "yes";
+    }
+    else
+    {
+        bWriteXTC_ = false;
+    }
+
     if (parsed_json.has("every_nth_step"))
     {
         every_nth_step_ = std::stoi(parsed_json.at("every_nth_step"));
@@ -1110,7 +1161,10 @@ void DensityFitting::broadcast_internal()
 
 void DensityFitting::finish()
 {
-    close_xtc(out_);
+    if (bWriteXTC_)
+    {
+        close_xtc(out_);
+    }
 }
 
 std::string DensityFittingInfo::name                        = "densityfitting";

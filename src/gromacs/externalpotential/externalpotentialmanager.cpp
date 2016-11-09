@@ -71,25 +71,21 @@ void Manager::do_potential(const matrix box, const rvec x[], const gmx_int64_t s
     return;
 };
 
-std::vector<real> Manager::calculate_weights(real /*V_forcefield*/, real /*temperature*/)
+std::vector<real> Manager::calculate_weights(real /*V_forcefield*/, real temperature)
 {
-    std::vector<real> weights;
-
     // ensure numerical stability by substracting the largest potential from all
-    real V_max;  //< the largest of all potentials
-    V_max = *std::max_element(V_external_.begin(), V_external_.end());
-    real weight_normal;
+    auto              V_max = *std::max_element(V_external_.begin(), V_external_.end());
 
-    for (auto && V : V_external_)
-    {
-        weights.push_back(exp(-(V-V_max)));
-    }
-    weight_normal = std::accumulate(weights.begin(), weights.end(), 0.);
+    std::vector<real> weights(V_external_.size());
+    real              kbT = BOLTZ*temperature;
+    auto              boltzmannWeightAfterShift =  [kbT, V_max](real V){
+            return exp(-(V-V_max)/kbT);
+        };
 
-    for (auto && w : weights)
-    {
-        w /= weight_normal;
-    }
+    std::transform(std::begin(V_external_), std::end(V_external_), std::begin(weights), boltzmannWeightAfterShift);
+
+    auto weight_normal = std::accumulate(weights.begin(), weights.end(), 0.);
+    std::for_each(std::begin(weights), std::end(weights), [weight_normal](real &w){w /= weight_normal; });
 
 /* TODO: proper option reading for exp-averaging with system potential energy
     for (int i = 0; i < V_external_.size(); ++i)
@@ -97,7 +93,6 @@ std::vector<real> Manager::calculate_weights(real /*V_forcefield*/, real /*tempe
         weights[i] *= exp(-(V_external_[i]-V_forcefield)/(BOLTZ*temperature));
     }
  */
-
     return weights;
 }
 

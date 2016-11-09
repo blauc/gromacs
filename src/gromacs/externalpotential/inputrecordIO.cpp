@@ -160,8 +160,6 @@ char ** inputrecordutils::set_external_potential(int *ninp_p, t_inpfile **inp_p,
             {
                 groupnames.pop_front();
             }
-
-            ++i_current_potential;
         }
     }
 

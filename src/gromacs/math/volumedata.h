@@ -109,6 +109,10 @@ class Finite3DLatticeIndices
         void set_extend(IVec extend);
 
         /*! \brief
+         * multiply grid extend by factor */
+        void multiply(const RVec factor);
+
+        /*! \brief
          * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] * extend[YY] * z.
          */
         int  ndx3d_to_ndx1d(IVec i_xyz) const;
@@ -171,6 +175,8 @@ class FiniteGrid : public Finite3DLatticeIndices
          */
         void rotation(matrix Q);
 
+        void multiplyGridPointNumber(const RVec factor);
+
         RVec gridpoint_coordinate(int i);
         RVec coordinateToRealGridIndex(const rvec x) const;
         IVec coordinate_to_gridindex_ceil_ivec(const rvec x);
@@ -195,6 +201,8 @@ class FiniteGrid : public Finite3DLatticeIndices
         /*! \brief Check, if spacing is same in x,y,z -direction.
          */
         bool spacing_is_same_xyz();
+
+        void makeGridUniform();
 
         /*! \brief The average grid spacing.
          */
@@ -362,6 +370,7 @@ class GridMeasures
         real getRelativeKLCrossTerm(const GridReal &other, const std::vector<real> &other_reference) const;
         real getKLCrossTermSameGrid(const GridReal &other) const;
         real getKLCrossTerm(const GridReal &other) const;
+        real getKLSameGrid(const GridReal &other) const;
         real entropy() const;
 
     private:
@@ -388,6 +397,12 @@ class Field : public FiniteGrid
         void copy_grid(const FiniteGrid &grid)
         {
             FiniteGrid::copy_grid(grid);
+            data_.resize(num_gridpoints());
+        };
+
+        void multiplyGridPointNumber(const RVec factor)
+        {
+            FiniteGrid::multiplyGridPointNumber(factor);
             data_.resize(num_gridpoints());
         };
 
@@ -435,10 +450,12 @@ class GridInterpolator
 {
     public:
         GridInterpolator(const FiniteGrid &basis);
-        GridReal &interpolateLinearly(const GridReal &other);
+        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other);
+
+        void makeUniform();
 
     private:
-        GridReal  interpolatedGrid_;
+        std::unique_ptr<GridReal>  interpolatedGrid_;
 };
 
 class FourierTransformRealToComplex3D

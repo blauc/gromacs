@@ -196,6 +196,13 @@ void FiniteGrid::Impl::QRDecomposition(const matrix A, matrix Q, matrix R)
 
 }
 
+void
+FiniteGrid::multiplyGridPointNumber(const RVec factor)
+{
+    Finite3DLatticeIndices::multiply(factor);
+    set_unit_cell();
+};
+
 void FiniteGrid::set_unit_cell()
 {
     svmul(1./extend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
@@ -274,6 +281,15 @@ IVec
 Finite3DLatticeIndices::extend() const
 {
     return extend_;
+}
+
+void
+Finite3DLatticeIndices::multiply(const RVec factor)
+{
+    for (size_t i = 0; i <= ZZ; i++)
+    {
+        extend_[i] = std::ceil(extend_[i] * factor[i]);
+    }
 }
 
 real FiniteGrid::grid_cell_volume()
@@ -488,6 +504,21 @@ void FiniteGrid::copy_grid(const FiniteGrid &grid)
     set_translation(grid.translation());
     set_unit_cell();
 }
+
+void
+FiniteGrid::makeGridUniform()
+{
+    if (!spacing_is_same_xyz())
+    {
+        real l_XX = norm(impl_->unit_cell_[XX]);
+        real l_YY = norm(impl_->unit_cell_[YY]);
+        real l_ZZ = norm(impl_->unit_cell_[ZZ]);
+        svmul(l_XX/l_YY, impl_->cell_[YY], impl_->cell_[YY]);
+        svmul(l_XX/l_ZZ, impl_->cell_[ZZ], impl_->cell_[ZZ]);
+        set_unit_cell();
+    }
+}
+
 std::string
 FiniteGrid::print()
 {
@@ -502,9 +533,9 @@ FiniteGrid::print()
 }
 
 
-GridInterpolator::GridInterpolator(const FiniteGrid &basis)
+GridInterpolator::GridInterpolator(const FiniteGrid &basis) : interpolatedGrid_ {std::unique_ptr<GridReal>(new GridReal)}
 {
-    interpolatedGrid_.copy_grid(basis);
+    interpolatedGrid_->copy_grid(basis);
 };
 
 /*
@@ -512,20 +543,20 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
  *      find rational number grid cell index in input grid
  *      use fractional part for weights
  */
-GridReal &
+std::unique_ptr<GridReal>
 GridInterpolator::interpolateLinearly(const GridReal &other)
 {
     auto otherAccess            = other.access();
-    auto interpolatedGridAccess = interpolatedGrid_.access();
+    auto interpolatedGridAccess = interpolatedGrid_->access();
 
-    for (int i_z = 0; i_z < interpolatedGrid_.extend()[ZZ]; ++i_z)
+    for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < interpolatedGrid_.extend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < interpolatedGrid_->extend()[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < interpolatedGrid_.extend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
             {
 
-                auto r                 = interpolatedGrid_.gridpoint_coordinate({i_x, i_y, i_z});
+                auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
                 auto rIndexInOtherGrid = other.coordinateToRealGridIndex(r);
                 auto iIndexInOtherGrid = other.coordinate_to_gridindex_floor_ivec(r);
 
@@ -577,13 +608,17 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
             }
         }
     }
-    return interpolatedGrid_;
+    return std::move(interpolatedGrid_);
 };
 
+void
+GridInterpolator::makeUniform()
+{
+    interpolatedGrid_->makeGridUniform();
+};
 
 GridMeasures::GridMeasures(const GridReal &reference) : reference_ {reference}
 {
-
 };
 
 real
@@ -664,9 +699,33 @@ GridMeasures::getRelativeKLCrossTermSameGrid(const GridReal &other, const std::v
             sum += p[i] * log(q[i]/(q_reference[i]));
         }
     }
-
     return sum;
 }
+
+
+real
+GridMeasures::getKLSameGrid(const GridReal &other) const
+{
+    auto P = reference_.access().data();
+    auto Q = other.access().data();
+    if (P.size() != Q.size())
+    {
+        GMX_THROW(APIError("KL-CrossTerm calculation requires euqally sized input vectors."));
+    }
+    auto p           = P.begin();
+    auto q           = Q.begin();
+    int  size        = Q.size();
+    real sum         = 0;
+#pragma omp parallel for num_threads(std::max(1, gmx_omp_nthreads_get(emntDefault))) reduction(+:sum) schedule(static, size/std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
+    for (int i = 0; i < size; ++i)
+    {
+        if ((p[i] > 0) && (q[i] > 0 ))
+        {
+            sum += p[i] * log(q[i]/p[i]);
+        }
+    }
+    return sum;
+};
 
 real
 GridMeasures::getKLCrossTermSameGrid(const GridReal &other) const
@@ -717,14 +776,15 @@ GridMeasures::entropy() const
 
 real GridReal::normalize()
 {
-    real scale =  this->grid_cell_volume() / properties().sum();
-    std::for_each(access().data().begin(), access().data().end(), [ scale ] (real &v) {v *= scale; });
-    return 1./scale;
+    real integratedDensity =  this->grid_cell_volume() / properties().sum();
+    std::for_each(access().data().begin(), access().data().end(), [ integratedDensity ] (real &v) {v /= integratedDensity; });
+    // return this->grid_cell_volume()/scale;
+    return integratedDensity;
 }
 
 void GridReal::add_offset(real value)
 {
-    std::for_each(access().data().begin(), access().data().end(), [ = ](real &datum){ datum += value; });
+    std::for_each(access().data().begin(), access().data().end(), [ value ](real &datum){ datum += value; });
 }
 
 ScalarGridDataProperties<real>

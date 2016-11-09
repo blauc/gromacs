@@ -111,7 +111,7 @@ class Map : public TrajectoryAnalysisModule
         std::string                           fnmapoutput_;
         std::string                           fncorrelation_;
         std::string                           fnkldivergence_;
-        std::string                           fnmapundersample_;
+        std::string                           fnmapresample_;
         std::string                           fouriertransform_;
 
         float                                 sigma_;
@@ -180,7 +180,7 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .store(&fnmapinput_).defaultBasename("ccp4in")
                            .description("CCP4 density map input file"));
     options->addOption(FileNameOption("moversample").filetype(eftVolumeData).outputFile()
-                           .store(&fnmapundersample_).defaultBasename("undersampledccp4")
+                           .store(&fnmapresample_).defaultBasename("undersampledccp4")
                            .description("CCP4 density map interpolated file"));
     options->addOption(FileNameOption("mo").filetype(eftVolumeData).outputFile()
                            .store(&fnmapoutput_).defaultBasename("ccp4out")
@@ -417,15 +417,15 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                 ccp4outputfile.write(fnmapoutput_.c_str(), outputDensityBuffer_);
             }
         }
-        if (!fnmapundersample_.empty())
+        if (!fnmapresample_.empty())
         {
-            volumedata::MrcFile    ccp4undersample;
-            volumedata::FiniteGrid undersampleGrid;
-            undersampleGrid.copy_grid(outputDensityBuffer_);
-            undersampleGrid.set_extend({2*outputDensityBuffer_.extend()[XX], 2*outputDensityBuffer_.extend()[YY], 2*outputDensityBuffer_.extend()[ZZ]});
-            undersampleGrid.set_cell({2*outputDensityBuffer_.cell_lengths()[XX], 2*outputDensityBuffer_.cell_lengths()[YY], 2*outputDensityBuffer_.cell_lengths()[ZZ]}, {90, 90, 90});
-            volumedata::GridInterpolator interpolator(undersampleGrid);
-            ccp4undersample.write(fnmapundersample_, interpolator.interpolateLinearly(outputDensityBuffer_));
+            volumedata::MrcFile    ccp4resample;
+            volumedata::FiniteGrid resampleGrid;
+            resampleGrid.copy_grid(outputDensityBuffer_);
+            resampleGrid.set_extend({2*outputDensityBuffer_.extend()[XX], 2*outputDensityBuffer_.extend()[YY], 2*outputDensityBuffer_.extend()[ZZ]});
+            resampleGrid.set_cell({2*outputDensityBuffer_.cell_lengths()[XX], 2*outputDensityBuffer_.cell_lengths()[YY], 2*outputDensityBuffer_.cell_lengths()[ZZ]}, {90, 90, 90});
+            volumedata::GridInterpolator interpolator(resampleGrid);
+            ccp4resample.write(fnmapresample_, *(interpolator.interpolateLinearly(outputDensityBuffer_)));
         }
     }
 }
