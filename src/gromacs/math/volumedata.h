@@ -110,7 +110,7 @@ class Finite3DLatticeIndices
 
         /*! \brief
          * multiply grid extend by factor */
-        void multiply(const RVec factor);
+        void multiplyExtend(const RVec factor);
 
         /*! \brief
          * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] * extend[YY] * z.
@@ -425,6 +425,8 @@ class Field : public FiniteGrid
 class GridReal : public Field<real>, public CrystalSymmetry
 {
     public:
+        void multiply(real value);
+
         ScalarGridDataProperties<real> properties();
 
         /*! \brief

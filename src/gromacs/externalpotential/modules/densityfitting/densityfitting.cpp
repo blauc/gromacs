@@ -329,8 +329,8 @@ void DensityFitting::sumReduceNormalize_()
     }
     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
     {
-        simulated_density_->add_offset(simulated_density_->grid_cell_volume()*background_density_);
-        norm_simulated_        = simulated_density_->normalize();
+        norm_simulated_ =
+            simulated_density_->multiply(totalScatteringSum_);
     }
 }
 
@@ -545,27 +545,9 @@ void DensityFitting::translate_atoms_into_map_(WholeMoleculeGroup * translationg
     orientation_.normalize();
 }
 
-
-
 void
 DensityFitting::initialize_target_density_()
 {
-
-    auto                   spreadingBorder = sigma_;
-    volumedata::FiniteGrid widerGrid;
-    widerGrid.copy_grid(*target_density_);
-    auto                   targetTranslation = target_density_->translation();
-    widerGrid.set_translation({targetTranslation[XX]-spreadingBorder, targetTranslation[YY]-spreadingBorder, targetTranslation[ZZ]-spreadingBorder});
-    auto                   targetLengths = target_density_->cell_lengths();
-    widerGrid.set_cell({targetLengths[XX]+2*spreadingBorder, targetLengths[YY]+2*spreadingBorder, targetLengths[ZZ]+2*spreadingBorder}, {90, 90, 90});
-    int                    extraGridpoints = int(ceil(2*spreadingBorder / target_density_->avg_spacing()));
-    auto                   targetExtend    = target_density_->extend();
-    widerGrid.set_extend({targetExtend[XX]+extraGridpoints, targetExtend[YY]+extraGridpoints, targetExtend[ZZ]+extraGridpoints});
-    widerGrid.set_unit_cell();
-    widerGrid.makeGridUniform();
-
-    volumedata::GridInterpolator interpolator(widerGrid);
-    target_density_ = interpolator.interpolateLinearly(*target_density_);
 
     const RVec gridPointReductionFactor = {0.7, 0.7, 0.7};
 
@@ -578,14 +560,13 @@ DensityFitting::initialize_target_density_()
         volumedata::GridInterpolator interpolator(coarserGrid);
         target_density_ = interpolator.interpolateLinearly(*target_density_);
     }
-    ;
 
-    target_density_->add_offset(target_density_->grid_cell_volume()*background_density_);
     target_density_->normalize();
 
     volumedata::MrcFile target_output_file;
     target_output_file.write("target_undersampled.ccp4", *target_density_);
 }
+
 void
 DensityFitting::initialize_buffers_()
 {

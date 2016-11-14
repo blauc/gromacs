@@ -158,6 +158,7 @@ class DensityFitting : public ExternalPotential
         std::function<void(const matrix box, const rvec x[], const gmx_int64_t step)> doPotential_;
         std::vector < std::unique_ptr < volumedata::GridReal>> invertedDensityForces_;
         bool bWriteXTC_;
+        real totalScatteringSum_;
 
 };
 

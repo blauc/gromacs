@@ -199,7 +199,7 @@ void FiniteGrid::Impl::QRDecomposition(const matrix A, matrix Q, matrix R)
 void
 FiniteGrid::multiplyGridPointNumber(const RVec factor)
 {
-    Finite3DLatticeIndices::multiply(factor);
+    Finite3DLatticeIndices::multiplyExtend(factor);
     set_unit_cell();
 };
 
@@ -284,7 +284,7 @@ Finite3DLatticeIndices::extend() const
 }
 
 void
-Finite3DLatticeIndices::multiply(const RVec factor)
+Finite3DLatticeIndices::multiplyExtend(const RVec factor)
 {
     for (size_t i = 0; i <= ZZ; i++)
     {
@@ -773,12 +773,16 @@ GridMeasures::entropy() const
  * GridReal
  */
 
+void
+GridReal::multiply(real value)
+{
+    std::for_each(access().data().begin(), access().data().end(), [ value ] (real &v) {v *= value; });
+}
 
 real GridReal::normalize()
 {
     real integratedDensity =  this->grid_cell_volume() / properties().sum();
-    std::for_each(access().data().begin(), access().data().end(), [ integratedDensity ] (real &v) {v /= integratedDensity; });
-    // return this->grid_cell_volume()/scale;
+    multiply(1/integratedDensity);
     return integratedDensity;
 }
 
