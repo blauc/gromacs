@@ -43,29 +43,36 @@
 #define _GAUSSTRANSFORM_H
 
 #include "vec.h"
+#include <array>
 #include <vector>
 #include <memory>
 
 namespace gmx
 {
+
+typedef BasicVector<int> IVec;
+
 namespace volumedata
 {
 class GridReal;
 
-
 class GaussTransform
 {
     public:
-        void set_grid(std::unique_ptr<GridReal> grid);
+        virtual void set_grid(std::unique_ptr<GridReal> grid) = 0;
         void set_sigma(real sigma);
         void set_n_sigma(real n_sigma);
         virtual void transform(const rvec x, real weight) = 0;
         virtual std::unique_ptr<GridReal> && finish_and_return_grid() = 0;
+        IVec getMinimumUsedGridIndex();
+        IVec getMaximumUsedGridIndex();
     protected:
         // no other object should have access to the grid while Gauss transform is in progress
         std::unique_ptr<GridReal> grid_;
         real                      sigma_;
         real                      n_sigma_;
+        IVec minimumUsedGridIndex_;
+        IVec maximumUsedGridIndex_;
 };
 
 /*! \brief Efficient spreading of sources on a grid with a Gaussian kernel.
@@ -89,13 +96,9 @@ class FastGaussianGridding : public GaussTransform
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
         std::unique_ptr<GridReal> && finish_and_return_grid();
-        IVec getMinimumUsedGridIndex();
-        IVec getMaximumUsedGridIndex();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
         IVec grid_index_of_spread_atom_;
-        IVec minimumUsedGridIndex_;
-        IVec maximumUsedGridIndex_;
         int                              m_spread_;
         std::array<std::vector<real>, 3> spread_1d_;
         std::vector < std::vector < real>> spread_2d_;
@@ -105,7 +108,6 @@ class FastGaussianGridding : public GaussTransform
         void tensor_product_();
 
         real nu_; // spacing/sigma
-        RVec grid_index_of_spread_atom_r_;
         std::vector < std::vector < std::vector<real>>> spread_block_;
 
         std::vector<real>                E3_;      //< exp(-l^2*nu^2/2) , following the naming convention of Greengard et al., ;

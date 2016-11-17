@@ -45,6 +45,7 @@ class MpiHelper
         explicit MpiHelper(MPI_Comm mpi_comm_mygroup, int masterrank, bool bMaster);
         void cr(t_commrec *cr);
         void sum_reduce();
+        void sum_allReduce();
         bool isMaster();
         void broadcast(void * ptr, size_t size);
         real from_reals_buffer();

@@ -179,7 +179,9 @@ class FiniteGrid : public Finite3DLatticeIndices
 
         RVec gridpoint_coordinate(int i);
         RVec coordinateToRealGridIndex(const rvec x) const;
+
         IVec coordinate_to_gridindex_ceil_ivec(const rvec x);
+        IVec coordinate_to_gridindex_round_ivec(const rvec x);
         IVec coordinate_to_gridindex_floor_ivec(const rvec x) const;
         RVec gridpoint_coordinate(IVec i) const;
 

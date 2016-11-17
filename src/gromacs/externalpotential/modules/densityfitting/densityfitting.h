@@ -59,6 +59,7 @@ struct MrcMetaData;
 class GridReal;
 class FastGaussianGridding;
 class FastGaussianGriddingForce;
+class GaussTransform;
 }
 
 namespace externalpotential
@@ -120,6 +121,7 @@ class DensityFitting : public ExternalPotential
         void initializeKL_(const matrix box, const rvec x[]);
         void initializeCC_(const matrix box, const rvec x[]);
         void initializeINV_(const matrix box, const rvec x[]);
+        real getTotalScatteringSum_(WholeMoleculeGroup * atomgroup);
 
         DensityFitting();
 
@@ -134,7 +136,7 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
         std::vector < std::unique_ptr < volumedata::FastGaussianGriddingForce>> force_gauss_transform_;
-        std::vector < std::unique_ptr < volumedata::FastGaussianGridding>> gauss_transform_;
+        std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GridReal>>                simulated_density_buffer_;
         real                    background_density_;
         volumedata::MrcMetaData meta_;

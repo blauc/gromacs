@@ -66,6 +66,18 @@ GaussTransform::set_n_sigma(real n_sigma)
     n_sigma_ = n_sigma;
 };
 
+IVec
+GaussTransform::getMinimumUsedGridIndex()
+{
+    return minimumUsedGridIndex_;
+};
+
+IVec
+GaussTransform::getMaximumUsedGridIndex()
+{
+    return maximumUsedGridIndex_;
+};
+
 
 void
 FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
@@ -135,17 +147,6 @@ FastGaussianGridding::tensor_product_2d_()
     }
 }
 
-IVec
-FastGaussianGridding::getMinimumUsedGridIndex()
-{
-    return minimumUsedGridIndex_;
-};
-
-IVec
-FastGaussianGridding::getMaximumUsedGridIndex()
-{
-    return maximumUsedGridIndex_;
-};
 
 void
 FastGaussianGridding::tensor_product_()

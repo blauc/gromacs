@@ -434,6 +434,15 @@ bool FiniteGrid::spacing_is_same_xyz()
     return (std::abs(norm2(impl_->unit_cell_[XX]) - norm2(impl_->unit_cell_[YY])) < 1e-5) && (std::abs(norm2(impl_->unit_cell_[XX])-norm2(impl_->unit_cell_[ZZ])) < 1e-5);
 };
 
+IVec FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
+{
+    RVec result = coordinateToRealGridIndex(x);
+    return {
+               (int)round(result[XX]), (int)round(result[YY]), (int)round(result[ZZ])
+    };
+}
+
+
 IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
 {
     RVec result = coordinateToRealGridIndex(x);

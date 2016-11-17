@@ -54,7 +54,7 @@
 #include "gromacs/analysisdata/modules/plot.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
-// #include "gromacs/externalpotential/modules/densityfitting/ifgt/Ifgt.h"
+#include "gromacs/math/improvedfastgausstransform.h"
 #include "gromacs/math/gausstransform.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
@@ -117,7 +117,6 @@ class Map : public TrajectoryAnalysisModule
         float                                 sigma_;
         float                                 n_sigma_;
         AnalysisData                          mapdata_;
-        volumedata::FastGaussianGridding      gt_;
         volumedata::GridReal                  inputdensity_;
         std::unique_ptr<volumedata::GridReal> outputdensity_;
         volumedata::GridReal                  outputDensityBuffer_;
@@ -241,8 +240,7 @@ Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/, const Topolog
 void
 Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 {
-    gt_.set_sigma(sigma_);
-    gt_.set_n_sigma(n_sigma_);
+
     if (!fnmapinput_.empty())
     {
         volumedata::MrcFile ccp4inputfile;
@@ -378,12 +376,17 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             }
             outputdensity_->zero();
 
-            gt_.set_grid(std::move(outputdensity_));
+            std::unique_ptr<volumedata::GaussTransform>  gt_(new volumedata::ImprovedFastGaussTransform);
+
+            gt_->set_sigma(sigma_);
+            gt_->set_n_sigma(n_sigma_);
+            gt_->set_grid(std::move(outputdensity_));
+
             for (int i = 0; i < fr.natoms; ++i)
             {
-                gt_.transform(fr.x[i], weight_[i]);
+                gt_->transform(fr.x[i], weight_[i]);
             }
-            outputdensity_ = std::move(gt_.finish_and_return_grid());
+            outputdensity_ = std::move(gt_->finish_and_return_grid());
             if (frnr == 0)
             {
                 std::copy(std::begin(outputdensity_->access().data()), std::end(outputdensity_->access().data()), std::begin(outputDensityBuffer_.access().data()));

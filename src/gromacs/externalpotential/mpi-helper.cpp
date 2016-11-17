@@ -114,6 +114,20 @@ void MpiHelper::to_reals_buffer(real matrix[DIM][DIM])
     }
 };
 
+void MpiHelper::sum_allReduce()
+{
+    if (inbuf_.empty())
+    {
+        return;
+    }
+    outbuf_.resize(inbuf_.size());
+#ifdef GMX_MPI
+    MPI_Allreduce(inbuf_.data(), outbuf_.data(), inbuf_.size(), GMX_MPI_REAL, MPI_SUM, mpi_comm_mygroup_);
+#endif
+    inbuf_.clear();
+    buf_write_ = false;
+};
+
 void MpiHelper::sum_reduce()
 {
     if (inbuf_.empty())
