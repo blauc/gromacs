@@ -47,7 +47,7 @@
 #include <memory>
 #include <string>
 
-#include "gromacs/math/volumedata.h"
+#include "gromacs/math/volumedata/volumedata.h"
 
 namespace gmx
 {

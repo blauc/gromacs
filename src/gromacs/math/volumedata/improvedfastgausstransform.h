@@ -29,8 +29,8 @@
 #include <vector>
 #include <memory>
 #include "gromacs/math/vec.h"
-#include "gromacs/math/volumedata.h"
-#include "gromacs/math/gausstransform.h"
+#include "volumedata.h"
+#include "gausstransform.h"
 #include <map>
 
 namespace gmx

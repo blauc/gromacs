@@ -6,7 +6,7 @@
  */
 
 #include "improvedfastgausstransform.h"
-#include "vec.h"
+#include "gromacs/math/vec.h"
 #include "volumedata.h"
 #include "gausstransform.h"
 #include "gromacs/simd/simd_math.h"

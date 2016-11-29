@@ -44,7 +44,7 @@
 #define GMX_MATH_VOLUMEDATA_H_
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/vectypes.h"
-#include "vec.h"
+#include "gromacs/math/vec.h"
 #include <algorithm>
 #include <array>
 #include <cmath>

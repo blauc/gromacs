@@ -42,7 +42,7 @@
 #ifndef _GAUSSTRANSFORM_H
 #define _GAUSSTRANSFORM_H
 
-#include "vec.h"
+#include "gromacs/math/vec.h"
 #include <array>
 #include <vector>
 #include <memory>

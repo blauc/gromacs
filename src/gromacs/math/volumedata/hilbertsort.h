@@ -38,7 +38,7 @@
 
 #include <functional>
 #include <algorithm>
-#include "vec.h"
+#include "gromacs/math/vec.h"
 #include <vector>
 #include <numeric>
 

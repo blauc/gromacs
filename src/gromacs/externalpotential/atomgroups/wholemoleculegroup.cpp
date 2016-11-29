@@ -49,7 +49,7 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/mdlib/groupcoord.h"
-#include "gromacs/math/hilbertsort.h"
+#include "gromacs/math/volumedata/hilbertsort.h"
 // #include "gromacs/fileio/xtcio.h"
 
 namespace gmx

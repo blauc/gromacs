@@ -48,7 +48,7 @@
 
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/volumedataio.h"
-#include "gromacs/math/volumedata.h"
+#include "gromacs/math/volumedata/volumedata.h"
 #include "gromacs/utility/path.h"
 
 #include "testutils/testfilemanager.h"
