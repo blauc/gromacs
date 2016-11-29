@@ -39,8 +39,8 @@
  * \author Christian Blau <cblau@gwdg.de>
  * \inpublicapi
  */
-#include "volumedata.h"
 #include "gausstransform.h"
+#include "gridreal.h"
 #include "gromacs/utility/exceptions.h"
 
 namespace gmx

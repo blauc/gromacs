@@ -29,7 +29,7 @@
 #include <vector>
 #include <memory>
 #include "gromacs/math/vec.h"
-#include "volumedata.h"
+#include "gridreal.h"
 #include "gausstransform.h"
 #include <map>
 
