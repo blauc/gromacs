@@ -118,7 +118,7 @@ class MrcFile
          * \param[in] filename name of the file to write the griddata to, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data real-valued, real-space data on a grid
          */
-        void write(std::string filename, GridReal &grid_data);
+        void write(std::string filename, const GridReal &grid_data);
 
         /*! \brief Write real-spaced, real-valued griddata to file with user-defined metadata.
          *
@@ -156,6 +156,7 @@ class MrcFile
          * \returns string containing all available information from this object.
          */
         std::string print_to_string();
+
     private:
         class Impl;
         std::unique_ptr<Impl> impl_;

@@ -76,6 +76,7 @@
 #include "gromacs/topology/atomprop.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/timing/cyclecounter.h"
 
 namespace gmx
 {
@@ -113,6 +114,7 @@ class Map : public TrajectoryAnalysisModule
         std::string                           fnkldivergence_;
         std::string                           fnmapresample_;
         std::string                           fouriertransform_;
+        std::string                           forcedensity_;
 
         float                                 sigma_;
         float                                 n_sigma_;
@@ -210,6 +212,8 @@ Map::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *setting
                            .description("Threshold for KL-Divergence."));
     options->addOption(FileNameOption("fourier").filetype(eftVolumeData).outputFile()
                            .store(&fouriertransform_).description("Fourier Transform."));
+    options->addOption(FileNameOption("forcedensity").filetype(eftVolumeData).outputFile()
+                           .store(&forcedensity_).description("Force density."));
 
 }
 
@@ -251,11 +255,11 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
         }
     }
-    if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty())
+    if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty() || !forcedensity_.empty())
     {
         outputdensity_ = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
     }
-    if (!fncorrelation_.empty() || !fnkldivergence_.empty())
+    if (!fncorrelation_.empty() || !fnkldivergence_.empty() || !forcedensity_.empty())
     {
         if (fnmapinput_.empty())
         {
@@ -270,7 +274,10 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value){value = std::max(value, (real)0.); });
         correlationFile_ = fopen(fncorrelation_.c_str(), "w");
     }
-
+    if (!forcedensity_.empty())
+    {
+        inputdensity_.normalize();
+    }
     if (!fnkldivergence_.empty())
     {
         inputdensity_.add_offset(klOffset_);
@@ -280,20 +287,9 @@ Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     }
     if (!fouriertransform_.empty())
     {
-        auto result {
-            volumedata::FourierTransformRealToComplex3D(inputdensity_).transform()
-        };
-        fprintf(stderr, " \n");
-        // fprintf(stderr,"%d ", result->numGridPointsXY();
-        for (int i = 0; i < 1; ++i)
-        {
-
-            for (auto x = result->access().zy_column(0, 0)[0]; x != result->access().zy_column(0, 0)[1]; ++x)
-            {
-                fprintf(stderr, "%g\n", std::sqrt((x)->re*(x)->re + (x)->im*(x)->im));
-            }
-            fprintf(stderr, "\n\n");
-        }
+        auto                 back = volumedata::GaussConvolution(inputdensity_).convolute(0.1);
+        volumedata::GridReal backasgridreal(*back);
+        volumedata::MrcFile().write("backandforth.ccp4", backasgridreal);
     }
 }
 
@@ -353,7 +349,7 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             weight_.assign(fr.natoms, 1);
             fprintf(stderr, "\nSetting atom weights to unity.\n");
         }
-        if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty())
+        if (!fnmapoutput_.empty() || !fncorrelation_.empty() || !fnkldivergence_.empty() || !forcedensity_.empty())
         {
             if (fnmapinput_.empty())
             {
@@ -376,8 +372,9 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             }
             outputdensity_->zero();
 
-            std::unique_ptr<volumedata::GaussTransform>  gt_(new volumedata::ImprovedFastGaussTransform);
-
+            volumedata::GaussTransform *  gt_ = new volumedata::ImprovedFastGaussTransform;
+            gmx_cycles_t                  start, end;
+            start = gmx_cycles_read();
             gt_->set_sigma(sigma_);
             gt_->set_n_sigma(n_sigma_);
             gt_->set_grid(std::move(outputdensity_));
@@ -387,6 +384,23 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                 gt_->transform(fr.x[i], weight_[i]);
             }
             outputdensity_ = std::move(gt_->finish_and_return_grid());
+            end            = gmx_cycles_read();
+            fprintf(stderr, "IFGT:  %g \n", (end-start)/10e5);
+
+            gt_   = new volumedata::FastGaussianGridding;
+            start = gmx_cycles_read();
+            gt_->set_sigma(sigma_);
+            gt_->set_n_sigma(n_sigma_);
+            gt_->set_grid(std::move(outputdensity_));
+
+            for (int i = 0; i < fr.natoms; ++i)
+            {
+                gt_->transform(fr.x[i], weight_[i]);
+            }
+            outputdensity_ = std::move(gt_->finish_and_return_grid());
+            end            = gmx_cycles_read();
+            fprintf(stderr, "FGGr:  %g \n", (end-start)/10e5);
+
             if (frnr == 0)
             {
                 std::copy(std::begin(outputdensity_->access().data()), std::end(outputdensity_->access().data()), std::begin(outputDensityBuffer_.access().data()));
@@ -420,6 +434,72 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                 ccp4outputfile.write(fnmapoutput_.c_str(), outputDensityBuffer_);
             }
         }
+        if (!forcedensity_.empty())
+        {
+            outputdensity_->normalize();
+            volumedata::MrcFile().write("inputdensity.ccp4", inputdensity_);
+            auto reciprocalDensity = volumedata::FourierTransformRealToComplex3D(inputdensity_).transform();
+            auto firstNonHermitian = volumedata::FourierTransformComplexToReal3D(*reciprocalDensity).firstNonHermitian();
+            fprintf(stderr, " %d %d %d %g %g %g %g \n", firstNonHermitian[XX], firstNonHermitian[YY], firstNonHermitian[ZZ], reciprocalDensity->access().at(firstNonHermitian).re,  reciprocalDensity->access().at(firstNonHermitian).im, reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).re,  reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).im);
+            auto convolutedInputDensity = volumedata::GaussConvolution(inputdensity_).pad({2, 2, 2}).convolute(0);
+            std::transform(inputdensity_.access().begin(), inputdensity_.access().end(), convolutedInputDensity->access().begin(), convolutedInputDensity->access().begin(), [](real &a, real &b ){return a-b; });
+            volumedata::MrcFile().write("convolutedInput.ccp4", *convolutedInputDensity);
+            auto densityGradient = [](real &reference, real &comparant){
+                    return comparant > 0 ? reference/comparant : 0;
+                };
+
+            std::transform(std::begin(convolutedInputDensity->access().data()), std::end(convolutedInputDensity->access().data()), std::begin(outputdensity_->access().data()), std::begin(outputdensity_->access().data()), densityGradient);
+            volumedata::MrcFile().write("densityGradient.ccp4", *outputdensity_);
+
+            auto densityGradientFT = volumedata::FourierTransformRealToComplex3D(*outputdensity_).transform();
+            auto forceDensityFTXX(*densityGradientFT);
+            auto forceDensityFTYY(*densityGradientFT);
+            auto forceDensityFTZZ(*densityGradientFT);
+
+            auto sigma2               = sigma_*sigma_;
+            auto forcemultiplicatorXX = [sigma2, this] (t_complex &value, RVec k){
+                    auto prefactor = k[XX] * this->sigma_ * exp(-19.7392088022 * sigma2 * norm2(k));
+                    value.re *= prefactor;
+                    value.im *= prefactor;
+                };
+            volumedata::ApplyToUnshiftedFourierTransform(forceDensityFTXX).apply(forcemultiplicatorXX);
+            auto forcemultiplicatorYY = [sigma2, this] (t_complex &value, RVec k){
+                    auto prefactor = k[YY] * this->sigma_ * exp(-19.7392088022 * sigma2 * norm2(k));
+                    value.re *= prefactor;
+                    value.im *= prefactor;
+                };
+            volumedata::ApplyToUnshiftedFourierTransform(forceDensityFTYY).apply(forcemultiplicatorYY);
+
+            auto forcemultiplicatorZZ = [sigma2, this] (t_complex &value, RVec k){
+                    auto prefactor = k[ZZ] * this->sigma_ * exp(-19.7392088022 * sigma2 * norm2(k));
+                    value.re *= prefactor;
+                    value.im *= prefactor;
+                };
+            volumedata::ApplyToUnshiftedFourierTransform(forceDensityFTYY).apply(forcemultiplicatorZZ);
+
+            auto forceDensityXX = volumedata::FourierTransformComplexToReal3D(forceDensityFTXX).transform();
+            auto forceDensityYY = volumedata::FourierTransformComplexToReal3D(forceDensityFTYY).transform();
+            auto forceDensityZZ = volumedata::FourierTransformComplexToReal3D(forceDensityFTZZ).transform();
+
+            auto forceDensity (*forceDensityXX);
+            auto addForceNorm = [](real &input, real &output){
+                    return gmx::square(input)+ gmx::square(output);
+                };
+            std::transform(std::begin(forceDensityXX->access().data()), std::end(forceDensityXX->access().data()), std::begin(forceDensityYY->access().data()), std::begin(forceDensity.access().data()), addForceNorm);
+
+            auto addForceNormZZ = [](real &input, real &output){
+                    return sqrt(gmx::square(input)+ output);
+                };
+            std::transform(std::begin(forceDensityZZ->access().data()), std::end(forceDensityZZ->access().data()), std::begin(forceDensity.access().data()), std::begin(forceDensity.access().data()), addForceNormZZ);
+            auto Multiplicator = [](real &a, real &b){
+                    return a * b;
+                };
+            std::transform(std::begin(outputdensity_->access().data()), std::end(outputdensity_->access().data()), std::begin(forceDensity.access().data()), std::begin(forceDensity.access().data()), Multiplicator);
+            volumedata::GridReal forceGridReal(forceDensity);
+            volumedata::MrcFile().write(forcedensity_, forceGridReal);
+
+        }
+        ;
         if (!fnmapresample_.empty())
         {
             volumedata::MrcFile    ccp4resample;

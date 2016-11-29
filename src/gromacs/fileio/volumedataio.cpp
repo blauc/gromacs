@@ -86,7 +86,7 @@ class MrcFile::Impl
 
         std::string print_to_string();
 
-        void do_mrc(volumedata::GridReal &grid_data, bool bRead);
+        void do_mrc(const volumedata::GridReal &grid_data, bool bRead);
         void do_mrc_data_(volumedata::GridReal &grid_data, bool bRead);
         void do_mrc_header_(volumedata::GridReal &grid_data, bool bRead);
 
@@ -128,8 +128,8 @@ class MrcFile::Impl
         void write_float32_(real data);
         void write_float32_rvec_(RVec i);
 
-        void set_meta(volumedata::GridReal &grid_data);
-        void set_grid_stats(volumedata::GridReal &grid_data);
+        void set_meta(const volumedata::GridReal &grid_data);
+        void set_grid_stats(const volumedata::GridReal &grid_data);
 
 
         bool colummn_row_section_order_valid_(IVec crs_to_xyz);
@@ -923,10 +923,11 @@ void MrcFile::Impl::check_swap_bytes()
 
 }
 
-void MrcFile::Impl::do_mrc(volumedata::GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc(const volumedata::GridReal &grid_data, bool bRead)
 {
-    do_mrc_header_(grid_data, bRead);
-    do_mrc_data_(grid_data, bRead);
+    //TODO: avoid const cast
+    do_mrc_header_(*(const_cast<volumedata::GridReal*>(&grid_data)), bRead);
+    do_mrc_data_(*(const_cast<volumedata::GridReal*>(&grid_data)), bRead);
 }
 
 bool MrcFile::Impl::known_extension(std::string filename)
@@ -1022,7 +1023,7 @@ MrcFile::Impl::~Impl()
     }
 };
 
-void MrcFile::Impl::set_meta(volumedata::GridReal &grid_data)
+void MrcFile::Impl::set_meta(const volumedata::GridReal &grid_data)
 {
     set_grid_stats(grid_data);
     IVec index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
@@ -1030,7 +1031,7 @@ void MrcFile::Impl::set_meta(volumedata::GridReal &grid_data)
 }
 
 void
-MrcFile::Impl::set_grid_stats(volumedata::GridReal &grid_data)
+MrcFile::Impl::set_grid_stats(const volumedata::GridReal &grid_data)
 {
     auto properties = grid_data.properties();
     meta_.min_value  = properties.min();
@@ -1072,7 +1073,7 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, Mrc
     impl_->close_file();
 }
 
-void MrcFile::write(std::string filename, volumedata::GridReal &grid_data)
+void MrcFile::write(std::string filename, const volumedata::GridReal &grid_data)
 {
     bool bRead = false;
     impl_->set_meta(grid_data);
@@ -1080,6 +1081,7 @@ void MrcFile::write(std::string filename, volumedata::GridReal &grid_data)
     impl_->do_mrc(grid_data, bRead);
     impl_->close_file();
 }
+
 
 void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
 {

@@ -31,6 +31,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/volumedata.h"
 #include "gromacs/math/gausstransform.h"
+#include <map>
 
 namespace gmx
 {
@@ -47,7 +48,7 @@ class ExpansionCenter
         ExpansionCenter(ImprovedFastGaussTransform * ifgt);
         ~ExpansionCenter();
         void compress(rvec dist, real weight);
-        real expand(rvec dx);
+        real expand(RVec dx);
         void total_density();
     private:
         real gamma_1_2(unsigned int i);
@@ -65,6 +66,7 @@ class ImprovedFastGaussTransform : public GaussTransform
         friend class ExpansionCenter;
         void set_grid(std::unique_ptr<GridReal> grid);
         void transform(const rvec x, real weight);
+        real exp_lookup(real x);
 
         std::unique_ptr<GridReal> && finish_and_return_grid();
         uint64_t factorial(const int n);
@@ -78,6 +80,7 @@ class ImprovedFastGaussTransform : public GaussTransform
         int                                            maximum_expansion_order_;
         std::vector<real>                              multinomials_;
         real                                           h_inv_;
+        std::map<real, real> gaussLUT_;
 };
 
 }      // namesepace volumedata

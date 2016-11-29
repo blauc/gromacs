@@ -9,6 +9,7 @@
 #include "vec.h"
 #include "volumedata.h"
 #include "gausstransform.h"
+#include "gromacs/simd/simd_math.h"
 
 #include "gromacs/utility/exceptions.h"
 
@@ -84,7 +85,7 @@ void ExpansionCenter::total_density()
     }
 }
 
-real ExpansionCenter::expand(rvec dx)
+real ExpansionCenter::expand(RVec dx)
 {
     auto I_     = coefficients_.begin();
     real result = *I_;
@@ -134,7 +135,7 @@ real ExpansionCenter::expand(rvec dx)
         ++I_;
     }
 
-    return exp(-norm2(dx)) * result;
+    return result;
 }
 
 void ExpansionCenter::compress(rvec dist, real weight)
@@ -203,9 +204,9 @@ uint64_t ImprovedFastGaussTransform::factorial(const int n)
 void ImprovedFastGaussTransform::set_grid(std::unique_ptr<GridReal> grid)
 {
     FiniteGrid expansionGrid;
-    maximum_expansion_order_ = 5;
-    h_inv_                   = 1./(sqrt(2.0) * sigma_);
-    float expansionCenterSpacing = sigma_ * (sqrt(maximum_expansion_order_ / 2.0) + 1);
+    maximum_expansion_order_ = 3;
+    h_inv_                   = 1./(::sqrt(2) * sigma_);
+    float expansionCenterSpacing = sigma_ * (::sqrt(maximum_expansion_order_ / 2.0) + 1);
     n_I_                     = factorial(maximum_expansion_order_ + DIM) / (factorial(DIM) * factorial(maximum_expansion_order_));
     multinomials_.resize(n_I_);
     expansionGrid.copy_grid(*grid);
@@ -242,6 +243,23 @@ void ImprovedFastGaussTransform::transform(const rvec x, real weight)
     }
 }
 
+inline real
+ImprovedFastGaussTransform::exp_lookup(real x)
+{
+    auto result = gaussLUT_.find(int(50*x));
+    if (result != gaussLUT_.end())
+    {
+        return result->second;
+    }
+    else
+    {
+        auto val = gmx::exp(-gmx::square(x));
+        gaussLUT_[int(50*x)] = val;
+        return val;
+    }
+};
+
+
 std::unique_ptr<GridReal> &&  ImprovedFastGaussTransform::finish_and_return_grid()
 {
 
@@ -252,6 +270,11 @@ std::unique_ptr<GridReal> &&  ImprovedFastGaussTransform::finish_and_return_grid
     RVec     d_y       = grid_->unit_cell_YY();
     RVec     d_z       = grid_->unit_cell_ZZ();
 
+    /* this way only cubic grids are allowed */
+    RVec     dExpansion {
+        h_inv_ * expansionCenterField_.unit_cell_XX()[XX], h_inv_ * expansionCenterField_.unit_cell_YY()[YY], h_inv_ * expansionCenterField_.unit_cell_ZZ()[ZZ]
+    };
+
     /*
      * Use iterators to step though the grid.
      * This relies on the assumption that the grid is stored with z the slowest and x the fasted changing dimension with no padding
@@ -259,47 +282,75 @@ std::unique_ptr<GridReal> &&  ImprovedFastGaussTransform::finish_and_return_grid
      * Loosing generality through this approach, we save substantial time when we don't have to calculate the grid index.
      */
 
-    auto gridCoordinate_z = grid_->gridpoint_coordinate({0, 0, 0});
+    auto      gridCoordinate_z = grid_->gridpoint_coordinate({0, 0, 0});
 
-    auto extend              = grid_->extend();
-    auto gridData            = grid_->access();
-    auto expansionCenterData = expansionCenterField_.access();
+    auto      extend              = grid_->extend();
+    auto      gridData            = grid_->access();
+    auto      expansionCenterData = expansionCenterField_.access();
 
-    for (int gridIndexZZ = 0; gridIndexZZ <= extend[ZZ]; ++gridIndexZZ)
+    const int nNeighbours = 1;
+
+    std::array<std::vector<int>, 3>  neighbourExpansionCenterIndex;
+    std::array<std::vector<real>, 3> neighbourDistance;
+    std::array<std::vector<real>, 3> neighbourExpPreFactor;
+    std::array<std::vector<bool>, 3> neighbourInGrid;
+
+    for (int dimension = XX; dimension <= ZZ; ++dimension)
+    {
+        neighbourExpansionCenterIndex[dimension].resize(2*nNeighbours+1);
+        neighbourDistance[dimension].resize(2*nNeighbours+1);
+        neighbourExpPreFactor[dimension].resize(2*nNeighbours+1);
+        neighbourInGrid[dimension].resize(2*nNeighbours+1);
+    }
+
+    for (int gridIndexZZ = 0; gridIndexZZ < extend[ZZ]; ++gridIndexZZ)
     {
         auto gridCoordinate_yz = gridCoordinate_z; // start at the beginning of a "y-row"
-        for (int gridIndexYY = 0; gridIndexYY <=  extend[YY]; ++gridIndexYY)
+        for (int gridIndexYY = 0; gridIndexYY <  extend[YY]; ++gridIndexYY)
         {
             auto gridCoordinate_xyz = gridCoordinate_yz;  // start at the beginning of an "x-column"
             auto gridIterator       = gridData.zy_column_begin(gridIndexZZ, gridIndexYY);
 
-            for (int gridIndexXX = 0; gridIndexXX <= extend[XX]; ++gridIndexXX)
+            for (int gridIndexXX = 0; gridIndexXX < extend[XX]; ++gridIndexXX)
             {
-                auto expansionCenterIndex        = expansionCenterField_.coordinate_to_gridindex_round_ivec(gridCoordinate_xyz);
-                auto currentExpansionCenterIndex = expansionCenterIndex;
-                for (int iNeighbourZZ = -1; iNeighbourZZ <= 1; ++iNeighbourZZ)
+                auto expansionCenterIndex = expansionCenterField_.coordinate_to_gridindex_round_ivec(gridCoordinate_xyz);
+
+                auto distance = distanceToExpansionCenter(expansionCenterIndex, gridCoordinate_xyz);
+
+                // precalculate to reduce effort from (Number of Neighbours)^(Number of Dimensions) to (Number of Dimensions) * (Number of Neighbours)
+                for (int dimension = XX; dimension <= ZZ; ++dimension)
                 {
-                    currentExpansionCenterIndex[ZZ] += iNeighbourZZ;
-                    currentExpansionCenterIndex[YY]  = expansionCenterIndex[YY];
-                    for (int iNeighbourYY = -1; iNeighbourYY <= 1; ++iNeighbourYY)
+                    for (int iNeighbour = -nNeighbours; iNeighbour <= nNeighbours; ++iNeighbour)
                     {
-                        currentExpansionCenterIndex[YY] += iNeighbourYY;
-                        currentExpansionCenterIndex[XX]  = expansionCenterIndex[XX];
-                        for (int iNeighbourXX = -1; iNeighbourXX <= 1; ++iNeighbourXX)
+                        auto neighbourIndex = iNeighbour + nNeighbours;
+                        neighbourInGrid[dimension][neighbourIndex] = expansionCenterField_.inGrid(expansionCenterIndex[dimension] + iNeighbour, dimension);
+                        if (neighbourInGrid[dimension][neighbourIndex])
                         {
-                            currentExpansionCenterIndex[XX] += iNeighbourXX;
-                            if (expansionCenterField_.inGrid(currentExpansionCenterIndex))
+                            neighbourExpansionCenterIndex[dimension][neighbourIndex] = expansionCenterIndex[dimension] + iNeighbour;
+                            neighbourDistance[dimension][neighbourIndex]             = distance[dimension] + iNeighbour * dExpansion[dimension];
+                            neighbourExpPreFactor[dimension][neighbourIndex]         = exp_lookup(neighbourDistance[dimension][neighbourIndex]);
+                        }
+                    }
+                }
+                #pragma omp simd
+                for (int iNeighbourZZ = 0; iNeighbourZZ < 2*nNeighbours+1; ++iNeighbourZZ)
+                {
+                    for (int iNeighbourYY = 0; iNeighbourYY < 2*nNeighbours+1; ++iNeighbourYY)
+                    {
+                        real prefactorZZ_YY = neighbourExpPreFactor[ZZ][iNeighbourZZ] * neighbourExpPreFactor[YY][iNeighbourYY];
+                        for (int iNeighbourXX = 0; iNeighbourXX < 2*nNeighbours+1; ++iNeighbourXX)
+                        {
+                            if (neighbourInGrid[XX][iNeighbourXX] && neighbourInGrid[YY][iNeighbourYY] && neighbourInGrid[ZZ][iNeighbourZZ])
                             {
-                                auto &expansionCenter = expansionCenterData.at(currentExpansionCenterIndex);
+                                auto &expansionCenter = expansionCenterData.at({neighbourExpansionCenterIndex[XX][iNeighbourXX], neighbourExpansionCenterIndex[YY][iNeighbourYY], neighbourExpansionCenterIndex[ZZ][iNeighbourZZ]});
                                 if (expansionCenter != nullptr)
                                 {
-                                    *gridIterator += expansionCenter->expand(distanceToExpansionCenter(currentExpansionCenterIndex, gridCoordinate_xyz));
+                                    *gridIterator += prefactorZZ_YY * neighbourExpPreFactor[XX][iNeighbourXX] *  expansionCenter->expand({neighbourDistance[XX][iNeighbourXX], neighbourDistance[YY][iNeighbourYY], neighbourDistance[ZZ][iNeighbourZZ]});
                                 }
                             }
                         }
                     }
                 }
-
                 ++gridIterator;
                 rvec_inc(gridCoordinate_xyz, d_x); // next step in grid x-direction
             }
