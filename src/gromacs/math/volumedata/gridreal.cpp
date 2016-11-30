@@ -35,7 +35,7 @@
 /********************************************************************
  * GridReal
  */
-
+#include "gridreal.h"
 namespace gmx
 {
 namespace volumedata

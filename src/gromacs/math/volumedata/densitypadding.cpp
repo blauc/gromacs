@@ -42,6 +42,15 @@ namespace volumedata
 {
 
 std::unique_ptr < Field < real>>
+DensityPadding::padPower2() {
+    real factorXX = pow(2, ceil(log(toPad_.extend()[XX])/log(2)));
+    real factorYY = pow(2, ceil(log(toPad_.extend()[YY])/log(2)));
+    real factorZZ = pow(2, ceil(log(toPad_.extend()[ZZ])/log(2)));
+
+    return pad({factorXX/real(toPad_.extend()[XX]), factorYY/real(toPad_.extend()[YY]), factorZZ/real(toPad_.extend()[ZZ])} );
+}
+
+std::unique_ptr < Field < real>>
 DensityPadding::pad(RVec paddingFactor) {
     std::unique_ptr < Field < real>> padded(new Field<real>);
     padded->copy_grid(toPad_);

@@ -43,6 +43,7 @@
 #include "fouriertransform.h"
 #include "densitypadding.h"
 #include "gromacs/math/gmxcomplex.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {

@@ -44,10 +44,92 @@
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/utility/real.h"
+#include "densitypadding.h"
+#include "gridreal.h"
+#include "gromacs/fileio/volumedataio.h"
+#include <cassert>
+#include <algorithm>
+
 namespace gmx
 {
 namespace volumedata
 {
+
+FourierTransformBackAndForth::FourierTransformBackAndForth(
+        const Field<real> &input)
+    : input_ {input}
+{};
+
+std::unique_ptr < Field < real>> FourierTransformBackAndForth::transform() {
+    gmx_parallel_3dfft_t fft = nullptr;
+
+    MPI_Comm             mpiCommunicatorForFFT[] = {MPI_COMM_NULL, MPI_COMM_NULL};
+    auto                 paddedInput             = *volumedata::DensityPadding(input_).pad({3, 3, 3});
+    real                *rdata                   = (real*)(malloc(sizeof(real)*paddedInput.num_gridpoints()));
+    t_complex           *cdata                   = (t_complex*)malloc(sizeof(t_complex)*paddedInput.num_gridpoints());
+    gmx_parallel_3dfft_init(&fft, paddedInput.extend(), &rdata, &cdata,
+                            mpiCommunicatorForFFT, true, 1);
+    fprintf(stderr, "\nsize t_complex: %lu size real: %lu \n", sizeof(t_complex), sizeof(real));
+    IVec ndata;
+    IVec nsize;
+    gmx_parallel_3dfft_real_limits(fft, ndata, IVec(), nsize);
+    fprintf(stderr, "SIZE  %d %d \n", ndata[XX], nsize[XX]);
+    fprintf(stderr, "SIZE  %d %d \n", ndata[YY], nsize[YY]);
+    fprintf(stderr, "SIZE  %d %d \n", ndata[ZZ], nsize[ZZ]);
+
+    assert(ndata[ZZ] * ndata[YY] * ndata[XX] ==
+           int(std::distance(paddedInput.access().begin(), paddedInput.access().end())));
+    std::copy(paddedInput.access().begin(), paddedInput.access().end(), rdata);
+
+    gmx_parallel_3dfft_execute(fft, GMX_FFT_REAL_TO_COMPLEX, 1, nullptr);
+
+    std::unique_ptr < Field < t_complex>> output(new Field<t_complex>());
+    output->copy_grid(paddedInput);
+    output->convertToReciprocalSpace();
+
+    std::copy(cdata, cdata + output->num_gridpoints()/2 + output->extend()[XX] *output->extend()[YY] +1, output->access().begin());
+
+    auto orthoscale                = 1 / sqrt(input_.num_gridpoints());
+    auto normalizeComplexTransform = [orthoscale](t_complex &value) {
+            value.re *= orthoscale;
+            value.im *= orthoscale;
+        };
+    std::for_each(output->access().begin(), output->access().end(), normalizeComplexTransform);
+
+    std::copy(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, cdata);
+
+    volumedata::GridReal plotComplex;
+    plotComplex.copy_grid(*output);
+    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.re; });
+    MrcFile().write("RealValues.ccp4", plotComplex);
+
+    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.im; });
+    MrcFile().write("ImValues.ccp4", plotComplex);
+
+    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.re; });
+
+    gmx_parallel_3dfft_execute(fft, GMX_FFT_COMPLEX_TO_REAL, 1, nullptr);
+
+    std::unique_ptr < Field < real>> result(new Field<real>());
+    result->copy_grid(paddedInput);
+    for (auto &x  : result->access())
+    {
+        x = 0;
+    }
+    std::copy(rdata, rdata + result->num_gridpoints(),
+              result->access().begin());
+
+    orthoscale = 1 / sqrt(input_.num_gridpoints());
+    auto normalizeTransform = [orthoscale](real &value) {
+            value *= orthoscale;
+        };
+    std::for_each(std::begin(result->access().data()),
+                  std::end(result->access().data()), normalizeTransform);
+
+    gmx_parallel_3dfft_destroy(fft);
+
+    return result;
+};
 
 FourierTransformRealToComplex3D::FourierTransformRealToComplex3D(
         const Field<real> &input)
@@ -72,11 +154,15 @@ std::unique_ptr < Field < t_complex>> FourierTransformRealToComplex3D::transform
 
     gmx_parallel_3dfft_execute(fft, GMX_FFT_REAL_TO_COMPLEX, 0, nullptr);
 
+    IVec size;
+    gmx_parallel_3dfft_complex_limits(fft, IVec(), ndata, IVec(), size);
+
+
     std::unique_ptr < Field < t_complex>> output(new Field<t_complex>());
-    output->copy_grid(input_);
+    output->set_extend(size);
     output->convertToReciprocalSpace();
 
-    std::copy(cdata, cdata + input_.num_gridpoints(), output->access().begin());
+    std::copy(cdata, cdata + output->num_gridpoints()+1, output->access().begin());
     auto orthoscale = 1 / sqrt(input_.num_gridpoints());
 
     auto normalizeComplexTransform = [orthoscale](t_complex &value) {
@@ -97,11 +183,10 @@ FourierTransformComplexToReal3D::FourierTransformComplexToReal3D(
     : input_ {input}
 {};
 
-IVec
-FourierTransformComplexToReal3D::firstNonHermitian(real tolerance)
+IVec FourierTransformComplexToReal3D::firstNonHermitian(real tolerance)
 {
     auto extend = input_.extend();
-    for (int ix = 0; ix < extend[XX]/2; ++ix)
+    for (int ix = 0; ix < extend[XX] / 2; ++ix)
     {
         for (int iy = 0; iy < extend[YY]; ++iy)
         {
@@ -134,10 +219,10 @@ FourierTransformComplexToReal3D::firstNonHermitian(real tolerance)
     };
 }
 
-bool
-FourierTransformComplexToReal3D::isHermitian(real tolerance)
+bool FourierTransformComplexToReal3D::isHermitian(real tolerance)
 {
-    return firstNonHermitian(tolerance) == IVec({input_.extend()[XX], input_.extend()[YY], input_.extend()[ZZ]});
+    return firstNonHermitian(tolerance) ==
+           IVec({input_.extend()[XX], input_.extend()[YY], input_.extend()[ZZ]});
 }
 
 std::unique_ptr < Field < real>> FourierTransformComplexToReal3D::transform() {
@@ -145,30 +230,31 @@ std::unique_ptr < Field < real>> FourierTransformComplexToReal3D::transform() {
     real                *rdata;
     t_complex           *cdata;
     MPI_Comm             mpiCommunicatorForFFT[] = {MPI_COMM_NULL, MPI_COMM_NULL};
-
-    gmx_parallel_3dfft_init(&fft, input_.extend(), &rdata, &cdata,
+    auto                 realSize                = input_.extend();
+    realSize[ZZ] = (realSize[ZZ]-1)*2;
+    gmx_parallel_3dfft_init(&fft, realSize, &rdata, &cdata,
                             mpiCommunicatorForFFT, false,
                             std::max(1, gmx_omp_nthreads_get(emntDefault)));
 
     // IVec complex_order, ndata, offset, size;
     IVec size;
     gmx_parallel_3dfft_complex_limits(fft, IVec(), IVec(), IVec(), size);
-    auto halfDataEnd =
-        input_.access().sectionBegin((input_.extend()[ZZ] + 1) / 2 + 1);
     assert(size[ZZ] * size[YY] * size[XX] ==
-           int(std::distance(input_.access().begin(), halfDataEnd)));
-    std::copy(input_.access().begin(), halfDataEnd, cdata);
+           int(std::distance(input_.access().begin(), input_.access().end())));
+    std::copy(input_.access().begin(), input_.access().end(), cdata);
 
     gmx_parallel_3dfft_execute(fft, GMX_FFT_COMPLEX_TO_REAL, 0, nullptr);
 
     std::unique_ptr < Field < real>> output(new Field<real>());
     output->copy_grid(input_);
+    output->set_extend(realSize);
+    output->resetCell();
     output->convertToReciprocalSpace();
 
-    std::copy(rdata, rdata + input_.num_gridpoints(),
+    std::copy(rdata, rdata + output->num_gridpoints(),
               output->access().data().begin());
 
-    auto orthoscale = 1 / sqrt(input_.num_gridpoints());
+    auto orthoscale = 1 / sqrt(output->num_gridpoints());
 
     auto normalizeTransform = [orthoscale](real &value) {
             value *= orthoscale;

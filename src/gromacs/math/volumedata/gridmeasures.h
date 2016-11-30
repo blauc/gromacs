@@ -35,12 +35,12 @@
 #ifndef GMX_MATH_GRIDMEASURES_H
 #define GMX_MATH_GRIDMEASURES_H
 #include <memory>
-
+#include <vector>
+#include "gromacs/utility/real.h"
 namespace gmx
 {
 namespace volumedata
 {
-
 
 class GridReal;
 class GridMeasures

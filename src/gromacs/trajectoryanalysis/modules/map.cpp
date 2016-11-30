@@ -378,17 +378,17 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
             volumedata::GaussTransform *  gt_ = new volumedata::ImprovedFastGaussTransform;
             gmx_cycles_t                  start, end;
-            start = gmx_cycles_read();
-            gt_->set_sigma(sigma_);
-            gt_->set_n_sigma(n_sigma_);
-            gt_->set_grid(std::move(outputdensity_));
-
-            for (int i = 0; i < fr.natoms; ++i)
-            {
-                gt_->transform(fr.x[i], weight_[i]);
-            }
-            outputdensity_ = std::move(gt_->finish_and_return_grid());
-            end            = gmx_cycles_read();
+            // start = gmx_cycles_read();
+            // gt_->set_sigma(sigma_);
+            // gt_->set_n_sigma(n_sigma_);
+            // gt_->set_grid(std::move(outputdensity_));
+            //
+            // for (int i = 0; i < fr.natoms; ++i)
+            // {
+            //     gt_->transform(fr.x[i], weight_[i]);
+            // }
+            // outputdensity_ = std::move(gt_->finish_and_return_grid());
+            // end            = gmx_cycles_read();
             fprintf(stderr, "IFGT:  %g \n", (end-start)/10e5);
 
             gt_   = new volumedata::FastGaussianGridding;
@@ -443,8 +443,10 @@ Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             outputdensity_->normalize();
             volumedata::MrcFile().write("inputdensity.ccp4", inputdensity_);
             auto reciprocalDensity = volumedata::FourierTransformRealToComplex3D(inputdensity_).transform();
-            auto firstNonHermitian = volumedata::FourierTransformComplexToReal3D(*reciprocalDensity).firstNonHermitian();
-            fprintf(stderr, " %d %d %d %g %g %g %g \n", firstNonHermitian[XX], firstNonHermitian[YY], firstNonHermitian[ZZ], reciprocalDensity->access().at(firstNonHermitian).re,  reciprocalDensity->access().at(firstNonHermitian).im, reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).re,  reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).im);
+            auto back              = volumedata::FourierTransformBackAndForth(inputdensity_).transform();
+            volumedata::MrcFile().write("backandforth.ccp4", *back);
+
+            // fprintf(stderr, " %d %d %d %g %g %g %g \n", firstNonHermitian[XX], firstNonHermitian[YY], firstNonHermitian[ZZ], reciprocalDensity->access().at(firstNonHermitian).re,  reciprocalDensity->access().at(firstNonHermitian).im, reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).re,  reciprocalDensity->access().at({-firstNonHermitian[XX], -firstNonHermitian[YY], -firstNonHermitian[ZZ]}).im);
             auto convolutedInputDensity = volumedata::GaussConvolution(inputdensity_).pad({2, 2, 2}).convolute(0);
             std::transform(inputdensity_.access().begin(), inputdensity_.access().end(), convolutedInputDensity->access().begin(), convolutedInputDensity->access().begin(), [](real &a, real &b ){return a-b; });
             volumedata::MrcFile().write("convolutedInput.ccp4", *convolutedInputDensity);

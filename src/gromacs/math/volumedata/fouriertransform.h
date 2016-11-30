@@ -44,14 +44,25 @@
 
 #include "field.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/utility/real.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/utility/real.h"
 #include <memory>
 
 namespace gmx
 {
 namespace volumedata
 {
+
+class FourierTransformBackAndForth
+{
+    public:
+        FourierTransformBackAndForth(const Field<real> &input);
+        std::unique_ptr < Field < real>> transform();
+
+    private:
+        const Field<real> &input_;
+};
+
 
 class FourierTransformRealToComplex3D
 {
@@ -74,8 +85,6 @@ class FourierTransformComplexToReal3D
     private:
         const Field<t_complex> &input_;
 };
-
-
 
 class ApplyToUnshiftedFourierTransform
 {
@@ -131,7 +140,7 @@ class ApplyToUnshiftedFourierTransform
                  itValue = gridData.previousSection(itValue))
             {
                 applyToAllColumnsWithinSection_(
-                        k,  extend[XX], extend[YY], deltakRow, deltakColumn,
+                        k, extend[XX], extend[YY], deltakRow, deltakColumn,
                         gridData.previousSection(itValue), itValue, appliedFunction);
                 rvec_dec(k, deltakSection);
             }
@@ -189,7 +198,6 @@ class ApplyToUnshiftedFourierTransform
         }
         const Field<t_complex> &field_;
 };
-
 }
 }
 #endif /* end of include guard: GMX_MATH_FOURIERTRANSFORM_H */

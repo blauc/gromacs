@@ -46,6 +46,8 @@ class DensityPadding
     public:
         DensityPadding(const Field<real> &toPad);
         std::unique_ptr < Field < real>> pad(RVec paddingFactor);
+
+        std::unique_ptr < Field < real>> padPower2();
         std::unique_ptr < Field < real>> unpad(IVec extend);
 
     private:
