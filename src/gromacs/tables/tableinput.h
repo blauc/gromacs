@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,55 +32,50 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/* This file is completely threadsafe - keep it that way! */
-#include "gmxpre.h"
 
-#include "energyhistory.h"
+/*! \libinternal \file
+ * \brief
+ * Declares structures for analytical or numerical input data to construct tables
+ *
+ * \inlibraryapi
+ * \author Erik Lindahl <erik.lindahl@gmail.com>
+ * \ingroup module_tables
+ */
 
-#include <cstring>
+#ifndef GMX_TABLES_TABLEINPUT_H
+#define GMX_TABLES_TABLEINPUT_H
 
-#include <algorithm>
+#include <functional>
+#include <vector>
 
-#include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/arrayref.h"
 
-static void done_delta_h_history(delta_h_history_t *dht)
+namespace gmx
 {
-    int i;
 
-    for (i = 0; i < dht->nndh; i++)
-    {
-        sfree(dht->dh[i]);
-    }
-    sfree(dht->dh);
-    sfree(dht->ndh);
-}
-
-void init_energyhistory(energyhistory_t * enerhist)
+/*! \libinternal \brief Specification for analytical table function (name, function, derivative)
+ */
+struct
+AnalyticalSplineTableInput
 {
-    enerhist->nener = 0;
+    const std::string                    &desc;        //!< \libinternal Brief description of function
+    std::function<double(double)>         function;    //!< \libinternal Analytical form of function
+    std::function<double(double)>         derivative;  //!< \libinternal Analytical derivative
+};
 
-    enerhist->ener_ave     = NULL;
-    enerhist->ener_sum     = NULL;
-    enerhist->ener_sum_sim = NULL;
-    enerhist->dht          = NULL;
-
-    enerhist->nsteps     = 0;
-    enerhist->nsum       = 0;
-    enerhist->nsteps_sim = 0;
-    enerhist->nsum_sim   = 0;
-
-    enerhist->dht = NULL;
-}
-
-void done_energyhistory(energyhistory_t * enerhist)
+/*! \libinternal \brief Specification for vector table function (name, function, derivative, spacing)
+ */
+struct
+NumericalSplineTableInput
 {
-    sfree(enerhist->ener_ave);
-    sfree(enerhist->ener_sum);
-    sfree(enerhist->ener_sum_sim);
+    const std::string                    &desc;        //!< \libinternal Brief description of function
+    ConstArrayRef<double>                 function;    //!< \libinternal Vector with function values
+    ConstArrayRef<double>                 derivative;  //!< \libinternal Vector with derivative values
+    double                                spacing;     //!< \libinternal Distance between data points
+};
 
-    if (enerhist->dht != NULL)
-    {
-        done_delta_h_history(enerhist->dht);
-        sfree(enerhist->dht);
-    }
-}
+
+} // namespace gmx
+
+
+#endif // GMX_TABLES_TABLEINPUT_H

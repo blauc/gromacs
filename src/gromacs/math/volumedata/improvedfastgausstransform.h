@@ -68,7 +68,7 @@ class ImprovedFastGaussTransform : public GaussTransform
         void transform(const rvec x, real weight);
         real exp_lookup(real x);
 
-        std::unique_ptr<GridReal> && finish_and_return_grid();
+        std::unique_ptr<GridReal> finish_and_return_grid();
         uint64_t factorial(const int n);
         real pbc_dist(ivec i, ivec n, matrix b, ivec ndx);
         RVec distanceToExpansionCenter(IVec expansionCenterIndex, RVec x);

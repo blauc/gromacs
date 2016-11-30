@@ -60,6 +60,7 @@
 #include "gromacs/math/volumedata/gridmeasures.h"
 #include "gromacs/fileio/xtcio.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/mtop_lookup.h"
 #include "gromacs/topology/atoms.h"
 #include "emscatteringfactors.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
@@ -206,11 +207,12 @@ std::unique_ptr<ExternalPotential> DensityFitting::create()
     return std::unique_ptr<ExternalPotential> (new DensityFitting());
 }
 
-real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdatoms*/, gmx_localtop_t * /*topology_loc*/, const gmx_mtop_t * /*topology_global*/, const gmx_mtop_atomlookup * atom_lookup)
+real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdatoms*/, gmx_localtop_t * /*topology_loc*/, const gmx_mtop_t * topology_global)
 {
-    t_atom * single_atom;
-    gmx_mtop_atomnr_to_atom((const gmx_mtop_atomlookup_t)atom_lookup, *(atom->i_global), &single_atom);
-    return atomicNumber2EmScatteringFactor(single_atom->atomnumber);
+    int           molblock        = 0;
+    const t_atom &atomPropeties   = mtopGetAtomParameters(topology_global, *(atom->i_global), &molblock);
+
+    return atomicNumber2EmScatteringFactor(atomPropeties.atomnumber);
 }
 
 void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<real> &multiplier)
@@ -579,36 +581,20 @@ DensityFitting::initialize_target_density_()
 }
 
 void
-DensityFitting::initialize_buffers_()
+DensityFitting::initializeThreadLocalBuffers_()
 {
-    force_density_.resize(number_of_threads_);
-    force_gauss_transform_.resize(number_of_threads_);
-    simulated_density_buffer_.resize(number_of_threads_);
-    gauss_transform_.resize(number_of_threads_);
-// ensure thread local buffers
-#pragma omp parallel num_threads(number_of_threads_)
+#pragma omp parallel for ordered num_threads(number_of_threads_)
+    for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        int           thread     = gmx_omp_get_thread_num();
-
-        auto          forceDensityTmp = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
-        forceDensityTmp->copy_grid(*target_density_);
-
-        force_density_[thread] = std::move(forceDensityTmp);
-
-        /* Create a gauss transform object for each density buffer,
-         * because the gauss transforms will be carried out simultaneously
-         */
-        auto forceGaussTransformTmp = std::unique_ptr<volumedata::FastGaussianGriddingForce>(new volumedata::FastGaussianGriddingForce());
-        forceGaussTransformTmp->set_sigma(sigma_);
-        forceGaussTransformTmp->set_n_sigma(n_sigma_);
-
-        force_gauss_transform_[thread] = std::move(forceGaussTransformTmp);
-
-        auto simulatedDensityTmp = std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
-        simulatedDensityTmp->copy_grid(*target_density_);
-        simulated_density_buffer_[thread] = std::move(simulatedDensityTmp);
-        auto gaussTransformTmp = std::unique_ptr<volumedata::FastGaussianGridding>(new volumedata::FastGaussianGridding());
-        gauss_transform_[thread] = std::move(gaussTransformTmp);
+        force_density_.emplace_back(new volumedata::GridReal(*target_density_));
+        force_gauss_transform_.emplace_back(new volumedata::FastGaussianGriddingForce());
+        simulated_density_buffer_.emplace_back(new volumedata::GridReal(*target_density_));
+        gauss_transform_.emplace_back(new volumedata::FastGaussianGridding());
+    }
+    for (auto &transform : force_gauss_transform_)
+    {
+        transform->set_sigma(sigma_);
+        transform->set_n_sigma(n_sigma_);
     }
 }
 
@@ -616,11 +602,10 @@ void
 DensityFitting::initialize_spreading_()
 {
     simulated_density_->copy_grid(*target_density_);
-#pragma omp parallel num_threads(number_of_threads_)
+    for (auto &transform : gauss_transform_)
     {
-        int           thread     = gmx_omp_get_thread_num();
-        gauss_transform_[thread]->set_sigma(sigma_);
-        gauss_transform_[thread]->set_n_sigma(n_sigma_);
+        transform->set_sigma(sigma_);
+        transform->set_n_sigma(n_sigma_);
     }
 }
 
@@ -636,7 +621,7 @@ DensityFitting::initializeKL_(const matrix box, const rvec x[])
     alignComDensityAtoms();
 
     initialize_target_density_();
-    initialize_buffers_();
+    initializeThreadLocalBuffers_();
 
     totalScatteringSum_ = getTotalScatteringSum_(fitatoms);
     initialize_spreading_();

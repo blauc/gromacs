@@ -257,11 +257,12 @@ FiniteGrid::~FiniteGrid() = default;
 
 void FiniteGrid::convertToReciprocalSpace()
 {
-    copy_mat(impl_->cell_, impl_->unit_cell_inv_);
     invertMatrix(impl_->cell_, impl_->unit_cell_);
-    svmul(extend()[XX], impl_->unit_cell_[XX], impl_->cell_[XX]);
-    svmul(extend()[YY], impl_->unit_cell_[YY], impl_->cell_[YY]);
-    svmul(extend()[ZZ], impl_->unit_cell_[ZZ], impl_->cell_[ZZ]);
+    svmul(1.0/extend()[XX], impl_->unit_cell_[XX], impl_->unit_cell_[XX]);
+    svmul(1.0/extend()[YY], impl_->unit_cell_[YY], impl_->unit_cell_[YY]);
+    svmul(1.0/extend()[ZZ], impl_->unit_cell_[ZZ], impl_->unit_cell_[ZZ]);
+    invertMatrix(impl_->unit_cell_, impl_->unit_cell_inv_);
+    resetCell();
 }
 
 Finite3DLatticeIndices::Finite3DLatticeIndices() = default;

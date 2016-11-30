@@ -71,12 +71,15 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/txtdump.h"
 
-static void list_tpx(const char *fn, gmx_bool bShowNumbers, const char *mdpfn,
-                     gmx_bool bSysTop)
+static void list_tpx(const char *fn,
+                     gmx_bool    bShowNumbers,
+                     gmx_bool    bShowParameters,
+                     const char *mdpfn,
+                     gmx_bool    bSysTop)
 {
     FILE         *gp;
     int           indent, i, j, **gcount, atot;
-    t_state       state;
+    t_state       state {};
     t_inputrec   *ir = nullptr;
     t_tpxheader   tpx;
     gmx_mtop_t    mtop;
@@ -105,7 +108,7 @@ static void list_tpx(const char *fn, gmx_bool bShowNumbers, const char *mdpfn,
     {
         if (bSysTop)
         {
-            top = gmx_mtop_t_to_t_topology(&mtop);
+            top = gmx_mtop_t_to_t_topology(&mtop, false);
         }
 
         if (available(stdout, &tpx, 0, fn))
@@ -118,11 +121,11 @@ static void list_tpx(const char *fn, gmx_bool bShowNumbers, const char *mdpfn,
 
             if (!bSysTop)
             {
-                pr_mtop(stdout, indent, "topology", &(mtop), bShowNumbers);
+                pr_mtop(stdout, indent, "topology", &(mtop), bShowNumbers, bShowParameters);
             }
             else
             {
-                pr_top(stdout, indent, "topology", &(top), bShowNumbers);
+                pr_top(stdout, indent, "topology", &(top), bShowNumbers, bShowParameters);
             }
 
             pr_rvecs(stdout, indent, "box", tpx.bBox ? state.box : NULL, DIM);
@@ -132,11 +135,11 @@ static void list_tpx(const char *fn, gmx_bool bShowNumbers, const char *mdpfn,
             pr_rvecs(stdout, indent, "svir_prev", tpx.bBox ? state.svir_prev : NULL, DIM);
             pr_rvecs(stdout, indent, "fvir_prev", tpx.bBox ? state.fvir_prev : NULL, DIM);
             /* leave nosehoover_xi in for now to match the tpr version */
-            pr_doubles(stdout, indent, "nosehoover_xi", state.nosehoover_xi, state.ngtc);
+            pr_doubles(stdout, indent, "nosehoover_xi", state.nosehoover_xi.data(), state.ngtc);
             /*pr_doubles(stdout,indent,"nosehoover_vxi",state.nosehoover_vxi,state.ngtc);*/
             /*pr_doubles(stdout,indent,"therm_integral",state.therm_integral,state.ngtc);*/
-            pr_rvecs(stdout, indent, "x", tpx.bX ? state.x : NULL, state.natoms);
-            pr_rvecs(stdout, indent, "v", tpx.bV ? state.v : NULL, state.natoms);
+            pr_rvecs(stdout, indent, "x", tpx.bX ? as_rvec_array(state.x.data()) : NULL, state.natoms);
+            pr_rvecs(stdout, indent, "v", tpx.bV ? as_rvec_array(state.v.data()) : NULL, state.natoms);
         }
 
         groups = &mtop.groups;
@@ -169,7 +172,6 @@ static void list_tpx(const char *fn, gmx_bool bShowNumbers, const char *mdpfn,
         }
         sfree(gcount);
     }
-    done_state(&state);
 }
 
 static void list_top(const char *fn)
@@ -624,9 +626,11 @@ int gmx_dump(int argc, char *argv[])
     gmx_output_env_t *oenv;
     /* Command line options */
     static gmx_bool   bShowNumbers = TRUE;
+    static gmx_bool   bShowParams  = FALSE;
     static gmx_bool   bSysTop      = FALSE;
     t_pargs           pa[]         = {
         { "-nr", FALSE, etBOOL, {&bShowNumbers}, "Show index numbers in output (leaving them out makes comparison easier, but creates a useless topology)" },
+        { "-param", FALSE, etBOOL, {&bShowParams}, "Show parameters for each bonded interaction (for comparing dumps, it is useful to combine this with -nonr)" },
         { "-sys", FALSE, etBOOL, {&bSysTop}, "List the atoms and bonded interactions for the whole system instead of for each molecule type" }
     };
 
@@ -639,7 +643,7 @@ int gmx_dump(int argc, char *argv[])
 
     if (ftp2bSet(efTPR, NFILE, fnm))
     {
-        list_tpx(ftp2fn(efTPR, NFILE, fnm), bShowNumbers,
+        list_tpx(ftp2fn(efTPR, NFILE, fnm), bShowNumbers, bShowParams,
                  ftp2fn_null(efMDP, NFILE, fnm), bSysTop);
     }
     else if (ftp2bSet(efTRX, NFILE, fnm))

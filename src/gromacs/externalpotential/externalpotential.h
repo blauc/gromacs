@@ -118,7 +118,7 @@ class ExternalPotential
         void set_input_output(std::shared_ptr<ExternalPotentialIO> &&input_output);
         virtual void read_input()         = 0;
         virtual void broadcast_internal() = 0;
-        void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global, const struct gmx_mtop_atomlookup* atom_lookup);
+        void set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global);
         virtual bool do_this_step(gmx_int64_t step) = 0;
 
         /*! \brief
@@ -146,7 +146,7 @@ class ExternalPotential
         /*! \brief
          * Fill provide the atom with properties that migth be needed to calculate the external potential
          */
-        virtual real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup) = 0;
+        virtual real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * toplogy_loc, const gmx_mtop_t * topology_global) = 0;
 
     private:
         class Impl;

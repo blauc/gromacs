@@ -52,6 +52,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/math/paddedvector.h"
 
 namespace gmx
 {
@@ -180,12 +181,13 @@ void Manager::init_groups(struct ext_pot_ir ** ir_data, bool bParallel)
     }
 }
 
-void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const rvec x[])
+void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx_mtop_t *top_global, const int ePBC, const matrix box, const PaddedRVecVector &x)
 {
     /* TODO: make only the manager operator on group and call routines affecting groups, externalpotentials only read groups; enable sharing of groups across externalpotentials
      * This method hsould not need to know ir_data anymore, since all information from there is in the already setup groups
      */
 
+    const rvec * xx = as_rvec_array(x.data());
     for (size_t i_potential = 0; i_potential < potentials_.size(); ++i_potential)
     {
         Modules::ModuleProperties curr_module_info = modules_.module.at(ir_data[i_potential]->method);
@@ -193,11 +195,11 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
         {
             if (mpi_helper_)
             {
-                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), mpi_helper_.get(), box, 3, top_global, ePBC) );
+                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(xx, i_group)), mpi_helper_.get(), box, 3, top_global, ePBC) );
             }
             else
             {
-                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(x, i_group)), nullptr, box, 3, top_global, ePBC) );
+                whole_groups_.emplace_back(new WholeMoleculeGroup(*(potentials_[i_potential]->group(xx, i_group)), nullptr, box, 3, top_global, ePBC) );
             }
             potentials_[i_potential]->add_wholemoleculegroup(whole_groups_.back().get());
         }
@@ -205,7 +207,7 @@ void Manager::init_whole_molecule_groups(struct ext_pot_ir ** ir_data, const gmx
 }
 
 void
-Manager::update_whole_molecule_groups (const rvec x[], const matrix box)
+Manager::update_whole_molecule_groups (const rvec  x[], const matrix box)
 {
     for (auto &group : whole_groups_)
     {
@@ -215,11 +217,9 @@ Manager::update_whole_molecule_groups (const rvec x[], const matrix box)
 
 void Manager::setAtomProperties( t_mdatoms * mdatom, gmx_localtop_t * topology_loc, const gmx_mtop_t * mtop)
 {
-    gmx_mtop_atomlookup * topology_atomlookup = gmx_mtop_atomlookup_init(mtop);
-
     for (auto &potential : potentials_)
     {
-        potential->set_atom_properties(mdatom, topology_loc, mtop, topology_atomlookup);
+        potential->set_atom_properties(mdatom, topology_loc, mtop);
     }
 }
 
@@ -274,11 +274,12 @@ void Manager::finish()
     }
 };
 
-void Manager::initialize(const matrix box, const rvec x[])
+void Manager::initialize(const matrix box, const PaddedRVecVector &x)
 {
+    const rvec * xx = as_rvec_array(x.data());
     for (auto &potential : potentials_)
     {
-        potential->initialize(box, x);
+        potential->initialize(box, xx);
     }
 }
 

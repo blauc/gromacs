@@ -85,7 +85,7 @@ class DensityFitting : public ExternalPotential
         void broadcast_internal();
         bool do_this_step(gmx_int64_t step);
 
-        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup);
+        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global);
         void finish();
 
         real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference);
@@ -101,7 +101,7 @@ class DensityFitting : public ExternalPotential
         void ForceKernel_KL(GroupAtom &atom, const int &thread);
         void plot_forces(WholeMoleculeGroup * plotatoms);
         void initialize_target_density_();
-        void initialize_buffers_();
+        void initializeThreadLocalBuffers_();
         void initialize_spreading_();
         void setCenterOfMass(WholeMoleculeGroup * atomgroup);
         void KLForceCalculation_(WholeMoleculeGroup * fitatoms);

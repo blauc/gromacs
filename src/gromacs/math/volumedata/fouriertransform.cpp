@@ -41,230 +41,193 @@
  */
 
 #include "fouriertransform.h"
-#include "gromacs/fft/parallel_3dfft.h"
-#include "gromacs/mdlib/gmx_omp_nthreads.h"
-#include "gromacs/utility/real.h"
 #include "densitypadding.h"
 #include "gridreal.h"
+#include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/volumedataio.h"
-#include <cassert>
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/real.h"
 #include <algorithm>
+#include <cassert>
+#include <fftw3.h>
 
 namespace gmx
 {
 namespace volumedata
 {
 
-FourierTransformBackAndForth::FourierTransformBackAndForth(
-        const Field<real> &input)
-    : input_ {input}
-{};
-
-std::unique_ptr < Field < real>> FourierTransformBackAndForth::transform() {
-    gmx_parallel_3dfft_t fft = nullptr;
-
-    MPI_Comm             mpiCommunicatorForFFT[] = {MPI_COMM_NULL, MPI_COMM_NULL};
-    auto                 paddedInput             = *volumedata::DensityPadding(input_).pad({3, 3, 3});
-    real                *rdata                   = (real*)(malloc(sizeof(real)*paddedInput.num_gridpoints()));
-    t_complex           *cdata                   = (t_complex*)malloc(sizeof(t_complex)*paddedInput.num_gridpoints());
-    gmx_parallel_3dfft_init(&fft, paddedInput.extend(), &rdata, &cdata,
-                            mpiCommunicatorForFFT, true, 1);
-    fprintf(stderr, "\nsize t_complex: %lu size real: %lu \n", sizeof(t_complex), sizeof(real));
-    IVec ndata;
-    IVec nsize;
-    gmx_parallel_3dfft_real_limits(fft, ndata, IVec(), nsize);
-    fprintf(stderr, "SIZE  %d %d \n", ndata[XX], nsize[XX]);
-    fprintf(stderr, "SIZE  %d %d \n", ndata[YY], nsize[YY]);
-    fprintf(stderr, "SIZE  %d %d \n", ndata[ZZ], nsize[ZZ]);
-
-    assert(ndata[ZZ] * ndata[YY] * ndata[XX] ==
-           int(std::distance(paddedInput.access().begin(), paddedInput.access().end())));
-    std::copy(paddedInput.access().begin(), paddedInput.access().end(), rdata);
-
-    gmx_parallel_3dfft_execute(fft, GMX_FFT_REAL_TO_COMPLEX, 1, nullptr);
-
-    std::unique_ptr < Field < t_complex>> output(new Field<t_complex>());
-    output->copy_grid(paddedInput);
-    output->convertToReciprocalSpace();
-
-    std::copy(cdata, cdata + output->num_gridpoints()/2 + output->extend()[XX] *output->extend()[YY] +1, output->access().begin());
-
-    auto orthoscale                = 1 / sqrt(input_.num_gridpoints());
-    auto normalizeComplexTransform = [orthoscale](t_complex &value) {
-            value.re *= orthoscale;
-            value.im *= orthoscale;
-        };
-    std::for_each(output->access().begin(), output->access().end(), normalizeComplexTransform);
-
-    std::copy(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, cdata);
-
-    volumedata::GridReal plotComplex;
-    plotComplex.copy_grid(*output);
-    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.re; });
-    MrcFile().write("RealValues.ccp4", plotComplex);
-
-    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.im; });
-    MrcFile().write("ImValues.ccp4", plotComplex);
-
-    std::transform(output->access().begin(), output->access().begin()+output->num_gridpoints()/2+ output->extend()[XX] *output->extend()[YY] + 1, plotComplex.access().begin(), [](const t_complex &o){return o.re; });
-
-    gmx_parallel_3dfft_execute(fft, GMX_FFT_COMPLEX_TO_REAL, 1, nullptr);
-
-    std::unique_ptr < Field < real>> result(new Field<real>());
-    result->copy_grid(paddedInput);
-    for (auto &x  : result->access())
-    {
-        x = 0;
-    }
-    std::copy(rdata, rdata + result->num_gridpoints(),
-              result->access().begin());
-
-    orthoscale = 1 / sqrt(input_.num_gridpoints());
-    auto normalizeTransform = [orthoscale](real &value) {
-            value *= orthoscale;
-        };
-    std::for_each(std::begin(result->access().data()),
-                  std::end(result->access().data()), normalizeTransform);
-
-    gmx_parallel_3dfft_destroy(fft);
-
-    return result;
-};
-
-FourierTransformRealToComplex3D::FourierTransformRealToComplex3D(
-        const Field<real> &input)
-    : input_ {input}
-{};
-
-std::unique_ptr < Field < t_complex>> FourierTransformRealToComplex3D::transform() {
-    gmx_parallel_3dfft_t fft = nullptr;
-    real                *rdata;
-    t_complex           *cdata;
-    MPI_Comm             mpiCommunicatorForFFT[] = {MPI_COMM_NULL, MPI_COMM_NULL};
-
-    gmx_parallel_3dfft_init(&fft, input_.extend(), &rdata, &cdata,
-                            mpiCommunicatorForFFT, false,
-                            std::max(1, gmx_omp_nthreads_get(emntDefault)));
-
-    IVec ndata;
-    gmx_parallel_3dfft_real_limits(fft, ndata, IVec(), IVec());
-    assert(ndata[ZZ] * ndata[YY] * ndata[XX] ==
-           int(std::distance(input_.access().begin(), input_.access().end())));
-    std::copy(input_.access().begin(), input_.access().end(), rdata);
-
-    gmx_parallel_3dfft_execute(fft, GMX_FFT_REAL_TO_COMPLEX, 0, nullptr);
-
-    IVec size;
-    gmx_parallel_3dfft_complex_limits(fft, IVec(), ndata, IVec(), size);
-
-
-    std::unique_ptr < Field < t_complex>> output(new Field<t_complex>());
-    output->set_extend(size);
-    output->convertToReciprocalSpace();
-
-    std::copy(cdata, cdata + output->num_gridpoints()+1, output->access().begin());
-    auto orthoscale = 1 / sqrt(input_.num_gridpoints());
-
-    auto normalizeComplexTransform = [orthoscale](t_complex &value) {
-            value.re *= orthoscale;
-            value.im *= orthoscale;
-        };
-
-    std::for_each(output->access().begin(), output->access().end(),
-                  normalizeComplexTransform);
-
-    gmx_parallel_3dfft_destroy(fft);
-
-    return output;
-};
-
-FourierTransformComplexToReal3D::FourierTransformComplexToReal3D(
-        const Field<t_complex> &input)
-    : input_ {input}
-{};
-
-IVec FourierTransformComplexToReal3D::firstNonHermitian(real tolerance)
+IVec
+FourierTransform3D::columnMajorExtendToRowMajorExtend(IVec extend)
 {
-    auto extend = input_.extend();
-    for (int ix = 0; ix < extend[XX] / 2; ++ix)
-    {
-        for (int iy = 0; iy < extend[YY]; ++iy)
-        {
-
-            for (int iz = 0; iz < extend[ZZ]; ++iz)
-            {
-                if (ix != 0 || iy != 0 || iz != 0)
-                {
-                    auto a = input_.access().at({ix, iy, iz});
-                    auto b = input_.access().at({-ix, -iy, -iz});
-                    if (abs(a.re - b.re) < tolerance)
-                    {
-                        return {
-                                   ix, iy, iz
-                        };
-                    }
-                    ;
-                    if (abs(a.im + b.im) < tolerance)
-                    {
-                        return {
-                                   ix, iy, iz
-                        };
-                    }
-                }
-            }
-        }
-    }
     return {
-               extend[XX], extend[YY], extend[ZZ]
+               extend[ZZ], extend[YY], extend[XX]
     };
 }
 
-bool FourierTransformComplexToReal3D::isHermitian(real tolerance)
+FourierTransformRealToComplex3D::FourierTransformRealToComplex3D(
+        const Field<real> &realInputField)
+    : realInputField_ {realInputField}, complexTransformedField_ {
+    new Field<t_complex>()
+} {
+    /*
+     * TODO: dirty trick : to get the reciprocal basis vectors correct,
+     * set to the size of the real grid first
+     */
+    complexTransformedField_->copy_grid(realInputField_);
+    complexTransformedField_->convertToReciprocalSpace();
+    complexTransformedField_->set_extend({realInputField_.extend()[XX] / 2 +1,
+                                          realInputField_.extend()[YY],
+                                          realInputField_.extend()[ZZ] });
+    complexTransformedField_->resetCell();
+    plan_ = fftwf_plan_dft_r2c(3, columnMajorExtendToRowMajorExtend(realInputField_.extend()), (float *) realInputField_.access().data().data(), (fftwf_complex * )complexTransformedField_->access().data().data(), FFTW_ESTIMATE);
+    fftwf_execute(plan_);
+    fftwf_destroy_plan(plan_);
+};
+
+FourierTransformRealToComplex3D &FourierTransformRealToComplex3D::normalize()
 {
-    return firstNonHermitian(tolerance) ==
-           IVec({input_.extend()[XX], input_.extend()[YY], input_.extend()[ZZ]});
+    auto orthoscale = 1 / sqrt(complexTransformedField_->num_gridpoints());
+
+    auto normalizeComplexTransform = [orthoscale](t_complex &value) {
+            value.re *= orthoscale;
+            value.im *= orthoscale;
+        };
+
+    std::for_each(complexTransformedField_->access().begin(),
+                  complexTransformedField_->access().end(),
+                  normalizeComplexTransform);
+    return *this;
 }
 
-std::unique_ptr < Field < real>> FourierTransformComplexToReal3D::transform() {
-    gmx_parallel_3dfft_t fft = nullptr;
-    real                *rdata;
-    t_complex           *cdata;
-    MPI_Comm             mpiCommunicatorForFFT[] = {MPI_COMM_NULL, MPI_COMM_NULL};
-    auto                 realSize                = input_.extend();
-    realSize[ZZ] = (realSize[ZZ]-1)*2;
-    gmx_parallel_3dfft_init(&fft, realSize, &rdata, &cdata,
-                            mpiCommunicatorForFFT, false,
-                            std::max(1, gmx_omp_nthreads_get(emntDefault)));
+std::unique_ptr < Field < t_complex>> FourierTransformRealToComplex3D::result() {
+    return std::move(complexTransformedField_);
+};
 
-    // IVec complex_order, ndata, offset, size;
-    IVec size;
-    gmx_parallel_3dfft_complex_limits(fft, IVec(), IVec(), IVec(), size);
-    assert(size[ZZ] * size[YY] * size[XX] ==
-           int(std::distance(input_.access().begin(), input_.access().end())));
-    std::copy(input_.access().begin(), input_.access().end(), cdata);
+FourierTransformComplexToReal3D::FourierTransformComplexToReal3D(
+        const Field<t_complex> &complexInputField)
+    : complexInputField_ {complexInputField}, realTransformedField_ {
+    new Field<real>()
+} {
 
-    gmx_parallel_3dfft_execute(fft, GMX_FFT_COMPLEX_TO_REAL, 0, nullptr);
+    auto realSize = complexInputField_.extend();
+    realSize[XX] = (realSize[XX] - 1) * 2;
+    realTransformedField_->copy_grid(complexInputField_);
+    realTransformedField_->set_extend(realSize);
+    realTransformedField_->resetCell();
+    realTransformedField_->convertToReciprocalSpace();
 
-    std::unique_ptr < Field < real>> output(new Field<real>());
-    output->copy_grid(input_);
-    output->set_extend(realSize);
-    output->resetCell();
-    output->convertToReciprocalSpace();
+    std::vector<real> realData(realTransformedField_->num_gridpoints());
 
-    std::copy(rdata, rdata + output->num_gridpoints(),
-              output->access().data().begin());
+    auto              plan = fftwf_plan_dft_c2r(3, columnMajorExtendToRowMajorExtend(realTransformedField_->extend()),
+                                                (fftwf_complex *)complexInputField_.access().data().data(),
+                                                (float *)realTransformedField_->access().data().data(), FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
+};
 
-    auto orthoscale = 1 / sqrt(output->num_gridpoints());
-
+FourierTransformComplexToReal3D &FourierTransformComplexToReal3D::normalize()
+{
+    auto orthoscale         = 1 / sqrt(realTransformedField_->num_gridpoints());
     auto normalizeTransform = [orthoscale](real &value) {
             value *= orthoscale;
         };
-    std::for_each(std::begin(output->access().data()),
-                  std::end(output->access().data()), normalizeTransform);
-
-    gmx_parallel_3dfft_destroy(fft);
-
-    return output;
+    std::for_each(std::begin(realTransformedField_->access().data()),
+                  std::end(realTransformedField_->access().data()),
+                  normalizeTransform);
+    return *this;
 };
+
+std::unique_ptr < Field < real>> FourierTransformComplexToReal3D::result() {
+    return std::move(realTransformedField_);
+}
+
+ApplyToUnshiftedFourierTransform::ApplyToUnshiftedFourierTransform(
+        Field<t_complex> &field)
+    : field_ {field}
+{};
+
+const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
+        FunctionOnComplexField appliedFunction)
+{
+
+    /*
+     * Assume that second halves of indices denote negative frequencies
+     * Use iterators to step though the grid.
+     * This relies on the assumption that the grid is stored with z the slowest
+     * and x the fasted changing dimension with no padding
+     * (x,y,z not being linked to any coordiante system, but short-hand for
+     * first, second, third dimension)
+     * Loosing generality through this approach, we save substantial time when
+     * we don't have to calculate the grid index.
+     */
+
+    auto extend        = field_.extend();
+    auto itSectionEnd  = field_.access().sectionBegin(extend[ZZ]);
+    auto k             = RVec {
+        0., 0., 0.
+    };
+    auto deltakSection = field_.unit_cell_ZZ();
+
+    for (auto itValue = field_.access().sectionBegin(0); itValue != itSectionEnd;
+         itValue = field_.access().next_slice(itValue))
+    {
+        applyToAllColumnsWithinSection_( k, extend[XX], extend[YY], field_.unit_cell_XX(), field_.unit_cell_YY(), itValue, field_.access().next_slice(itValue), appliedFunction);
+        rvec_inc(k, deltakSection);
+    }
+    return *this;
+};
+
+void ApplyToUnshiftedFourierTransform::applyToAllColumnsWithinSection_(
+        RVec coordinateSectionBegin, int nRowsPerColumn, int nColumns,
+        RVec deltakRow, RVec deltakColumn,
+        std::vector<t_complex>::iterator itColumnStart,
+        std::vector<t_complex>::iterator itColumnEnd,
+        FunctionOnComplexField appliedFunction)
+{
+
+    auto itMiddleColumn = itColumnStart + ((nColumns + 1) / 2) * nRowsPerColumn;
+    auto k              = coordinateSectionBegin;
+    for (auto itValue = itColumnStart; itValue != itMiddleColumn;
+         itValue += nRowsPerColumn)
+    {
+        applyToAllRowsWithinColumn_(k, deltakRow, itValue, itValue + nRowsPerColumn,
+                                    appliedFunction);
+        rvec_inc(k, deltakColumn);
+    }
+
+    // k = coordinateSectionBegin;
+    // rvec_dec(k, deltakColumn);
+    // for (auto itValue = itColumnEnd; itValue != itMiddleColumn;
+    //      itValue -= nRowsPerColumn) {
+    //   applyToAllRowsWithinColumn_(k, deltakRow, itValue - nRowsPerColumn, itValue,
+    //                               appliedFunction);
+    //   rvec_dec(k, deltakColumn);
+    // }
+};
+
+void ApplyToUnshiftedFourierTransform::applyToAllRowsWithinColumn_(
+        RVec coordinateColumnBegin, RVec deltakRow,
+        std::vector<t_complex>::iterator itRowStart,
+        std::vector<t_complex>::iterator itRowEnd,
+        FunctionOnComplexField appliedFunction)
+{
+
+    auto itOnePastRowMiddle = itRowStart + (itRowEnd - itRowStart) / 2 + 1;
+    auto k                  = coordinateColumnBegin;
+    for (auto itValue = itRowStart; itValue != itOnePastRowMiddle; ++itValue)
+    {
+        appliedFunction(*itValue, k);
+        rvec_inc(k, deltakRow);
+    }
+
+    // k = coordinateColumnBegin;
+    // rvec_dec(k, deltakRow);
+    // for (auto itValue = itRowEnd - 1; itValue != itOnePastRowMiddle - 1;
+    //      --itValue) {
+    //   appliedFunction(*itValue, k);
+    //   rvec_dec(k, deltakRow);
+    // }
+}
 }
 }

@@ -56,7 +56,7 @@ class Template : public ExternalPotential
         static std::unique_ptr<ExternalPotential> create();
         void read_input();
         void broadcast_internal();
-        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * /*atomlookup*/);
+        real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global);
         void finish();
         bool do_this_step(gmx_int64_t step);
         void initialize(const matrix box, const rvec x[]);

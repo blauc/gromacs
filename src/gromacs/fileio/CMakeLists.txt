@@ -62,13 +62,6 @@ gmx_install_headers(
     volumedataio.h
     )
 
-if (GMX_USE_TNG AND TNG_IO_DEFINITIONS)
-    set_property(SOURCE tngio.cpp
-                 APPEND PROPERTY COMPILE_DEFINITIONS ${TNG_IO_DEFINITIONS})
-    set_property(SOURCE tngio_for_tools.cpp
-                 APPEND PROPERTY COMPILE_DEFINITIONS ${TNG_IO_DEFINITIONS})
-endif()
-
 if (BUILD_TESTING)
      add_subdirectory(tests)
 endif()

@@ -46,156 +46,68 @@
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/real.h"
+#include <fftw3.h>
 #include <memory>
-
 namespace gmx
 {
 namespace volumedata
 {
 
-class FourierTransformBackAndForth
+class FourierTransform3D
 {
     public:
-        FourierTransformBackAndForth(const Field<real> &input);
-        std::unique_ptr < Field < real>> transform();
-
-    private:
-        const Field<real> &input_;
+        FourierTransform3D()  = default;
+        ~FourierTransform3D() = default;
+        IVec columnMajorExtendToRowMajorExtend(IVec extend);
+    protected:
+        fftwf_plan_s * plan_;
 };
 
-
-class FourierTransformRealToComplex3D
+class FourierTransformRealToComplex3D : FourierTransform3D
 {
     public:
-        FourierTransformRealToComplex3D(const Field<real> &input);
-        std::unique_ptr < Field < t_complex>> transform();
+        FourierTransformRealToComplex3D(const Field<real> &realInputField);
+        FourierTransformRealToComplex3D &normalize();
+        std::unique_ptr < Field < t_complex>> result();
 
     private:
-        const Field<real> &input_;
+        const Field<real> &realInputField_;
+        std::unique_ptr < Field < t_complex>> complexTransformedField_;
 };
 
-class FourierTransformComplexToReal3D
+class FourierTransformComplexToReal3D : FourierTransform3D
 {
     public:
-        FourierTransformComplexToReal3D(const Field<t_complex> &input);
-        IVec firstNonHermitian(real tolerance = 1e-5);
-        bool isHermitian(real tolerance = 1e-5);
-        std::unique_ptr < Field < real>> transform();
+        FourierTransformComplexToReal3D(const Field<t_complex> &complexInputField);
+
+        FourierTransformComplexToReal3D &normalize();
+        std::unique_ptr < Field < real>> result();
 
     private:
-        const Field<t_complex> &input_;
+        const Field<t_complex> &complexInputField_;
+        std::unique_ptr < Field < real>> realTransformedField_;
 };
 
 class ApplyToUnshiftedFourierTransform
 {
     public:
-        ApplyToUnshiftedFourierTransform(Field<t_complex> &field) : field_ {field}
-        {};
         typedef const std::function<void(t_complex &, RVec)> &FunctionOnComplexField;
+        ApplyToUnshiftedFourierTransform(Field<t_complex> &field);
         const ApplyToUnshiftedFourierTransform &
-        apply(FunctionOnComplexField appliedFunction)
-        {
-
-            /*
-             * Assume that second halves of indices denote negative frequencies
-             * Use iterators to step though the grid.
-             * This relies on the assumption that the grid is stored with z the slowest
-             * and x the fasted changing dimension with no padding
-             * (x,y,z not being linked to any coordiante system, but short-hand for
-             * first, second, third dimension)
-             * Loosing generality through this approach, we save substantial time when
-             * we don't have to calculate the grid index.
-             */
-
-            applyToAllSections_(field_.unit_cell_XX(), field_.unit_cell_YY(),
-                                field_.unit_cell_ZZ(), field_.extend(), field_.access(),
-                                appliedFunction);
-
-            return *this;
-        };
+        apply(FunctionOnComplexField appliedFunction);
 
     private:
-        void applyToAllSections_(RVec deltakRow, RVec deltakColumn,
-                                 RVec deltakSection, IVec extend,
-                                 const GridDataAccess<t_complex> &gridData,
-                                 FunctionOnComplexField appliedFunction)
-        {
-            RVec zeroCoordinate {0., 0., 0.};
-            auto itSectionMiddle = gridData.sectionBegin((extend[ZZ] + 1) / 2);
-            auto k               = zeroCoordinate;
-
-            for (auto itValue = gridData.sectionBegin(0); itValue != itSectionMiddle;
-                 itValue = gridData.next_slice(itValue))
-            {
-                applyToAllColumnsWithinSection_(
-                        k, extend[XX], extend[YY], deltakRow, deltakColumn, itValue,
-                        gridData.next_slice(itValue), appliedFunction);
-                rvec_inc(k, deltakSection);
-            }
-
-            k = zeroCoordinate;
-            rvec_dec(k, deltakSection);
-            for (auto itValue = gridData.sectionBegin(extend[ZZ]);
-                 itValue != itSectionMiddle;
-                 itValue = gridData.previousSection(itValue))
-            {
-                applyToAllColumnsWithinSection_(
-                        k, extend[XX], extend[YY], deltakRow, deltakColumn,
-                        gridData.previousSection(itValue), itValue, appliedFunction);
-                rvec_dec(k, deltakSection);
-            }
-        };
-
         void applyToAllColumnsWithinSection_(
             RVec coordinateSectionBegin, int nRowsPerColumn, int nColumns,
             RVec deltakRow, RVec deltakColumn,
             std::vector<t_complex>::iterator itColumnStart,
             std::vector<t_complex>::iterator itColumnEnd,
-            FunctionOnComplexField appliedFunction)
-        {
-
-            auto itColumnMiddle = itColumnStart + ((nColumns + 1) / 2) * nRowsPerColumn;
-            auto k              = coordinateSectionBegin;
-            for (auto itValue = itColumnStart; itValue != itColumnMiddle;
-                 itValue += nRowsPerColumn)
-            {
-                applyToAllRowsWithinColumn_(k, deltakRow, itValue,
-                                            itValue + nRowsPerColumn, appliedFunction);
-                rvec_inc(k, deltakColumn);
-            }
-
-            k = coordinateSectionBegin;
-            rvec_dec(k, deltakColumn);
-            for (auto itValue = itColumnEnd; itValue != itColumnMiddle;
-                 itValue -= nRowsPerColumn)
-            {
-                applyToAllRowsWithinColumn_(k, deltakRow, itValue - nRowsPerColumn,
-                                            itValue, appliedFunction);
-                rvec_dec(k, deltakColumn);
-            }
-        };
+            FunctionOnComplexField appliedFunction);
 
         void applyToAllRowsWithinColumn_(RVec coordinateColumnBegin, RVec deltakRow,
                                          std::vector<t_complex>::iterator itRowStart,
                                          std::vector<t_complex>::iterator itRowEnd,
-                                         FunctionOnComplexField appliedFunction)
-        {
-            auto itRowMiddle = itRowStart + (itRowEnd - itRowStart) / 2 + 1;
-            auto k           = coordinateColumnBegin;
-            for (auto itValue = itRowStart; itValue != itRowMiddle; ++itValue)
-            {
-                appliedFunction(*itValue, k);
-                rvec_inc(k, deltakRow);
-            }
-
-            k = coordinateColumnBegin;
-            rvec_dec(k, deltakRow);
-            for (auto itValue = itRowEnd - 1; itValue != itRowMiddle - 1; --itValue)
-            {
-                appliedFunction(*itValue, k);
-                rvec_dec(k, deltakRow);
-            }
-        }
+                                         FunctionOnComplexField appliedFunction);
         const Field<t_complex> &field_;
 };
 }

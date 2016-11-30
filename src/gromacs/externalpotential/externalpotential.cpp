@@ -183,20 +183,20 @@ void ExternalPotential::add_forces( rvec f[], gmx_int64_t step, real weight)
     }
 };
 
-void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global, const gmx_mtop_atomlookup * atom_lookup)
+void ExternalPotential::set_atom_properties(t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global)
 {
     for (auto &group : impl_->atom_groups_)
     {
         for (auto &atom : *group)
         {
-            *(atom.properties) = single_atom_properties(&atom, mdatoms + *(atom.i_local), topology_loc, topology_global, atom_lookup);
+            *(atom.properties) = single_atom_properties(&atom, mdatoms, topology_loc, topology_global);
         }
     }
     for (auto &group : impl_->wholemoleculegroups_)
     {
         for (auto &atom : *group)
         {
-            *(atom.properties) = single_atom_properties(&atom, mdatoms + *(atom.i_local), topology_loc, topology_global, atom_lookup);
+            *(atom.properties) = single_atom_properties(&atom, mdatoms, topology_loc, topology_global);
         }
     }
 }

@@ -49,6 +49,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cassert>
+
 #include <algorithm>
 #include <string>
 
@@ -419,7 +421,7 @@ void dd_print_missing_interactions(FILE *fplog, t_commrec *cr,
 
     print_missing_interactions_atoms(fplog, cr, top_global, &top_local->idef);
     write_dd_pdb("dd_dump_err", 0, "dump", top_global, cr,
-                 -1, state_local->x, state_local->box);
+                 -1, as_rvec_array(state_local->x.data()), state_local->box);
 
     std::string errorMessage;
 
@@ -503,7 +505,7 @@ static void count_excls(const t_block *cgs, const t_blocka *excls,
     }
 }
 
-/*! \brief Run the reverse ilist generation and store it when \p bAssign = TRUE */
+/*! \brief Run the reverse ilist generation and store it in r_il when \p bAssign = TRUE */
 static int low_make_reverse_ilist(const t_ilist *il_mt, const t_atom *atom,
                                   const int * const * vsite_pbc,
                                   int *count,
@@ -555,6 +557,8 @@ static int low_make_reverse_ilist(const t_ilist *il_mt, const t_atom *atom,
                     a = ia[1+link];
                     if (bAssign)
                     {
+                        assert(r_il); //with bAssign not allowed to be null
+                        assert(r_index);
                         r_il[r_index[a]+count[a]] =
                             (ftype == F_CONSTRNC ? F_CONSTR : ftype);
                         r_il[r_index[a]+count[a]+1] = ia[0];

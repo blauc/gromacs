@@ -228,7 +228,7 @@ FastGaussianGridding::transform(const rvec x, real weight)
     tensor_product_();
 }
 
-std::unique_ptr<GridReal> &&
+std::unique_ptr<GridReal>
 FastGaussianGridding::finish_and_return_grid()
 {
     return std::move(grid_);

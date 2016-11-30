@@ -70,6 +70,7 @@
 #include "gromacs/imd/imdsocket.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdlib/broadcaststructs.h"
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/sighandler.h"
@@ -93,12 +94,6 @@
 #define HEADERSIZE 8
 /*! \brief IMD Protocol Version. */
 #define IMDVERSION 2
-
-/*! \brief Broadcast d to all nodes */
-#define  block_bc(cr, d) gmx_bcast(sizeof(d), &(d), (cr))
-
-/*! \brief Broadcast nr elements of d to all nodes */
-#define  nblock_bc(cr, nr, d) gmx_bcast((nr)*sizeof((d)[0]), (d), (cr))
 
 
 /*! \internal
@@ -442,7 +437,7 @@ void write_IMDgroup_to_file(gmx_bool bIMD, t_inputrec *ir, t_state *state,
     {
         IMDatoms = gmx_mtop_global_atoms(sys);
         write_sto_conf_indexed(opt2fn("-imd", nfile, fnm), "IMDgroup", &IMDatoms,
-                               state->x, state->v, ir->ePBC, state->box, ir->imd->nat, ir->imd->ind);
+                               as_rvec_array(state->x.data()), as_rvec_array(state->v.data()), ir->ePBC, state->box, ir->imd->nat, ir->imd->ind);
     }
 }
 

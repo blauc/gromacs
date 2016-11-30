@@ -63,7 +63,7 @@ class GaussTransform
         void set_sigma(real sigma);
         void set_n_sigma(real n_sigma);
         virtual void transform(const rvec x, real weight) = 0;
-        virtual std::unique_ptr<GridReal> && finish_and_return_grid() = 0;
+        virtual std::unique_ptr<GridReal> finish_and_return_grid() = 0;
         IVec getMinimumUsedGridIndex();
         IVec getMaximumUsedGridIndex();
     protected:
@@ -95,7 +95,7 @@ class FastGaussianGridding : public GaussTransform
         void transform(const rvec x, real weight);
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
-        std::unique_ptr<GridReal> && finish_and_return_grid();
+        std::unique_ptr<GridReal> finish_and_return_grid();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
         IVec grid_index_of_spread_atom_;

@@ -93,6 +93,7 @@
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/idef.h"
 #include "gromacs/topology/ifunc.h"
+#include "gromacs/topology/mtop_lookup.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -179,6 +180,23 @@ static const int
 #define GMX_DD_NNODES_SENDRECV 4
 
 
+/* We check if to turn on DLB at the first and every 100 DD partitionings.
+ * With large imbalance DLB will turn on at the first step, so we can
+ * make the interval so large that the MPI overhead of the check is negligible.
+ */
+static const int c_checkTurnDlbOnInterval  = 100;
+/* We need to check if DLB results in worse performance and then turn it off.
+ * We check this more often then for turning DLB on, because the DLB can scale
+ * the domains very rapidly, so if unlucky the load imbalance can go up quickly
+ * and furthermore, we are already synchronizing often with DLB, so
+ * the overhead of the MPI Bcast is not that high.
+ */
+static const int c_checkTurnDlbOffInterval =  20;
+
+/* Forward declaration */
+static void dd_dlb_set_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd, gmx_bool bValue);
+
+
 /*
    #define dd_index(n,i) ((((i)[ZZ]*(n)[YY] + (i)[YY])*(n)[XX]) + (i)[XX])
 
@@ -258,7 +276,8 @@ t_block *dd_charge_groups_global(gmx_domdec_t *dd)
 
 static bool dlbIsOn(const gmx_domdec_comm_t *comm)
 {
-    return (comm->dlbState == edlbsOn);
+    return (comm->dlbState == edlbsOnCanTurnOff ||
+            comm->dlbState == edlbsOnForever);
 }
 
 static void vec_rvec_init(vec_rvec_t *v)
@@ -285,13 +304,8 @@ void dd_store_state(gmx_domdec_t *dd, t_state *state)
         gmx_incons("The state does not the domain decomposition state");
     }
 
-    state->ncg_gl = dd->ncg_home;
-    if (state->ncg_gl > state->cg_gl_nalloc)
-    {
-        state->cg_gl_nalloc = over_alloc_dd(state->ncg_gl);
-        srenew(state->cg_gl, state->cg_gl_nalloc);
-    }
-    for (i = 0; i < state->ncg_gl; i++)
+    state->cg_gl.resize(dd->ncg_home);
+    for (i = 0; i < dd->ncg_home; i++)
     {
         state->cg_gl[i] = dd->index_gl[i];
     }
@@ -1068,8 +1082,8 @@ static void dd_collect_cg(gmx_domdec_t *dd,
 
         cgs_gl = &dd->comm->cgs_gl;
 
-        ncg_home = state_local->ncg_gl;
-        cg       = state_local->cg_gl;
+        ncg_home = state_local->cg_gl.size();
+        cg       = state_local->cg_gl.data();
         nat_home = 0;
         for (i = 0; i < ncg_home; i++)
         {
@@ -1133,7 +1147,7 @@ static void dd_collect_cg(gmx_domdec_t *dd,
 }
 
 static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
-                                    rvec *lv, rvec *v)
+                                    const rvec *lv, rvec *v)
 {
     gmx_domdec_master_t *ma;
     int                  n, i, c, a, nalloc = 0;
@@ -1145,8 +1159,8 @@ static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
     if (!DDMASTER(dd))
     {
 #if GMX_MPI
-        MPI_Send(lv, dd->nat_home*sizeof(rvec), MPI_BYTE, DDMASTERRANK(dd),
-                 dd->rank, dd->mpi_comm_all);
+        MPI_Send(const_cast<void *>(static_cast<const void *>(lv)), dd->nat_home*sizeof(rvec), MPI_BYTE,
+                 DDMASTERRANK(dd), dd->rank, dd->mpi_comm_all);
 #endif
     }
     else
@@ -1210,7 +1224,7 @@ static void get_commbuffer_counts(gmx_domdec_t *dd,
 }
 
 static void dd_collect_vec_gatherv(gmx_domdec_t *dd,
-                                   rvec *lv, rvec *v)
+                                   const rvec *lv, rvec *v)
 {
     gmx_domdec_master_t *ma;
     int                 *rcounts = NULL, *disps = NULL;
@@ -1247,10 +1261,14 @@ static void dd_collect_vec_gatherv(gmx_domdec_t *dd,
     }
 }
 
-void dd_collect_vec(gmx_domdec_t *dd,
-                    t_state *state_local, rvec *lv, rvec *v)
+void dd_collect_vec(gmx_domdec_t           *dd,
+                    t_state                *state_local,
+                    const PaddedRVecVector *localVector,
+                    rvec                   *v)
 {
     dd_collect_cg(dd, state_local);
+
+    const rvec *lv = as_rvec_array(localVector->data());
 
     if (dd->nnodes <= GMX_DD_NNODES_SENDRECV)
     {
@@ -1260,6 +1278,14 @@ void dd_collect_vec(gmx_domdec_t *dd,
     {
         dd_collect_vec_gatherv(dd, lv, v);
     }
+}
+
+void dd_collect_vec(gmx_domdec_t           *dd,
+                    t_state                *state_local,
+                    const PaddedRVecVector *localVector,
+                    PaddedRVecVector       *vector)
+{
+    dd_collect_vec(dd, state_local, localVector, as_rvec_array(vector->data()));
 }
 
 
@@ -1310,15 +1336,15 @@ void dd_collect_state(gmx_domdec_t *dd,
             switch (est)
             {
                 case estX:
-                    dd_collect_vec(dd, state_local, state_local->x, state->x);
+                    dd_collect_vec(dd, state_local, &state_local->x, &state->x);
                     break;
                 case estV:
-                    dd_collect_vec(dd, state_local, state_local->v, state->v);
+                    dd_collect_vec(dd, state_local, &state_local->v, &state->v);
                     break;
                 case est_SDX_NOTSUPPORTED:
                     break;
                 case estCGP:
-                    dd_collect_vec(dd, state_local, state_local->cg_p, state->cg_p);
+                    dd_collect_vec(dd, state_local, &state_local->cg_p, &state->cg_p);
                     break;
                 case estDISRE_INITF:
                 case estDISRE_RM3TAV:
@@ -1332,16 +1358,14 @@ void dd_collect_state(gmx_domdec_t *dd,
     }
 }
 
-static void dd_realloc_state(t_state *state, rvec **f, int nalloc)
+static void dd_resize_state(t_state *state, PaddedRVecVector *f, int natoms)
 {
     int est;
 
     if (debug)
     {
-        fprintf(debug, "Reallocating state: currently %d, required %d, allocating %d\n", state->nalloc, nalloc, over_alloc_dd(nalloc));
+        fprintf(debug, "Resizing state: currently %d, required %d\n", state->natoms, natoms);
     }
-
-    state->nalloc = over_alloc_dd(nalloc);
 
     for (est = 0; est < estNR; est++)
     {
@@ -1353,15 +1377,15 @@ static void dd_realloc_state(t_state *state, rvec **f, int nalloc)
             switch (est)
             {
                 case estX:
-                    srenew(state->x, state->nalloc + 1);
+                    state->x.resize(natoms + 1);
                     break;
                 case estV:
-                    srenew(state->v, state->nalloc + 1);
+                    state->v.resize(natoms + 1);
                     break;
                 case est_SDX_NOTSUPPORTED:
                     break;
                 case estCGP:
-                    srenew(state->cg_p, state->nalloc + 1);
+                    state->cg_p.resize(natoms + 1);
                     break;
                 case estDISRE_INITF:
                 case estDISRE_RM3TAV:
@@ -1370,39 +1394,41 @@ static void dd_realloc_state(t_state *state, rvec **f, int nalloc)
                     /* No reallocation required */
                     break;
                 default:
-                    gmx_incons("Unknown state entry encountered in dd_realloc_state");
+                    gmx_incons("Unknown state entry encountered in dd_resize_state");
             }
         }
     }
 
     if (f != NULL)
     {
-        srenew(*f, state->nalloc);
+        (*f).resize(natoms + 1);
     }
 }
 
-static void dd_check_alloc_ncg(t_forcerec *fr, t_state *state, rvec **f,
-                               int nalloc)
+static void dd_check_alloc_ncg(t_forcerec       *fr,
+                               t_state          *state,
+                               PaddedRVecVector *f,
+                               int               numChargeGroups)
 {
-    if (nalloc > fr->cg_nalloc)
+    if (numChargeGroups > fr->cg_nalloc)
     {
         if (debug)
         {
-            fprintf(debug, "Reallocating forcerec: currently %d, required %d, allocating %d\n", fr->cg_nalloc, nalloc, over_alloc_dd(nalloc));
+            fprintf(debug, "Reallocating forcerec: currently %d, required %d, allocating %d\n", fr->cg_nalloc, numChargeGroups, over_alloc_dd(numChargeGroups));
         }
-        fr->cg_nalloc = over_alloc_dd(nalloc);
+        fr->cg_nalloc = over_alloc_dd(numChargeGroups);
         srenew(fr->cginfo, fr->cg_nalloc);
         if (fr->cutoff_scheme == ecutsGROUP)
         {
             srenew(fr->cg_cm, fr->cg_nalloc);
         }
     }
-    if (fr->cutoff_scheme == ecutsVERLET && nalloc > state->nalloc)
+    if (fr->cutoff_scheme == ecutsVERLET)
     {
         /* We don't use charge groups, we use x in state to set up
          * the atom communication.
          */
-        dd_realloc_state(state, f, nalloc);
+        dd_resize_state(state, f, numChargeGroups);
     }
 }
 
@@ -1545,7 +1571,7 @@ static void dd_distribute_dfhist(gmx_domdec_t *dd, df_history_t *dfhist)
 
 static void dd_distribute_state(gmx_domdec_t *dd, t_block *cgs,
                                 t_state *state, t_state *state_local,
-                                rvec **f)
+                                PaddedRVecVector *f)
 {
     int  i, j, nh;
 
@@ -1587,7 +1613,7 @@ static void dd_distribute_state(gmx_domdec_t *dd, t_block *cgs,
             }
         }
     }
-    dd_bcast(dd, ((efptNR)*sizeof(real)), state_local->lambda);
+    dd_bcast(dd, ((efptNR)*sizeof(real)), state_local->lambda.data());
     dd_bcast(dd, sizeof(int), &state_local->fep_state);
     dd_bcast(dd, sizeof(real), &state_local->veta);
     dd_bcast(dd, sizeof(real), &state_local->vol0);
@@ -1596,19 +1622,17 @@ static void dd_distribute_state(gmx_domdec_t *dd, t_block *cgs,
     dd_bcast(dd, sizeof(state_local->boxv), state_local->boxv);
     dd_bcast(dd, sizeof(state_local->svir_prev), state_local->svir_prev);
     dd_bcast(dd, sizeof(state_local->fvir_prev), state_local->fvir_prev);
-    dd_bcast(dd, ((state_local->ngtc*nh)*sizeof(double)), state_local->nosehoover_xi);
-    dd_bcast(dd, ((state_local->ngtc*nh)*sizeof(double)), state_local->nosehoover_vxi);
-    dd_bcast(dd, state_local->ngtc*sizeof(double), state_local->therm_integral);
-    dd_bcast(dd, ((state_local->nnhpres*nh)*sizeof(double)), state_local->nhpres_xi);
-    dd_bcast(dd, ((state_local->nnhpres*nh)*sizeof(double)), state_local->nhpres_vxi);
+    dd_bcast(dd, ((state_local->ngtc*nh)*sizeof(double)), state_local->nosehoover_xi.data());
+    dd_bcast(dd, ((state_local->ngtc*nh)*sizeof(double)), state_local->nosehoover_vxi.data());
+    dd_bcast(dd, state_local->ngtc*sizeof(double), state_local->therm_integral.data());
+    dd_bcast(dd, ((state_local->nnhpres*nh)*sizeof(double)), state_local->nhpres_xi.data());
+    dd_bcast(dd, ((state_local->nnhpres*nh)*sizeof(double)), state_local->nhpres_vxi.data());
 
     /* communicate df_history -- required for restarting from checkpoint */
     dd_distribute_dfhist(dd, state_local->dfhist);
 
-    if (dd->nat_home > state_local->nalloc)
-    {
-        dd_realloc_state(state_local, f, dd->nat_home);
-    }
+    dd_resize_state(state_local, f, dd->nat_home);
+
     for (i = 0; i < estNR; i++)
     {
         if (EST_DISTR(i) && (state_local->flags & (1<<i)))
@@ -1616,15 +1640,15 @@ static void dd_distribute_state(gmx_domdec_t *dd, t_block *cgs,
             switch (i)
             {
                 case estX:
-                    dd_distribute_vec(dd, cgs, state->x, state_local->x);
+                    dd_distribute_vec(dd, cgs, as_rvec_array(state->x.data()), as_rvec_array(state_local->x.data()));
                     break;
                 case estV:
-                    dd_distribute_vec(dd, cgs, state->v, state_local->v);
+                    dd_distribute_vec(dd, cgs, as_rvec_array(state->v.data()), as_rvec_array(state_local->v.data()));
                     break;
                 case est_SDX_NOTSUPPORTED:
                     break;
                 case estCGP:
-                    dd_distribute_vec(dd, cgs, state->cg_p, state_local->cg_p);
+                    dd_distribute_vec(dd, cgs, as_rvec_array(state->cg_p.data()), as_rvec_array(state_local->cg_p.data()));
                     break;
                 case estDISRE_INITF:
                 case estDISRE_RM3TAV:
@@ -1749,7 +1773,7 @@ void write_dd_pdb(const char *fn, gmx_int64_t step, const char *title,
     char          fname[STRLEN], buf[22];
     FILE         *out;
     int           i, ii, resnr, c;
-    char         *atomname, *resname;
+    const char   *atomname, *resname;
     real          b;
     gmx_domdec_t *dd;
 
@@ -1765,10 +1789,11 @@ void write_dd_pdb(const char *fn, gmx_int64_t step, const char *title,
 
     fprintf(out, "TITLE     %s\n", title);
     gmx_write_pdb_box(out, dd->bScrewPBC ? epbcSCREW : epbcXYZ, box);
+    int molb = 0;
     for (i = 0; i < natoms; i++)
     {
         ii = dd->gatindex[i];
-        gmx_mtop_atominfo_global(mtop, ii, &atomname, &resnr, &resname);
+        mtopGetAtomAndResidueName(mtop, ii, &molb, &atomname, &resnr, &resname, nullptr);
         if (i < dd->comm->nat[ddnatZONE])
         {
             c = 0;
@@ -2100,8 +2125,8 @@ static gmx_bool receive_vir_ener(const gmx_domdec_t *dd, const t_commrec *cr)
         gmx_domdec_comm_t *comm = dd->comm;
         if (comm->bCartesianPP_PME)
         {
-            int  pmenode = dd_simnode2pmenode(dd, cr, cr->sim_nodeid);
 #if GMX_MPI
+            int  pmenode = dd_simnode2pmenode(dd, cr, cr->sim_nodeid);
             ivec coords;
             MPI_Cart_coords(cr->mpi_comm_mysim, cr->sim_nodeid, DIM, coords);
             coords[comm->cartpmedim]++;
@@ -2115,6 +2140,8 @@ static gmx_bool receive_vir_ener(const gmx_domdec_t *dd, const t_commrec *cr)
                     bReceive = FALSE;
                 }
             }
+#else
+            GMX_RELEASE_ASSERT(false, "Without MPI we should not have Cartesian PP-PME with #PMEnodes < #DDnodes");
 #endif
         }
         else
@@ -2149,25 +2176,26 @@ static void set_zones_ncg_home(gmx_domdec_t *dd)
 }
 
 static void rebuild_cgindex(gmx_domdec_t *dd,
-                            const int *gcgs_index, t_state *state)
+                            const int *gcgs_index, const t_state *state)
 {
-    int nat, i, *ind, *dd_cg_gl, *cgindex, cg_gl;
+    int * gmx_restrict dd_cg_gl = dd->index_gl;
+    int * gmx_restrict cgindex  = dd->cgindex;
+    int                nat      = 0;
 
-    ind        = state->cg_gl;
-    dd_cg_gl   = dd->index_gl;
-    cgindex    = dd->cgindex;
-    nat        = 0;
+    /* Copy back the global charge group indices from state
+     * and rebuild the local charge group to atom index.
+     */
     cgindex[0] = nat;
-    for (i = 0; i < state->ncg_gl; i++)
+    for (unsigned int i = 0; i < state->cg_gl.size(); i++)
     {
         cgindex[i]  = nat;
-        cg_gl       = ind[i];
+        int cg_gl   = state->cg_gl[i];
         dd_cg_gl[i] = cg_gl;
         nat        += gcgs_index[cg_gl+1] - gcgs_index[cg_gl];
     }
-    cgindex[i] = nat;
+    cgindex[state->cg_gl.size()] = nat;
 
-    dd->ncg_home = state->ncg_gl;
+    dd->ncg_home = state->cg_gl.size();
     dd->nat_home = nat;
 
     set_zones_ncg_home(dd);
@@ -2514,7 +2542,7 @@ static gmx_bool check_grid_jump(gmx_int64_t     step,
                 /* This error should never be triggered under normal
                  * circumstances, but you never know ...
                  */
-                gmx_fatal(FARGS, "Step %s: The domain decomposition grid has shifted too much in the %c-direction around cell %d %d %d. This should not have happened. Running with fewer ranks might avoid this issue.",
+                gmx_fatal(FARGS, "step %s: The domain decomposition grid has shifted too much in the %c-direction around cell %d %d %d. This should not have happened. Running with fewer ranks might avoid this issue.",
                           gmx_step_str(step, buf),
                           dim2char(dim), dd->ci[XX], dd->ci[YY], dd->ci[ZZ]);
             }
@@ -3003,7 +3031,7 @@ static void dd_cell_sizes_dlb_root_enforce_limits(gmx_domdec_t *dd,
     if (bPBC && cell_size[i] < cellsize_limit_f*DD_CELL_MARGIN2/DD_CELL_MARGIN)
     {
         char buf[22];
-        gmx_fatal(FARGS, "Step %s: the dynamic load balancing could not balance dimension %c: box size %f, triclinic skew factor %f, #cells %d, minimum cell size %f\n",
+        gmx_fatal(FARGS, "step %s: the dynamic load balancing could not balance dimension %c: box size %f, triclinic skew factor %f, #cells %d, minimum cell size %f\n",
                   gmx_step_str(step, buf),
                   dim2char(dim), ddbox->box_size[dim], ddbox->skew_fac[dim],
                   ncd, comm->cellsize_min[dim]);
@@ -3548,7 +3576,7 @@ static void comm_dd_ns_cell_sizes(gmx_domdec_t *dd,
             comm->cellsize_min[dim])
         {
             char buf[22];
-            gmx_fatal(FARGS, "Step %s: The %c-size (%f) times the triclinic skew factor (%f) is smaller than the smallest allowed cell size (%f) for domain decomposition grid cell %d %d %d",
+            gmx_fatal(FARGS, "step %s: The %c-size (%f) times the triclinic skew factor (%f) is smaller than the smallest allowed cell size (%f) for domain decomposition grid cell %d %d %d",
                       gmx_step_str(step, buf), dim2char(dim),
                       comm->cell_x1[dim] - comm->cell_x0[dim],
                       ddbox->skew_fac[dim],
@@ -4230,7 +4258,7 @@ static void calc_cg_move(FILE *fplog, gmx_int64_t step,
                     if (pos_d >= limit1[d])
                     {
                         cg_move_error(fplog, dd, step, cg, d, 1,
-                                      cg_cm != state->x, limitd[d],
+                                      cg_cm != as_rvec_array(state->x.data()), limitd[d],
                                       cg_cm[cg], cm_new, pos_d);
                     }
                     dev[d] = 1;
@@ -4257,7 +4285,7 @@ static void calc_cg_move(FILE *fplog, gmx_int64_t step,
                     if (pos_d < limit0[d])
                     {
                         cg_move_error(fplog, dd, step, cg, d, -1,
-                                      cg_cm != state->x, limitd[d],
+                                      cg_cm != as_rvec_array(state->x.data()), limitd[d],
                                       cg_cm[cg], cm_new, pos_d);
                     }
                     dev[d] = -1;
@@ -4341,7 +4369,7 @@ static void calc_cg_move(FILE *fplog, gmx_int64_t step,
 
 static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
                                gmx_domdec_t *dd, ivec tric_dir,
-                               t_state *state, rvec **f,
+                               t_state *state, PaddedRVecVector *f,
                                t_forcerec *fr,
                                gmx_bool bCompact,
                                t_nrnb *nrnb,
@@ -4470,7 +4498,7 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
                          cgindex,
                          ( thread   *dd->ncg_home)/nthread,
                          ((thread+1)*dd->ncg_home)/nthread,
-                         fr->cutoff_scheme == ecutsGROUP ? cg_cm : state->x,
+                         fr->cutoff_scheme == ecutsGROUP ? cg_cm : as_rvec_array(state->x.data()),
                          move);
         }
         GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
@@ -4549,7 +4577,7 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
              */
             home_pos_cg =
                 compact_and_copy_vec_cg(dd->ncg_home, move, cgindex,
-                                        nvec, state->x, comm, FALSE);
+                                        nvec, as_rvec_array(state->x.data()), comm, FALSE);
             if (bCompact)
             {
                 home_pos_cg -= *ncg_moved;
@@ -4563,16 +4591,19 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
     vec         = 0;
     home_pos_at =
         compact_and_copy_vec_at(dd->ncg_home, move, cgindex,
-                                nvec, vec++, state->x, comm, bCompact);
+                                nvec, vec++, as_rvec_array(state->x.data()),
+                                comm, bCompact);
     if (bV)
     {
         compact_and_copy_vec_at(dd->ncg_home, move, cgindex,
-                                nvec, vec++, state->v, comm, bCompact);
+                                nvec, vec++, as_rvec_array(state->v.data()),
+                                comm, bCompact);
     }
     if (bCGP)
     {
         compact_and_copy_vec_at(dd->ncg_home, move, cgindex,
-                                nvec, vec++, state->cg_p, comm, bCompact);
+                                nvec, vec++, as_rvec_array(state->cg_p.data()),
+                                comm, bCompact);
     }
 
     if (bCompact)
@@ -4646,6 +4677,13 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
                              comm->vbuf.v+nvr, i);
             ncg_recv += rbuf[0];
             nvr      += i;
+        }
+
+        dd_check_alloc_ncg(fr, state, f, home_pos_cg + ncg_recv);
+        if (fr->cutoff_scheme == ecutsGROUP)
+        {
+            /* Here we resize to more than necessary and shrink later */
+            dd_resize_state(state, f, home_pos_at + ncg_recv*MAX_CGCGSIZE);
         }
 
         /* Process the received charge groups */
@@ -4760,7 +4798,6 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
                 dd->index_gl[home_pos_cg]  = comm->buf_int[cg*DD_CGIBS];
                 dd->cgindex[home_pos_cg+1] = dd->cgindex[home_pos_cg] + nrcg;
                 /* Copy the state from the buffer */
-                dd_check_alloc_ncg(fr, state, f, home_pos_cg+1);
                 if (fr->cutoff_scheme == ecutsGROUP)
                 {
                     cg_cm = fr->cg_cm;
@@ -4776,10 +4813,6 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
                     comm->bLocalCG[dd->index_gl[home_pos_cg]] = TRUE;
                 }
 
-                if (home_pos_at+nrcg > state->nalloc)
-                {
-                    dd_realloc_state(state, f, home_pos_at+nrcg);
-                }
                 for (i = 0; i < nrcg; i++)
                 {
                     copy_rvec(comm->vbuf.v[buf_pos++],
@@ -4847,6 +4880,12 @@ static void dd_redistribute_cg(FILE *fplog, gmx_int64_t step,
     }
     dd->ncg_home = home_pos_cg;
     dd->nat_home = home_pos_at;
+
+    if (fr->cutoff_scheme == ecutsGROUP && !bCompact)
+    {
+        /* We overallocated before, we need to set the right size here */
+        dd_resize_state(state, f, dd->nat_home);
+    }
 
     if (debug)
     {
@@ -5734,8 +5773,8 @@ static void make_pp_communicator(FILE                 *fplog,
     }
 }
 
-static void receive_ddindex2simnodeid(gmx_domdec_t gmx_unused *dd,
-                                      t_commrec    gmx_unused *cr)
+static void receive_ddindex2simnodeid(gmx_domdec_t         *dd,
+                                      t_commrec            *cr)
 {
 #if GMX_MPI
     gmx_domdec_comm_t *comm = dd->comm;
@@ -5754,6 +5793,9 @@ static void receive_ddindex2simnodeid(gmx_domdec_t gmx_unused *dd,
                       cr->mpi_comm_mysim);
         sfree(buf);
     }
+#else
+    GMX_UNUSED_VALUE(dd);
+    GMX_UNUSED_VALUE(cr);
 #endif
 }
 
@@ -6175,7 +6217,7 @@ static int check_dlb_support(FILE *fplog, t_commrec *cr,
     {
         case 'a': dlbState = edlbsOffCanTurnOn; break;
         case 'n': dlbState = edlbsOffForever;   break;
-        case 'y': dlbState = edlbsOn;           break;
+        case 'y': dlbState = edlbsOnForever;    break;
         default: gmx_incons("Unknown dlb_opt");
     }
 
@@ -6186,7 +6228,7 @@ static int check_dlb_support(FILE *fplog, t_commrec *cr,
 
     if (!EI_DYNAMICS(ir->eI))
     {
-        if (dlbState == edlbsOn)
+        if (dlbState == edlbsOnForever)
         {
             sprintf(buf, "NOTE: dynamic load balancing is only supported with dynamics, not with integrator '%s'\n", EI(ir->eI));
             dd_warning(cr, fplog, buf);
@@ -6208,10 +6250,11 @@ static int check_dlb_support(FILE *fplog, t_commrec *cr,
             case edlbsOffForever:
                 break;
             case edlbsOffCanTurnOn:
+            case edlbsOnCanTurnOff:
                 dd_warning(cr, fplog, "NOTE: reproducibility requested, will not use dynamic load balancing\n");
                 dlbState = edlbsOffForever;
                 break;
-            case edlbsOn:
+            case edlbsOnForever:
                 dd_warning(cr, fplog, "WARNING: reproducibility requested with dynamic load balancing, the simulation will NOT be binary reproducible\n");
                 break;
             default:
@@ -6324,8 +6367,12 @@ static void set_dd_limits_and_grid(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
     /* Initialize to GPU share count to 0, might change later */
     comm->nrank_gpu_shared = 0;
 
-    comm->dlbState                 = check_dlb_support(fplog, cr, dlb_opt, comm->bRecordLoad, Flags, ir);
-    comm->bCheckWhetherToTurnDlbOn = TRUE;
+    comm->dlbState         = check_dlb_support(fplog, cr, dlb_opt, comm->bRecordLoad, Flags, ir);
+    dd_dlb_set_should_check_whether_to_turn_dlb_on(dd, TRUE);
+    /* To consider turning DLB on after 2*nstlist steps we need to check
+     * at partitioning count 3. Thus we need to increase the first count by 2.
+     */
+    comm->ddPartioningCountFirstDlbOff += 2;
 
     if (fplog)
     {
@@ -6701,15 +6748,9 @@ static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
     gmx_domdec_comm_t *comm;
     real               cellsize_min;
     int                d, nc, i;
-    char               buf[STRLEN];
 
     dd   = cr->dd;
     comm = dd->comm;
-
-    if (fplog)
-    {
-        fprintf(fplog, "At step %s the performance loss due to force load imbalance is %.1f %%\n", gmx_step_str(step, buf), dd_force_imb_perf_loss(dd)*100);
-    }
 
     cellsize_min = comm->cellsize_min[dd->dim[0]];
     for (d = 1; d < dd->ndim; d++)
@@ -6719,7 +6760,8 @@ static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
 
     if (cellsize_min < comm->cellsize_limit*1.05)
     {
-        dd_warning(cr, fplog, "NOTE: the minimum cell size is smaller than 1.05 times the cell size limit, will not turn on dynamic load balancing\n");
+        char buf[STRLEN];
+        sprintf(buf, "step %" GMX_PRId64 " Measured %.1f %% performance load due to load imbalance, but the minimum cell size is smaller than 1.05 times the cell size limit. Will no longer try dynamic load balancing.\n", step, dd_force_imb_perf_loss(dd)*100);
 
         /* Change DLB from "auto" to "no". */
         comm->dlbState = edlbsOffForever;
@@ -6727,8 +6769,16 @@ static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
         return;
     }
 
-    dd_warning(cr, fplog, "NOTE: Turning on dynamic load balancing\n");
-    comm->dlbState = edlbsOn;
+    char buf[STRLEN];
+    sprintf(buf, "step %" GMX_PRId64 " Turning on dynamic load balancing, because the performance loss due to load imbalance is %.1f %%.\n", step, dd_force_imb_perf_loss(dd)*100);
+    dd_warning(cr, fplog, buf);
+    comm->dlbState = edlbsOnCanTurnOff;
+
+    /* Store the non-DLB performance, so we can check if DLB actually
+     * improves performance.
+     */
+    GMX_RELEASE_ASSERT(comm->cycl_n[ddCyclStep] > 0, "When we turned on DLB, we should have measured cycles");
+    comm->cyclesPerStepBeforeDLB = comm->cycl[ddCyclStep]/comm->cycl_n[ddCyclStep];
 
     set_dlb_limits(dd);
 
@@ -6755,6 +6805,27 @@ static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
             comm->root[d]->cell_f[nc] = 1.0;
         }
     }
+}
+
+static void turn_off_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
+{
+    gmx_domdec_t *dd = cr->dd;
+
+    char          buf[STRLEN];
+    sprintf(buf, "step %" GMX_PRId64 " Turning off dynamic load balancing, because it is degrading performance.\n", step);
+    dd_warning(cr, fplog, buf);
+    dd->comm->dlbState                     = edlbsOffCanTurnOn;
+    dd->comm->haveTurnedOffDlb             = true;
+    dd->comm->ddPartioningCountFirstDlbOff = dd->ddp_count;
+}
+
+static void turn_off_dlb_forever(FILE *fplog, t_commrec *cr, gmx_int64_t step)
+{
+    GMX_RELEASE_ASSERT(cr->dd->comm->dlbState == edlbsOffCanTurnOn, "Can only turn off DLB forever when it was in the can-turn-on state");
+    char buf[STRLEN];
+    sprintf(buf, "step %" GMX_PRId64 " Will no longer try dynamic load balancing, as it degraded performance.\n", step);
+    dd_warning(cr, fplog, buf);
+    cr->dd->comm->dlbState = edlbsOffForever;
 }
 
 static char *init_bLocalCG(const gmx_mtop_t *mtop)
@@ -7218,7 +7289,7 @@ static gmx_bool test_dd_cutoff(t_commrec *cr,
     dd = cr->dd;
 
     set_ddbox(dd, FALSE, cr, ir, state->box,
-              TRUE, &dd->comm->cgs_gl, state->x, &ddbox);
+              TRUE, &dd->comm->cgs_gl, as_rvec_array(state->x.data()), &ddbox);
 
     LocallyLimited = 0;
 
@@ -7321,6 +7392,14 @@ static void dd_dlb_set_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd, gmx
     if (dd->comm->dlbState == edlbsOffCanTurnOn)
     {
         dd->comm->bCheckWhetherToTurnDlbOn = bValue;
+
+        if (bValue == TRUE)
+        {
+            /* Store the DD partitioning count, so we can ignore cycle counts
+             * over the next nstlist steps, which are often slower.
+             */
+            dd->comm->ddPartioningCountFirstDlbOff = dd->ddp_count;
+        }
     }
 }
 
@@ -7329,10 +7408,17 @@ static void dd_dlb_set_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd, gmx
  */
 static gmx_bool dd_dlb_get_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd)
 {
-    const int nddp_chk_dlb = 100;
-
     if (dd->comm->dlbState != edlbsOffCanTurnOn)
     {
+        return FALSE;
+    }
+
+    if (dd->ddp_count <= dd->comm->ddPartioningCountFirstDlbOff)
+    {
+        /* We ignore the first nstlist steps at the start of the run
+         * or after PME load balancing or after turning DLB off, since
+         * these often have extra allocation or cache miss overhead.
+         */
         return FALSE;
     }
 
@@ -7345,10 +7431,10 @@ static gmx_bool dd_dlb_get_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd)
         dd_dlb_set_should_check_whether_to_turn_dlb_on(dd, FALSE);
         return TRUE;
     }
-    /* We should also check whether we should use DLB every 100
+    /* We check whether we should use DLB every c_checkTurnDlbOnInterval
      * partitionings (we do not do this every partioning, so that we
      * avoid excessive communication). */
-    if (dd->comm->n_load_have % nddp_chk_dlb == nddp_chk_dlb - 1)
+    if (dd->comm->n_load_have % c_checkTurnDlbOnInterval == c_checkTurnDlbOnInterval - 1)
     {
         return TRUE;
     }
@@ -7358,7 +7444,7 @@ static gmx_bool dd_dlb_get_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd)
 
 gmx_bool dd_dlb_is_on(const gmx_domdec_t *dd)
 {
-    return (dd->comm->dlbState == edlbsOn);
+    return dlbIsOn(dd->comm);
 }
 
 gmx_bool dd_dlb_is_locked(const gmx_domdec_t *dd)
@@ -7882,7 +7968,8 @@ get_zone_pulse_cgs(gmx_domdec_t *dd,
 
 static void setup_dd_communication(gmx_domdec_t *dd,
                                    matrix box, gmx_ddbox_t *ddbox,
-                                   t_forcerec *fr, t_state *state, rvec **f)
+                                   t_forcerec *fr,
+                                   t_state *state, PaddedRVecVector *f)
 {
     int                    dim_ind, dim, dim0, dim1, dim2, dimd, p, nat_tot;
     int                    nzone, nzone_send, zone, zonei, cg0, cg1;
@@ -7929,7 +8016,7 @@ static void setup_dd_communication(gmx_domdec_t *dd,
             cg_cm = fr->cg_cm;
             break;
         case ecutsVERLET:
-            cg_cm = state->x;
+            cg_cm = as_rvec_array(state->x.data());
             break;
         default:
             gmx_incons("unimplemented");
@@ -8267,7 +8354,7 @@ static void setup_dd_communication(gmx_domdec_t *dd,
             }
             else
             {
-                cg_cm = state->x;
+                cg_cm = as_rvec_array(state->x.data());
             }
             /* Communicate cg_cm */
             if (cd->bInPlace)
@@ -8909,15 +8996,15 @@ static void dd_sort_state(gmx_domdec_t *dd, rvec *cgcm, t_forcerec *fr, t_state 
             switch (i)
             {
                 case estX:
-                    order_vec_atom(dd->ncg_home, cgindex, cgsort, state->x, vbuf);
+                    order_vec_atom(dd->ncg_home, cgindex, cgsort, as_rvec_array(state->x.data()), vbuf);
                     break;
                 case estV:
-                    order_vec_atom(dd->ncg_home, cgindex, cgsort, state->v, vbuf);
+                    order_vec_atom(dd->ncg_home, cgindex, cgsort, as_rvec_array(state->v.data()), vbuf);
                     break;
                 case est_SDX_NOTSUPPORTED:
                     break;
                 case estCGP:
-                    order_vec_atom(dd->ncg_home, cgindex, cgsort, state->cg_p, vbuf);
+                    order_vec_atom(dd->ncg_home, cgindex, cgsort, as_rvec_array(state->cg_p.data()), vbuf);
                     break;
                 case estLD_RNG:
                 case estLD_RNGI:
@@ -9091,7 +9178,7 @@ void dd_partition_system(FILE                *fplog,
                          const gmx_mtop_t    *top_global,
                          const t_inputrec    *ir,
                          t_state             *state_local,
-                         rvec               **f,
+                         PaddedRVecVector    *f,
                          t_mdatoms           *mdatoms,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
@@ -9108,7 +9195,7 @@ void dd_partition_system(FILE                *fplog,
     gmx_int64_t        step_pcoupl;
     rvec               cell_ns_x0, cell_ns_x1;
     int                i, n, ncgindex_set, ncg_home_old = -1, ncg_moved, nat_f_novirsum;
-    gmx_bool           bBoxChanged, bNStGlobalComm, bDoDLB, bCheckWhetherToTurnDlbOn, bTurnOnDLB, bLogLoad;
+    gmx_bool           bBoxChanged, bNStGlobalComm, bDoDLB, bCheckWhetherToTurnDlbOn, bLogLoad;
     gmx_bool           bRedist, bSortCG, bResortAll;
     ivec               ncells_old = {0, 0, 0}, ncells_new = {0, 0, 0}, np;
     real               grid_density;
@@ -9201,40 +9288,109 @@ void dd_partition_system(FILE                *fplog,
             }
             comm->n_load_collect++;
 
-            if (bCheckWhetherToTurnDlbOn)
+            if (dlbIsOn(comm))
             {
+                if (DDMASTER(dd))
+                {
+                    /* Add the measured cycles to the running average */
+                    const float averageFactor        = 0.1f;
+                    comm->cyclesPerStepDlbExpAverage =
+                        (1 - averageFactor)*comm->cyclesPerStepDlbExpAverage +
+                        averageFactor*comm->cycl[ddCyclStep]/comm->cycl_n[ddCyclStep];
+                }
+                if (comm->dlbState == edlbsOnCanTurnOff &&
+                    dd->comm->n_load_have % c_checkTurnDlbOffInterval == c_checkTurnDlbOffInterval - 1)
+                {
+                    gmx_bool turnOffDlb;
+                    if (DDMASTER(dd))
+                    {
+                        /* If the running averaged cycles with DLB are more
+                         * than before we turned on DLB, turn off DLB.
+                         * We will again run and check the cycles without DLB
+                         * and we can then decide if to turn off DLB forever.
+                         */
+                        turnOffDlb = (comm->cyclesPerStepDlbExpAverage >
+                                      comm->cyclesPerStepBeforeDLB);
+                    }
+                    dd_bcast(dd, sizeof(turnOffDlb), &turnOffDlb);
+                    if (turnOffDlb)
+                    {
+                        /* To turn off DLB, we need to redistribute the atoms */
+                        dd_collect_state(dd, state_local, state_global);
+                        bMasterState = TRUE;
+                        turn_off_dlb(fplog, cr, step);
+                    }
+                }
+            }
+            else if (bCheckWhetherToTurnDlbOn)
+            {
+                gmx_bool turnOffDlbForever = FALSE;
+                gmx_bool turnOnDlb         = FALSE;
+
                 /* Since the timings are node dependent, the master decides */
                 if (DDMASTER(dd))
                 {
-                    /* Here we check if the max PME rank load is more than 0.98
-                     * the max PP force load. If so, PP DLB will not help,
-                     * since we are (almost) limited by PME. Furthermore,
-                     * DLB will cause a significant extra x/f redistribution
-                     * cost on the PME ranks, which will then surely result
-                     * in lower total performance.
-                     * This check might be fragile, since one measurement
-                     * below 0.98 (although only done once every 100 DD part.)
-                     * could turn on DLB for the rest of the run.
+                    /* If we recently turned off DLB, we want to check if
+                     * performance is better without DLB. We want to do this
+                     * ASAP to minimize the chance that external factors
+                     * slowed down the DLB step are gone here and we
+                     * incorrectly conclude that DLB was causing the slowdown.
+                     * So we measure one nstlist block, no running average.
                      */
-                    if (cr->npmenodes > 0 &&
-                        dd_pme_f_ratio(dd) > 1 - DD_PERF_LOSS_DLB_ON)
+                    if (comm->haveTurnedOffDlb &&
+                        comm->cycl[ddCyclStep]/comm->cycl_n[ddCyclStep] <
+                        comm->cyclesPerStepDlbExpAverage)
                     {
-                        bTurnOnDLB = FALSE;
+                        /* After turning off DLB we ran nstlist steps in fewer
+                         * cycles than with DLB. This likely means that DLB
+                         * in not benefical, but this could be due to a one
+                         * time unlucky fluctuation, so we require two such
+                         * observations in close succession to turn off DLB
+                         * forever.
+                         */
+                        if (comm->dlbSlowerPartitioningCount > 0 &&
+                            dd->ddp_count < comm->dlbSlowerPartitioningCount + 10*c_checkTurnDlbOnInterval)
+                        {
+                            turnOffDlbForever = TRUE;
+                        }
+                        comm->haveTurnedOffDlb           = false;
+                        /* Register when we last measured DLB slowdown */
+                        comm->dlbSlowerPartitioningCount = dd->ddp_count;
                     }
                     else
                     {
-                        bTurnOnDLB =
-                            (dd_force_imb_perf_loss(dd) >= DD_PERF_LOSS_DLB_ON);
-                    }
-                    if (debug)
-                    {
-                        fprintf(debug, "step %s, imb loss %f\n",
-                                gmx_step_str(step, sbuf),
-                                dd_force_imb_perf_loss(dd));
+                        /* Here we check if the max PME rank load is more than 0.98
+                         * the max PP force load. If so, PP DLB will not help,
+                         * since we are (almost) limited by PME. Furthermore,
+                         * DLB will cause a significant extra x/f redistribution
+                         * cost on the PME ranks, which will then surely result
+                         * in lower total performance.
+                         */
+                        if (cr->npmenodes > 0 &&
+                            dd_pme_f_ratio(dd) > 1 - DD_PERF_LOSS_DLB_ON)
+                        {
+                            turnOnDlb = FALSE;
+                        }
+                        else
+                        {
+                            turnOnDlb = (dd_force_imb_perf_loss(dd) >= DD_PERF_LOSS_DLB_ON);
+                        }
                     }
                 }
-                dd_bcast(dd, sizeof(bTurnOnDLB), &bTurnOnDLB);
-                if (bTurnOnDLB)
+                struct
+                {
+                    gmx_bool turnOffDlbForever;
+                    gmx_bool turnOnDlb;
+                }
+                bools {
+                    turnOffDlbForever, turnOnDlb
+                };
+                dd_bcast(dd, sizeof(bools), &bools);
+                if (bools.turnOffDlbForever)
+                {
+                    turn_off_dlb_forever(fplog, cr, step);
+                }
+                else if (bools.turnOnDlb)
                 {
                     turn_on_dlb(fplog, cr, step);
                     bDoDLB = TRUE;
@@ -9254,10 +9410,10 @@ void dd_partition_system(FILE                *fplog,
         ncgindex_set = 0;
 
         set_ddbox(dd, bMasterState, cr, ir, state_global->box,
-                  TRUE, cgs_gl, state_global->x, &ddbox);
+                  TRUE, cgs_gl, as_rvec_array(state_global->x.data()), &ddbox);
 
         get_cg_distribution(fplog, dd, cgs_gl,
-                            state_global->box, &ddbox, state_global->x);
+                            state_global->box, &ddbox, as_rvec_array(state_global->x.data()));
 
         dd_distribute_state(dd, cgs_gl,
                             state_global, state_local, f);
@@ -9270,7 +9426,7 @@ void dd_partition_system(FILE                *fplog,
         if (fr->cutoff_scheme == ecutsGROUP)
         {
             calc_cgcm(fplog, 0, dd->ncg_home,
-                      &top_local->cgs, state_local->x, fr->cg_cm);
+                      &top_local->cgs, as_rvec_array(state_local->x.data()), fr->cg_cm);
         }
 
         inc_nrnb(nrnb, eNR_CGCM, dd->nat_home);
@@ -9301,7 +9457,7 @@ void dd_partition_system(FILE                *fplog,
         {
             /* Redetermine the cg COMs */
             calc_cgcm(fplog, 0, dd->ncg_home,
-                      &top_local->cgs, state_local->x, fr->cg_cm);
+                      &top_local->cgs, as_rvec_array(state_local->x.data()), fr->cg_cm);
         }
 
         inc_nrnb(nrnb, eNR_CGCM, dd->nat_home);
@@ -9309,7 +9465,7 @@ void dd_partition_system(FILE                *fplog,
         dd_set_cginfo(dd->index_gl, 0, dd->ncg_home, fr, comm->bLocalCG);
 
         set_ddbox(dd, bMasterState, cr, ir, state_local->box,
-                  TRUE, &top_local->cgs, state_local->x, &ddbox);
+                  TRUE, &top_local->cgs, as_rvec_array(state_local->x.data()), &ddbox);
 
         bRedist = dlbIsOn(comm);
     }
@@ -9328,7 +9484,7 @@ void dd_partition_system(FILE                *fplog,
             copy_rvec(comm->box_size, ddbox.box_size);
         }
         set_ddbox(dd, bMasterState, cr, ir, state_local->box,
-                  bNStGlobalComm, &top_local->cgs, state_local->x, &ddbox);
+                  bNStGlobalComm, &top_local->cgs, as_rvec_array(state_local->x.data()), &ddbox);
 
         bBoxChanged = TRUE;
         bRedist     = TRUE;
@@ -9417,7 +9573,7 @@ void dd_partition_system(FILE                *fplog,
                                   0, dd->ncg_home,
                                   comm->zones.dens_zone0,
                                   fr->cginfo,
-                                  state_local->x,
+                                  as_rvec_array(state_local->x.data()),
                                   ncg_moved, bRedist ? comm->moved : NULL,
                                   fr->nbv->grp[eintLocal].kernel_type,
                                   fr->nbv->grp[eintLocal].nbat);
@@ -9453,6 +9609,10 @@ void dd_partition_system(FILE                *fplog,
         }
         dd_sort_state(dd, fr->cg_cm, fr, state_local,
                       bResortAll ? -1 : ncg_home_old);
+
+        /* After sorting and compacting we set the correct size */
+        dd_resize_state(state_local, f, dd->nat_home);
+
         /* Rebuild all the indices */
         ga2la_clear(dd->ga2la);
         ncgindex_set = 0;
@@ -9481,7 +9641,7 @@ void dd_partition_system(FILE                *fplog,
 
     /*
        write_dd_pdb("dd_home",step,"dump",top_global,cr,
-                 -1,state_local->x,state_local->box);
+                 -1,as_rvec_array(state_local->x.data()),state_local->box);
      */
 
     wallcycle_sub_start(wcycle, ewcsDD_MAKETOP);
@@ -9494,7 +9654,7 @@ void dd_partition_system(FILE                *fplog,
     dd_make_local_top(dd, &comm->zones, dd->npbcdim, state_local->box,
                       comm->cellsize_min, np,
                       fr,
-                      fr->cutoff_scheme == ecutsGROUP ? fr->cg_cm : state_local->x,
+                      fr->cutoff_scheme == ecutsGROUP ? fr->cg_cm : as_rvec_array(state_local->x.data()),
                       vsite, top_global, top_local);
 
     wallcycle_sub_stop(wcycle, ewcsDD_MAKETOP);
@@ -9536,10 +9696,8 @@ void dd_partition_system(FILE                *fplog,
      * or constraint communication.
      */
     state_local->natoms = comm->nat[ddnatNR-1];
-    if (state_local->natoms > state_local->nalloc)
-    {
-        dd_realloc_state(state_local, f, state_local->natoms);
-    }
+
+    dd_resize_state(state_local, f, state_local->natoms);
 
     if (fr->bF_NoVirSum)
     {
@@ -9622,9 +9780,10 @@ void dd_partition_system(FILE                *fplog,
         /* Make a selection of the local atoms */
         ir->external_potential->manager->dd_make_local_groups(dd->ga2la);
         /* Update the box vector shifts and reference structure to make molecules whole again */
-        ir->external_potential->manager->update_whole_molecule_groups(state_local->x, state_local->box);
+        rvec * localCoordinates = as_rvec_array(state_local->x.data());
+        ir->external_potential->manager->update_whole_molecule_groups(localCoordinates, state_local->box);
         /* Update the local atom properties */
-        ir->external_potential->manager->setAtomProperties(mdatoms, top_local, top_global);
+        // ir->external_potential->manager->setAtomProperties(mdatoms, top_local, top_global);
     }
 
     /* Update the local atoms to be communicated via the IMD protocol if bIMD is TRUE. */
@@ -9639,15 +9798,15 @@ void dd_partition_system(FILE                *fplog,
      * the last vsite construction, we need to communicate the constructing
      * atom coordinates again (for spreading the forces this MD step).
      */
-    dd_move_x_vsites(dd, state_local->box, state_local->x);
+    dd_move_x_vsites(dd, state_local->box, as_rvec_array(state_local->x.data()));
 
     wallcycle_sub_stop(wcycle, ewcsDD_TOPOTHER);
 
     if (comm->nstDDDump > 0 && step % comm->nstDDDump == 0)
     {
-        dd_move_x(dd, state_local->box, state_local->x);
+        dd_move_x(dd, state_local->box, as_rvec_array(state_local->x.data()));
         write_dd_pdb("dd_dump", step, "dump", top_global, cr,
-                     -1, state_local->x, state_local->box);
+                     -1, as_rvec_array(state_local->x.data()), state_local->box);
     }
 
     /* Store the partitioning step */

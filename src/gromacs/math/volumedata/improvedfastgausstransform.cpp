@@ -260,7 +260,8 @@ ImprovedFastGaussTransform::exp_lookup(real x)
 };
 
 
-std::unique_ptr<GridReal> &&  ImprovedFastGaussTransform::finish_and_return_grid()
+std::unique_ptr<GridReal>
+ImprovedFastGaussTransform::finish_and_return_grid()
 {
 
     minimumUsedGridIndex_ = {GMX_INT32_MAX, GMX_INT32_MAX, GMX_INT32_MAX};

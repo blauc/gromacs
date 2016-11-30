@@ -409,6 +409,19 @@ init_overlap_comm(pme_overlap_t *  ol,
     snew(ol->recvbuf, norder*commplainsize);
 }
 
+/*! \brief Destroy data structure for communication */
+static void
+destroy_overlap_comm(const pme_overlap_t *ol)
+{
+    sfree(ol->s2g0);
+    sfree(ol->s2g1);
+    sfree(ol->send_id);
+    sfree(ol->recv_id);
+    sfree(ol->comm_data);
+    sfree(ol->sendbuf);
+    sfree(ol->recvbuf);
+}
+
 void gmx_pme_check_restrictions(int pme_order,
                                 int nkx, int nky, int nkz,
                                 int nnodes_major,
@@ -722,18 +735,18 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     pme->pmegrid_start_iy = pme->overlap[1].s2g0[pme->nodeid_minor];
     pme->pmegrid_start_iz = 0;
 
-    make_gridindex5_to_localindex(pme->nkx,
-                                  pme->pmegrid_start_ix,
-                                  pme->pmegrid_nx - (pme->pme_order-1),
-                                  &pme->nnx, &pme->fshx);
-    make_gridindex5_to_localindex(pme->nky,
-                                  pme->pmegrid_start_iy,
-                                  pme->pmegrid_ny - (pme->pme_order-1),
-                                  &pme->nny, &pme->fshy);
-    make_gridindex5_to_localindex(pme->nkz,
-                                  pme->pmegrid_start_iz,
-                                  pme->pmegrid_nz_base,
-                                  &pme->nnz, &pme->fshz);
+    make_gridindex_to_localindex(pme->nkx,
+                                 pme->pmegrid_start_ix,
+                                 pme->pmegrid_nx - (pme->pme_order-1),
+                                 &pme->nnx, &pme->fshx);
+    make_gridindex_to_localindex(pme->nky,
+                                 pme->pmegrid_start_iy,
+                                 pme->pmegrid_ny - (pme->pme_order-1),
+                                 &pme->nny, &pme->fshy);
+    make_gridindex_to_localindex(pme->nkz,
+                                 pme->pmegrid_start_iz,
+                                 pme->pmegrid_nz_base,
+                                 &pme->nnz, &pme->fshz);
 
     pme->spline_work = make_pme_spline_work(pme->pme_order);
 
@@ -1635,6 +1648,9 @@ int gmx_pme_destroy(struct gmx_pme_t **pmedata)
     sfree(pme->nnx);
     sfree(pme->nny);
     sfree(pme->nnz);
+    sfree(pme->fshx);
+    sfree(pme->fshy);
+    sfree(pme->fshz);
 
     for (int i = 0; i < pme->ngrids; ++i)
     {
@@ -1646,6 +1662,9 @@ int gmx_pme_destroy(struct gmx_pme_t **pmedata)
     {
         destroy_atomcomm(&pme->atc[i]);
     }
+
+    destroy_overlap_comm(&pme->overlap[0]);
+    destroy_overlap_comm(&pme->overlap[1]);
 
     sfree(pme->lb_buf1);
     sfree(pme->lb_buf2);

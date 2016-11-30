@@ -46,6 +46,7 @@ gmx_install_headers(
     vec.h
     vectypes.h
     quaternion.h
+    paddedvector.h
     )
 
 add_subdirectory(volumedata)

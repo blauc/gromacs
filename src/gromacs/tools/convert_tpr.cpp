@@ -267,7 +267,7 @@ static void reduce_topology_x(int gnx, int index[],
     int         *invindex;
     int          i;
 
-    top      = gmx_mtop_t_to_t_topology(mtop);
+    top      = gmx_mtop_t_to_t_topology(mtop, false);
     bKeep    = bKeepIt(gnx, top.atoms.nr, index);
     invindex = invind(gnx, top.atoms.nr, index);
 
@@ -461,7 +461,7 @@ int gmx_convert_tpr(int argc, char *argv[])
             {
                 fprintf(stderr, "Will write subset %s of original tpx containing %d "
                         "atoms\n", grpname, gnx);
-                reduce_topology_x(gnx, index, &mtop, state.x, state.v);
+                reduce_topology_x(gnx, index, &mtop, as_rvec_array(state.x.data()), as_rvec_array(state.v.data()));
                 state.natoms = gnx;
             }
             else if (bZeroQ)
