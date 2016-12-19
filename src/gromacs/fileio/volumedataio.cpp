@@ -1107,6 +1107,74 @@ void MrcFile::read(std::string filename, GridReal &grid_data)
     impl_->close_file();
 }
 
+Df3File::SuccessfulDf3Write
+Df3File::write(std::string filename, const gmx::volumedata::GridReal &grid_data)
+{
+    auto    file_ = gmx_fio_fopen(filename.c_str(), "w");
+    int16_t xExtendShort {
+        int16_t(grid_data.extend()[XX])
+    };
+    int16_t yExtendShort {
+        int16_t(grid_data.extend()[YY])
+    };
+    int16_t zExtendShort {
+        int16_t(grid_data.extend()[ZZ])
+    };
+    fputc(xExtendShort >> 8, file_);
+    fputc(xExtendShort & 0xff, file_);
+    fputc(yExtendShort >> 8, file_);
+    fputc(yExtendShort & 0xff, file_);
+    fputc(zExtendShort >> 8, file_);
+    fputc(zExtendShort & 0xff, file_);
+    auto gridMax = grid_data.properties().max();
+    auto gridMin = grid_data.properties().min();
+    for (auto voxel : grid_data.access().data())
+    {
+        auto scaledValue = float(voxel - gridMin)/float(gridMax-gridMin);
+        char datum       = static_cast<char>(255*scaledValue);
+        fputc(datum, file_);
+    }
+    gmx_fio_fclose(file_);
+    return Df3File::SuccessfulDf3Write(filename, grid_data);
+}
+
+Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::volumedata::GridReal &grid_data) : filename_ {filename}, gridData_ {
+    grid_data
+} {};
+
+void Df3File::SuccessfulDf3Write::writePovray()
+{
+    auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
+    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * gridData_.cell_lengths()[XX]) + "," + std::to_string(NM2A *gridData_.cell_lengths()[YY]) + "," + std::to_string(NM2A *gridData_.cell_lengths()[ZZ]) + ">;\n";
+    povRayString += std::string("#declare theinterior = interior {\n")
+        +"\tmedia {\n"
+        +"\t\temission <1,1,1> / 10\n"
+        +"\t\tabsorption <1,1,1> / 3\n"
+        +"\t\tscattering {1 0.5}\n"
+        +"\t\tdensity {\n"
+        +"\t\t\tdensity_file df3 \"" + filename_+"\"\n"
+        +"\t\t\tinterpolate 1\n"
+        +"\t\t\tcolor_map {\n"
+        +"\t\t\t\t[0 rgb <0,0,0>]\n"
+        +"\t\t\t\t[1 rgb <1,1,1>]\n"
+        +"\t\t\t}\n"
+        +"\t\t}\n"
+        +"\t}\n"
+        +"}\n"
+        +"\n"
+        + "box {\n"
+        +"\t\t<0,0,0>, <1,1,1>\n"
+        +"\t\tpigment { rgbf 1 }\n"
+        +"\t\tinterior { theinterior }\n"
+        +"\t\thollow\n"
+        +"\t\tscale DD\n"
+        +"\t\ttranslate <" + std::to_string(NM2A *gridData_.translation()[XX]) + ","+std::to_string(NM2A *gridData_.translation()[YY])+ "," + std::to_string(NM2A *gridData_.translation()[ZZ]) + ">\n"
+        +"\t}\n";
+    fprintf(file, "%s", povRayString.c_str());
+    gmx_fio_fclose(file);
+
+}
+
 } // namespace volumedata
 
 } // namespace gmx

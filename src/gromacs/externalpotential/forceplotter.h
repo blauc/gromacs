@@ -47,8 +47,8 @@ class ForcePlotter
     public:
         ForcePlotter() = default;
         void start_plot_forces(std::string outfile);
-        void plot_force(const rvec x, rvec f, int id, real scale);
-        void plot_forces(const rvec * x, rvec * f, int size, int id, int * ind);
+        void plot_force(const rvec x, rvec f, int id, real scale, real thickness = 0.1);
+        void plot_forces(const rvec * x, rvec * f, int size, real longestForcesVec = 0.2, int id = 1, int * ind = nullptr, real thickness = 0.1);
         void stop_plot_forces();
     private:
         FILE * file_;

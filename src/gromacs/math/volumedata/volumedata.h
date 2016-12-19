@@ -84,11 +84,11 @@ class CrystalSymmetry
          * \returns space group according to "International Tables for Crystallography
          * Table 12.3.4.1 Standard space-group symbol"
          */
-        int space_group();
+        int space_group() const;
         /*! \brief Writes all information about the grid of reals in human readable
          * form to a string.
          */
-        std::string print();
+        std::string print() const;
 
     private:
         class Impl;
@@ -100,6 +100,7 @@ class Finite3DLatticeIndices
     public:
         Finite3DLatticeIndices();
         Finite3DLatticeIndices(IVec extend);
+        Finite3DLatticeIndices(const Finite3DLatticeIndices &other);
         size_t num_gridpoints()
         const;                          //!< returns pre-evaluated extend[0]*extend[1]*extend[2]
         size_t numGridPointsXY() const; //!< returns pre-evaluated extend[0]*extend[1]
@@ -150,6 +151,9 @@ class FiniteGrid : public Finite3DLatticeIndices
 {
     public:
         FiniteGrid();
+        FiniteGrid(const FiniteGrid &other);
+        FiniteGrid &operator= (const FiniteGrid &other);
+
         ~FiniteGrid();
 
         /*! \brief convert Lattice to its corresponding lattice in reciprocal space by
@@ -183,9 +187,9 @@ class FiniteGrid : public Finite3DLatticeIndices
          * Add a vector to the translation of the map.
          */
         RVec
-        translation() const; //!< return real-space coordinate of gridpoint (0,0,0).
-        RVec cell_lengths(); //!< return unit-cell lengths
-        RVec cell_angles();  //!< return unit-cell angles
+        translation() const;       //!< return real-space coordinate of gridpoint (0,0,0).
+        RVec cell_lengths() const; //!< return unit-cell lengths
+        RVec cell_angles() const;  //!< return unit-cell angles
 
         /*! \brief
          * Yields rotation matrix Q that will rotate grid towards canonical
@@ -209,11 +213,7 @@ class FiniteGrid : public Finite3DLatticeIndices
         RVec unit_cell_YY() const;
         RVec unit_cell_ZZ() const;
 
-        void extendCellByUnitCellInXX();
-        void extendCellByUnitCellInYY();
-        void extendCellByUnitCellInZZ();
-
-        real grid_cell_volume();
+        real grid_cell_volume() const;
 
         /*! \brief Check if all cell vectors are rectangular by calling cell_angles();
          */
@@ -232,7 +232,7 @@ class FiniteGrid : public Finite3DLatticeIndices
         /*! \brief Writes all information about the grid of reals in human readable
          * form to a string.
          */
-        std::string print();
+        std::string print() const;
 
         /*! \brief
          * set unit cell; divide cell matrix by extend in respective direction
@@ -278,6 +278,13 @@ template <class T> class BasicGridDataProperties
          */
         size_t data_size() const { return data_.size(); };
 
+        T normSquared() const
+        {
+            T data_mean        = mean();
+            return std::accumulate(
+                    std::begin(data_), std::end(data_), 0.,
+                    [ data_mean ](const T &a, T b) { return a + gmx::square(b - data_mean); });
+        }
         /*! \brief The variance of data values.
          *
          * Two pass algorithm, where mean is calculated fist, due to large expected
@@ -285,11 +292,7 @@ template <class T> class BasicGridDataProperties
          */
         T var() const
         {
-            T data_mean        = mean();
-            T square_deviation = std::accumulate(
-                        std::begin(data_), std::end(data_), 0.,
-                        [ = ](const T &a, T b) { return a + (b - data_mean) * (b - data_mean); });
-            return square_deviation / static_cast<real>(data_.size());
+            return normSquared() / static_cast<real>(data_.size());
         }
 
     private:

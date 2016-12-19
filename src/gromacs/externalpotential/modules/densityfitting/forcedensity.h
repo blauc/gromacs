@@ -32,36 +32,48 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDMEASURES_H
-#define GMX_MATH_GRIDMEASURES_H
-#include <memory>
-#include <vector>
+/*!  \file
+ * \brief
+ * Class definition for force density.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \inpublicapi
+ */
+#ifndef GMX_EXTERNALPOTENIAL_FORCEDENSITY_H
+#define GMX_EXTERNALPOTENIAL_FORCEDENSITY_H
+
+#include "gmxpre.h"
+#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/gmxcomplex.h"
+#include "gromacs/math/volumedata/fouriertransform.h"
+
 #include "gromacs/utility/real.h"
+
+#include <array>
+
+
 namespace gmx
 {
-namespace volumedata
-{
 
-class GridReal;
-class GridMeasures
+
+class ForceDensity
 {
     public:
-        GridMeasures(const GridReal &reference);
-        real correlate(const GridReal &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const GridReal &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const GridReal          &other,
-                                    const std::vector<real> &other_reference) const;
-        real getKLCrossTermSameGrid(const GridReal &other) const;
-        real getKLCrossTerm(const GridReal &other) const;
-        real getKLSameGrid(const GridReal &other) const;
-        real entropy() const;
+        ForceDensity(const volumedata::Field<real> &grid, real sigma);
+        ~ForceDensity() = default;
+        const std::array<volumedata::Field<real>, DIM> &
+        getForce();
 
     private:
-        const GridReal &reference_;
+        void generateConvolutionDensity_();
+        void generateFourierTransformGrids_(const volumedata::FiniteGrid &grid);
+        real sigma_;
+        std::array<volumedata::Field<real>, DIM>                 forces_;
+        std::array<volumedata::Field<t_complex>, DIM>            forcesFT_;
+        std::array<volumedata::Field<t_complex>, DIM>            convolutionDensity_;
+        volumedata::Field<t_complex>                             densityGradientFT_;
+        std::vector<volumedata::FourierTransformComplexToReal3D> complexToRealFTarray_;
+        volumedata::FourierTransformRealToComplex3D              realToComplexFT_;
 };
 }
-}
-
-
-#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */
+#endif /* end of include guard: GMX_EXTERNALPOTENIAL_FORCEDENSITY_H */

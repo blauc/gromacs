@@ -97,11 +97,11 @@ void CrystalSymmetry::set_space_group(int space_group)
 {
     impl_->space_group_ = space_group;
 }
-int CrystalSymmetry::space_group() { return impl_->space_group_; }
+int CrystalSymmetry::space_group() const { return impl_->space_group_; }
 
 CrystalSymmetry::CrystalSymmetry() : impl_(new CrystalSymmetry::Impl()){};
 
-std::string CrystalSymmetry::print()
+std::string CrystalSymmetry::print() const
 {
     return "---crystal symmetry---\nspace group : " +
            std::to_string(space_group()) + "---\n";
@@ -125,6 +125,7 @@ class FiniteGrid::Impl
 {
     public:
         Impl();
+        Impl(const Impl &other);
         ~Impl();
 
         matrix cell_;          //!< r' = cell_ . (r-translate_)
@@ -247,30 +248,57 @@ unit_cell_inv_ {{
 };
 
 FiniteGrid::Impl::~Impl() = default;
+FiniteGrid::Impl::Impl(const Impl &other)
+{
+    copy_mat(other.cell_, cell_);
+    copy_mat(other.unit_cell_, unit_cell_);
+    copy_mat(other.unit_cell_inv_, unit_cell_inv_);
+    translate_ = other.translate_;
+}
 
 /********************************************************************
  * FiniteGrid
  */
 FiniteGrid::FiniteGrid() : impl_(new FiniteGrid::Impl()){};
+FiniteGrid::FiniteGrid(const FiniteGrid &other) :  Finite3DLatticeIndices(other), impl_(new FiniteGrid::Impl(*(other.impl_)))
+{
+};
+
+FiniteGrid &FiniteGrid::operator= (const FiniteGrid &other)
+{
+    set_extend(other.extend());
+    copy_mat(other.impl_->cell_, impl_->cell_);
+    copy_mat(other.impl_->unit_cell_, impl_->unit_cell_);
+    copy_mat(other.impl_->unit_cell_inv_, impl_->unit_cell_inv_);
+    impl_->translate_ = other.impl_->translate_;
+    return *this;
+}
+
 
 FiniteGrid::~FiniteGrid() = default;
 
 void FiniteGrid::convertToReciprocalSpace()
 {
     invertMatrix(impl_->cell_, impl_->unit_cell_);
-    svmul(1.0/extend()[XX], impl_->unit_cell_[XX], impl_->unit_cell_[XX]);
-    svmul(1.0/extend()[YY], impl_->unit_cell_[YY], impl_->unit_cell_[YY]);
-    svmul(1.0/extend()[ZZ], impl_->unit_cell_[ZZ], impl_->unit_cell_[ZZ]);
     invertMatrix(impl_->unit_cell_, impl_->unit_cell_inv_);
     resetCell();
 }
 
 Finite3DLatticeIndices::Finite3DLatticeIndices() = default;
 
+Finite3DLatticeIndices::Finite3DLatticeIndices(const Finite3DLatticeIndices &other)
+{
+    extend_          = other.extend_;
+    numGridPointsXY_ = other.numGridPointsXY_;
+    numGridPoints_   = other.numGridPoints_;
+};
+
 Finite3DLatticeIndices::Finite3DLatticeIndices(IVec extend)
 {
     set_extend(extend);
 }
+
+
 
 void Finite3DLatticeIndices::set_extend(IVec extend)
 {
@@ -291,7 +319,7 @@ void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
     numGridPoints_   = numGridPointsXY_ * extend_[ZZ];
 }
 
-real FiniteGrid::grid_cell_volume()
+real FiniteGrid::grid_cell_volume() const
 {
     return det(impl_->cell_) / (real)num_gridpoints();
 }
@@ -329,7 +357,7 @@ size_t Finite3DLatticeIndices::numGridPointsXY() const
 
 size_t Finite3DLatticeIndices::num_gridpoints() const { return numGridPoints_; }
 
-RVec FiniteGrid::cell_lengths()
+RVec FiniteGrid::cell_lengths() const
 {
     return {
                norm(impl_->cell_[XX]), norm(impl_->cell_[YY]),
@@ -337,31 +365,13 @@ RVec FiniteGrid::cell_lengths()
     };
 }
 
-RVec FiniteGrid::cell_angles()
+RVec FiniteGrid::cell_angles() const
 {
     return {
                impl_->deg_angle(impl_->cell_[XX], impl_->cell_[ZZ]),
                impl_->deg_angle(impl_->cell_[XX], impl_->cell_[YY]),
                impl_->deg_angle(impl_->cell_[YY], impl_->cell_[ZZ])
     };
-}
-
-void FiniteGrid::extendCellByUnitCellInXX()
-{
-    rvec_inc(impl_->cell_[XX], impl_->unit_cell_[XX]);
-    set_unit_cell();
-}
-
-void FiniteGrid::extendCellByUnitCellInYY()
-{
-    rvec_inc(impl_->cell_[YY], impl_->unit_cell_[YY]);
-    set_unit_cell();
-}
-
-void FiniteGrid::extendCellByUnitCellInZZ()
-{
-    rvec_inc(impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
-    set_unit_cell();
 }
 
 void FiniteGrid::set_cell(RVec length, RVec angle)
@@ -523,7 +533,7 @@ void FiniteGrid::makeGridUniform()
     }
 }
 
-std::string FiniteGrid::print()
+std::string FiniteGrid::print() const
 {
     std::string result("\n  ------- finite grid -------\n");
     result += "    extend       : " + std::to_string(extend()[0]) + " " +

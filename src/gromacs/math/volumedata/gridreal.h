@@ -59,6 +59,7 @@ class GridReal : public Field<real>, public CrystalSymmetry
 
         ScalarGridDataProperties<real> properties() const;
 
+        real getLinearInterpolationAt(RVec r) const;
         /*! \brief
          * Add an offset to all values.
          * \param[in] offset value to be added
@@ -70,7 +71,7 @@ class GridReal : public Field<real>, public CrystalSymmetry
         /*! \brief Writes all information about the grid of reals in human readable
          * form to a string.
          */
-        std::string print();
+        std::string print() const;
         /*! \brief Set all voxel values to zero.
          */
         void zero();

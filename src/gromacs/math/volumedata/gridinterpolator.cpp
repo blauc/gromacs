@@ -51,7 +51,6 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
 std::unique_ptr<GridReal>
 GridInterpolator::interpolateLinearly(const GridReal &other)
 {
-    auto otherAccess            = other.access();
     auto interpolatedGridAccess = interpolatedGrid_->access();
 
     for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
@@ -62,56 +61,8 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
             {
 
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
-                auto rIndexInOtherGrid = other.coordinateToRealGridIndex(r);
-                auto iIndexInOtherGrid = other.coordinate_to_gridindex_floor_ivec(r);
+                interpolatedGridAccess.at({i_x, i_y, i_z}) = other.getLinearInterpolationAt(r);
 
-                auto w_x = rIndexInOtherGrid[XX] - (real)iIndexInOtherGrid[XX];
-                auto w_y = rIndexInOtherGrid[YY] - (real)iIndexInOtherGrid[YY];
-                auto w_z = rIndexInOtherGrid[ZZ] - (real)iIndexInOtherGrid[ZZ];
-
-                std::array<std::array<std::array<real, 2>, 2>, 2> cube;
-
-                for (int ii_z = 0; ii_z <= 1; ++ii_z)
-                {
-                    for (int ii_y = 0; ii_y <= 1; ++ii_y)
-                    {
-                        for (int ii_x = 0; ii_x <= 1; ++ii_x)
-                        {
-                            auto cube_index = iIndexInOtherGrid;
-                            cube_index[XX] += ii_x;
-                            cube_index[YY] += ii_y;
-                            cube_index[ZZ] += ii_z;
-                            if (other.inGrid(cube_index))
-                            {
-                                cube[ii_x][ii_y][ii_z] = otherAccess.at(cube_index);
-                            }
-                            else
-                            {
-                                cube[ii_x][ii_y][ii_z] = 0;
-                            }
-                        }
-                    }
-                }
-
-                std::array<std::array<real, 2>, 2> interpolated_x;
-                for (int ii_z = 0; ii_z <= 1; ++ii_z)
-                {
-                    for (int ii_y = 0; ii_y <= 1; ++ii_y)
-                    {
-                        interpolated_x[ii_y][ii_z] =
-                            (1 - w_x) * cube[0][ii_y][ii_z] + (w_x)*cube[1][ii_y][ii_z];
-                    }
-                }
-
-                std::array<real, 2> interpolated_xy;
-                for (int ii_z = 0; ii_z <= 1; ++ii_z)
-                {
-                    interpolated_xy[ii_z] = (1 - w_y) * interpolated_x[0][ii_z] +
-                        (w_y)*interpolated_x[1][ii_z];
-                }
-
-                interpolatedGridAccess.at({i_x, i_y, i_z}) =
-                    ((1 - w_z) * interpolated_xy[0] + w_z * interpolated_xy[1]) / 8.0;
             }
         }
     }

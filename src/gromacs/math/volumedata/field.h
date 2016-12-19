@@ -39,6 +39,7 @@
  * \author Christian Blau <cblau@gwdg.de>
  * \inpublicapi
  */
+
 #ifndef GMX_MATH_VOLUMEDATA_FIELD_H
 #define GMX_MATH_VOLUMEDATA_FIELD_H
 
@@ -49,20 +50,31 @@ namespace gmx
 namespace volumedata
 {
 
-template <class T> class Field : public FiniteGrid
+template <class T>
+class Field : public FiniteGrid
 {
     public:
-        Field<T>() = default;
-        Field<T>(Field<T> &other) {
+        Field() = default;
+        Field(const Field<T> &other) : FiniteGrid {other}
+        {
             copy_grid(other);
             data_ = other.data_;
         };
+
+        Field(const FiniteGrid &other)
+        {
+            copy_grid(other);
+        };
+
         GridDataAccess<T> access() const
         {
             return GridDataAccess<T>(extend(), data_);
         };
 
-        GridDataAccess<T> access() { return GridDataAccess<T>(extend(), data_); };
+        GridDataAccess<T> access()
+        {
+            return GridDataAccess<T>(extend(), data_);
+        };
         /*! \brief
          * Copy the properties from another grid to this one.
          *  \param[in] grid Pointer to the grid from which the proterties will be

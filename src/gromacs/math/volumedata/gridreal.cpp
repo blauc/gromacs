@@ -58,8 +58,8 @@ void GridReal::multiply(real value)
 
 real GridReal::normalize()
 {
-    real integratedDensity = this->grid_cell_volume() / properties().sum();
-    multiply(1 / integratedDensity);
+    real integratedDensity =  properties().sum() / this->num_gridpoints();
+    multiply(1/integratedDensity);
     return integratedDensity;
 }
 
@@ -88,7 +88,7 @@ RVec GridReal::center_of_mass()
     return com;
 }
 
-std::string GridReal::print()
+std::string GridReal::print() const
 {
     std::string result;
     result += "------- real number grid -------\n";
@@ -106,5 +106,59 @@ void GridReal::zero()
 {
     std::fill(access().data().begin(), access().data().end(), 0);
 };
+
+real GridReal::getLinearInterpolationAt(RVec r) const
+{
+    auto rIndexInGrid = coordinateToRealGridIndex(r);
+    auto iIndexInGrid = coordinate_to_gridindex_floor_ivec(r);
+
+    auto w_x = rIndexInGrid[XX] - (real)iIndexInGrid[XX];
+    auto w_y = rIndexInGrid[YY] - (real)iIndexInGrid[YY];
+    auto w_z = rIndexInGrid[ZZ] - (real)iIndexInGrid[ZZ];
+
+    std::array<std::array<std::array<real, 2>, 2>, 2> cube;
+    auto data = access();
+
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        for (int ii_y = 0; ii_y <= 1; ++ii_y)
+        {
+            for (int ii_x = 0; ii_x <= 1; ++ii_x)
+            {
+                auto cube_index = iIndexInGrid;
+                cube_index[XX] += ii_x;
+                cube_index[YY] += ii_y;
+                cube_index[ZZ] += ii_z;
+                if (inGrid(cube_index))
+                {
+                    cube[ii_x][ii_y][ii_z] = data.at(cube_index);
+                }
+                else
+                {
+                    cube[ii_x][ii_y][ii_z] = 0;
+                }
+            }
+        }
+    }
+
+    std::array<std::array<real, 2>, 2> interpolated_x;
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        for (int ii_y = 0; ii_y <= 1; ++ii_y)
+        {
+            interpolated_x[ii_y][ii_z] =
+                (1 - w_x) * cube[0][ii_y][ii_z] + (w_x)*cube[1][ii_y][ii_z];
+        }
+    }
+
+    std::array<real, 2> interpolated_xy;
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        interpolated_xy[ii_z] = (1 - w_y) * interpolated_x[0][ii_z] +
+            (w_y)*interpolated_x[1][ii_z];
+    }
+
+    return ((1 - w_z) * interpolated_xy[0] + w_z * interpolated_xy[1]) / 8.0;
+}
 }
 }

@@ -53,39 +53,46 @@ namespace gmx
 namespace volumedata
 {
 
+IVec realGridExtendFromFourierTransfrom(IVec extend);
+IVec fourierTransformGridExtendfromRealExtend(IVec extend);
+
 class FourierTransform3D
 {
     public:
-        FourierTransform3D()  = default;
-        ~FourierTransform3D() = default;
-        IVec columnMajorExtendToRowMajorExtend(IVec extend);
+        ~FourierTransform3D();
+        IVec columnMajorExtendToRowMajorExtend(IVec extend) const;
+        void execute();
+
     protected:
-        fftwf_plan_s * plan_;
+        FourierTransform3D()  = default;
+        fftwf_plan_s * plan_      = nullptr;
+        bool           bNormalize = false;
 };
 
-class FourierTransformRealToComplex3D : FourierTransform3D
+class FourierTransformRealToComplex3D : public FourierTransform3D
 {
     public:
         FourierTransformRealToComplex3D(const Field<real> &realInputField);
-        FourierTransformRealToComplex3D &normalize();
         std::unique_ptr < Field < t_complex>> result();
+        void  result(Field < t_complex> &complexTransformedField);
+        FourierTransformRealToComplex3D &normalize();
 
     private:
+        std::unique_ptr < Field < t_complex>> createComplexTransformedFieldFromInput_() const;
         const Field<real> &realInputField_;
-        std::unique_ptr < Field < t_complex>> complexTransformedField_;
 };
 
-class FourierTransformComplexToReal3D : FourierTransform3D
+class FourierTransformComplexToReal3D : public FourierTransform3D
 {
     public:
         FourierTransformComplexToReal3D(const Field<t_complex> &complexInputField);
-
-        FourierTransformComplexToReal3D &normalize();
         std::unique_ptr < Field < real>> result();
+        void result(const Field < real> &realTransformedField);
+        FourierTransformComplexToReal3D &normalize();
 
     private:
+        std::unique_ptr < Field < real>>  createRealTransformedFieldFromInput_() const;
         const Field<t_complex> &complexInputField_;
-        std::unique_ptr < Field < real>> realTransformedField_;
 };
 
 class ApplyToUnshiftedFourierTransform

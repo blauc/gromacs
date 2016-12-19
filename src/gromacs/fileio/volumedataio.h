@@ -162,6 +162,22 @@ class MrcFile
         std::unique_ptr<Impl> impl_;
 };
 
+class Df3File
+{
+    private:
+        class SuccessfulDf3Write
+        {
+            public:
+                void writePovray();
+                SuccessfulDf3Write(std::string filename, const GridReal &grid_data);
+            private:
+                std::string     filename_;
+                const GridReal &gridData_;
+        };
+    public:
+        SuccessfulDf3Write write(std::string filename, const GridReal &grid_data);
+};
+
 }      // namespace volumedata
 
 }      // namespace gmx

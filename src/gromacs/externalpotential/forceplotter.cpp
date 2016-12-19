@@ -49,45 +49,55 @@ void ForcePlotter::start_plot_forces(std::string outfile)
     file_ = gmx_ffopen(outfile.c_str(), "w");
 };
 
-void ForcePlotter::plot_force(const rvec x, rvec f, int id, real scale)
+void ForcePlotter::plot_force(const rvec x, rvec f, int id, real scale, real thickness)
 {
     int  palette_size = 2;
     rvec xf;
     rvec f_scaled;
     svmul(scale, f, f_scaled);
-    if (norm(f_scaled) > 0.001)
+    if (norm(f_scaled) > 0.01)
     {
         rvec_add(f_scaled, x, xf);
-        fprintf(file_, ".color %.9f %.9f %.9f \n.arrow %.9f %.9f %.9f %.9f %.9f %.9f 0.02 0.05\n", (1.0/palette_size) * (id % palette_size),
-                (1.0/palette_size) * ((id+1)%palette_size), (1.0/palette_size) * ((id+2)%palette_size), 10*x[XX], 10*x[YY], 10*x[ZZ], 10*xf[XX], 10*xf[YY], 10*xf[ZZ]);
+        fprintf(file_, ".color %.3f %.3f %.3f \n.arrow %.3f %.3f %.3f %.3f %.3f "
+                "%.3f %.3f %.3f\n",
+                (1.0 / palette_size) * (id % palette_size),
+                (1.0 / palette_size) * ((id + 1) % palette_size),
+                (1.0 / palette_size) * ((id + 2) % palette_size), 10 * x[XX],
+                10 * x[YY], 10 * x[ZZ], 10 * xf[XX], 10 * xf[YY], 10 * xf[ZZ], thickness, 2*thickness);
     }
     fflush(file_);
 }
 
-void ForcePlotter::plot_forces(const rvec * x, rvec * f, int size, int id, int * ind)
+void ForcePlotter::plot_forces(const rvec *x, rvec *f, int size, real longestForcesVec, int id,
+                               int *ind, real thickness)
 {
     real max_f = -1e20;
+
     for (int i = 0; i < size; i++)
     {
-        for (size_t j = 0; j <= ZZ; j++)
+        if (norm(f[i]) > max_f)
         {
-            if (fabs(f[i][j]) < max_f)
-            {
-                max_f = f[i][j];
-            }
-            ;
+            max_f = norm(f[i]);
+        }
+        ;
+    }
+    if (ind != nullptr)
+    {
+
+        for (int i = 0; i < size; i++)
+        {
+            plot_force(x[ind[i]], f[i], id, longestForcesVec / max_f, thickness);
         }
     }
-    for (int i = 0; i < size; i++)
+    else
     {
-        plot_force(x[ind[i]], f[i], id, 1.0/max_f);
+        for (int i = 0; i < size; i++)
+        {
+            plot_force(x[i], f[i], id, longestForcesVec / max_f, thickness);
+        }
     }
 };
 
-void ForcePlotter::stop_plot_forces()
-{
-    gmx_ffclose(file_);
-};
-
+void ForcePlotter::stop_plot_forces() { gmx_ffclose(file_); };
 }
 }

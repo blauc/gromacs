@@ -43,8 +43,8 @@
 #include "densitypadding.h"
 #include "fouriertransform.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/utility/real.h"
 #include "gromacs/math/utilities.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
@@ -67,44 +67,29 @@ std::unique_ptr < Field < real>> GaussConvolution::convolute(real sigma) {
     if (padded_input_ != nullptr)
     {
         fourierTransform_ =
-            FourierTransformRealToComplex3D(*padded_input_).result();
+            FourierTransformRealToComplex3D(*padded_input_).normalize().result();
     }
     else
     {
-        fourierTransform_ = FourierTransformRealToComplex3D(input_).result();
+        fourierTransform_ =
+            FourierTransformRealToComplex3D(input_).normalize().result();
     }
-    auto sigma2 = gmx::square(sigma);
-    // auto convoluteWithGaussian = [sigma2](t_complex &value, RVec k) {
-    //   auto prefactor = exp(- 10 * norm2(k));//2.0 * M_PI * M_PI * sigma2 * 2
-    //       value.re =prefactor;
-    //       value.im =0;
-    //   };
+    auto sigmaSquared          = gmx::square(sigma);
+    auto convoluteWithGaussian = [sigmaSquared](t_complex &value, RVec k) {
+            auto prefactor = 1/(sqrt(2)) * exp(-2.0 * M_PI * M_PI * sigmaSquared * norm2(k));
+            value.re *= prefactor;
+            value.im *= prefactor;
+        };
 
-    std::fill(fourierTransform_->access().begin(), fourierTransform_->access().end(), t_complex {0, 0});
-    for (int kz = 0; kz < 10; kz++)
+    volumedata::ApplyToUnshiftedFourierTransform(*fourierTransform_).apply(convoluteWithGaussian);
+    auto result =
+        FourierTransformComplexToReal3D(*fourierTransform_).normalize().result();
+
+    if (padded_input_ != nullptr)
     {
-        for (int ky = 0; ky < 10; ky++)
-        {
-            for (int kx = 0; kx < 10; kx++)
-            {
-                fourierTransform_->access().at({kx, ky, kz}).re = exp(-(kx*kx+ky*ky+kz*kz));
-                fourierTransform_->access().at({kx, ky, kz}).im = 0;
-            }
-        }
+        result = DensityPadding(*result).unpad(extendBeforePadding_);
     }
-    // if ((fabs(k[ZZ])<0.00001) && (fabs(k[YY])<0.00001)) {
-    // }
-    // fprintf(stderr,"%g %g %g %g %g %g\n", value.re, value.im, k[XX], k[YY],k[ZZ], prefactor);
-    // };
-
-    // volumedata::ApplyToUnshiftedFourierTransform(*fourierTransform_).apply(convoluteWithGaussian);
-    auto result = FourierTransformComplexToReal3D(*fourierTransform_).result();
-
-    // if (padded_input_ != nullptr) {
-    // result = DensityPadding(*result).unpad(extendBeforePadding_);
-    // }
     return result;
 };
-
 }
 }
