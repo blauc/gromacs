@@ -124,8 +124,7 @@ class Map : public TrajectoryAnalysisModule
     private:
         std::string                           fnmapinput_;
         std::string                           fnmapoutput_;
-        std::string                           fncorrelation_;
-        std::string                           fnkldivergence_;
+        std::string                           fnpotential_;
         std::string                           fnmapresample_;
         std::string                           forcedensity_;
 
@@ -141,9 +140,7 @@ class Map : public TrajectoryAnalysisModule
         int                                   every_                = 1;
         real                                  expAverage_           = 1.;
         real                                  correlationThreshold_ = 0.;
-        FILE                                 *correlationFile_;
-        FILE                                 *kldivergenceFile_;
-        real                                  klOffset_ = 0;
+        FILE                                 *potentialFile_;
         int                                   nFr_      = 0;
         bool                                  bFit_     = false;
         int                                   nAtomsReference_;
@@ -211,16 +208,11 @@ void Map::initOptions(IOptionsContainer          *options,
                                "Spacing of the density grid (nm)"));
     options->addOption(IntegerOption("every").store(&every_).description(
                                "Analyse only -every frame."));
-    options->addOption(FileNameOption("corr")
+    options->addOption(FileNameOption("potential")
                            .filetype(eftGenericData)
                            .outputFile()
-                           .store(&fncorrelation_)
-                           .description("Correlation."));
-    options->addOption(FileNameOption("kl")
-                           .filetype(eftGenericData)
-                           .outputFile()
-                           .store(&fnkldivergence_)
-                           .description("KL-divergence."));
+                           .store(&fnpotential_)
+                           .description("Calculate potential."));
     options->addOption(BooleanOption("print").store(&bPrint_).description(
                                "Output density information to terminal, then exit."));
     options->addOption(BooleanOption("useBox").store(&bUseBox_).description(
@@ -236,9 +228,6 @@ void Map::initOptions(IOptionsContainer          *options,
             FloatOption("corrthreshold")
                 .store(&correlationThreshold_)
                 .description("Density threshold when calculating correlations."));
-    options->addOption(FloatOption("klOffset")
-                           .store(&klOffset_)
-                           .description("Threshold for KL-Divergence."));
     options->addOption(FileNameOption("forcedensity")
                            .filetype(eftVolumeData)
                            .outputFile()
@@ -289,14 +278,12 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
         }
     }
-    if (!fnmapoutput_.empty() || !fncorrelation_.empty() ||
-        !fnkldivergence_.empty() || !forcedensity_.empty())
+    if (!fnmapoutput_.empty() || !fnpotential_.empty() || !forcedensity_.empty())
     {
         outputdensity_ =
             std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal());
     }
-    if (!fncorrelation_.empty() || !fnkldivergence_.empty() ||
-        !forcedensity_.empty())
+    if (!fnpotential_.empty() || !forcedensity_.empty())
     {
         if (fnmapinput_.empty())
         {
@@ -304,25 +291,20 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             std::exit(0);
         }
     }
-    if (!fncorrelation_.empty())
+    if (!fnpotential_.empty())
     {
         // set negative values to zero
-        inputdensity_.add_offset(klOffset_);
         std::for_each(std::begin(inputdensity_.access().data()),
                       std::end(inputdensity_.access().data()),
                       [](real &value) { value = std::max(value, (real)0.); });
-        correlationFile_ = fopen(fncorrelation_.c_str(), "w");
+        inputdensity_.normalize();
+        inputGridEntropy = volumedata::GridMeasures(inputdensity_).entropy();
+        potentialFile_   = fopen(fnpotential_.c_str(), "w");
+        fprintf(potentialFile_, "frame_number KL-Divergence Cross-Correlation Inverted-Density FourierShellCorrelation");
     }
     if (!forcedensity_.empty())
     {
         inputdensity_.normalize();
-    }
-    if (!fnkldivergence_.empty())
-    {
-        inputdensity_.add_offset(klOffset_);
-        inputdensity_.normalize();
-        kldivergenceFile_ = fopen(fnkldivergence_.c_str(), "w");
-        inputGridEntropy  = volumedata::GridMeasures(inputdensity_).entropy();
     }
 }
 
@@ -396,8 +378,7 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             weight_.assign(fr.natoms, 1);
             fprintf(stderr, "\nSetting atom weights to unity.\n");
         }
-        if (!fnmapoutput_.empty() || !fncorrelation_.empty() ||
-            !fnkldivergence_.empty() || !forcedensity_.empty())
+        if (!fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty())
         {
             if (fnmapinput_.empty())
             {
@@ -453,20 +434,24 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                                exponentialAveraging);
             }
         }
-        if (!fncorrelation_.empty())
+        if (!fnpotential_.empty())
         {
-            fprintf(correlationFile_, "%g\n",
-                    volumedata::GridMeasures(inputdensity_)
-                        .correlate(outputDensityBuffer_, correlationThreshold_));
-        }
-        if (!fnkldivergence_.empty())
-        {
-            outputdensity_->add_offset(this->klOffset_);
             outputdensity_->normalize();
-            fprintf(kldivergenceFile_, "%g\n",
-                    volumedata::GridMeasures(inputdensity_)
-                        .getKLCrossTermSameGrid(*outputdensity_) -
-                    inputGridEntropy);
+            fprintf(potentialFile_, "%g\n", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
+            fprintf(potentialFile_, "%g\n", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(*outputdensity_) - inputGridEntropy);
+            auto                     fscCurve = volumedata::GridMeasures(inputdensity_).getFscCurve(*outputdensity_, 0.1);
+
+            std::vector<std::string> fscOutput(fscCurve[0].size());
+            std::transform(std::begin(fscCurve[0]), std::end(fscCurve[0]), std::begin(fscCurve[1]), std::begin(fscOutput),
+                           [](real k, real fscValue){
+                               return std::to_string(k)+" " + std::to_string(fscValue) + "\n";
+                           });
+
+            auto fscFile = fopen("fsccurve.dat", "w");
+            fprintf(fscFile, "%s",
+                    std::accumulate(std::begin(fscOutput), std::end(fscOutput), std::string(""),
+                                    [](std::string accumulant, const std::string value){return accumulant + value; }).c_str());
+            fclose(fscFile);
         }
         if (!fnmapoutput_.empty())
         {
@@ -495,21 +480,11 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
             if (potentialType_ == ePotentialType_CrossCorrelation)
             {
-                outputdensity_->add_offset(-outputdensity_->properties().mean());
-                inputdensity_.add_offset(-inputdensity_.properties().mean());
-                inputdensity_.multiply(1. / sqrt(inputdensity_.properties().normSquared()));
-
+                auto cc             = volumedata::GridMeasures(inputdensity_).correlate(*outputdensity_);
                 auto normSimulation = sqrt(outputdensity_->properties().normSquared());
-                outputdensity_->multiply(1. / normSimulation);
-
-                std::vector<real> mulArray(inputdensity_.num_gridpoints());
-                std::transform(inputdensity_.access().begin(), inputdensity_.access().end(), outputdensity_->access().begin(), mulArray.begin(), [](real a, real b){return a*b; });
-                auto              cc = std::accumulate(mulArray.begin(), mulArray.end(), 0.);
-
                 densityGradientFunction = [normSimulation, cc](real densityExperiment, real densitySimulation) {
                         return (densityExperiment - cc * densitySimulation) / (normSimulation);
                     };
-
             }
             if (potentialType_ == ePotentialType_KullbackLeibler)
             {
@@ -657,9 +632,9 @@ void Map::finishAnalysis(int /*nframes*/) {}
 
 void Map::writeOutput()
 {
-    if (!fncorrelation_.empty())
+    if (!fnpotential_.empty())
     {
-        fclose(correlationFile_);
+        fclose(potentialFile_);
     }
 }
 

@@ -285,6 +285,11 @@ template <class T> class BasicGridDataProperties
                     std::begin(data_), std::end(data_), 0.,
                     [ data_mean ](const T &a, T b) { return a + gmx::square(b - data_mean); });
         }
+
+        T norm() const
+        {
+            return sqrt(normSquared());
+        }
         /*! \brief The variance of data values.
          *
          * Two pass algorithm, where mean is calculated fist, due to large expected

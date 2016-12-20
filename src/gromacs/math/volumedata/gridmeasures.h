@@ -37,6 +37,8 @@
 #include <memory>
 #include <vector>
 #include "gromacs/utility/real.h"
+#include "gromacs/math/gmxcomplex.h"
+
 namespace gmx
 {
 namespace volumedata
@@ -56,8 +58,11 @@ class GridMeasures
         real getKLCrossTerm(const GridReal &other) const;
         real getKLSameGrid(const GridReal &other) const;
         real entropy() const;
+        std::array<std::vector<real>, 2> getFscCurve(const GridReal &other, const real spacing) const;
 
     private:
+        real correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const;
+        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
         const GridReal &reference_;
 };
 }
