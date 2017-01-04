@@ -48,6 +48,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include <iterator>
 
 #include "gromacs/analysisdata/analysisdata.h"
 #include "gromacs/analysisdata/modules/average.h"
@@ -68,6 +69,7 @@
 #include "gromacs/math/volumedata/gridinterpolator.h"
 #include "gromacs/math/volumedata/gridmeasures.h"
 #include "gromacs/math/volumedata/improvedfastgausstransform.h"
+#include "gromacs/math/volumedata/fouriershellcorrelation.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -151,6 +153,7 @@ class Map : public TrajectoryAnalysisModule
         bool                                  bUseBox_       = false;
         real                                  sigma_input_   = 0.05;
         PotentialType                         potentialType_ = ePotentialType_KullbackLeibler;
+        volumedata::FourierShellCorrelation   fsc_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -300,7 +303,8 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         inputdensity_.normalize();
         inputGridEntropy = volumedata::GridMeasures(inputdensity_).entropy();
         potentialFile_   = fopen(fnpotential_.c_str(), "w");
-        fprintf(potentialFile_, "frame_number KL-Divergence Cross-Correlation Inverted-Density FourierShellCorrelation");
+        fprintf(potentialFile_, "frame_number KL-Divergence Cross-Correlation Inverted-Density FourierShellCorrelation\n");
+        fsc_ = volumedata::FourierShellCorrelation(inputdensity_);
     }
     if (!forcedensity_.empty())
     {
@@ -437,20 +441,15 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
         if (!fnpotential_.empty())
         {
             outputdensity_->normalize();
-            fprintf(potentialFile_, "%g\n", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
-            fprintf(potentialFile_, "%g\n", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(*outputdensity_) - inputGridEntropy);
-            auto                     fscCurve = volumedata::GridMeasures(inputdensity_).getFscCurve(*outputdensity_, 0.1);
-
-            std::vector<std::string> fscOutput(fscCurve[0].size());
-            std::transform(std::begin(fscCurve[0]), std::end(fscCurve[0]), std::begin(fscCurve[1]), std::begin(fscOutput),
-                           [](real k, real fscValue){
-                               return std::to_string(k)+" " + std::to_string(fscValue) + "\n";
-                           });
-
-            auto fscFile = fopen("fsccurve.dat", "w");
-            fprintf(fscFile, "%s",
-                    std::accumulate(std::begin(fscOutput), std::end(fscOutput), std::string(""),
-                                    [](std::string accumulant, const std::string value){return accumulant + value; }).c_str());
+            fprintf(potentialFile_, "\n%8g ", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
+            fprintf(potentialFile_, "%8g", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(*outputdensity_) - inputGridEntropy);
+            auto                     fscCurve              = fsc_.getFscCurve(*outputdensity_, inputdensity_);
+            auto                     fscFile               = fopen("fsccurve.dat", "w");
+            auto                     fscCurvePrintFunction =  [](std::string accumulant, const real &value){
+                    return accumulant + std::string(" ") + std::to_string(value);
+                };
+            fprintf(fscFile, "%s", (std::accumulate(std::begin(fsc_.getBinEdges()), std::end(fsc_.getBinEdges()), std::string(""), fscCurvePrintFunction)+ "\n").c_str());
+            fprintf(fscFile, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""), fscCurvePrintFunction)+ "\n").c_str());
             fclose(fscFile);
         }
         if (!fnmapoutput_.empty())
@@ -481,7 +480,7 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             if (potentialType_ == ePotentialType_CrossCorrelation)
             {
                 auto cc             = volumedata::GridMeasures(inputdensity_).correlate(*outputdensity_);
-                auto normSimulation = sqrt(outputdensity_->properties().normSquared());
+                auto normSimulation = outputdensity_->properties().norm();
                 densityGradientFunction = [normSimulation, cc](real densityExperiment, real densitySimulation) {
                         return (densityExperiment - cc * densitySimulation) / (normSimulation);
                     };

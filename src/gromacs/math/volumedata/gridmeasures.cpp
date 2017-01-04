@@ -39,6 +39,8 @@
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "volumedata.h"
 #include <map>
+#include <iterator>
+#include <set>
 
 namespace gmx
 {
@@ -53,16 +55,12 @@ real GridMeasures::correlate_(const std::vector<real> &a,
                               const std::vector<real> &b) const
 {
     auto              aMean           = ScalarGridDataProperties<real>(a).mean();
-    auto              aNorm           = ScalarGridDataProperties<real>(a).norm();
+    auto              aSSE            = ScalarGridDataProperties<real>(a).sumOfSquareDeviation();
     auto              bMean           = ScalarGridDataProperties<real>(b).mean();
-    auto              bNorm           = ScalarGridDataProperties<real>(b).norm();
-    auto              multipliedNorms = aNorm * bNorm;
-    std::vector<real> mulArray(a.size());
-    std::transform(a.begin(), a.end(), b.begin(), mulArray.begin(),
-                   [aMean, bMean, multipliedNorms](real a, real b) {
-                       return (a - aMean) * (b - bMean) / multipliedNorms;
-                   });
-    return std::accumulate(mulArray.begin(), mulArray.end(), 0.);
+    auto              bSSE            = ScalarGridDataProperties<real>(b).sumOfSquareDeviation();
+    std::vector<real> mulArray;
+    std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(mulArray), [aMean, bMean](real aValue, real bValue) { return (aValue - aMean) * (bValue - bMean); });
+    return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
 }
 
 real GridMeasures::correlate(const GridReal &other, real threshold) const
@@ -71,65 +69,21 @@ real GridMeasures::correlate(const GridReal &other, real threshold) const
     std::vector<real> otherWhereReferenceAboveThreshold;
 
     auto              otherDatum = other.access().begin();
-    for (auto referenceDatum : reference_.access())
+    for (auto &referenceDatum : reference_.access())
     {
         if (referenceDatum > threshold)
         {
             referenceAboveThreshold.push_back(referenceDatum);
             otherWhereReferenceAboveThreshold.push_back(*otherDatum);
-            ++otherDatum;
         }
+        ++otherDatum;
     }
-    ;
+
 
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
-real
-GridMeasures::correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const
-{
-    auto sumAbsoluteValues =  [](real accumulat, t_complex value){
-            return accumulat + square(value.re) + square(value.im);
-        };
-    auto normA             = sqrt(std::accumulate(a.begin(), a.end(), 0, sumAbsoluteValues));
-    auto normB             = sqrt(std::accumulate(b.begin(), b.end(), 0, sumAbsoluteValues));
-    real sum               = 0;
-    auto bIterator         = std::begin(b);
-    for (auto aValue : a)
-    {
-        sum += aValue.re*bIterator->re+aValue.im*bIterator->im;
-        ++bIterator;
-    }
-    return sum/(normA*normB);
-};
 
-std::array<std::vector<real>, 2>
-GridMeasures::getFscCurve(const GridReal &other, const real spacing) const
-{
-    auto referenceFT =
-        FourierTransformRealToComplex3D(reference_).normalize().result();
-    auto otherFT = FourierTransformRealToComplex3D(other).normalize().result();
-    std::map < int, std::vector < t_complex>> referenceFourierShells;
-    std::map < int, std::vector < t_complex>> otherFourierShells;
-    ApplyToUnshiftedFourierTransform(*referenceFT)
-        .apply([&referenceFourierShells, spacing](t_complex &value, RVec k) {
-                   referenceFourierShells[int(floor(norm(k) / spacing))].push_back(value);
-               });
-    ApplyToUnshiftedFourierTransform(*referenceFT)
-        .apply([&otherFourierShells, spacing](t_complex &value, RVec k) {
-                   otherFourierShells[int(floor(norm(k) / spacing))].push_back(value);
-               });
-    std::array<std::vector<real>, 2> fscCurve;
-
-    auto otherShellIterator = std::begin(otherFourierShells);
-    for (auto referenceShell : referenceFourierShells)
-    {
-        fscCurve[0].push_back(spacing * referenceShell.first);
-        fscCurve[1].push_back(correlateComplex_(referenceShell.second, otherShellIterator->second));
-        ++otherShellIterator;
-    }
-    return fscCurve;
-}
 
 real GridMeasures::getRelativeKLCrossTermSameGrid(
         const GridReal &other, const std::vector<real> &other_reference) const

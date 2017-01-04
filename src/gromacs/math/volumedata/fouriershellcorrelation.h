@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,40 +32,51 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDMEASURES_H
-#define GMX_MATH_GRIDMEASURES_H
-#include <memory>
-#include <vector>
-#include <set>
-#include "gromacs/utility/real.h"
+/*! \internal \file
+ * \brief
+ * Implements helper class for autocorrelation tests
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ */
+#ifndef GMX_MATH_FOURIERSHELLCORRELATION_H_
+#define GMX_MATH_FOURIERSHELLCORRELATION_H_
+
+#include "volumedata.h"
+#include "field.h"
 #include "gromacs/math/gmxcomplex.h"
+#include <set>
+#include <map>
+#include <vector>
 
 namespace gmx
 {
 namespace volumedata
 {
 
-class GridReal;
-class GridMeasures
+class FourierShellCorrelation
 {
     public:
-        GridMeasures(const GridReal &reference);
-        real correlate(const GridReal &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const GridReal &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const GridReal          &other,
-                                    const std::vector<real> &other_reference) const;
-        real getKLCrossTermSameGrid(const GridReal &other) const;
-        real getKLCrossTerm(const GridReal &other) const;
-        real getKLSameGrid(const GridReal &other) const;
-        real entropy() const;
+        typedef std::map < real, std::vector < t_complex>> fourierShell;
+        FourierShellCorrelation() = default;
+        /*! \brief Set bins from real-space grid guaranteeing six datapoints per shell.
+         *
+         */
+        FourierShellCorrelation(FiniteGrid RealGrid);
+        /*! \brief Calculate fourier shells with custom binning. */
+        FourierShellCorrelation(const std::set<real> &binEdges);
+        const std::set<real> &getBinEdges() const;
+        std::vector<real> getFscCurve(const Field<real> &reference, const Field<real> &other);
 
     private:
-        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const GridReal &reference_;
+        class BinShells_;
+        void allocateShellDataContainersFromBins_(const std::set<real> &binEdges);
+        real correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const;
+        std::set<real> binEdges_;
+        fourierShell   referenceShells_;
+        fourierShell   otherShells_;
+
 };
-}
-}
 
-
-#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */
+}      /* volumedata */
+}
+#endif /* end of include guard: GMX_MATH_FOURIERSHELLCORRELATION_H_ */

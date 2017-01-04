@@ -188,8 +188,8 @@ class FiniteGrid : public Finite3DLatticeIndices
          */
         RVec
         translation() const;       //!< return real-space coordinate of gridpoint (0,0,0).
-        RVec cell_lengths() const; //!< return unit-cell lengths
-        RVec cell_angles() const;  //!< return unit-cell angles
+        RVec cell_lengths() const; //!< return cell lengths
+        RVec cell_angles() const;  //!< return cell angles
 
         /*! \brief
          * Yields rotation matrix Q that will rotate grid towards canonical
@@ -278,12 +278,17 @@ template <class T> class BasicGridDataProperties
          */
         size_t data_size() const { return data_.size(); };
 
-        T normSquared() const
+        T sumOfSquareDeviation() const
         {
             T data_mean        = mean();
             return std::accumulate(
                     std::begin(data_), std::end(data_), 0.,
                     [ data_mean ](const T &a, T b) { return a + gmx::square(b - data_mean); });
+        }
+
+        T normSquared() const
+        {
+            return std::accumulate( std::begin(data_), std::end(data_), 0., [](const T &a, const T &b) { return a + gmx::square(b); });
         }
 
         T norm() const
@@ -297,7 +302,7 @@ template <class T> class BasicGridDataProperties
          */
         T var() const
         {
-            return normSquared() / static_cast<real>(data_.size());
+            return sumOfSquareDeviation() / static_cast<real>(data_.size());
         }
 
     private:
