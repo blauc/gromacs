@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,41 +32,43 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDMEASURES_H
-#define GMX_MATH_GRIDMEASURES_H
-#include <memory>
-#include <vector>
-#include <set>
-#include "gromacs/utility/real.h"
-#include "gromacs/math/gmxcomplex.h"
 
+#include "kullbackleibler.h"
+#include <memory>
+#include <string>
 namespace gmx
 {
 namespace volumedata
 {
 
-class GridReal;
-class GridMeasures
+const Field<real> &KullbackLeiblerDifferential::evaluateDensityDifferential(
+        const Field<real> &comparant, const Field<real> &reference)
 {
-    public:
-        GridMeasures(const GridReal &reference);
-        real correlate(const GridReal &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const GridReal &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const GridReal          &other,
-                                    const std::vector<real> &other_reference) const;
-        real getKLCrossTermSameGrid(const GridReal &other) const;
-        real getKLCrossTerm(const GridReal &other) const;
-        real getKLSameGrid(const GridReal &other) const;
-        real entropy() const;
-        real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
+    differential(comparant);
+    auto sumSimulatedDensity     = outputdensity_->properties().sum();
+    auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
+                                                         real densitySimulation) {
+            return (densitySimulation > 1e-15 && densityExperiment > 1e-15)
+                   ? (densityExperiment / densitySimulation) *
+                   (1 - densitySimulation / sumSimulatedDensity)
+                   : 0;
+        };
 
-    private:
-        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const GridReal &reference_;
-};
-}
+    std::transform(reference.access().begin(), reference.access().end(),
+                   comparant.access().begin(), differential.access().begin(),
+                   densityGradientFunction);
+    return differential;
 }
 
+std::string KullbackLeiblerDifferentialInfo::name =
+    std::string("kullbackleibler");
 
-#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */
+std::unique_ptr<IDensityDifferentialProvider>
+KullbackLeiblerDifferentialInfo::create()
+{
+    return std::unique_ptr<IDensityDifferentialProvider>(
+            new KullbackLeiblerDifferential);
+}
+
+} /* volumedata */
+} /* gmx */

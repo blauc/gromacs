@@ -83,7 +83,13 @@ real GridMeasures::correlate(const GridReal &other, real threshold) const
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
-
+real GridMeasures::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
+{
+    return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
+                           [this] (const real sum, const RVec r){
+                               return sum + reference_.getLinearInterpolationAt(r);
+                           });
+};
 
 real GridMeasures::getRelativeKLCrossTermSameGrid(
         const GridReal &other, const std::vector<real> &other_reference) const

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,41 +32,40 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDMEASURES_H
-#define GMX_MATH_GRIDMEASURES_H
+#ifndef GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
+#define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
+
+#include "gmxpre.h"
+
+#include <map>
+#include <string>
 #include <memory>
-#include <vector>
-#include <set>
-#include "gromacs/utility/real.h"
-#include "gromacs/math/gmxcomplex.h"
 
 namespace gmx
 {
 namespace volumedata
 {
 
-class GridReal;
-class GridMeasures
+class IDensityDifferentialProvider;
+typedef std::unique_ptr<IDensityDifferentialProvider> IDensityDifferentialProviderPointer;
+typedef std::function<IDensityDifferentialProviderPointer()> IDensityDifferentialProviderFactory;
+
+class DensityDifferentialLibrary
 {
     public:
-        GridMeasures(const GridReal &reference);
-        real correlate(const GridReal &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const GridReal &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const GridReal          &other,
-                                    const std::vector<real> &other_reference) const;
-        real getKLCrossTermSameGrid(const GridReal &other) const;
-        real getKLCrossTerm(const GridReal &other) const;
-        real getKLSameGrid(const GridReal &other) const;
-        real entropy() const;
-        real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
+        DensityDifferentialLibrary();
+        ~DensityDifferentialLibrary() = default;
+        IDensityDifferentialProviderPointer create(std::string name);
 
     private:
-        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const GridReal &reference_;
+        void registerFunction<DensityDifferentialInfo>()
+        {
+            functions_[DensityDifferentialInfo::name] = DensityDifferentialInfo::create;
+        };
+        std::map<std::string, IDensityDifferentialProviderFactory> functions_;
 };
-}
-}
 
+}      // namespace volumedata
+}      // namespace gmx
 
-#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H */

@@ -78,6 +78,7 @@ FourierShellCorrelation::FourierShellCorrelation(const std::set<real> &binEdges)
 {
     allocateShellDataContainersFromBins_(binEdges);
 };
+
 const std::set<real> &
 FourierShellCorrelation::getBinEdges() const
 {
@@ -106,11 +107,11 @@ FourierShellCorrelation::BinShells_
 std::vector<real>
 FourierShellCorrelation::getFscCurve(const Field<real> &reference, const Field<real> &other)
 {
-    for (auto shell : referenceShells_)
+    for (auto &shell : referenceShells_)
     {
         shell.second.clear();
     }
-    for (auto shell : otherShells_)
+    for (auto &shell : otherShells_)
     {
         shell.second.clear();
     }
@@ -122,7 +123,7 @@ FourierShellCorrelation::getFscCurve(const Field<real> &reference, const Field<r
 
     std::vector<real> fscCurve;
     auto              otherShellIterator = std::begin(otherShells_);
-    for (auto referenceShell : referenceShells_)
+    for (auto &referenceShell : referenceShells_)
     {
         fscCurve.push_back(correlateComplex_(referenceShell.second, otherShellIterator->second));
         ++otherShellIterator;
@@ -134,7 +135,7 @@ real
 FourierShellCorrelation::correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const
 {
     auto sumAbsoluteValues    =  [](const real &accumulat, const t_complex &value){
-            return accumulat + square(value.re) + square(value.im);
+            return accumulat + value.re*value.re + value.im*value.im;
         };
     auto normASquare          = std::accumulate(a.begin(), a.end(), 0., sumAbsoluteValues);
     auto normBSquare          = std::accumulate(b.begin(), b.end(), 0., sumAbsoluteValues);

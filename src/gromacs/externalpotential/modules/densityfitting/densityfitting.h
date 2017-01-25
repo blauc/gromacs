@@ -35,6 +35,8 @@
 #ifndef _DENSITYFITTING_H
 #define _DENSITYFITTING_H
 
+#include "gmxpre.h"
+
 #include <memory>
 #include <string>
 

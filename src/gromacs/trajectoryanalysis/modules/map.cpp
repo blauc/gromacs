@@ -124,10 +124,16 @@ class Map : public TrajectoryAnalysisModule
         virtual void writeOutput();
 
     private:
+        void frameToDensity_(const t_trxframe &fr, int nFr);
+        void frameToForceDensity_(const t_trxframe &fr);
+        void frameToPotentials_(const t_trxframe &fr, int nFr);
+        void openPotentialFileAndPrintHeader_();
+        void openFscFileAndPrintHeader_();
+
         std::string                           fnmapinput_;
         std::string                           fnmapoutput_;
+        std::string                           fnfrmapoutput_;
         std::string                           fnpotential_;
-        std::string                           fnmapresample_;
         std::string                           forcedensity_;
 
         float                                 sigma_   = 0.4;
@@ -154,6 +160,7 @@ class Map : public TrajectoryAnalysisModule
         real                                  sigma_input_   = 0.05;
         PotentialType                         potentialType_ = ePotentialType_KullbackLeibler;
         volumedata::FourierShellCorrelation   fsc_;
+        FILE                                 *fscFile_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -186,18 +193,18 @@ void Map::initOptions(IOptionsContainer          *options,
                            .store(&fnmapinput_)
                            .defaultBasename("ccp4in")
                            .description("CCP4 density map input file"));
-    options->addOption(FileNameOption("moversample")
-                           .filetype(eftVolumeData)
-                           .outputFile()
-                           .store(&fnmapresample_)
-                           .defaultBasename("undersampledccp4")
-                           .description("CCP4 density map interpolated file"));
     options->addOption(FileNameOption("mo")
                            .filetype(eftVolumeData)
                            .outputFile()
                            .store(&fnmapoutput_)
                            .defaultBasename("ccp4out")
                            .description("CCP4 density map output file"));
+    options->addOption(FileNameOption("mofr")
+                           .filetype(eftVolumeData)
+                           .outputFile()
+                           .store(&fnfrmapoutput_)
+                           .defaultBasename("ccp4out")
+                           .description("CCP4 density map output file per frame"));
     options->addOption(FloatOption("sigma").store(&sigma_).description(
                                "Create a simulated density by replacing the atoms by Gaussian functions "
                                "of width sigma (nm)"));
@@ -247,12 +254,14 @@ void Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/,
 {
     if (top.topology())
     {
-        get_pdb_atomnumber(&(top.topology()->atoms), gmx_atomprop_init());
+        auto atomprop = gmx_atomprop_init();
+        get_pdb_atomnumber(&(top.topology()->atoms), atomprop);
         for (int i_atom = 0; i_atom < top.topology()->atoms.nr; i_atom++)
         {
             weight_.push_back(externalpotential::atomicNumber2EmScatteringFactor(
                                       top.topology()->atoms.atom[i_atom].atomnumber));
         }
+        gmx_atomprop_destroy(atomprop);
     }
     if (top.topology() && bFit_)
     {
@@ -302,9 +311,9 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
                       [](real &value) { value = std::max(value, (real)0.); });
         inputdensity_.normalize();
         inputGridEntropy = volumedata::GridMeasures(inputdensity_).entropy();
-        potentialFile_   = fopen(fnpotential_.c_str(), "w");
-        fprintf(potentialFile_, "frame_number KL-Divergence Cross-Correlation Inverted-Density FourierShellCorrelation\n");
-        fsc_ = volumedata::FourierShellCorrelation(inputdensity_);
+
+        openPotentialFileAndPrintHeader_();
+        openFscFileAndPrintHeader_();
     }
     if (!forcedensity_.empty())
     {
@@ -363,6 +372,64 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
              roundf(translation[ZZ] / spacing_) * spacing_});
 }
 
+void Map::frameToDensity_(const t_trxframe &fr, int nFr)
+{
+    if (nFr == 1)
+    {
+        if (fnmapinput_.empty())
+        {
+            // Guess the extend of the map if no box is given in structure file
+            // and no other input density is given.
+            matrix box;
+            rvec   translation;
+            set_box_from_frame(fr, box, translation);
+            set_finitegrid_from_box(box, translation);
+        }
+        else
+        {
+            // If a reference input density is given, copy the grid properties from
+            // here
+            outputdensity_->copy_grid(inputdensity_);
+            outputDensityBuffer_.copy_grid(inputdensity_);
+        }
+
+        outputDensityBuffer_.zero();
+    }
+    outputdensity_->zero();
+
+    volumedata::FastGaussianGridding gt;
+    gt.set_sigma(sigma_);
+    gt.set_n_sigma(n_sigma_);
+    gt.set_grid(std::move(outputdensity_));
+
+    for (int i = 0; i < fr.natoms; ++i)
+    {
+        gt.transform(fr.x[i], weight_[i]);
+    }
+    outputdensity_ = gt.finish_and_return_grid();
+
+    if (nFr_ == 1)
+    {
+        std::copy(std::begin(outputdensity_->access().data()),
+                  std::end(outputdensity_->access().data()),
+                  std::begin(outputDensityBuffer_.access().data()));
+    }
+    else
+    {
+        // auto linearAveraging = [this](const real & current, const real &
+        // average){return (average * (nFr_ - 1) + current) / nFr_;};
+        auto exponentialAveraging = [this](const real &current,
+                                           const real &average) {
+                return expAverage_ * current + (1 - expAverage_) * average;
+            };
+        std::transform(std::begin(outputdensity_->access().data()),
+                       std::end(outputdensity_->access().data()),
+                       std::begin(outputdensity_->access().data()),
+                       std::begin(outputDensityBuffer_.access().data()),
+                       exponentialAveraging);
+    }
+}
+
 void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                        TrajectoryAnalysisModuleData * /*pdata*/)
 {
@@ -377,254 +444,164 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                    as_rvec_array(referenceX.data()), fr.x);
         }
 
-        if (weight_.size() < std::size_t(fr.natoms))
+        if (nFr_ == 1)
         {
-            weight_.assign(fr.natoms, 1);
-            fprintf(stderr, "\nSetting atom weights to unity.\n");
+            if (weight_.size() < std::size_t(fr.natoms))
+            {
+                weight_.assign(fr.natoms, 1);
+                fprintf(stderr, "\nSetting atom weights to unity.\n");
+            }
         }
-        if (!fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty())
+
+        bool requiresDensity = !fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty() || !fnfrmapoutput_.empty();
+        if (requiresDensity)
         {
-            if (fnmapinput_.empty())
-            {
-                // Guess the extend of the map if no box is given in structure file
-                // and no other input density is given.
-                matrix box;
-                rvec   translation;
-                set_box_from_frame(fr, box, translation);
-                set_finitegrid_from_box(box, translation);
-            }
-            else
-            {
-                // If a reference input density is given, copy the grid properties from
-                // here
-                outputdensity_->copy_grid(inputdensity_);
-                outputDensityBuffer_.copy_grid(inputdensity_);
-            }
-            if (frnr == 0)
-            {
-                outputDensityBuffer_.zero();
-            }
-            outputdensity_->zero();
-
-            auto gt_ = new volumedata::FastGaussianGridding;
-            gt_->set_sigma(sigma_);
-            gt_->set_n_sigma(n_sigma_);
-            gt_->set_grid(std::move(outputdensity_));
-
-            for (int i = 0; i < fr.natoms; ++i)
-            {
-                gt_->transform(fr.x[i], weight_[i]);
-            }
-            outputdensity_ = gt_->finish_and_return_grid();
-
-            if (frnr == 0)
-            {
-                std::copy(std::begin(outputdensity_->access().data()),
-                          std::end(outputdensity_->access().data()),
-                          std::begin(outputDensityBuffer_.access().data()));
-            }
-            else
-            {
-                // auto linearAveraging = [this](const real & current, const real &
-                // average){return (average * (nFr_ - 1) + current) / nFr_;};
-                auto exponentialAveraging = [this](const real &current,
-                                                   const real &average) {
-                        return expAverage_ * current + (1 - expAverage_) * average;
-                    };
-                std::transform(std::begin(outputdensity_->access().data()),
-                               std::end(outputdensity_->access().data()),
-                               std::begin(outputdensity_->access().data()),
-                               std::begin(outputDensityBuffer_.access().data()),
-                               exponentialAveraging);
-            }
+            frameToDensity_(fr, nFr_);
         }
         if (!fnpotential_.empty())
         {
-            outputdensity_->normalize();
-            fprintf(potentialFile_, "\n%8g ", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
-            fprintf(potentialFile_, "%8g", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(*outputdensity_) - inputGridEntropy);
-            auto                     fscCurve              = fsc_.getFscCurve(*outputdensity_, inputdensity_);
-            auto                     fscFile               = fopen("fsccurve.dat", "w");
-            auto                     fscCurvePrintFunction =  [](std::string accumulant, const real &value){
-                    return accumulant + std::string(" ") + std::to_string(value);
-                };
-            fprintf(fscFile, "%s", (std::accumulate(std::begin(fsc_.getBinEdges()), std::end(fsc_.getBinEdges()), std::string(""), fscCurvePrintFunction)+ "\n").c_str());
-            fprintf(fscFile, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""), fscCurvePrintFunction)+ "\n").c_str());
-            fclose(fscFile);
+            frameToPotentials_(fr, nFr_);
         }
         if (!fnmapoutput_.empty())
         {
-            volumedata::MrcFile ccp4outputfile;
-            ccp4outputfile.write(fnmapoutput_.substr(0, fnmapoutput_.size() - 5) +
-                                 std::to_string(frnr) + ".ccp4",
-                                 outputDensityBuffer_);
-            if (frnr == 0)
-            {
-                ccp4outputfile.write(fnmapoutput_.c_str(), outputDensityBuffer_);
-            }
+            volumedata::MrcFile().write(fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4", *outputdensity_);
+        }
+
+        if (!fnfrmapoutput_.empty())
+        {
+            volumedata::MrcFile().write(fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
         }
         if (!forcedensity_.empty())
         {
-            outputdensity_->normalize();
-            inputdensity_.normalize();
-            volumedata::Df3File().write("inputdensity.df3", inputdensity_).writePovray();
-            auto convolutedInput =
-                volumedata::GaussConvolution(inputdensity_).convolute(sigma_input_);
-            volumedata::MrcFile().write("inputdensityConvoluted.ccp4", *convolutedInput);
-            volumedata::MrcFile().write("outputdensity.ccp4", *outputdensity_);
-            volumedata::Df3File().write("outputdensity.df3", *outputdensity_).writePovray();
-            auto densityGradient(*outputdensity_);
-
-            std::function<real(real, real)> densityGradientFunction;
-
-            if (potentialType_ == ePotentialType_CrossCorrelation)
-            {
-                auto cc             = volumedata::GridMeasures(inputdensity_).correlate(*outputdensity_);
-                auto normSimulation = outputdensity_->properties().norm();
-                densityGradientFunction = [normSimulation, cc](real densityExperiment, real densitySimulation) {
-                        return (densityExperiment - cc * densitySimulation) / (normSimulation);
-                    };
-            }
-            if (potentialType_ == ePotentialType_KullbackLeibler)
-            {
-                auto sumSimulatedDensity = outputdensity_->properties().sum();
-                densityGradientFunction = [sumSimulatedDensity](real densityExperiment, real densitySimulation) {
-                        return (densitySimulation > 1e-15 && densityExperiment > 1e-15) ? (densityExperiment / densitySimulation) *(1-densitySimulation/sumSimulatedDensity) : 0;
-                    };
-            }
-
-            if (potentialType_ == ePotentialType_InvertedDensity)
-            {
-                densityGradientFunction = [](real densityExperiment, real /*densitySimulation*/) {
-                        return densityExperiment;
-                    };
-            }
-            std::transform(
-                    convolutedInput->access().begin(), convolutedInput->access().end(),
-                    outputdensity_->access().begin(), densityGradient.access().begin(),
-                    densityGradientFunction);
-            volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);
-            volumedata::Df3File().write("densityGradient.df3", densityGradient).writePovray();
-
-            std::array<gmx::volumedata::Field<float>, 3> forceDensity;
-            if (potentialType_ == ePotentialType_CrossCorrelation || potentialType_ == ePotentialType_KullbackLeibler)
-            {
-                forceDensity = ForceDensity(densityGradient, sigma_).getForce();
-            }
-
-            if (potentialType_ == ePotentialType_InvertedDensity)
-            {
-                forceDensity = ForceDensity(densityGradient, 0.).getForce();
-            }
-
-            auto absoluteForceDensity(forceDensity.front());
-            std::transform(
-                    forceDensity[XX].access().begin(), forceDensity[XX].access().end(),
-                    forceDensity[YY].access().begin(),
-                    absoluteForceDensity.access().begin(),
-                    [](real &a, real &b) { return gmx::square(a) + gmx::square(b); });
-            std::transform(forceDensity[ZZ].access().begin(),
-                           forceDensity[ZZ].access().end(),
-                           absoluteForceDensity.access().begin(),
-                           absoluteForceDensity.access().begin(),
-                           [](real &a, real &b) { return sqrt(gmx::square(a) + b); });
-            volumedata::MrcFile().write(forcedensity_,
-                                        volumedata::GridReal(absoluteForceDensity));
-
-            std::transform(outputdensity_->access().begin(),
-                           outputdensity_->access().end(),
-                           absoluteForceDensity.access().begin(),
-                           absoluteForceDensity.access().begin(),
-                           [](real &a, real &b) { return a * b; });
-            volumedata::MrcFile().write("forcedensityatdensity.ccp4",
-                                        volumedata::GridReal(absoluteForceDensity));
-
-            std::array<volumedata::GridReal, 3> forcedensityGridReal {
-                {
-                    volumedata::GridReal(forceDensity[XX]),
-                    volumedata::GridReal(forceDensity[YY]),
-                    volumedata::GridReal(forceDensity[ZZ])
-                }
-            };
-            std::vector<RVec> forcePlotterForces;
-
-            for (int iAtom = 0; iAtom < fr.natoms; iAtom++)
-            {
-                forcePlotterForces.push_back(RVec {
-                                                 forcedensityGridReal[XX].getLinearInterpolationAt(fr.x[iAtom]),
-                                                 forcedensityGridReal[YY].getLinearInterpolationAt(fr.x[iAtom]),
-                                                 forcedensityGridReal[ZZ].getLinearInterpolationAt(fr.x[iAtom])
-                                             });
-            }
-            auto plotter = externalpotential::ForcePlotter();
-            plotter.start_plot_forces("forces.bild");
-            plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
-                                fr.natoms, 1);
-            plotter.stop_plot_forces();
-
-            forcePlotterForces.clear();
-            volumedata::Field<real> forceFieldPlot;
-            forceFieldPlot.copy_grid(absoluteForceDensity);
-            std::vector<RVec>       forcePlotterXs;
-            forceFieldPlot.multiplyGridPointNumber({0.3, 0.3, 0.3});
-            auto                    plotField = [&forcePlotterForces, &forcePlotterXs,
-                                                 forcedensityGridReal](const real & /*value*/, RVec x) {
-                    forcePlotterForces.push_back(
-                            RVec {forcedensityGridReal[XX].getLinearInterpolationAt(x),
-                                  forcedensityGridReal[YY].getLinearInterpolationAt(x),
-                                  forcedensityGridReal[ZZ].getLinearInterpolationAt(x)});
-                    forcePlotterXs.push_back(x);
-                };
-            volumedata::ApplyToField(forceFieldPlot, plotField);
-
-            plotter.start_plot_forces("forces_grid.bild");
-            plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
-                                as_rvec_array(forcePlotterForces.data()),
-                                forcePlotterXs.size(), 0.3);
-            plotter.stop_plot_forces();
-
-            forcePlotterForces.clear();
-            forcePlotterXs.clear();
-            auto weightDensityPlot = [this, &forcePlotterForces, &forcePlotterXs,
-                                      forcedensityGridReal](const real & /*value*/,
-                                                            RVec x) {
-                    auto forcevec =
-                        RVec {
-                        forcedensityGridReal[XX].getLinearInterpolationAt(x),
-                        forcedensityGridReal[YY].getLinearInterpolationAt(x),
-                        forcedensityGridReal[ZZ].getLinearInterpolationAt(x)
-                    };
-                    auto weight = this->outputdensity_->getLinearInterpolationAt(x);
-                    svmul(weight, forcevec, forcevec);
-                    forcePlotterForces.push_back(forcevec);
-                    forcePlotterXs.push_back(x);
-                };
-
-            volumedata::ApplyToField(forceFieldPlot, weightDensityPlot);
-            plotter.start_plot_forces("forces_grid_weighted.bild");
-            plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
-                                as_rvec_array(forcePlotterForces.data()),
-                                forcePlotterXs.size(), 0.3);
-            plotter.stop_plot_forces();
-        }
-        ;
-        if (!fnmapresample_.empty())
-        {
-            volumedata::MrcFile    ccp4resample;
-            volumedata::FiniteGrid resampleGrid;
-            resampleGrid.copy_grid(outputDensityBuffer_);
-            resampleGrid.set_extend({2 * outputDensityBuffer_.extend()[XX],
-                                     2 * outputDensityBuffer_.extend()[YY],
-                                     2 * outputDensityBuffer_.extend()[ZZ]});
-            resampleGrid.set_cell({2 * outputDensityBuffer_.cell_lengths()[XX],
-                                   2 * outputDensityBuffer_.cell_lengths()[YY],
-                                   2 * outputDensityBuffer_.cell_lengths()[ZZ]},
-                                  {90, 90, 90});
-            volumedata::GridInterpolator interpolator(resampleGrid);
-            ccp4resample.write(fnmapresample_, *(interpolator.interpolateLinearly(
-                                                         outputDensityBuffer_)));
+            frameToForceDensity_(fr);
         }
     }
+}
+
+void Map::openPotentialFileAndPrintHeader_()
+{
+    potentialFile_   = fopen(fnpotential_.c_str(), "w");
+    fprintf(potentialFile_, "time CrossCorrelation KLDivergence InvertedDensity FourierShellCorrelation");
+}
+
+void Map::openFscFileAndPrintHeader_()
+{
+    fsc_                   = volumedata::FourierShellCorrelation(inputdensity_);
+    fscFile_               = fopen("fsccurve.dat", "w");
+    fprintf(fscFile_, "%s", (std::accumulate(std::begin(fsc_.getBinEdges()), std::end(fsc_.getBinEdges()), std::string(""),  [](std::string accumulant, const real &value){
+                                                 return accumulant + std::string(" ") + std::to_string(value);
+                                             })+ "\n").c_str());
+}
+
+void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
+{
+    outputDensityBuffer_.normalize();
+    fprintf(potentialFile_, "\n%8g ", fr.time);
+    fprintf(potentialFile_, "%8g ", volumedata::GridMeasures(inputdensity_).correlate(outputDensityBuffer_, correlationThreshold_));
+    fprintf(potentialFile_, "%8g ", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(outputDensityBuffer_) - inputGridEntropy);
+    auto              inputdensityConvoluted = volumedata::GaussConvolution(inputdensity_).convolute(sigma_);
+    std::vector<RVec> frX(fr.natoms);
+    frX.assign(fr.x, fr.x+fr.natoms);
+    fprintf(potentialFile_, "%8g ", volumedata::GridMeasures(*inputdensityConvoluted).gridSumAtCoordiantes(frX));
+    auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
+    fprintf(potentialFile_, "%8g ", std::accumulate(std::begin(fscCurve), std::end(fscCurve), 0.)/real(fscCurve.size()));
+    fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
+}
+
+void Map::frameToForceDensity_(const t_trxframe &fr)
+{
+    outputdensity_->normalize();
+    inputdensity_.normalize();
+    volumedata::Df3File().write("inputdensity.df3", inputdensity_).writePovray();
+    auto convolutedInput =
+        volumedata::GaussConvolution(inputdensity_).convolute(sigma_input_);
+    volumedata::MrcFile().write("inputdensityConvoluted.ccp4", *convolutedInput);
+    volumedata::MrcFile().write("outputdensity.ccp4", *outputdensity_);
+    volumedata::Df3File().write("outputdensity.df3", *outputdensity_).writePovray();
+    auto densityGradient(*outputdensity_);
+
+
+    volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);
+    volumedata::Df3File().write("densityGradient.df3", densityGradient).writePovray();
+
+    std::array<gmx::volumedata::Field<float>, 3> forceDensity;
+    if (potentialType_ == ePotentialType_CrossCorrelation || potentialType_ == ePotentialType_KullbackLeibler)
+    {
+        forceDensity = ForceDensity(densityGradient, sigma_).getForce();
+    }
+
+    if (potentialType_ == ePotentialType_InvertedDensity)
+    {
+        forceDensity = ForceDensity(densityGradient, 0.).getForce();
+    }
+
+    std::array<volumedata::GridReal, 3> forcedensityGridReal {
+        {
+            volumedata::GridReal(forceDensity[XX]),
+            volumedata::GridReal(forceDensity[YY]),
+            volumedata::GridReal(forceDensity[ZZ])
+        }
+    };
+    std::vector<RVec> forcePlotterForces;
+
+    for (int iAtom = 0; iAtom < fr.natoms; iAtom++)
+    {
+        forcePlotterForces.push_back(RVec {
+                                         forcedensityGridReal[XX].getLinearInterpolationAt(fr.x[iAtom]),
+                                         forcedensityGridReal[YY].getLinearInterpolationAt(fr.x[iAtom]),
+                                         forcedensityGridReal[ZZ].getLinearInterpolationAt(fr.x[iAtom])
+                                     });
+    }
+    auto plotter = externalpotential::ForcePlotter();
+    plotter.start_plot_forces("forces.bild");
+    plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
+                        fr.natoms, 1);
+    plotter.stop_plot_forces();
+
+    forcePlotterForces.clear();
+    volumedata::Field<real> forceFieldPlot;
+    forceFieldPlot.copy_grid(inputdensity_);
+    std::vector<RVec>       forcePlotterXs;
+    forceFieldPlot.multiplyGridPointNumber({0.3, 0.3, 0.3});
+    auto                    plotField = [&forcePlotterForces, &forcePlotterXs,
+                                         forcedensityGridReal](const real & /*value*/, RVec x) {
+            forcePlotterForces.push_back(
+                    RVec {forcedensityGridReal[XX].getLinearInterpolationAt(x),
+                          forcedensityGridReal[YY].getLinearInterpolationAt(x),
+                          forcedensityGridReal[ZZ].getLinearInterpolationAt(x)});
+            forcePlotterXs.push_back(x);
+        };
+    volumedata::ApplyToField(forceFieldPlot, plotField);
+
+    plotter.start_plot_forces("forces_grid.bild");
+    plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
+                        as_rvec_array(forcePlotterForces.data()),
+                        forcePlotterXs.size(), 0.3);
+    plotter.stop_plot_forces();
+
+    forcePlotterForces.clear();
+    forcePlotterXs.clear();
+    auto weightDensityPlot = [this, &forcePlotterForces, &forcePlotterXs,
+                              forcedensityGridReal](const real & /*value*/,
+                                                    RVec x) {
+            auto forcevec =
+                RVec {
+                forcedensityGridReal[XX].getLinearInterpolationAt(x),
+                forcedensityGridReal[YY].getLinearInterpolationAt(x),
+                forcedensityGridReal[ZZ].getLinearInterpolationAt(x)
+            };
+            auto weight = this->outputdensity_->getLinearInterpolationAt(x);
+            svmul(weight, forcevec, forcevec);
+            forcePlotterForces.push_back(forcevec);
+            forcePlotterXs.push_back(x);
+        };
+
+    volumedata::ApplyToField(forceFieldPlot, weightDensityPlot);
+    plotter.start_plot_forces("forces_grid_weighted.bild");
+    plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
+                        as_rvec_array(forcePlotterForces.data()),
+                        forcePlotterXs.size(), 0.3);
+    plotter.stop_plot_forces();
 }
 
 void Map::finishAnalysis(int /*nframes*/) {}
@@ -634,6 +611,7 @@ void Map::writeOutput()
     if (!fnpotential_.empty())
     {
         fclose(potentialFile_);
+        fclose(fscFile_);
     }
 }
 

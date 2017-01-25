@@ -1003,8 +1003,6 @@ void MrcFile::Impl::set_metadata_mrc_default()
 
 void MrcFile::Impl::close_file()
 {
-    gmx_fio_fclose(file_);
-    file_ = nullptr;
 }
 
 MrcFile::Impl::Impl() : file_(nullptr), file_size_(0), size_extrarecord(15),
@@ -1050,6 +1048,7 @@ MrcFile::MrcFile() : impl_(new MrcFile::Impl)
 
 MrcFile::~MrcFile()
 {
+    impl_->close_file();
 }
 
 std::string MrcFile::print_to_string()
