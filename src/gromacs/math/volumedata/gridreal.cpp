@@ -41,7 +41,7 @@ namespace gmx
 namespace volumedata
 {
 
-GridReal::GridReal(Field<real> baseField)
+GridReal::GridReal(const Field<real> &baseField)
     : Field<real>::Field<real>(baseField){};
 
 GridReal::GridReal(GridReal &other)

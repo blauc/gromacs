@@ -32,13 +32,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H
-#define GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H
+ #ifndef GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
+ #define GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
 
 #include "gmxpre.h"
 
 
-#include "densitydifferentialprovider.h"
+#include "../densitydifferentialprovider.h"
 #include "gromacs/math/volumedata/field.h"
 #include <string>
 namespace gmx
@@ -46,24 +46,27 @@ namespace gmx
 namespace volumedata
 {
 
-class FourierShellCorrelationDifferential : public IDensityDifferentialProvider
+template <typename real> class Field;
+
+class InvertedDensityDifferential : public IDensityDifferentialProvider
 {
     public:
-        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
+        const Field<real> &evaluateDensityDifferential(const Field<real>  & /*comparant*/,
                                                        const Field<real> &reference);
 
     private:
         Field<real> differential;
 };
 
-class FourierShellCorrelationDifferentialInfo
+class InvertedDensityDifferentialInfo
 {
     public:
         static std::string name;
         static std::unique_ptr<IDensityDifferentialProvider> create();
 };
 
-}      /* volumedata */
-}      /* gmx */
-#endif /* end of include guard: \
-          GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H */
+} /* volumedata */
+} /* gmx */
+
+
+ #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H */

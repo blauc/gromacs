@@ -32,21 +32,22 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIALPROVIDER_H
+#define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIALPROVIDER_H
 
-#ifndef GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
-#define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
-
-#include "gromacs/math/volumedata/field.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
 namespace volumedata
 {
 
+template<typename real> class Field;
+
 class IDensityDifferentialProvider
 {
     public:
-        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant, const Field<real> &reference) = 0;
+        virtual const Field<real> &evaluateDensityDifferential(const Field<real> &comparant, const Field<real> &reference) = 0;
 };
 
 }      /* volumedata */

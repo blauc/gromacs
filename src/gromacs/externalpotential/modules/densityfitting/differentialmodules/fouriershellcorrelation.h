@@ -32,12 +32,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H
-#define GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H
+#ifndef GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H
+#define GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H
 
 #include "gmxpre.h"
 
-#include "densitydifferentialprovider.h"
+
+#include "../densitydifferentialprovider.h"
 #include "gromacs/math/volumedata/field.h"
 #include <string>
 namespace gmx
@@ -45,7 +46,7 @@ namespace gmx
 namespace volumedata
 {
 
-class CrossCorrelationDifferential : public IDensityDifferentialProvider
+class FourierShellCorrelationDifferential : public IDensityDifferentialProvider
 {
     public:
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
@@ -55,7 +56,7 @@ class CrossCorrelationDifferential : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class CrossCorrelationDifferentialInfo
+class FourierShellCorrelationDifferentialInfo
 {
     public:
         static std::string name;
@@ -64,5 +65,5 @@ class CrossCorrelationDifferentialInfo
 
 }      /* volumedata */
 }      /* gmx */
-
-#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H */
+#endif /* end of include guard: \
+          GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H */

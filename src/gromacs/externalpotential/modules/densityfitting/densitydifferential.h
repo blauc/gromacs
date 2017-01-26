@@ -36,33 +36,32 @@
 #define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
 
 #include "gmxpre.h"
-
 #include <map>
 #include <string>
 #include <memory>
+#include <functional>
+#include <vector>
 
 namespace gmx
 {
 namespace volumedata
 {
-
 class IDensityDifferentialProvider;
-typedef std::unique_ptr<IDensityDifferentialProvider> IDensityDifferentialProviderPointer;
-typedef std::function<IDensityDifferentialProviderPointer()> IDensityDifferentialProviderFactory;
 
 class DensityDifferentialLibrary
 {
     public:
         DensityDifferentialLibrary();
         ~DensityDifferentialLibrary() = default;
-        IDensityDifferentialProviderPointer create(std::string name);
+        std::function<std::unique_ptr<IDensityDifferentialProvider>()> create(std::string name);
+        std::vector<std::string> available() const;
 
     private:
-        void registerFunction<DensityDifferentialInfo>()
+        template<typename DensityDifferentialInfo> void registerFunction()
         {
-            functions_[DensityDifferentialInfo::name] = DensityDifferentialInfo::create;
+            functions_[DensityDifferentialInfo::name] = &DensityDifferentialInfo::create;
         };
-        std::map<std::string, IDensityDifferentialProviderFactory> functions_;
+        std::map<std::string, std::function<std::unique_ptr<IDensityDifferentialProvider>()> > functions_;
 };
 
 }      // namespace volumedata

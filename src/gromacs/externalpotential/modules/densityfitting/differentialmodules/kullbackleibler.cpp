@@ -32,41 +32,43 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
- #define GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
 
-#include "gmxpre.h"
-
-
-#include "densitydifferentialprovider.h"
-#include "gromacs/math/volumedata/field.h"
+#include "kullbackleibler.h"
+#include <memory>
 #include <string>
+#include "gromacs/math/volumedata/gridreal.h"
 namespace gmx
 {
 namespace volumedata
 {
 
-class Field;
-
-class InvertedDensityDifferential : public IDensityDifferentialProvider
+const Field<real> &KullbackLeiblerDifferential::evaluateDensityDifferential(
+        const Field<real> &comparant, const Field<real> &reference)
 {
-    public:
-        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
-                                                       const Field<real> &reference);
+    differential.copy_grid(reference);
+    auto sumSimulatedDensity     = GridReal(comparant).properties().sum();
+    auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
+                                                         real densitySimulation) {
+            return (densitySimulation > 1e-15 && densityExperiment > 1e-15)
+                   ? (densityExperiment / densitySimulation) *
+                   (1 - densitySimulation / sumSimulatedDensity)
+                   : 0;
+        };
 
-    private:
-        Field<real> differential;
-};
+    std::transform(reference.access().begin(), reference.access().end(),
+                   comparant.access().begin(), differential.access().begin(),
+                   densityGradientFunction);
+    return differential;
+}
 
-class InvertedDensityDifferentialInfo
+const std::string KullbackLeiblerDifferentialInfo::name = std::string("kullback-leibler");
+
+std::unique_ptr<IDensityDifferentialProvider>
+KullbackLeiblerDifferentialInfo::create()
 {
-    public:
-        static std::string name;
-        static std::unique_ptr<IDensityDifferentialProvider> create();
-};
+    return std::unique_ptr<KullbackLeiblerDifferential>(
+            new KullbackLeiblerDifferential);
+}
 
 } /* volumedata */
 } /* gmx */
-
-
- #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H */

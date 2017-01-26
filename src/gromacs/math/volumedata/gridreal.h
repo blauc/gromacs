@@ -53,7 +53,7 @@ class GridReal : public Field<real>, public CrystalSymmetry
 {
     public:
         GridReal() = default;
-        GridReal(Field<real> baseField);
+        GridReal(const Field<real> &baseField);
         GridReal(GridReal &other);
         void multiply(real value);
 

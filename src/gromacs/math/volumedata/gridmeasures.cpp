@@ -47,7 +47,7 @@ namespace gmx
 namespace volumedata
 {
 
-GridMeasures::GridMeasures(const GridReal &reference)
+GridMeasures::GridMeasures(const Field<real> &reference)
     : reference_ {reference}
 {};
 
@@ -63,7 +63,7 @@ real GridMeasures::correlate_(const std::vector<real> &a,
     return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
 }
 
-real GridMeasures::correlate(const GridReal &other, real threshold) const
+real GridMeasures::correlate(const Field<real> &other, real threshold) const
 {
     std::vector<real> referenceAboveThreshold;
     std::vector<real> otherWhereReferenceAboveThreshold;
@@ -85,14 +85,15 @@ real GridMeasures::correlate(const GridReal &other, real threshold) const
 
 real GridMeasures::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
+    GridReal referenceGridReal(reference_);
     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
-                           [this] (const real sum, const RVec r){
-                               return sum + reference_.getLinearInterpolationAt(r);
+                           [referenceGridReal] (const real sum, const RVec r){
+                               return sum + referenceGridReal.getLinearInterpolationAt(r);
                            });
 };
 
 real GridMeasures::getRelativeKLCrossTermSameGrid(
-        const GridReal &other, const std::vector<real> &other_reference) const
+        const Field<real> &other, const std::vector<real> &other_reference) const
 {
     auto P = reference_.access().data();
     auto Q = other.access().data();
@@ -120,7 +121,7 @@ real GridMeasures::getRelativeKLCrossTermSameGrid(
     return sum;
 }
 
-real GridMeasures::getKLSameGrid(const GridReal &other) const
+real GridMeasures::getKLSameGrid(const Field<real> &other) const
 {
     auto P = reference_.access().data();
     auto Q = other.access().data();
@@ -146,7 +147,7 @@ real GridMeasures::getKLSameGrid(const GridReal &other) const
     return sum;
 };
 
-real GridMeasures::getKLCrossTermSameGrid(const GridReal &other) const
+real GridMeasures::getKLCrossTermSameGrid(const Field<real> &other) const
 {
     auto P = reference_.access().data();
     auto Q = other.access().data();

@@ -34,38 +34,48 @@
  */
 
 #include "crosscorrelation.h"
+
 #include <memory>
 #include <string>
+#include <algorithm>
+
 #include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/utility/real.h"
+
 namespace gmx
 {
 namespace volumedata
 {
 
+CrossCorrelationDifferential::CrossCorrelationDifferential() : differential {new(Field<real>)}
+{};
+
 const Field<real> &
 CrossCorrelationDifferential::evaluateDensityDifferential(
         const Field<real> &comparant, const Field<real> &reference)
 {
-    differential(comparant);
-    auto cc                      = volumedata::GridMeasures(reference).correlate(comparant);
-    auto normSimulation          = comparant->properties().norm();
+    differential->copy_grid(reference);
+    auto cc                      = GridMeasures(reference).correlate(comparant);
+    auto normSimulation          = GridReal(comparant).properties().norm();
     auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
                                                         real densitySimulation) {
             return (densityExperiment - cc * densitySimulation) / (normSimulation);
         };
     std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential.access().begin(),
+                   comparant.access().begin(), differential->access().begin(),
                    densityGradientFunction);
-    return differential;
+    return *differential;
 }
 
 std::string CrossCorrelationDifferentialInfo::name =
-    std::string("crosscorrelation");
+    std::string("cross-correlation");
 
 std::unique_ptr<IDensityDifferentialProvider>
 CrossCorrelationDifferentialInfo::create()
 {
-    return std::unique_ptr<IDensityDifferentialProvider>(
+    return std::unique_ptr<CrossCorrelationDifferential>(
             new CrossCorrelationDifferential);
 }
 

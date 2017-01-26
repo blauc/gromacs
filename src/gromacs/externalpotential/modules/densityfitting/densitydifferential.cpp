@@ -34,11 +34,12 @@
  */
 #include "densitydifferential.h"
 
-#include "crosscorrelation.h"
-#include "kullbackleibler.h"
-#include "inverteddensity.h"
-#include "fouriershellcorrelation.h"
+#include "differentialmodules/crosscorrelation.h"
+#include "differentialmodules/kullbackleibler.h"
+#include "differentialmodules/inverteddensity.h"
+#include "differentialmodules/fouriershellcorrelation.h"
 
+#include <vector>
 namespace gmx
 {
 namespace volumedata
@@ -52,11 +53,21 @@ DensityDifferentialLibrary::DensityDifferentialLibrary()
     registerFunction<FourierShellCorrelationDifferentialInfo>();
 }
 
-IDensityDifferentialProviderPointer
+std::function<std::unique_ptr<IDensityDifferentialProvider>()>
 DensityDifferentialLibrary::create(std::string name)
 {
-    return functions_[name]();
+    return functions_[name];
 };
+
+std::vector<std::string> DensityDifferentialLibrary::available() const
+{
+    std::vector<std::string> result;
+    for (auto f :  functions_)
+    {
+        result.push_back(f.first);
+    }
+    return result;
+}
 
 }
 }

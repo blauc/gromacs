@@ -32,40 +32,41 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H
+#define GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H
 
-#include "crosscorrelation.h"
-#include <memory>
+// #include "gmxpre.h"
+
+#include "../densitydifferentialprovider.h"
+#include "gromacs/utility/real.h"
 #include <string>
+#include <memory>
+
 namespace gmx
 {
 namespace volumedata
 {
 
-const Field<real> &CrossCorrelationDifferential::evaluateDensityDifferential(
-        const Field<real> &comparant, const Field<real> &reference)
+template<typename real> class Field;
+class CrossCorrelationDifferential : public IDensityDifferentialProvider
 {
-    differential(comparant);
-    auto cc                      = volumedata::GridMeasures(reference).correlate(comparant);
-    auto normSimulation          = comparant->properties().norm();
-    auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
-                                                        real densitySimulation) {
-            return (densityExperiment - cc * densitySimulation) / (normSimulation);
-        };
-    std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential.access().begin(),
-                   densityGradientFunction);
-    return differential;
-}
+    public:
+        CrossCorrelationDifferential();
+        ~CrossCorrelationDifferential() = default;
+        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
+                                                       const Field<real> &reference);
+    private:
+        std::unique_ptr < Field < real>> differential;
+};
 
-std::string CrossCorrelationDifferentialInfo::name =
-    std::string("crosscorrelation");
-
-std::unique_ptr<IDensityDifferentialProvider>
-CrossCorrelationDifferentialInfo::create()
+class CrossCorrelationDifferentialInfo
 {
-    return std::unique_ptr<IDensityDifferentialProvider>(
-            new CrossCorrelationDifferential);
-}
+    public:
+        static std::string name;
+        static std::unique_ptr<IDensityDifferentialProvider> create();
+};
 
-} /* volumedata */
-} /* gmx */
+}      /* volumedata */
+}      /* gmx */
+
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_CROSSCORRELATION_H */

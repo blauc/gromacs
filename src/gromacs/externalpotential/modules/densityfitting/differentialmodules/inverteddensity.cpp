@@ -32,38 +32,30 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
- #define GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
 
-#include "gmxpre.h"
-
-
-#include "densitydifferentialprovider.h"
-#include "gromacs/math/volumedata/field.h"
+#include "inverteddensity.h"
+#include <memory>
 #include <string>
+
 namespace gmx
 {
 namespace volumedata
 {
-
-class KullbackLeiblerDifferential : public IDensityDifferentialProvider
+const Field<real> &InvertedDensityDifferential::evaluateDensityDifferential(
+        const Field<real> & /*comparant*/, const Field<real> &reference)
 {
-    public:
-        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
-                                                       const Field<real> &reference);
+    return reference;
+}
 
-    private:
-        Field<real> differential;
-};
+std::string InvertedDensityDifferentialInfo::name =
+    std::string("inverted-density");
 
-class KullbackLeiblerDifferentialInfo
+std::unique_ptr<IDensityDifferentialProvider>
+InvertedDensityDifferentialInfo::create()
 {
-    public:
-        static std::string name;
-        static std::unique_ptr<IDensityDifferentialProvider> create();
-};
+    return std::unique_ptr<InvertedDensityDifferential>(
+            new InvertedDensityDifferential);
+}
 
-}       /* volumedata */
-}       /* gmx */
-
- #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H */
+} /* volumedata */
+} /* gmx */

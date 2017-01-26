@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "kullbackleibler.h"
+#include "fouriershellcorrelation.h"
 #include <memory>
 #include <string>
 namespace gmx
@@ -41,33 +41,31 @@ namespace gmx
 namespace volumedata
 {
 
-const Field<real> &KullbackLeiblerDifferential::evaluateDensityDifferential(
-        const Field<real> &comparant, const Field<real> &reference)
+const Field<real> &FourierShellCorrelationDifferential::evaluateDensityDifferential(
+        const Field<real> & /*comparant*/, const Field<real> &reference)
 {
-    differential(comparant);
-    auto sumSimulatedDensity     = outputdensity_->properties().sum();
-    auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
-                                                         real densitySimulation) {
-            return (densitySimulation > 1e-15 && densityExperiment > 1e-15)
-                   ? (densityExperiment / densitySimulation) *
-                   (1 - densitySimulation / sumSimulatedDensity)
-                   : 0;
-        };
-
-    std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential.access().begin(),
-                   densityGradientFunction);
+    differential.copy_grid(reference);
+    // differential(comparant);
+    // auto cc                      = volumedata::GridMeasures(reference).correlate(comparant);
+    // auto normSimulation          = comparant->properties().norm();
+    // auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
+    //                                                     real densitySimulation) {
+    //         return (densityExperiment - cc * densitySimulation) / (normSimulation);
+    //     };
+    // std::transform(reference.access().begin(), reference.access().end(),
+    //                comparant.access().begin(), differential.access().begin(),
+    //                densityGradientFunction);
     return differential;
 }
 
-std::string KullbackLeiblerDifferentialInfo::name =
-    std::string("kullbackleibler");
+std::string FourierShellCorrelationDifferentialInfo::name =
+    std::string("fsc");
 
 std::unique_ptr<IDensityDifferentialProvider>
-KullbackLeiblerDifferentialInfo::create()
+FourierShellCorrelationDifferentialInfo::create()
 {
-    return std::unique_ptr<IDensityDifferentialProvider>(
-            new KullbackLeiblerDifferential);
+    return std::unique_ptr<FourierShellCorrelationDifferential>(
+            new FourierShellCorrelationDifferential);
 }
 
 } /* volumedata */

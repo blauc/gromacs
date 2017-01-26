@@ -57,6 +57,8 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
+#include "gromacs/externalpotential/modules/densityfitting/densitydifferential.h"
+#include "gromacs/externalpotential/modules/densityfitting/densitydifferentialprovider.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/math/do_fit.h"
@@ -95,14 +97,6 @@ namespace analysismodules
 
 namespace
 {
-
-enum PotentialType {
-    ePotentialType_KullbackLeibler,
-    ePotentialType_CrossCorrelation,
-    ePotentialType_InvertedDensity
-};
-
-const char *const  c_potentialTypes[] = {"KL", "CC", "INV"};
 
 class Map : public TrajectoryAnalysisModule
 {
@@ -157,8 +151,7 @@ class Map : public TrajectoryAnalysisModule
         std::vector<real>                     fitWeights;
         real                                  inputGridEntropy;
         bool                                  bUseBox_       = false;
-        real                                  sigma_input_   = 0.05;
-        PotentialType                         potentialType_ = ePotentialType_KullbackLeibler;
+        std::string                           potentialType_ = "kullbackleibler";
         volumedata::FourierShellCorrelation   fsc_;
         FILE                                 *fscFile_;
 };
@@ -166,6 +159,13 @@ class Map : public TrajectoryAnalysisModule
 void Map::initOptions(IOptionsContainer          *options,
                       TrajectoryAnalysisSettings *settings)
 {
+    auto          potentialNames = volumedata::DensityDifferentialLibrary().available();
+    const char *  c_potentialTypes[4]; // TODO: this fixed size array is required for StringOption enumValue
+    for (size_t i = 0; i < potentialNames.size(); i++)
+    {
+        /* code */
+        c_potentialTypes[i] = potentialNames[i].c_str();
+    }
     static const char *const desc[] = {
         "[THISMODULE] is a tool to read in and write out (electron) density "
         "maps.",
@@ -208,10 +208,6 @@ void Map::initOptions(IOptionsContainer          *options,
     options->addOption(FloatOption("sigma").store(&sigma_).description(
                                "Create a simulated density by replacing the atoms by Gaussian functions "
                                "of width sigma (nm)"));
-    options->addOption(FloatOption("sigma_input")
-                           .store(&sigma_input_)
-                           .description("When calculating forces, gaussian smear "
-                                        "out input density with this width."));
     options->addOption(FloatOption("N_sigma").store(&n_sigma_).description(
                                "How many Gaussian width shall be used for spreading?"));
     options->addOption(FloatOption("spacing").store(&spacing_).description(
@@ -243,10 +239,8 @@ void Map::initOptions(IOptionsContainer          *options,
                            .outputFile()
                            .store(&forcedensity_)
                            .description("Force density."));
-    options->addOption(EnumOption<PotentialType>("potential-type")
-                           .store(&potentialType_)
-                           .description("cross correltation.")
-                           .enumValue(c_potentialTypes));
+    options->addOption(StringOption("potential-type").store(&potentialType_)
+                           .description("potential type.").enumValue(c_potentialTypes));
 }
 
 void Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/,
@@ -512,28 +506,18 @@ void Map::frameToForceDensity_(const t_trxframe &fr)
 {
     outputdensity_->normalize();
     inputdensity_.normalize();
+
     volumedata::Df3File().write("inputdensity.df3", inputdensity_).writePovray();
-    auto convolutedInput =
-        volumedata::GaussConvolution(inputdensity_).convolute(sigma_input_);
-    volumedata::MrcFile().write("inputdensityConvoluted.ccp4", *convolutedInput);
     volumedata::MrcFile().write("outputdensity.ccp4", *outputdensity_);
     volumedata::Df3File().write("outputdensity.df3", *outputdensity_).writePovray();
-    auto densityGradient(*outputdensity_);
 
+    auto densityDifferential = volumedata::DensityDifferentialLibrary().create(potentialType_)();
+    auto densityGradient     = densityDifferential->evaluateDensityDifferential(*outputdensity_, inputdensity_);
 
     volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);
     volumedata::Df3File().write("densityGradient.df3", densityGradient).writePovray();
 
-    std::array<gmx::volumedata::Field<float>, 3> forceDensity;
-    if (potentialType_ == ePotentialType_CrossCorrelation || potentialType_ == ePotentialType_KullbackLeibler)
-    {
-        forceDensity = ForceDensity(densityGradient, sigma_).getForce();
-    }
-
-    if (potentialType_ == ePotentialType_InvertedDensity)
-    {
-        forceDensity = ForceDensity(densityGradient, 0.).getForce();
-    }
+    auto forceDensity = ForceDensity(densityGradient, sigma_).getForce();
 
     std::array<volumedata::GridReal, 3> forcedensityGridReal {
         {

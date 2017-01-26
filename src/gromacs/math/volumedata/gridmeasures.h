@@ -45,25 +45,25 @@ namespace gmx
 namespace volumedata
 {
 
-class GridReal;
+template<typename real> class Field;
 class GridMeasures
 {
     public:
-        GridMeasures(const GridReal &reference);
-        real correlate(const GridReal &other, real threshold = -GMX_REAL_MAX) const;
+        GridMeasures(const Field<real> &reference);
+        real correlate(const Field<real> &other, real threshold = -GMX_REAL_MAX) const;
         real getRelativeKLCrossTermSameGrid(
-            const GridReal &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const GridReal          &other,
-                                    const std::vector<real> &other_reference) const;
-        real getKLCrossTermSameGrid(const GridReal &other) const;
-        real getKLCrossTerm(const GridReal &other) const;
-        real getKLSameGrid(const GridReal &other) const;
+            const Field<real> &other, const std::vector<real> &other_reference) const;
+        real getRelativeKLCrossTerm(const Field<real>          &other,
+                                    const std::vector<real>    &other_reference) const;
+        real getKLCrossTermSameGrid(const Field<real> &other) const;
+        real getKLCrossTerm(const Field<real> &other) const;
+        real getKLSameGrid(const Field<real> &other) const;
         real entropy() const;
         real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
 
     private:
         real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const GridReal &reference_;
+        const Field<real> &reference_;
 };
 }
 }
