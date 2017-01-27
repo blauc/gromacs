@@ -32,49 +32,38 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
+#define GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
 
-#include "crosscorrelation.h"
-
-#include <algorithm>
-#include <memory>
-#include <string>
-
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridmeasures.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/math/vectypes.h"
 
+#include <vector>
 namespace gmx
 {
+
+namespace externalpotential
+{
+class WholeMoleculeGroup;
+}   /* externalpotential */
 namespace volumedata
 {
 
-CrossCorrelation::CrossCorrelation() : differential {new (Field<real>)}
-{};
-
-const Field<real> &
-CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
-                                              const Field<real> &reference)
+template<typename real> class Field;
+class IDensityDensityPotentialProvider
 {
-    differential->copy_grid(reference);
-    auto cc                      = GridMeasures(reference).correlate(comparant);
-    auto normSimulation          = GridReal(comparant).properties().norm();
-    auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
-                                                        real densitySimulation) {
-            return (densityExperiment - cc * densitySimulation) / (normSimulation);
-        };
-    std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential->access().begin(),
-                   densityGradientFunction);
-    return *differential;
-}
+    public:
+        virtual real evaluateDensityDensityPotential(const Field<real> &comparant, const Field<real> &reference) = 0;
+};
 
-std::string CrossCorrelationInfo::name = std::string("cross-correlation");
-
-std::unique_ptr<IDensityDifferentialProvider> CrossCorrelationInfo::create()
+class IStructureDensityPotentialProvider
 {
-    return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
-}
+    public:
+        virtual real evaluateStructureDensityPotential( const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference) = 0;
+        virtual real evaluateGroupDensityPotential( const externalpotential::WholeMoleculeGroup &atoms, const Field<real> &reference) = 0;
+};
 
-} /* volumedata */
-} /* gmx */
+
+}      /* volumedata */
+}      /* gmx */
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H */

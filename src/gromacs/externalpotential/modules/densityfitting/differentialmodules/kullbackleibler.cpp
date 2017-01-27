@@ -42,7 +42,7 @@ namespace gmx
 namespace volumedata
 {
 
-const Field<real> &KullbackLeiblerDifferential::evaluateDensityDifferential(
+const Field<real> &KullbackLeibler::evaluateDensityDifferential(
         const Field<real> &comparant, const Field<real> &reference)
 {
     differential.copy_grid(reference);
@@ -61,13 +61,13 @@ const Field<real> &KullbackLeiblerDifferential::evaluateDensityDifferential(
     return differential;
 }
 
-const std::string KullbackLeiblerDifferentialInfo::name = std::string("kullback-leibler");
+const std::string KullbackLeiblerInfo::name = std::string("kullback-leibler");
 
 std::unique_ptr<IDensityDifferentialProvider>
-KullbackLeiblerDifferentialInfo::create()
+KullbackLeiblerInfo::create()
 {
-    return std::unique_ptr<KullbackLeiblerDifferential>(
-            new KullbackLeiblerDifferential);
+    return std::unique_ptr<KullbackLeibler>(
+            new KullbackLeibler);
 }
 
 } /* volumedata */

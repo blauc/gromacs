@@ -48,7 +48,7 @@ namespace volumedata
 
 template <typename real> class Field;
 
-class InvertedDensityDifferential : public IDensityDifferentialProvider
+class InvertedDensity : public IDensityDifferentialProvider
 {
     public:
         const Field<real> &evaluateDensityDifferential(const Field<real>  & /*comparant*/,
@@ -58,7 +58,7 @@ class InvertedDensityDifferential : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class InvertedDensityDifferentialInfo
+class InvertedDensityInfo
 {
     public:
         static std::string name;

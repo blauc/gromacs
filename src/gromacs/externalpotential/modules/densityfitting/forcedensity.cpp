@@ -88,8 +88,9 @@ void ForceDensity::generateConvolutionDensity_()
     for (int dimension = XX; dimension <= ZZ; ++dimension)
     {
         auto expPrefactor   = 2 * M_PI * M_PI * sigma_ * sigma_;
-        auto gaussianTimesK = [dimension, expPrefactor](t_complex &value, RVec k) {
-                value.re = k[dimension] * exp(-expPrefactor * norm2(k));
+        real two_pi         = 2 * M_PI;
+        auto gaussianTimesK = [dimension, expPrefactor, two_pi](t_complex &value, RVec k) {
+                value.re = two_pi * k[dimension] * exp(-expPrefactor * norm2(k));
                 value.im = 0;
             };
         volumedata::ApplyToUnshiftedFourierTransform(convolutionDensity_[dimension])
@@ -103,7 +104,6 @@ ForceDensity::getForce()
     realToComplexFT_.result(densityGradientFT_);
     for (int dimension = XX; dimension <= ZZ; ++dimension)
     {
-
         auto iWGaussianK = [](const t_complex &W, const t_complex &gaussianK) {
                 return t_complex {
                            -gaussianK.re * W.im, gaussianK.re * W.re

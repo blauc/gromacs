@@ -41,7 +41,7 @@ namespace gmx
 namespace volumedata
 {
 
-const Field<real> &FourierShellCorrelationDifferential::evaluateDensityDifferential(
+const Field<real> &FourierShellCorrelation::evaluateDensityDifferential(
         const Field<real> & /*comparant*/, const Field<real> &reference)
 {
     differential.copy_grid(reference);
@@ -58,14 +58,14 @@ const Field<real> &FourierShellCorrelationDifferential::evaluateDensityDifferent
     return differential;
 }
 
-std::string FourierShellCorrelationDifferentialInfo::name =
+std::string FourierShellCorrelationInfo::name =
     std::string("fsc");
 
 std::unique_ptr<IDensityDifferentialProvider>
-FourierShellCorrelationDifferentialInfo::create()
+FourierShellCorrelationInfo::create()
 {
-    return std::unique_ptr<FourierShellCorrelationDifferential>(
-            new FourierShellCorrelationDifferential);
+    return std::unique_ptr<FourierShellCorrelation>(
+            new FourierShellCorrelation);
 }
 
 } /* volumedata */

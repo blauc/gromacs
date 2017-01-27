@@ -106,7 +106,7 @@ class DensityFitting : public ExternalPotential
         void initializeThreadLocalBuffers_();
         void initialize_spreading_();
         void setCenterOfMass(WholeMoleculeGroup * atomgroup);
-        void KLForceCalculation_(WholeMoleculeGroup * fitatoms);
+        void forceCalculation(WholeMoleculeGroup * fitatoms);
         std::string dumpParsedInput();
         void sumReduceNormalize_();
         void invertMultiplySimulatedDensity_();
@@ -120,9 +120,6 @@ class DensityFitting : public ExternalPotential
         void doPotentialCC_( const matrix box, const rvec x[], const gmx_int64_t step);
         void doPotentialINV_( const matrix box, const rvec x[], const gmx_int64_t step);
         void CCMethod( const matrix box, const rvec x[], const gmx_int64_t step);
-        void initializeKL_(const matrix box, const rvec x[]);
-        void initializeCC_(const matrix box, const rvec x[]);
-        void initializeINV_(const matrix box, const rvec x[]);
         real getTotalScatteringSum_(WholeMoleculeGroup * atomgroup);
 
         DensityFitting();
@@ -137,7 +134,6 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
-        std::vector < std::unique_ptr < volumedata::FastGaussianGriddingForce>> force_gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GridReal>>                simulated_density_buffer_;
         real                    background_density_;

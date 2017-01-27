@@ -41,20 +41,20 @@ namespace gmx
 {
 namespace volumedata
 {
-const Field<real> &InvertedDensityDifferential::evaluateDensityDifferential(
+const Field<real> &InvertedDensity::evaluateDensityDifferential(
         const Field<real> & /*comparant*/, const Field<real> &reference)
 {
     return reference;
 }
 
-std::string InvertedDensityDifferentialInfo::name =
+std::string InvertedDensityInfo::name =
     std::string("inverted-density");
 
 std::unique_ptr<IDensityDifferentialProvider>
-InvertedDensityDifferentialInfo::create()
+InvertedDensityInfo::create()
 {
-    return std::unique_ptr<InvertedDensityDifferential>(
-            new InvertedDensityDifferential);
+    return std::unique_ptr<InvertedDensity>(
+            new InvertedDensity);
 }
 
 } /* volumedata */

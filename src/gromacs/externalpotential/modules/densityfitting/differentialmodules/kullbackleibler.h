@@ -46,7 +46,7 @@ namespace gmx
 namespace volumedata
 {
 // template<typename real> Field;
-class KullbackLeiblerDifferential : public IDensityDifferentialProvider
+class KullbackLeibler : public IDensityDifferentialProvider
 {
     public:
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
@@ -56,7 +56,7 @@ class KullbackLeiblerDifferential : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class KullbackLeiblerDifferentialInfo
+class KullbackLeiblerInfo
 {
     public:
         static const std::string name;

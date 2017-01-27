@@ -46,22 +46,30 @@ namespace gmx
 {
 namespace volumedata
 {
-class IDensityDifferentialProvider;
 
-class DensityDifferentialLibrary
+
+template <typename Provider>
+class PotentialLibrary
 {
     public:
-        DensityDifferentialLibrary();
-        ~DensityDifferentialLibrary() = default;
-        std::function<std::unique_ptr<IDensityDifferentialProvider>()> create(std::string name);
-        std::vector<std::string> available() const;
+        PotentialLibrary();
+        ~PotentialLibrary() = default;
+        std::function<std::unique_ptr<Provider>()> create(std::string name)
+        {
+            return functions_[name];
+        };
+        std::vector<std::string> available() const
+        {
+            std::vector<std::string> result;
+            for (auto f :  functions_)
+            {
+                result.push_back(f.first);
+            }
+            return result;
+        };
 
     private:
-        template<typename DensityDifferentialInfo> void registerFunction()
-        {
-            functions_[DensityDifferentialInfo::name] = &DensityDifferentialInfo::create;
-        };
-        std::map<std::string, std::function<std::unique_ptr<IDensityDifferentialProvider>()> > functions_;
+        std::map<std::string, std::function<std::unique_ptr<Provider>()> > functions_;
 };
 
 }      // namespace volumedata

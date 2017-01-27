@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2017, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -33,48 +33,34 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "crosscorrelation.h"
-
-#include <algorithm>
-#include <memory>
-#include <string>
-
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridmeasures.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/real.h"
+#include <memory>
+#ifndef GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
+#define GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
 
 namespace gmx
 {
+namespace exteralpotential
+{
+class WholeMoleculeGroup;
+}   /* exteralpotential */
 namespace volumedata
 {
 
-CrossCorrelation::CrossCorrelation() : differential {new (Field<real>)}
-{};
+template<typename real> class Field;
 
-const Field<real> &
-CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
-                                              const Field<real> &reference)
+class DensitySpreader
 {
-    differential->copy_grid(reference);
-    auto cc                      = GridMeasures(reference).correlate(comparant);
-    auto normSimulation          = GridReal(comparant).properties().norm();
-    auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
-                                                        real densitySimulation) {
-            return (densityExperiment - cc * densitySimulation) / (normSimulation);
-        };
-    std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential->access().begin(),
-                   densityGradientFunction);
-    return *differential;
+    public:
+        DensitySpreader();
+        const Field<real> &spreadLocalAtoms_(exteralpotential::WholeMoleculeGroup * spreadgroup);
+    private:
+        std::unique_ptr < Field < real>> simulated_density_;
+};
+
 }
 
-std::string CrossCorrelationInfo::name = std::string("cross-correlation");
-
-std::unique_ptr<IDensityDifferentialProvider> CrossCorrelationInfo::create()
-{
-    return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
-}
-
-} /* volumedata */
 } /* gmx */
+
+
+ #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H */

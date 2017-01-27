@@ -46,7 +46,7 @@ namespace gmx
 namespace volumedata
 {
 
-class FourierShellCorrelationDifferential : public IDensityDifferentialProvider
+class FourierShellCorrelation : public IDensityDifferentialProvider
 {
     public:
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
@@ -56,7 +56,7 @@ class FourierShellCorrelationDifferential : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class FourierShellCorrelationDifferentialInfo
+class FourierShellCorrelationInfo
 {
     public:
         static std::string name;

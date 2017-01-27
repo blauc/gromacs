@@ -159,7 +159,7 @@ class Map : public TrajectoryAnalysisModule
 void Map::initOptions(IOptionsContainer          *options,
                       TrajectoryAnalysisSettings *settings)
 {
-    auto          potentialNames = volumedata::DensityDifferentialLibrary().available();
+    auto          potentialNames = volumedata::PotentialLibrary<volumedata::IDensityDifferentialProvider>().available();
     const char *  c_potentialTypes[4]; // TODO: this fixed size array is required for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
     {
@@ -511,7 +511,7 @@ void Map::frameToForceDensity_(const t_trxframe &fr)
     volumedata::MrcFile().write("outputdensity.ccp4", *outputdensity_);
     volumedata::Df3File().write("outputdensity.df3", *outputdensity_).writePovray();
 
-    auto densityDifferential = volumedata::DensityDifferentialLibrary().create(potentialType_)();
+    auto densityDifferential = volumedata::PotentialLibrary<volumedata::IDensityDifferentialProvider>().create(potentialType_)();
     auto densityGradient     = densityDifferential->evaluateDensityDifferential(*outputdensity_, inputdensity_);
 
     volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);

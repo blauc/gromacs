@@ -35,6 +35,7 @@
 #include "gmxpre.h"
 
 #include "densityfitting.h"
+#include "forcedensity.h"
 
 #include <cstdio>
 
@@ -48,6 +49,8 @@
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/math/quaternion.h"
+#include "densitydifferential.h"
+#include "densitydifferentialprovider.h"
 
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/externalpotential/mpi-helper.h"
@@ -70,134 +73,6 @@
 
 namespace gmx
 {
-
-class volumedata::FastGaussianGriddingForce : public FastGaussianGridding
-{
-    public:
-        using FastGaussianGridding::FastGaussianGridding;
-        RVec force(const rvec x, const real weight,  const volumedata::GridReal &div);
-
-};
-
-RVec
-volumedata::FastGaussianGriddingForce::force(const rvec x, const real weight, const volumedata::GridReal &densityDerivative)
-{
-    prepare_2d_grid(x, weight);
-    ivec l_min;
-    ivec l_max;
-    RVec force = {0, 0, 0};
-
-    for (size_t i = XX; i <= ZZ; ++i)
-    {
-        l_min[i] = grid_index_of_spread_atom_[i] - m_spread_ < 0 ? 0 : grid_index_of_spread_atom_[i]-m_spread_;
-        l_max[i] = grid_index_of_spread_atom_[i] + m_spread_ >= grid_->extend()[i] ? grid_->extend()[i]-1 : grid_index_of_spread_atom_[i]+m_spread_;
-    }
-
-    std::vector < std::vector < int>> ceilSqrtLUT(m_spread_+1);
-    for (int d_z = 0; d_z <= m_spread_; d_z++)
-    {
-        ceilSqrtLUT[d_z].resize( (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z))+1);
-        for (int d_y = 0; d_y*d_y <= m_spread_*m_spread_ - d_z*d_z; d_y++)
-        {
-            ceilSqrtLUT[d_z][d_y] = (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y));
-        }
-    }
-    real   spread_zy;
-    std::vector<real>::iterator densityDerivativeIterator;
-    real * spread_1d_XX;
-
-
-    RVec     d_x       = densityDerivative.unit_cell_XX();
-    RVec     d_y       = densityDerivative.unit_cell_YY();
-    RVec     d_z       = densityDerivative.unit_cell_ZZ();
-    RVec     shift_z;                                          //< (x-v_0) + dz
-    RVec     shift_yz;                                         //< ((x-v_0) + dz) + dy
-    RVec     shift_xyz;                                        //< (((x-v_0) + dz) + dy) + dx
-
-
-
-    rvec voxel_force; //< The force each voxel contributes
-
-    /*
-     * To avoid repeated calculation of the distance from atom to voxel, (x-v)
-     * calculate instead for voxel v at i_x,i_y,i_z: (((x-v_0) + dz+...(i_z times)...+dz) + dy+...+dy) + dx...+dx
-     */
-
-    /*
-     * Use iterators to step though the grid.
-     * This relies on the assumption that the grid is stored with z the slowest and x the fasted changing dimension with no padding
-     * (x,y,z not being linked to any coordiante system, but short-hand for first, second, third dimension)
-     * Loosing generality through this approach, we save substantial time when we don't have to calculate the grid index.
-     */
-
-    RVec d_z_offset;
-    svmul(l_min[ZZ], d_z, d_z_offset);
-    RVec d_y_offset;
-    svmul(l_min[YY], d_y, d_y_offset);
-    RVec d_x_offset;
-    svmul(l_min[XX], d_x, d_x_offset);
-
-    rvec_sub(densityDerivative.gridpoint_coordinate({0, 0, 0}), x, shift_z); // using the grid-origin as reference (v_0-x)
-    rvec_inc(shift_z, d_z_offset);                                           // move in "z-slices" until spreading starts
-
-
-    for (int l_grid_z = l_min[ZZ]; l_grid_z <= l_max[ZZ]; ++l_grid_z)
-    {
-        shift_yz = shift_z;                                              // start at the beginning of a "y-row"
-        rvec_inc(shift_yz, d_y_offset);                                  // move into the "y-row" to the voxel where spreading starts
-        auto densityDerivativeGridData   = densityDerivative.access();
-        int  d_l_z                       = l_grid_z - grid_index_of_spread_atom_[ZZ];
-        int  l_z                         = d_l_z + m_spread_; // the grid index in the 2d spread grid around the atom
-        int  globalGridIndexYYStart      = std::max(l_min[YY], grid_index_of_spread_atom_[YY] - ceilSqrtLUT[std::abs(d_l_z)][0]);
-        int  globalGridIndexYYEnd        = std::min(l_max[YY], grid_index_of_spread_atom_[YY] + ceilSqrtLUT[std::abs(d_l_z)][0]);
-        for (int l_grid_y = globalGridIndexYYStart; l_grid_y <= globalGridIndexYYEnd; ++l_grid_y)
-        {
-            shift_xyz = shift_yz;            // start at the beginning of an "x-column"
-            rvec_inc(shift_xyz, d_x_offset); // move into the "x-row" to the voxel where spreading starts
-
-            int d_l_y        =  l_grid_y - grid_index_of_spread_atom_[YY];
-            int l_y          = d_l_y+m_spread_;
-            spread_zy                     = spread_2d_[l_z][l_y];
-
-            int globalGridIndexXXStart = std::max(l_min[XX], grid_index_of_spread_atom_[XX] - ceilSqrtLUT[std::abs(d_l_z)][std::abs(d_l_y)]);
-            int globalGridIndexXXEnd   = std::min(l_max[XX], grid_index_of_spread_atom_[XX] + ceilSqrtLUT[std::abs(d_l_z)][std::abs(d_l_y)]);
-            int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
-            int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
-            densityDerivativeIterator        = densityDerivativeGridData.zy_column_begin(l_grid_z, l_grid_y)+globalGridIndexXXStart;
-
-            spread_1d_XX = &(spread_1d_[XX][localGridIndexXXStart]);
-
-            for (int l_x = 0; l_x <= numberSpreadVoxelsXX; ++l_x)
-            {
-                if ((*densityDerivativeIterator > GMX_FLOAT_EPS) || (*densityDerivativeIterator < GMX_FLOAT_EPS))
-                {
-
-                    /*
-                     * The core routine that calcualtes k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
-                     *
-                     * *force_density_iterator = k*V/sigma exp(-(x-v)^2/2*sigma^2)
-                     * shift_xyz = (x-v)
-                     * *densityDerivativeIterator = rho_div_v
-                     *
-                     */
-                    svmul(spread_zy * (*spread_1d_XX) * (*densityDerivativeIterator), shift_xyz, voxel_force);
-
-                    /*
-                     * add the force to the total force from all voxels
-                     */
-                    rvec_inc(force, voxel_force);
-                }
-
-                ++spread_1d_XX;
-                ++densityDerivativeIterator;
-                rvec_inc(shift_xyz, d_x); // next step in grid x-direction
-            }
-            rvec_inc(shift_yz, d_y);      // next step in grid y-direction
-        }
-        rvec_inc(shift_z, d_z);           // next step in grid z-direction
-    }
-    return force;
-};
 
 namespace externalpotential
 {
@@ -235,86 +110,6 @@ DensityFitting::shiftedAndOriented(const RVec x)
 
     rvec_inc(x_translated, translation_);
     return x_translated;
-}
-
-void DensityFitting::spreadLocalAtoms_(WholeMoleculeGroup * spreadgroup)
-{
-    simulated_density_->zero();
-    std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
-    std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);
-
-#pragma omp parallel num_threads(number_of_threads_)
-    {
-        int           thread     = gmx_omp_get_thread_num();
-        simulated_density_buffer_[thread]->zero();
-        gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
-        GroupIterator beginThreadAtoms = spreadgroup->begin(thread, number_of_threads_);
-        GroupIterator endThreadAtoms   = spreadgroup->end(thread, number_of_threads_);
-        for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
-        {
-            gauss_transform_[thread]->transform(shiftedAndOriented(*(*atom).xTransformed), *(*atom).properties);
-        }
-        simulated_density_buffer_[thread] = std::move(gauss_transform_[thread]->finish_and_return_grid());
-        minimumUsedGridIndex[thread]      = gauss_transform_[thread]->getMinimumUsedGridIndex();
-        maximumUsedGridIndex[thread]      = gauss_transform_[thread]->getMaximumUsedGridIndex();
-        volumedata::MrcFile().write("threadlocal" + std::to_string(thread) + ".mrc", *(simulated_density_buffer_[thread]));
-
-    }
-
-    std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
-    std::vector<real>::iterator              simulatedDensityVoxelIterator;
-
-    volumedata::IVec gridStart;
-    volumedata::IVec gridEnd;
-    for (int i = XX; i <= ZZ; ++i)
-    {
-        auto ithElementLarger = [i](volumedata::IVec a, volumedata::IVec b){
-                return a[i] < b[i];
-            };
-        gridStart[i] = (*std::min_element(std::begin(minimumUsedGridIndex), std::end(minimumUsedGridIndex), ithElementLarger))[i];
-        gridEnd[i]   = (*std::max_element(std::begin(maximumUsedGridIndex), std::end(maximumUsedGridIndex), ithElementLarger))[i];
-    }
-
-    // add together all thread-local grids, using only density values, where there is
-    // actual spread density
-    int  nGridPointsXX        = gridEnd[XX]-gridStart[XX];
-    auto simulatedDensityData = simulated_density_->access();
-
-    // store the data accessors for threadlocal grid data in a vector
-    std::vector<volumedata::GridDataAccess<real> > simulatedDensityThreadGridData;
-    for (int thread = 0; thread < number_of_threads_; ++thread)
-    {
-        simulatedDensityThreadGridData.emplace_back(simulated_density_buffer_[thread]->extend(), simulated_density_buffer_[thread]->access().data());
-    }
-
-    //
-    for (int gridIndexZZ = gridStart[ZZ]; gridIndexZZ < gridEnd[ZZ]; ++gridIndexZZ)
-    {
-        for (int gridIndexYY = gridStart[YY]; gridIndexYY < gridEnd[YY]; ++gridIndexYY)
-        {
-            contributingThreadLocalVoxelIterators.resize(0);
-            // access rows in thread local grids if they contribute to the density
-            for (int thread = 0; thread < number_of_threads_; ++thread)
-            {
-                if ((minimumUsedGridIndex[thread][ZZ] <= gridIndexZZ) && ( gridIndexZZ <= maximumUsedGridIndex[thread][ZZ] ) && (minimumUsedGridIndex[thread][YY] <= gridIndexYY) && (gridIndexYY <= maximumUsedGridIndex[thread][YY]))
-                {
-                    contributingThreadLocalVoxelIterators.push_back(simulatedDensityThreadGridData[thread].zy_column_begin(gridIndexZZ, gridIndexYY)+gridStart[XX]);
-                }
-            }
-            simulatedDensityVoxelIterator = simulatedDensityData.zy_column_begin(gridIndexZZ, gridIndexYY) + gridStart[XX];
-            // step though grid row by row
-            for (int gridIndexXX = 0; gridIndexXX < nGridPointsXX; ++gridIndexXX)
-            {
-                // loop over the local threads, collect voxel contributions and advance all threadlocal iterators to next voxel in row
-                for (auto &threadLocalVoxel : contributingThreadLocalVoxelIterators)
-                {
-                    *simulatedDensityVoxelIterator += *threadLocalVoxel;
-                    ++threadLocalVoxel;
-                }
-                ++simulatedDensityVoxelIterator;
-            }
-        }
-    }
 }
 
 real DensityFitting::getTotalScatteringSum_(WholeMoleculeGroup * atomgroup)
@@ -405,7 +200,7 @@ DensityFitting::optimizeTranslation(WholeMoleculeGroup * translationgroup, real 
     sumReduceNormalize_();
 
     invertMultiplySimulatedDensity_();
-    KLForceCalculation_(translationgroup);
+    forceCalculation(translationgroup);
     auto force = translationgroup->local_force_sum();
     if (mpi_helper() != nullptr)
     {
@@ -465,7 +260,7 @@ DensityFitting::optimizeOrientation(WholeMoleculeGroup * atomgroup, real &diverg
     spreadLocalAtoms_(atomgroup);
     sumReduceNormalize_();
     invertMultiplySimulatedDensity_();
-    KLForceCalculation_(atomgroup);
+    forceCalculation(atomgroup);
 
     auto torque_direction = atomgroup->local_torque_sum(centerOfMass_); //TODO: check for sign of rotation
 
@@ -586,15 +381,8 @@ DensityFitting::initializeThreadLocalBuffers_()
 #pragma omp parallel for ordered num_threads(number_of_threads_)
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        force_density_.emplace_back(new volumedata::GridReal(*target_density_));
-        force_gauss_transform_.emplace_back(new volumedata::FastGaussianGriddingForce());
         simulated_density_buffer_.emplace_back(new volumedata::GridReal(*target_density_));
         gauss_transform_.emplace_back(new volumedata::FastGaussianGridding());
-    }
-    for (auto &transform : force_gauss_transform_)
-    {
-        transform->set_sigma(sigma_);
-        transform->set_n_sigma(n_sigma_);
     }
 }
 
@@ -610,7 +398,7 @@ DensityFitting::initialize_spreading_()
 }
 
 void
-DensityFitting::initializeKL_(const matrix box, const rvec x[])
+DensityFitting::initialize(const matrix box, const rvec x[])
 {
     if (bWriteXTC_)
     {
@@ -650,11 +438,6 @@ DensityFitting::initializeKL_(const matrix box, const rvec x[])
     fprintf(input_output()->output_file(), "#   Thus estimating optimal change in refinement potental energy: %g .\n", optimalDeltaPotentialEnergy_);
 }
 
-void
-DensityFitting::initialize(const matrix box, const rvec x[])
-{
-    initialize_(box, x);
-}
 
 void DensityFitting::sum_reduce_simulated_density_()
 {
@@ -689,41 +472,33 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
 
 }
 
-void DensityFitting::KLForceCalculation_(WholeMoleculeGroup * fitatoms)
+void DensityFitting::forceCalculation(WholeMoleculeGroup * fitatoms)
 {
-#pragma omp parallel num_threads(number_of_threads_) shared(stderr,fitatoms) default(none)
+    auto densityDifferential = volumedata::PotentialLibrary<volumedata::IDensityDifferentialProvider>().create(fitMethod_)();
+    auto densityGradient     = densityDifferential->evaluateDensityDifferential(*simulated_density_, *target_density_);
+    auto forceDensity        = ForceDensity(densityGradient, sigma_).getForce();
+
+    std::array<volumedata::GridReal, 3> forceGrid { {
+                                                        volumedata::GridReal(forceDensity[XX]), volumedata::GridReal(forceDensity[YY]), volumedata::GridReal(forceDensity[ZZ])
+                                                    } };
+
+#pragma omp parallel num_threads(number_of_threads_) shared(stderr,fitatoms,forceGrid) default(none)
     {
         int           thread             = gmx_omp_get_thread_num();
-        auto         &threadlocaldensity = *simulated_density_buffer_[thread];
-        threadlocaldensity.access().data() = (*simulated_density_).access().data();
-        real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
-
-        force_gauss_transform_[thread]->set_grid(std::move(force_density_[thread]));
-        auto         &threadlocal_force_gauss_transform = force_gauss_transform_[thread];
+        // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
 
         GroupIterator beginThreadAtoms = fitatoms->begin(thread, number_of_threads_);
         GroupIterator endThreadAtoms   = fitatoms->end(thread, number_of_threads_);
 
         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
         {
-            /* calculate for atom position x, voxel v, grid cell Volume V, force constant k:
-             *
-             * sum_v k*V*(x-v)/sigma exp(-(x-v)^2/2*sigma^2) * (rho_div_v)
-             *
-             * to keep the potential translation invariant, use shifted atoms positions for force calculations.
-             * Atoms are translated, such that the potential is minimal with respect to coordinate shifts
-             * To speed up the expensive exp(-(x-v)^2/2*sigma^2) part of the force caluclation use fast gaussian gridding
-             * Each thread has its own pre-allocated memory for doing the fast gaussian gridding.
-             *
-             * There is some double work done here, since all atoms have already been spread on a grid to calculate the total spread density.
-             * However, keeping the spread grid for all atoms appears to be very memory intense. (natoms * voxelgridsize)
-             * The atoms spread weight is k_/(norm_simulated * sigma_^2), so we don't have to do that multiplication later in the force calculation loop
-             * simulated_density_->grid_cell_volume()/
-             */
-            copy_rvec( threadlocal_force_gauss_transform->force(shiftedAndOriented(*(*atom).xTransformed), *((*atom).properties)*prefactor, threadlocaldensity), *(*atom).force);
+            auto r = shiftedAndOriented(*(*atom).xTransformed);
+            auto f = RVec {
+                forceGrid[XX].getLinearInterpolationAt(r), forceGrid[YY].getLinearInterpolationAt(r), forceGrid[ZZ].getLinearInterpolationAt(r)
+            };
+            svmul(*((*atom).properties), f, *(*atom).force);
             orientation_.rotate_backwards(*(*atom).force);
         }
-        force_density_[thread] = std::move(threadlocal_force_gauss_transform->finish_and_return_grid());
     }
 }
 
@@ -757,36 +532,7 @@ DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step
     }
 }
 
-void
-DensityFitting::doPotentialINV_( const matrix box, const rvec x[], const gmx_int64_t /*step*/)
-{
-    auto fitatoms = wholemoleculegroup(x, box, 0);
-#pragma omp parallel num_threads(number_of_threads_)
-    {
-        std::array<volumedata::GridDataAccess<real>, 3> invertedDensityForcesAccess = {{invertedDensityForces_[XX]->access(), invertedDensityForces_[YY]->access(), invertedDensityForces_[ZZ]->access()}};
-        for (auto atom : *fitatoms)
-        {
-            IVec gridCoordinate     = target_density_->coordinate_to_gridindex_floor_ivec(shiftedAndOriented(*atom.xTransformed));
-            clear_rvec(*atom.force);
-            if (target_density_->inGrid(gridCoordinate))
-            {
-                for (size_t dim = XX; dim <= ZZ; dim++)
-                {
-                    *atom.force[dim] = invertedDensityForcesAccess[dim].at(gridCoordinate);
-                }
-                orientation_.rotate_backwards(*atom.force);
-            }
-        }
-    }
-}
-
-void
-DensityFitting::doPotentialCC_( const matrix /*box*/, const rvec /*x*/[], const gmx_int64_t /*step*/)
-{
-
-}
-
-void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx_int64_t step)
+void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
     auto fitatoms = wholemoleculegroup(x, box, 0);
     setCenterOfMass(fitatoms);
@@ -827,9 +573,7 @@ void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx
         set_local_potential(0);
     }
 
-    invertMultiplySimulatedDensity_();
-
-    KLForceCalculation_(fitatoms);
+    forceCalculation(fitatoms);
 
     // volumedata::MrcFile simulated_output;
     if (step % (every_nth_step_) == 0)
@@ -840,56 +584,6 @@ void DensityFitting::doPotentialKL_( const matrix box, const rvec x[], const gmx
     // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
 
 }
-
-void
-DensityFitting::initializeINV_(const matrix /*box*/, const rvec * /*x*/)
-{
-    //
-    for (size_t dimension = 0; dimension <= ZZ; dimension++)
-    {
-        invertedDensityForces_.emplace_back(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal()));
-        invertedDensityForces_.back()->copy_grid(*target_density_);
-        invertedDensityForces_.back()->zero();
-        auto spacing                     = invertedDensityForces_.back()->avg_spacing();
-        auto invertedDensityForcesAccess = invertedDensityForces_.back()->access();
-        auto targetDensityAccess         = target_density_->access();
-        // calculate numerical gradient of the map
-        for (int i_z = 1; i_z < invertedDensityForces_.back()->extend()[ZZ]-1; i_z++)
-        {
-            for (int i_y = 1; i_y < invertedDensityForces_.back()->extend()[ZZ]-1; i_y++)
-            {
-                for (int i_x = 1; i_x < invertedDensityForces_.back()->extend()[ZZ]-1; i_x++)
-                {
-                    auto ref = targetDensityAccess.at({i_x-1, i_y, i_z});
-                    decltype(ref) cumulant = 0.;
-                    ivec ii;
-                    for (ii[ZZ] = -1; ii[ZZ] <= 1; ++ii[ZZ])
-                    {
-                        for (ii[YY] = -1; ii[YY] <= 1; ++ii[YY])
-                        {
-                            for (ii[XX] = -1; ii[XX] <= 1; ++ii[XX])
-                            {
-                                cumulant += ii[dimension] * targetDensityAccess.at({i_x+ii[XX], i_y+ii[YY], i_z+ii[ZZ]});
-                            }
-                        }
-                    }
-                    invertedDensityForcesAccess.at({i_x, i_y, i_z}) = spacing * cumulant / 18.;
-                }
-            }
-        }
-    }
-}
-
-void
-DensityFitting::initializeCC_(const matrix /*box*/, const rvec * /*x*/)
-{
-
-}
-
-void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
-{
-    doPotential_(box, x, step);
-};
 
 DensityFitting::DensityFitting() : ExternalPotential(),
                                    target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
@@ -964,26 +658,7 @@ void DensityFitting::read_input()
     }
     else
     {
-        fitMethod_ = "KL";
-    }
-
-    if (fitMethod_ == "KL")
-    {
-        initialize_  = std::bind(&DensityFitting::initializeKL_, this, std::placeholders::_1, std::placeholders::_2);
-        doPotential_ = std::bind(&DensityFitting::doPotentialKL_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-    }
-
-    if (fitMethod_ == "INV")
-    {
-        initialize_  = std::bind(&DensityFitting::initializeINV_, this, std::placeholders::_1, std::placeholders::_2);
-        doPotential_ = std::bind(&DensityFitting::doPotentialINV_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-    }
-
-
-    if (fitMethod_ == "CC")
-    {
-        initialize_  = std::bind(&DensityFitting::initializeCC_, this, std::placeholders::_1, std::placeholders::_2);
-        doPotential_ = std::bind(&DensityFitting::doPotentialCC_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+        fitMethod_ = "kullback-leibler";
     }
 
     if (parsed_json.has("energy_step"))

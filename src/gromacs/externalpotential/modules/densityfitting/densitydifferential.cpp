@@ -45,29 +45,38 @@ namespace gmx
 namespace volumedata
 {
 
-DensityDifferentialLibrary::DensityDifferentialLibrary()
+template<typename InfoClass, typename Creator>
+void registerFunction(std::map<std::string, Creator> &map)
 {
-    registerFunction<CrossCorrelationDifferentialInfo>();
-    registerFunction<KullbackLeiblerDifferentialInfo>();
-    registerFunction<InvertedDensityDifferentialInfo>();
-    registerFunction<FourierShellCorrelationDifferentialInfo>();
-}
-
-std::function<std::unique_ptr<IDensityDifferentialProvider>()>
-DensityDifferentialLibrary::create(std::string name)
-{
-    return functions_[name];
+    map[InfoClass::name] = &InfoClass::create;
 };
 
-std::vector<std::string> DensityDifferentialLibrary::available() const
+class IDensityDifferentialProvider;
+
+template <> PotentialLibrary<IDensityDifferentialProvider>::PotentialLibrary()
 {
-    std::vector<std::string> result;
-    for (auto f :  functions_)
-    {
-        result.push_back(f.first);
-    }
-    return result;
-}
+    registerFunction<CrossCorrelationInfo>(functions_);
+    registerFunction<KullbackLeiblerInfo>(functions_);
+    registerFunction<InvertedDensityInfo>(functions_);
+    registerFunction<FourierShellCorrelationInfo>(functions_);
+};
+
+class IDensityDensityPotentialProvider;
+template <> PotentialLibrary<IDensityDensityPotentialProvider>::PotentialLibrary()
+{
+    // registerFunction<CrossCorrelationInfo>(functions_);
+    // registerFunction<KullbackLeiblerInfo>(functions_);
+    // registerFunction<FourierShellCorrelationInfo>(functions_);
+};
+
+class IStructureDensityPotentialProvider;
+template <> PotentialLibrary<IStructureDensityPotentialProvider>::PotentialLibrary()
+{
+    // registerFunction<CrossCorrelationInfo>(functions_);
+    // registerFunction<KullbackLeiblerInfo>(functions_);
+    // registerFunction<InvertedDensityInfo>(functions_);
+    // registerFunction<FourierShellCorrelationInfo>(functions_);
+};
 
 }
 }

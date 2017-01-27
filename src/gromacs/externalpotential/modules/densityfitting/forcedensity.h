@@ -43,37 +43,35 @@
 #define GMX_EXTERNALPOTENIAL_FORCEDENSITY_H
 
 #include "gmxpre.h"
-#include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/gmxcomplex.h"
+#include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/volumedata/fouriertransform.h"
 
 #include "gromacs/utility/real.h"
 
 #include <array>
 
-
 namespace gmx
 {
-
 
 class ForceDensity
 {
     public:
         ForceDensity(const volumedata::Field<real> &grid, real sigma);
         ~ForceDensity() = default;
-        const std::array<volumedata::Field<real>, DIM> &
-        getForce();
+        const std::array<volumedata::Field<real>, DIM> &getForce();
 
     private:
         void generateConvolutionDensity_();
         void generateFourierTransformGrids_(const volumedata::FiniteGrid &grid);
         real sigma_;
-        std::array<volumedata::Field<real>, DIM>                 forces_;
-        std::array<volumedata::Field<t_complex>, DIM>            forcesFT_;
-        std::array<volumedata::Field<t_complex>, DIM>            convolutionDensity_;
-        volumedata::Field<t_complex>                             densityGradientFT_;
-        std::vector<volumedata::FourierTransformComplexToReal3D> complexToRealFTarray_;
-        volumedata::FourierTransformRealToComplex3D              realToComplexFT_;
+        std::array<volumedata::Field<real>, DIM>      forces_;
+        std::array<volumedata::Field<t_complex>, DIM> forcesFT_;
+        std::array<volumedata::Field<t_complex>, DIM> convolutionDensity_;
+        volumedata::Field<t_complex>                  densityGradientFT_;
+        std::vector<volumedata::FourierTransformComplexToReal3D>
+        complexToRealFTarray_;
+        volumedata::FourierTransformRealToComplex3D realToComplexFT_;
 };
 }
 #endif /* end of include guard: GMX_EXTERNALPOTENIAL_FORCEDENSITY_H */

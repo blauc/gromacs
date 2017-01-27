@@ -38,28 +38,37 @@
 // #include "gmxpre.h"
 
 #include "../densitydifferentialprovider.h"
+#include "../potentialprovider.h"
 #include "gromacs/utility/real.h"
-#include <string>
 #include <memory>
+#include <string>
 
 namespace gmx
 {
 namespace volumedata
 {
 
-template<typename real> class Field;
-class CrossCorrelationDifferential : public IDensityDifferentialProvider
+template <typename real> class Field;
+
+class CrossCorrelation : public IDensityDifferentialProvider,
+                         public IDensityDensityPotentialProvider,
+                         public IStructureDensityPotentialProvider
 {
     public:
-        CrossCorrelationDifferential();
-        ~CrossCorrelationDifferential() = default;
+        CrossCorrelation();
+        ~CrossCorrelation() = default;
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
                                                        const Field<real> &reference);
+        real evaluateDensityDensityPotential(const Field<real> &comparant,
+                                             const Field<real> &reference);
+        real evaluateStructureDensityPotential(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference);
+        real evaluateGroupDensityPotential( const externalpotential::WholeMoleculeGroup &atoms, const Field<real> &reference);
+
     private:
         std::unique_ptr < Field < real>> differential;
 };
 
-class CrossCorrelationDifferentialInfo
+class CrossCorrelationInfo
 {
     public:
         static std::string name;
