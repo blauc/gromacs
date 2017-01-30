@@ -56,7 +56,7 @@ class FourierShellCorrelation : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class FourierShellCorrelationInfo
+class FourierShellCorrelationDifferentialInfo
 {
     public:
         static std::string name;

@@ -40,6 +40,7 @@
 
 namespace gmx
 {
+class Quaternion;
 namespace volumedata
 {
 
@@ -48,6 +49,10 @@ class GridInterpolator
     public:
         GridInterpolator(const FiniteGrid &basis);
         std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other);
+        /*! \brief
+            Interpolating after shifting and orienting the other grid.
+         */
+        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
 
         void makeUniform();
 

@@ -195,7 +195,7 @@ WholeMoleculeGroup::local_torque_sum(RVec center)
 {
     return std::accumulate(
             this->begin(), this->end(), RVec {0, 0, 0},
-            [center] (RVec &torque_sum, GroupAtom local_atom) {
+            [center] (RVec &torque_sum, const GroupAtom &local_atom) {
                 RVec xCentered;
                 RVec torque;
                 rvec_sub(*local_atom.xTransformed, center, xCentered);
@@ -206,11 +206,11 @@ WholeMoleculeGroup::local_torque_sum(RVec center)
 }
 
 RVec
-WholeMoleculeGroup::weighted_local_coordinate_sum()
+WholeMoleculeGroup::weighted_local_coordinate_sum() const
 {
     return std::accumulate(
             this->begin(), this->end(), RVec {0, 0, 0},
-            [](RVec &coordinate_sum, GroupAtom local_atom) {
+            [](RVec &coordinate_sum, const GroupAtom &local_atom) {
                 RVec weighted_coordinate;
                 svmul(*local_atom.properties, *local_atom.xTransformed, weighted_coordinate);
                 rvec_inc(coordinate_sum, weighted_coordinate);
@@ -218,6 +218,29 @@ WholeMoleculeGroup::weighted_local_coordinate_sum()
             });
 }
 
+RVec
+WholeMoleculeGroup::weightedCenterOfMass() const
+{
+
+    RVec weightedCenterOfMass_ = weighted_local_coordinate_sum();
+    real weightssum            = local_weights_sum();
+    if (mpi_helper_ != nullptr)
+    {
+        mpi_helper_->to_reals_buffer(weightedCenterOfMass_, 3);
+        mpi_helper_->to_reals_buffer(&weightssum, 1);
+        mpi_helper_->sum_reduce();
+        if (mpi_helper_->isMaster())
+        {
+            mpi_helper_->from_reals_buffer(weightedCenterOfMass_, 3);
+            mpi_helper_->from_reals_buffer(&weightssum, 1);
+        }
+    }
+    if (mpi_helper_ == nullptr || mpi_helper_->isMaster())
+    {
+        svmul(1.0/weightssum, weightedCenterOfMass_, weightedCenterOfMass_);
+    }
+    return weightedCenterOfMass_;
+}
 /* Ensure this is called after Group::set_indices */
 void
 WholeMoleculeGroup::update_shifts_and_reference(const rvec x[], const matrix box)

@@ -69,13 +69,14 @@ class Quaternion
         Quaternion &operator*=(Quaternion other);
         Quaternion operator=(const Quaternion &other);
         void invert();
-        Quaternion inverse();
+        Quaternion inverse() const;
         void normalize();
-        real norm();
+        real norm() const;
         /*! \brief Multiply q from right.
          */
-        void rotate(RVec &x);
-        void rotate_backwards(RVec &x);
+        void rotate(RVec &x) const;
+        void rotate_backwards(RVec &x) const;
+        RVec shiftedAndOriented(const RVec &x, const RVec &centerOfMass, const RVec &shift) const;
     private:
         QVec q_;
 };

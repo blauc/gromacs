@@ -58,11 +58,11 @@ const Field<real> &FourierShellCorrelation::evaluateDensityDifferential(
     return differential;
 }
 
-std::string FourierShellCorrelationInfo::name =
+std::string FourierShellCorrelationDifferentialInfo::name =
     std::string("fsc");
 
 std::unique_ptr<IDensityDifferentialProvider>
-FourierShellCorrelationInfo::create()
+FourierShellCorrelationDifferentialInfo::create()
 {
     return std::unique_ptr<FourierShellCorrelation>(
             new FourierShellCorrelation);

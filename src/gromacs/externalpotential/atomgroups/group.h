@@ -54,15 +54,36 @@ namespace gmx
 {
 
 class IAtomProperties;
+class GroupAtom;
+class constGroupAtom
+{
+    public:
+        constGroupAtom()  = default;
+        ~constGroupAtom() = default;
+        constGroupAtom(const GroupAtom &atom);
+        const real                                   *x;
+        std::vector<RVec>::const_iterator             force;
+        std::vector<RVec>::const_iterator             xTransformed;
+        std::vector<real>::const_iterator             properties;
+        std::vector<int>::const_iterator              i_local;
+        std::vector<int>::const_iterator              i_collective;
+        int                                        *  i_global;
+};
 
-struct GroupAtom{
-    const real                             *x;
-    std::vector<RVec>::iterator             force;
-    std::vector<RVec>::iterator             xTransformed;
-    std::vector<real>::iterator             properties;
-    std::vector<int>::const_iterator        i_local;
-    std::vector<int>::const_iterator        i_collective;
-    int                                  *  i_global;
+// TODO: reimplement as class with getters and setters for proper const treatment
+class GroupAtom
+{
+    public:
+        GroupAtom()  = default;
+        ~GroupAtom() = default;
+        GroupAtom(const constGroupAtom &constAtom); //TODO: remove this dirty const-away casting
+        const real                             *x;
+        std::vector<RVec>::iterator             force;
+        std::vector<RVec>::iterator             xTransformed;
+        std::vector<real>::iterator             properties;
+        std::vector<int>::const_iterator        i_local;
+        std::vector<int>::const_iterator        i_collective;
+        int                                  *  i_global;
 };
 class Group;
 
@@ -79,15 +100,35 @@ class GroupIterator : std::iterator<std::forward_iterator_tag, GroupAtom>
         const rvec *x_;
 };
 
+
+//TODO: remove the ugly copy here and think of proper implementation of const-correctness for groups
+class constGroupIterator : std::iterator<std::forward_iterator_tag, constGroupAtom>
+{
+    public:
+        constGroupIterator(const Group &group, int i = 0);
+        constGroupIterator &operator++ ();
+        bool           operator== (const constGroupIterator &rhs);
+        bool           operator!= (const constGroupIterator &rhs);
+        constGroupAtom  &operator*();
+    private:
+        constGroupAtom   atom_;
+        const rvec      *x_;
+};
+
 class Group
 {
     public:
 
         friend GroupIterator;
+        friend constGroupIterator;
         GroupIterator begin(int thread_index, int num_threads);
+        constGroupIterator begin(int thread_index, int num_threads) const;
         GroupIterator end(int thread_index, int num_threads);
+        constGroupIterator end(int thread_index, int num_threads) const;
         GroupIterator begin();
+        constGroupIterator begin() const;
         GroupIterator end();
+        constGroupIterator end() const;
         /*!\brief
          * Return a single atom of the group.
          *
@@ -123,7 +164,7 @@ class Group
         void set_x(const rvec x[]);
         RVec local_coordinate_sum();
         RVec local_force_sum();
-        real local_weights_sum();
+        real local_weights_sum() const;
 
     protected:
 

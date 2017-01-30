@@ -134,8 +134,6 @@ class DensityFitting : public ExternalPotential
         std::unique_ptr<volumedata::GridReal>             target_density_;
         std::unique_ptr<volumedata::GridReal>             simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
-        std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
-        std::vector < std::unique_ptr < volumedata::GridReal>>                simulated_density_buffer_;
         real                    background_density_;
         volumedata::MrcMetaData meta_;
         std::string             trajectory_name_;

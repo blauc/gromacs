@@ -32,7 +32,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #include "gridinterpolator.h"
+#include "gridinterpolator.h"
+#include "gromacs/math/quaternion.h"
 namespace gmx
 {
 namespace volumedata
@@ -68,6 +69,28 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
     }
     return std::move(interpolatedGrid_);
 };
+
+std::unique_ptr<GridReal>
+GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
+{
+    auto interpolatedGridAccess = interpolatedGrid_->access();
+
+    for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
+    {
+        for (int i_y = 0; i_y < interpolatedGrid_->extend()[YY]; ++i_y)
+        {
+            for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
+            {
+
+                auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
+                interpolatedGridAccess.at({i_x, i_y, i_z}) = other.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
+
+            }
+        }
+    }
+    return std::move(interpolatedGrid_);
+}
+
 
 void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
 

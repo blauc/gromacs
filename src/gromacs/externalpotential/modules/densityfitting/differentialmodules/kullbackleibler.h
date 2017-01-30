@@ -56,7 +56,7 @@ class KullbackLeibler : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class KullbackLeiblerInfo
+class KullbackLeiblerDifferentialInfo
 {
     public:
         static const std::string name;

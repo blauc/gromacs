@@ -33,29 +33,44 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "gromacs/utility/real.h"
-#include <memory>
+
 #ifndef GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
 #define GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
 
+#include "gromacs/utility/real.h"
+#include <memory>
+#include <vector>
+#include "gromacs/math/volumedata/volumedata.h"
+
+
 namespace gmx
 {
-namespace exteralpotential
-{
+
 class WholeMoleculeGroup;
-}   /* exteralpotential */
+class Quaternion;
+
 namespace volumedata
 {
 
 template<typename real> class Field;
+class GridReal;
+class FiniteGrid;
+class GaussTransform;
 
 class DensitySpreader
 {
     public:
-        DensitySpreader();
-        const Field<real> &spreadLocalAtoms_(exteralpotential::WholeMoleculeGroup * spreadgroup);
+        explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma);
+        ~DensitySpreader() = default;
+        const Field<real> &spreadLocalAtoms(const WholeMoleculeGroup * spreadgroup, const RVec &translation, const Quaternion &orientation);
+        const Field<real> &spreadLocalAtoms(const rvec *x, const std::vector<real> &weights, int nAtoms,  const RVec &translation, const Quaternion &orientation);
     private:
-        std::unique_ptr < Field < real>> simulated_density_;
+        std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
+        std::vector < std::unique_ptr < volumedata::GridReal>> simulated_density_buffer_;
+        std::unique_ptr < GridReal> simulated_density_;
+        int number_of_threads_;
+        RVec centerOfMass(WholeMoleculeGroup * atomgroup);
+        const Field<real> &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex);
 };
 
 }

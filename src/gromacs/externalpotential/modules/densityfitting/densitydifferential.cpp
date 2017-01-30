@@ -55,16 +55,16 @@ class IDensityDifferentialProvider;
 
 template <> PotentialLibrary<IDensityDifferentialProvider>::PotentialLibrary()
 {
-    registerFunction<CrossCorrelationInfo>(functions_);
-    registerFunction<KullbackLeiblerInfo>(functions_);
-    registerFunction<InvertedDensityInfo>(functions_);
-    registerFunction<FourierShellCorrelationInfo>(functions_);
+    registerFunction<CrossCorrelationDifferentialInfo>(functions_);
+    registerFunction<KullbackLeiblerDifferentialInfo>(functions_);
+    registerFunction<InvertedDensityDifferentialInfo>(functions_);
+    registerFunction<FourierShellCorrelationDifferentialInfo>(functions_);
 };
 
 class IDensityDensityPotentialProvider;
 template <> PotentialLibrary<IDensityDensityPotentialProvider>::PotentialLibrary()
 {
-    // registerFunction<CrossCorrelationInfo>(functions_);
+    registerFunction<CrossCorrelationDensityDensityInfo>(functions_);
     // registerFunction<KullbackLeiblerInfo>(functions_);
     // registerFunction<FourierShellCorrelationInfo>(functions_);
 };
@@ -72,7 +72,7 @@ template <> PotentialLibrary<IDensityDensityPotentialProvider>::PotentialLibrary
 class IStructureDensityPotentialProvider;
 template <> PotentialLibrary<IStructureDensityPotentialProvider>::PotentialLibrary()
 {
-    // registerFunction<CrossCorrelationInfo>(functions_);
+    registerFunction<CrossCorrelationStructureDensityInfo>(functions_);
     // registerFunction<KullbackLeiblerInfo>(functions_);
     // registerFunction<InvertedDensityInfo>(functions_);
     // registerFunction<FourierShellCorrelationInfo>(functions_);

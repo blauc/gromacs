@@ -47,11 +47,11 @@ const Field<real> &InvertedDensity::evaluateDensityDifferential(
     return reference;
 }
 
-std::string InvertedDensityInfo::name =
+std::string InvertedDensityDifferentialInfo::name =
     std::string("inverted-density");
 
 std::unique_ptr<IDensityDifferentialProvider>
-InvertedDensityInfo::create()
+InvertedDensityDifferentialInfo::create()
 {
     return std::unique_ptr<InvertedDensity>(
             new InvertedDensity);

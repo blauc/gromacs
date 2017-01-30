@@ -66,7 +66,6 @@
 #include "gromacs/topology/mtop_lookup.h"
 #include "gromacs/topology/atoms.h"
 #include "emscatteringfactors.h"
-#include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/utility/gmxomp.h"
 
 
@@ -99,18 +98,7 @@ void DensityFitting::inv_mul(std::vector<real> &to_invert, const std::vector<rea
     }
 }
 
-RVec
-DensityFitting::shiftedAndOriented(const RVec x)
-{
-    RVec x_translated;
 
-    rvec_sub(x, centerOfMass_, x_translated);
-    orientation_.rotate(x_translated);
-    rvec_inc(x_translated, centerOfMass_);
-
-    rvec_inc(x_translated, translation_);
-    return x_translated;
-}
 
 real DensityFitting::getTotalScatteringSum_(WholeMoleculeGroup * atomgroup)
 {
@@ -123,27 +111,6 @@ real DensityFitting::getTotalScatteringSum_(WholeMoleculeGroup * atomgroup)
     return weightssum;
 }
 
-void DensityFitting::setCenterOfMass(WholeMoleculeGroup * atomgroup)
-{
-    centerOfMass_ = atomgroup->weighted_local_coordinate_sum();
-    real weightssum = atomgroup->local_weights_sum();
-    if (mpi_helper() != nullptr)
-    {
-        mpi_helper()->to_reals_buffer(centerOfMass_, 3);
-        mpi_helper()->to_reals_buffer(&weightssum, 1);
-        mpi_helper()->sum_reduce();
-        if (mpi_helper()->isMaster())
-        {
-            mpi_helper()->from_reals_buffer(centerOfMass_, 3);
-            mpi_helper()->from_reals_buffer(&weightssum, 1);
-        }
-    }
-    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-    {
-        svmul(1.0/weightssum, centerOfMass_, centerOfMass_);
-    }
-
-}
 
 void DensityFitting::sumReduceNormalize_()
 {
@@ -373,28 +340,6 @@ void
 DensityFitting::initialize_target_density_()
 {
     target_density_->normalize();
-}
-
-void
-DensityFitting::initializeThreadLocalBuffers_()
-{
-#pragma omp parallel for ordered num_threads(number_of_threads_)
-    for (int thread = 0; thread < number_of_threads_; ++thread)
-    {
-        simulated_density_buffer_.emplace_back(new volumedata::GridReal(*target_density_));
-        gauss_transform_.emplace_back(new volumedata::FastGaussianGridding());
-    }
-}
-
-void
-DensityFitting::initialize_spreading_()
-{
-    simulated_density_->copy_grid(*target_density_);
-    for (auto &transform : gauss_transform_)
-    {
-        transform->set_sigma(sigma_);
-        transform->set_n_sigma(n_sigma_);
-    }
 }
 
 void

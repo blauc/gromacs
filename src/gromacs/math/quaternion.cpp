@@ -40,7 +40,7 @@
  */
 
 #include "quaternion.h"
-
+#include "gromacs/math/vec.h"
 #include <cmath>
 #include <numeric>
 #include <array>
@@ -112,21 +112,21 @@ Quaternion::operator*=(Quaternion other)
 
 
 void
-Quaternion::rotate(RVec &x)
+Quaternion::rotate(RVec &x) const
 {
     auto result = this->inverse()*(Quaternion {x} **this);
     x = {result[1], result[2], result[3]};
 }
 
 void
-Quaternion::rotate_backwards(RVec &x)
+Quaternion::rotate_backwards(RVec &x) const
 {
     auto result = *this * (Quaternion {x} *this->inverse());
     x = {result[1], result[2], result[3]};
 }
 
 Quaternion
-Quaternion::inverse()
+Quaternion::inverse() const
 {
     return {{{
                  q_[0], -q_[1], -q_[2], -q_[3]
@@ -150,10 +150,24 @@ Quaternion::normalize()
 }
 
 real
-Quaternion::norm()
+Quaternion::norm() const
 {
     return std::sqrt(std::accumulate(begin(q_), end(q_), 0., [](const real squaresum, real component){return squaresum + component*component; }));
 }
+
+RVec
+Quaternion::shiftedAndOriented(const RVec &x, const RVec &centerOfMass, const RVec &shift) const
+{
+    RVec x_translated;
+
+    rvec_sub(x, centerOfMass, x_translated);
+    rotate(x_translated);
+    rvec_inc(x_translated, centerOfMass);
+
+    rvec_inc(x_translated, shift);
+    return x_translated;
+}
+
 
 
 } /* gmx */

@@ -58,7 +58,7 @@ class InvertedDensity : public IDensityDifferentialProvider
         Field<real> differential;
 };
 
-class InvertedDensityInfo
+class InvertedDensityDifferentialInfo
 {
     public:
         static std::string name;

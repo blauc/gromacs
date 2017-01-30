@@ -69,6 +69,7 @@ class CrystalSymmetry
         CrystalSymmetry();
         CrystalSymmetry(const CrystalSymmetry &other);
         ~CrystalSymmetry();
+        CrystalSymmetry &operator=(const CrystalSymmetry &other);
 
         /*! \brief
          * Set space group.

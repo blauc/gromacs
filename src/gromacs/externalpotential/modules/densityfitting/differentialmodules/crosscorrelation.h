@@ -39,6 +39,7 @@
 
 #include "../densitydifferentialprovider.h"
 #include "../potentialprovider.h"
+#include "gromacs/math/quaternion.h"
 #include "gromacs/utility/real.h"
 #include <memory>
 #include <string>
@@ -59,20 +60,43 @@ class CrossCorrelation : public IDensityDifferentialProvider,
         ~CrossCorrelation() = default;
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
                                                        const Field<real> &reference);
-        real evaluateDensityDensityPotential(const Field<real> &comparant,
-                                             const Field<real> &reference);
-        real evaluateStructureDensityPotential(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference);
-        real evaluateGroupDensityPotential( const externalpotential::WholeMoleculeGroup &atoms, const Field<real> &reference);
+        real evaluateDensityDensityPotential(
+            const Field<real> &comparant, const Field<real> &reference,
+            const RVec &translation = {0, 0, 0},
+            const Quaternion &orientation = {{0, 0, 1}, 0});
+        real evaluateStructureDensityPotential(
+            const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+            const Field<real> &reference, const RVec &translation = {0, 0, 0},
+            const Quaternion &orientation = {{0, 0, 1}, 0});
+        real evaluateGroupDensityPotential(
+            const externalpotential::WholeMoleculeGroup &atoms,
+            const Field<real> &reference, const RVec &translation = {0, 0, 0},
+            const Quaternion &orientation = {{0, 0, 1}, 0});
 
     private:
         std::unique_ptr < Field < real>> differential;
+        real correlationThreshold_;
 };
 
-class CrossCorrelationInfo
+class CrossCorrelationDifferentialInfo
 {
     public:
         static std::string name;
         static std::unique_ptr<IDensityDifferentialProvider> create();
+};
+
+class CrossCorrelationDensityDensityInfo
+{
+    public:
+        static std::string name;
+        static std::unique_ptr<IDensityDensityPotentialProvider> create();
+};
+
+class CrossCorrelationStructureDensityInfo
+{
+    public:
+        static std::string name;
+        static std::unique_ptr<IStructureDensityPotentialProvider> create();
 };
 
 }      /* volumedata */

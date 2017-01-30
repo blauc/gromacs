@@ -78,6 +78,7 @@ class CrystalSymmetry::Impl
         Impl()  = default;
         ~Impl() = default;
         Impl(const Impl &other);
+        Impl &operator=(const Impl &other);
         int space_group_ = 1; //!< space group as defined by IUCr conventions (Table
                               //! 12.3.4.1 Standard space-group symbols”, pages
         //! 824-831, International Tables for Crystallography,
@@ -88,6 +89,14 @@ CrystalSymmetry::Impl::Impl(const Impl &other)
 {
     space_group_ = other.space_group_;
 };
+
+CrystalSymmetry::Impl &
+CrystalSymmetry::Impl::operator=(const Impl &other)
+{
+    space_group_ = other.space_group_;
+    return *this;
+};
+
 
 /********************************************************************
  * CrystalSymmetry
@@ -108,10 +117,17 @@ std::string CrystalSymmetry::print() const
 };
 
 CrystalSymmetry::CrystalSymmetry(const CrystalSymmetry &other)
-    : impl_(new CrystalSymmetry::Impl(*other.impl_)){};
+    : impl_ {new CrystalSymmetry::Impl(*other.impl_)}
+{};
 
 CrystalSymmetry::~CrystalSymmetry() = default;
 
+CrystalSymmetry &
+CrystalSymmetry::operator=(const CrystalSymmetry &other)
+{
+    *impl_ = *other.impl_;
+    return *this;
+}
 /********************************************************************
  * FiniteGrid::Impl
  */

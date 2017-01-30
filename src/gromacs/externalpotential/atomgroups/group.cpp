@@ -53,6 +53,16 @@
 
 namespace gmx
 {
+constGroupAtom::constGroupAtom(const GroupAtom &atom)
+{
+    x            = atom.x;
+    force        = atom.force;
+    xTransformed = atom.xTransformed;
+    properties   = atom.properties;
+    i_local      = atom.i_local;
+    i_collective = atom.i_collective;
+    i_global     = atom.i_global;
+}
 /*******************************************************************************
  * Group::Iterator
  */
@@ -66,6 +76,7 @@ GroupIterator::GroupIterator(Group &group, int i)
     atom_.i_global   = group.ind_+i;
     x_               = group.x_;
 }
+
 
 GroupIterator &GroupIterator::operator++()
 {
@@ -93,6 +104,45 @@ GroupAtom &GroupIterator::operator*()
     return atom_;
 }
 
+constGroupIterator::constGroupIterator(const Group &group, int i) : atom_ {}
+{
+    atom_.i_local      = group.ind_loc_.begin() + i;
+    atom_.force        = group.f_loc_.cbegin() + i;
+    atom_.properties   = group.weights_.begin() + i;
+    atom_.xTransformed = group.xTransformed_.begin()+i;
+    // if we never dereference group->end() or above , we are fines
+    atom_.i_global   = group.ind_+i;
+    x_               = group.x_;
+}
+
+
+constGroupIterator &constGroupIterator::operator++()
+{
+    ++atom_.i_local;
+    ++atom_.force;
+    ++atom_.properties;
+    ++atom_.i_global;
+    ++atom_.xTransformed;
+    return *this;
+}
+
+bool constGroupIterator::operator==(const constGroupIterator &rhs)
+{
+    return (atom_.i_local == rhs.atom_.i_local);
+}
+
+bool constGroupIterator::operator!=(const constGroupIterator &rhs)
+{
+    return (atom_.i_local != rhs.atom_.i_local);
+}
+
+constGroupAtom &constGroupIterator::operator*()
+{
+    atom_.x  = x_[*atom_.i_local];
+    return atom_;
+}
+
+
 /*******************************************************************************
  * Group
  */
@@ -101,6 +151,12 @@ GroupIterator Group::begin(int thread_index, int num_threads)
 {
     return GroupIterator(*this, thread_index * (num_atoms_loc_ / num_threads ));
 };
+
+constGroupIterator Group::begin(int thread_index, int num_threads) const
+{
+    return constGroupIterator(*this, thread_index * (num_atoms_loc_ / num_threads ));
+};
+
 
 GroupIterator Group::end(int thread_index, int num_threads)
 {
@@ -114,10 +170,32 @@ GroupIterator Group::end(int thread_index, int num_threads)
     }
 };
 
+constGroupIterator Group::end(int thread_index, int num_threads) const
+{
+    if (thread_index == num_threads-1)
+    {
+        return constGroupIterator(*this, num_atoms_loc_);
+    }
+    else
+    {
+        return constGroupIterator(*this, (thread_index+1) * (num_atoms_loc_ / num_threads));
+    }
+};
+
+constGroupIterator Group::begin() const
+{
+    return constGroupIterator(*this);
+};
+
 
 GroupIterator Group::begin()
 {
     return GroupIterator(*this);
+};
+
+constGroupIterator Group::end() const
+{
+    return constGroupIterator(*this, num_atoms_loc_);
 };
 
 GroupIterator Group::end()
@@ -334,7 +412,7 @@ Group::local_force_sum()
 }
 
 real
-Group::local_weights_sum()
+Group::local_weights_sum() const
 {
     return std::accumulate(
             this->begin(), this->end(), 0.,

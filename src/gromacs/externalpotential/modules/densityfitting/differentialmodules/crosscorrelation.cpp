@@ -69,9 +69,55 @@ CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
     return *differential;
 }
 
-std::string CrossCorrelationInfo::name = std::string("cross-correlation");
+real
+CrossCorrelation::evaluateDensityDensityPotential(
+        const Field<real> &comparant, const Field<real> &reference,
+        const RVec &translation,
+        const Quaternion &orientation)
+{
+    if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
+    {
+        return GridMeasures(comparant).correlate(reference, correlationThreshold_);
+    }
+    ;
 
-std::unique_ptr<IDensityDifferentialProvider> CrossCorrelationInfo::create()
+};
+
+real
+CrossCorrelation::evaluateStructureDensityPotential(
+        const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+        const Field<real> &reference, const RVec &translation,
+        const Quaternion &orientation)
+{
+
+};
+
+real
+CrossCorrelation::evaluateGroupDensityPotential(
+        const externalpotential::WholeMoleculeGroup &atoms,
+        const Field<real> &reference, const RVec &translation,
+        const Quaternion &orientation)
+{
+
+};
+
+std::string CrossCorrelationDifferentialInfo::name = std::string("cross-correlation");
+
+std::unique_ptr<IDensityDifferentialProvider> CrossCorrelationDifferentialInfo::create()
+{
+    return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
+}
+
+std::string CrossCorrelationDensityDensityInfo::name = std::string("cross-correlation");
+
+std::unique_ptr<IDensityDensityPotentialProvider> CrossCorrelationDensityDensityInfo::create()
+{
+    return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
+}
+
+std::string CrossCorrelationStructureDensityInfo::name = std::string("cross-correlation");
+
+std::unique_ptr<IStructureDensityPotentialProvider> CrossCorrelationStructureDensityInfo::create()
 {
     return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
 }

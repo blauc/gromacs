@@ -61,10 +61,10 @@ const Field<real> &KullbackLeibler::evaluateDensityDifferential(
     return differential;
 }
 
-const std::string KullbackLeiblerInfo::name = std::string("kullback-leibler");
+const std::string KullbackLeiblerDifferentialInfo::name = std::string("kullback-leibler");
 
 std::unique_ptr<IDensityDifferentialProvider>
-KullbackLeiblerInfo::create()
+KullbackLeiblerDifferentialInfo::create()
 {
     return std::unique_ptr<KullbackLeibler>(
             new KullbackLeibler);
