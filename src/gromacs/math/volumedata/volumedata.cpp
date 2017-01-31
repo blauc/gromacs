@@ -207,6 +207,26 @@ void FiniteGrid::multiplyGridPointNumber(const RVec factor)
     set_unit_cell();
 };
 
+bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other, real tolerance) const
+{
+    rvec translationDifference;
+    rvec_sub(translation(), other.translation(), translationDifference);
+    if (norm(translationDifference) > tolerance)
+    {
+        return false;
+    }
+    for (int dim = 0; dim <= ZZ; dim++)
+    {
+        rvec cellDifference;
+        rvec_sub(impl_->cell_[dim], other.impl_->cell_[dim], cellDifference);
+        if (norm(cellDifference) > tolerance)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 void FiniteGrid::set_unit_cell()
 {
     svmul(1. / extend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);

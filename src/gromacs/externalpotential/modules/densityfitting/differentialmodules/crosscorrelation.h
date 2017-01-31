@@ -46,11 +46,13 @@
 
 namespace gmx
 {
+class WholeMoleculeGroup;
 namespace volumedata
 {
 
 template <typename real> class Field;
-
+class DensitySpreader;
+class FiniteGrid;
 class CrossCorrelation : public IDensityDifferentialProvider,
                          public IDensityDensityPotentialProvider,
                          public IStructureDensityPotentialProvider
@@ -58,6 +60,7 @@ class CrossCorrelation : public IDensityDifferentialProvider,
     public:
         CrossCorrelation();
         ~CrossCorrelation() = default;
+
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
                                                        const Field<real> &reference);
         real evaluateDensityDensityPotential(
@@ -69,13 +72,23 @@ class CrossCorrelation : public IDensityDifferentialProvider,
             const Field<real> &reference, const RVec &translation = {0, 0, 0},
             const Quaternion &orientation = {{0, 0, 1}, 0});
         real evaluateGroupDensityPotential(
-            const externalpotential::WholeMoleculeGroup &atoms,
+            const WholeMoleculeGroup &atoms,
             const Field<real> &reference, const RVec &translation = {0, 0, 0},
             const Quaternion &orientation = {{0, 0, 1}, 0});
+        void parseDifferentialOptionsString(const std::string &options);
+        void parseDensityDensityOptionsString(const std::string &options);
+        void parseStructureDensityOptionsString (const std::string &options);
 
     private:
+        void
+        intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma);
+        void parseOptions_(const std::string &options);
         std::unique_ptr < Field < real>> differential;
-        real correlationThreshold_;
+        std::unique_ptr<DensitySpreader> spreader_  = nullptr;
+        real correlationThreshold_                  = 0.;
+        real sigma_     = 0.2;
+        real n_sigma_   = 5;
+        real n_threads_ = 1;
 };
 
 class CrossCorrelationDifferentialInfo

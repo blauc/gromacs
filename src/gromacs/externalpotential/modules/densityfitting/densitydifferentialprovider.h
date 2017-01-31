@@ -36,6 +36,7 @@
 #define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIALPROVIDER_H
 
 #include "gromacs/utility/real.h"
+#include <string>
 
 namespace gmx
 {
@@ -47,6 +48,7 @@ template<typename real> class Field;
 class IDensityDifferentialProvider
 {
     public:
+        virtual void parseDifferentialOptionsString(const std::string &options) = 0;
         virtual const Field<real> &evaluateDensityDifferential(const Field<real> &comparant, const Field<real> &reference) = 0;
 };
 

@@ -578,25 +578,7 @@ void DensityFitting::read_input()
         GMX_THROW(InconsistentInputError("Force constant needed for densityfitting. Please provide a real number " "k" " in JSON input file."));
     };
 
-    if (parsed_json.has("sigma"))
-    {
-        sigma_              = std::stof(parsed_json["sigma"]);
-    }
-    else
-    {
-        fprintf(stderr, "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
-        sigma_ = 0.2;
-    }
 
-    if (parsed_json.has("n_sigma"))
-    {
-        n_sigma_            = std::stof(parsed_json["n_sigma"]);
-    }
-    else
-    {
-        fprintf(stderr, "\n No density spread range provided, guessing n_sigma = 5 . \n");
-        n_sigma_ = 5;
-    }
     if (parsed_json.has("method"))
     {
         fitMethod_ = parsed_json["method"];

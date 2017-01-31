@@ -53,6 +53,9 @@ class InvertedDensity : public IDensityDifferentialProvider
     public:
         const Field<real> &evaluateDensityDifferential(const Field<real>  & /*comparant*/,
                                                        const Field<real> &reference);
+        void parseDifferentialOptionsString(const std::string &options);
+        void parseDensityDensityOptionsString(const std::string &options);
+        void parseStructureDensityOptionsString (const std::string &options);
 
     private:
         Field<real> differential;

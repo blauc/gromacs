@@ -42,10 +42,7 @@
 namespace gmx
 {
 class Quaternion;
-namespace externalpotential
-{
 class WholeMoleculeGroup;
-}   /* externalpotential */
 namespace volumedata
 {
 
@@ -53,14 +50,16 @@ template<typename real> class Field;
 class IDensityDensityPotentialProvider
 {
     public:
+        virtual void parseDensityDensityOptionsString(const std::string &options) = 0;
         virtual real evaluateDensityDensityPotential(const Field<real> &comparant, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation ) = 0;
 };
 
 class IStructureDensityPotentialProvider
 {
     public:
+        virtual void parseStructureDensityOptionsString (const std::string &options) = 0;
         virtual real evaluateStructureDensityPotential( const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation) = 0;
-        virtual real evaluateGroupDensityPotential( const externalpotential::WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation ) = 0;
+        virtual real evaluateGroupDensityPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation ) = 0;
 };
 
 

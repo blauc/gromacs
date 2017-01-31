@@ -52,6 +52,12 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
 std::unique_ptr<GridReal>
 GridInterpolator::interpolateLinearly(const GridReal &other)
 {
+    if (other.sameGridInAbsTolerance(*interpolatedGrid_))
+    {
+        std::copy(other.access().begin(), other.access().end(), interpolatedGrid_->access().begin());
+        return std::move(interpolatedGrid_);
+    }
+    ;
     auto interpolatedGridAccess = interpolatedGrid_->access();
 
     for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
@@ -60,10 +66,8 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
         {
             for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
             {
-
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
                 interpolatedGridAccess.at({i_x, i_y, i_z}) = other.getLinearInterpolationAt(r);
-
             }
         }
     }
@@ -73,6 +77,11 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
 std::unique_ptr<GridReal>
 GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
 {
+    if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
+    {
+        return interpolateLinearly(other);
+    }
+
     auto interpolatedGridAccess = interpolatedGrid_->access();
 
     for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)

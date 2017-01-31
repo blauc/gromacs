@@ -43,6 +43,10 @@
 #include "gromacs/math/volumedata/gridmeasures.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/math/volumedata/gridinterpolator.h"
+#include "../densityspreader.h"
+#include "gromacs/fileio/json.h"
+#include "gromacs/utility/gmxomp.h"
 
 namespace gmx
 {
@@ -75,12 +79,24 @@ CrossCorrelation::evaluateDensityDensityPotential(
         const RVec &translation,
         const Quaternion &orientation)
 {
-    if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
+    if (!comparant.sameGridInAbsTolerance(reference, 1e-10) && (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
     {
-        return GridMeasures(comparant).correlate(reference, correlationThreshold_);
+        auto centerOfMass = GridReal(comparant).center_of_mass();
+        auto interpolated = GridInterpolator(reference).interpolateLinearly(comparant, translation, centerOfMass, orientation);
+        return GridMeasures(*interpolated).correlate(reference, correlationThreshold_);
     }
-    ;
+    return GridMeasures(comparant).correlate(reference, correlationThreshold_);
+};
 
+
+
+void
+CrossCorrelation::intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma)
+{
+    if (spreader_ == nullptr)
+    {
+        spreader_ = std::unique_ptr<volumedata::DensitySpreader>(new DensitySpreader(reference, n_threads, n_sigma, sigma));
+    }
 };
 
 real
@@ -89,17 +105,57 @@ CrossCorrelation::evaluateStructureDensityPotential(
         const Field<real> &reference, const RVec &translation,
         const Quaternion &orientation)
 {
+    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
 
+    auto spread_density = spreader_->spreadLocalAtoms(as_rvec_array(coordinates.data()), weights, coordinates.size(), translation, orientation);
+    return evaluateDensityDensityPotential(spread_density, reference);
 };
 
 real
 CrossCorrelation::evaluateGroupDensityPotential(
-        const externalpotential::WholeMoleculeGroup &atoms,
+        const WholeMoleculeGroup &atoms,
         const Field<real> &reference, const RVec &translation,
         const Quaternion &orientation)
 {
-
+    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
+    auto spread_density = spreader_->spreadLocalAtoms(atoms, translation, orientation);
+    return evaluateDensityDensityPotential(spread_density, reference);
 };
+
+void
+CrossCorrelation::parseOptions_(const std::string &options)
+{
+    json::Object parsed_json {
+        options
+    };
+    if (parsed_json.has("sigma"))
+    {
+        sigma_              = std::stof(parsed_json["sigma"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
+    }
+
+    if (parsed_json.has("n_threads"))
+    {
+        n_threads_            = std::stof(parsed_json["n_threads"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No number of threads provided, taking the maximum number of available threads.\n");
+        n_threads_ = gmx_omp_get_max_threads();
+    }
+
+    if (parsed_json.has("n_sigma"))
+    {
+        n_sigma_            = std::stof(parsed_json["n_sigma"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No density spread range provided, guessing n_sigma = 5 . \n");
+    }
+}
 
 std::string CrossCorrelationDifferentialInfo::name = std::string("cross-correlation");
 

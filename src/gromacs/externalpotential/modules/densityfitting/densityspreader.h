@@ -62,7 +62,7 @@ class DensitySpreader
     public:
         explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma);
         ~DensitySpreader() = default;
-        const Field<real> &spreadLocalAtoms(const WholeMoleculeGroup * spreadgroup, const RVec &translation, const Quaternion &orientation);
+        const Field<real> &spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation);
         const Field<real> &spreadLocalAtoms(const rvec *x, const std::vector<real> &weights, int nAtoms,  const RVec &translation, const Quaternion &orientation);
     private:
         std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;

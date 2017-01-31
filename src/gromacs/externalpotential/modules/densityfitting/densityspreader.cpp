@@ -163,20 +163,20 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
 };
 
 const Field<real> &
-DensitySpreader::spreadLocalAtoms(const WholeMoleculeGroup * spreadgroup, const RVec &translation, const Quaternion &orientation)
+DensitySpreader::spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation)
 {
     simulated_density_->zero();
     std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
     std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);
-    RVec centerOfMass = spreadgroup->weightedCenterOfMass();
+    RVec centerOfMass = spreadgroup.weightedCenterOfMass();
 
 #pragma omp parallel num_threads(number_of_threads_)
     {
         int           thread     = gmx_omp_get_thread_num();
         simulated_density_buffer_[thread]->zero();
         gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
-        auto beginThreadAtoms = spreadgroup->begin(thread, number_of_threads_);
-        auto endThreadAtoms   = spreadgroup->end(thread, number_of_threads_);
+        auto beginThreadAtoms = spreadgroup.begin(thread, number_of_threads_);
+        auto endThreadAtoms   = spreadgroup.end(thread, number_of_threads_);
         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
         {
             gauss_transform_[thread]->transform(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation), *(*atom).properties);

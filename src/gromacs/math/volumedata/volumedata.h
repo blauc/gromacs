@@ -155,11 +155,17 @@ class FiniteGrid : public Finite3DLatticeIndices
         FiniteGrid(const FiniteGrid &other);
         FiniteGrid &operator= (const FiniteGrid &other);
 
+        /*! \brief
+         * Compare grid spanning vectors and translation to other.
+         */
+
+        bool sameGridInAbsTolerance(const FiniteGrid &other, real tolerance = 1e-10) const;
+
         ~FiniteGrid();
 
-        /*! \brief convert Lattice to its corresponding lattice in reciprocal space by
+        /*! \brief
+         * Convert Lattice to its corresponding lattice in reciprocal space by
          * Cell inversion.
-         *
          */
         void convertToReciprocalSpace();
 
