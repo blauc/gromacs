@@ -37,34 +37,59 @@
 
 #include "gmxpre.h"
 
-
-#include "../densitydifferentialprovider.h"
+#include "common.h"
+#include "../potential-differentialprovider.h"
+#include "../densityspreader.h"
 #include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/quaternion.h"
 #include <string>
 namespace gmx
 {
+class WholeMoleculeGroup;
+
 namespace volumedata
 {
-
-class FourierShellCorrelation : public IDensityDifferentialProvider
+template <typename real> class Field;
+class DensitySpreader;
+class FiniteGrid;
+class FourierShellCorrelationProvider :
+    public commonDensityBased,
+    public IDifferentialPotentialProvider,
+    public IDensityDensityPotentialProvider
 {
     public:
+        FourierShellCorrelationProvider() : commonDensityBased(std::bind(&FourierShellCorrelationProvider::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
+        ~FourierShellCorrelationProvider() = default;
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
                                                        const Field<real> &reference);
+        real evaluateDensityDensityPotential(
+            const Field<real> &comparant, const Field<real> &reference,
+            const RVec &translation = {0, 0, 0},
+            const Quaternion &orientation = {{0, 0, 1}, 0});
         void parseDifferentialOptionsString(const std::string &options);
         void parseDensityDensityOptionsString(const std::string &options);
         void parseStructureDensityOptionsString (const std::string &options);
-
-
     private:
-        Field<real> differential;
+        void parseOptions_(const std::string &options);
+        real sigma_     = 0.2;
+        real n_sigma_   = 5;
+        real n_threads_ = 1;
 };
+/****************************INFO Classes**************************************/
 
-class FourierShellCorrelationDifferentialInfo
+
+class FourierShellCorrelationProviderDensityDensityInfo
 {
     public:
         static std::string name;
-        static std::unique_ptr<IDensityDifferentialProvider> create();
+        static std::unique_ptr<IDensityDensityPotentialProvider> create();
+};
+
+class FourierShellCorrelationProviderDifferentialPotentialInfo
+{
+    public:
+        static std::string name;
+        static std::unique_ptr<IDifferentialPotentialProvider> create();
 };
 
 }      /* volumedata */

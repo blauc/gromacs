@@ -153,6 +153,7 @@ class FiniteGrid : public Finite3DLatticeIndices
     public:
         FiniteGrid();
         FiniteGrid(const FiniteGrid &other);
+        FiniteGrid(FiniteGrid &other);
         FiniteGrid &operator= (const FiniteGrid &other);
 
         /*! \brief

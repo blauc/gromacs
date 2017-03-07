@@ -41,21 +41,29 @@
  */
 
 #include "forcedensity.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
+#include "potential-differentialprovider.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/volumedata/fouriertransform.h"
+#include "gromacs/math/volumedata/field.h"
 #include <algorithm>
 
 /******************************************************************************
  * ForceDensity
  */
+
 namespace gmx
 {
+namespace volumedata
+{
 
-ForceDensity::ForceDensity(const volumedata::Field<real> &grid, real sigma)
+
+
+ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
                                    grid, grid, grid
                                }}, realToComplexFT_ {
-    volumedata::FourierTransformRealToComplex3D(grid)
+    FourierTransformRealToComplex3D(grid)
 } {
     generateFourierTransformGrids_(grid);
     generateConvolutionDensity_();
@@ -63,10 +71,10 @@ ForceDensity::ForceDensity(const volumedata::Field<real> &grid, real sigma)
 };
 
 void ForceDensity::generateFourierTransformGrids_(
-        const volumedata::FiniteGrid &grid)
+        const FiniteGrid &grid)
 {
     auto fourierExtend =
-        volumedata::fourierTransformGridExtendfromRealExtend(grid.extend());
+        fourierTransformGridExtendfromRealExtend(grid.extend());
     for (auto &fourierGrid : forcesFT_)
     {
         fourierGrid.set_extend(fourierExtend);
@@ -93,12 +101,12 @@ void ForceDensity::generateConvolutionDensity_()
                 value.re = two_pi * k[dimension] * exp(-expPrefactor * norm2(k));
                 value.im = 0;
             };
-        volumedata::ApplyToUnshiftedFourierTransform(convolutionDensity_[dimension])
+        ApplyToUnshiftedFourierTransform(convolutionDensity_[dimension])
             .apply(gaussianTimesK);
     }
 }
 
-const std::array<volumedata::Field<real>, DIM> &
+const std::array<Field<real>, DIM> &
 ForceDensity::getForce()
 {
     realToComplexFT_.result(densityGradientFT_);
@@ -119,4 +127,6 @@ ForceDensity::getForce()
     }
     return forces_;
 };
+} /* volumedata */
+
 } // gmx

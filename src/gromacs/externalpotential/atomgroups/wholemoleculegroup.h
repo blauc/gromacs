@@ -61,7 +61,7 @@ typedef BasicVector<int> IVec;
 /* \!brief
  * Adds routines to a group to ensure a whole molecule by shifting atom coordinates according to periodic boundary conditions.
  *
- * We copy the atom coordinates and add the respective box shifts to make the molecule whole are added to all atom positions.
+ * Copy atom coordinates and add the respective box shifts to make the molecule whole are added to all atom positions.
  * An alternative approach would alter the atom iterator, and add the shifts when querying the atom's positions.
  * To the externalpotential class this class looks like a normal group that magically reports atom coordinates shifted such that molecules stay whole and atoms do not jump periodic boundaries.
  *

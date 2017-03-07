@@ -37,8 +37,9 @@
 
 // #include "gmxpre.h"
 
-#include "../densitydifferentialprovider.h"
-#include "../potentialprovider.h"
+#include "../densityspreader.h"
+#include "common.h"
+#include "../potential-differentialprovider.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/utility/real.h"
 #include <memory>
@@ -53,12 +54,12 @@ namespace volumedata
 template <typename real> class Field;
 class DensitySpreader;
 class FiniteGrid;
-class CrossCorrelation : public IDensityDifferentialProvider,
-                         public IDensityDensityPotentialProvider,
-                         public IStructureDensityPotentialProvider
+class CrossCorrelation : public commonDensityBased,
+                         public IDifferentialPotentialProvider,
+                         public IDensityDensityPotentialProvider
 {
     public:
-        CrossCorrelation();
+        CrossCorrelation() : commonDensityBased(std::bind(&CrossCorrelation::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
         ~CrossCorrelation() = default;
 
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
@@ -67,36 +68,18 @@ class CrossCorrelation : public IDensityDifferentialProvider,
             const Field<real> &comparant, const Field<real> &reference,
             const RVec &translation = {0, 0, 0},
             const Quaternion &orientation = {{0, 0, 1}, 0});
-        real evaluateStructureDensityPotential(
-            const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-            const Field<real> &reference, const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
-        real evaluateGroupDensityPotential(
-            const WholeMoleculeGroup &atoms,
-            const Field<real> &reference, const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
+
         void parseDifferentialOptionsString(const std::string &options);
         void parseDensityDensityOptionsString(const std::string &options);
         void parseStructureDensityOptionsString (const std::string &options);
 
     private:
-        void
-        intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma);
         void parseOptions_(const std::string &options);
-        std::unique_ptr < Field < real>> differential;
-        std::unique_ptr<DensitySpreader> spreader_  = nullptr;
         real correlationThreshold_                  = 0.;
-        real sigma_     = 0.2;
-        real n_sigma_   = 5;
-        real n_threads_ = 1;
+
 };
 
-class CrossCorrelationDifferentialInfo
-{
-    public:
-        static std::string name;
-        static std::unique_ptr<IDensityDifferentialProvider> create();
-};
+/****************************INFO Classes**************************************/
 
 class CrossCorrelationDensityDensityInfo
 {
@@ -105,13 +88,12 @@ class CrossCorrelationDensityDensityInfo
         static std::unique_ptr<IDensityDensityPotentialProvider> create();
 };
 
-class CrossCorrelationStructureDensityInfo
+class CrossCorrelationDifferentialPotentialInfo
 {
     public:
         static std::string name;
-        static std::unique_ptr<IStructureDensityPotentialProvider> create();
+        static std::unique_ptr<IDifferentialPotentialProvider> create();
 };
-
 }      /* volumedata */
 }      /* gmx */
 

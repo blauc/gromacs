@@ -39,6 +39,8 @@
 #include "gromacs/math/vectypes.h"
 
 #include <vector>
+#include <string>
+
 namespace gmx
 {
 class Quaternion;
@@ -57,11 +59,15 @@ class IDensityDensityPotentialProvider
 class IStructureDensityPotentialProvider
 {
     public:
-        virtual void parseStructureDensityOptionsString (const std::string &options) = 0;
-        virtual real evaluateStructureDensityPotential( const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation) = 0;
-        virtual real evaluateGroupDensityPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation ) = 0;
-};
 
+        virtual void parseStructureDensityOptionsString (const std::string &options);
+        virtual void planCoordinates(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation); //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
+        virtual void planGroup(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation);                                               //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
+        virtual real evaluateStructureDensityPotential(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
+        virtual real evaluateGroupDensityPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation );
+        virtual void evaluateGroupForces(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation);
+        virtual std::vector<RVec> evaluateCoordinateForces(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
+};
 
 }      /* volumedata */
 }      /* gmx */

@@ -39,31 +39,55 @@
 
 
 #include "../densitydifferentialprovider.h"
+#include "../potential-differentialprovider.h"
 #include "gromacs/math/volumedata/field.h"
+#include "../potentialprovider.h"
+#include "../densityspreader.h"
+#include "common.h"
+
+#include "gromacs/math/quaternion.h"
+
 #include <string>
+#include <functional>
 namespace gmx
 {
+class WholeMoleculeGroup;
+
 namespace volumedata
 {
 // template<typename real> Field;
-class KullbackLeibler : public IDensityDifferentialProvider
+class KullbackLeibler : public commonDensityBased,
+                        public IDifferentialPotentialProvider, public IDensityDensityPotentialProvider
 {
     public:
+        KullbackLeibler() : commonDensityBased(std::bind(&KullbackLeibler::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
+        ~KullbackLeibler();
         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
                                                        const Field<real> &reference);
+        real evaluateDensityDensityPotential(
+            const Field<real> &comparant, const Field<real> &reference,
+            const RVec &translation = {0, 0, 0},
+            const Quaternion &orientation = {{0, 0, 1}, 0});
         void parseDifferentialOptionsString(const std::string &options);
         void parseDensityDensityOptionsString(const std::string &options);
         void parseStructureDensityOptionsString (const std::string &options);
-
     private:
-        Field<real> differential;
+        void parseOptions_(const std::string &options);
 };
+/****************************INFO Classes**************************************/
 
-class KullbackLeiblerDifferentialInfo
+class KullbackLeiblerDensityDensityInfo
 {
     public:
-        static const std::string name;
-        static std::unique_ptr<IDensityDifferentialProvider> create();
+        static std::string name;
+        static std::unique_ptr<IDensityDensityPotentialProvider> create();
+};
+
+class KullbackLeiblerDifferentialPotentialInfo
+{
+    public:
+        static std::string name;
+        static std::unique_ptr<IDifferentialPotentialProvider> create();
 };
 
 }       /* volumedata */

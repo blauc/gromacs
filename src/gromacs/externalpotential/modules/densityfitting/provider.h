@@ -32,51 +32,47 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "densitydifferential.h"
+#ifndef GMX_EXTERNALPOTENTIAL_PROVIDER_H
+#define GMX_EXTERNALPOTENTIAL_PROVIDER_H
 
-#include "differentialmodules/crosscorrelation.h"
-#include "differentialmodules/kullbackleibler.h"
-#include "differentialmodules/inverteddensity.h"
-#include "differentialmodules/fouriershellcorrelation.h"
-
+#include "gmxpre.h"
+#include <map>
+#include <string>
+#include <memory>
+#include <functional>
 #include <vector>
+
 namespace gmx
 {
 namespace volumedata
 {
 
-template<typename InfoClass, typename Creator>
-void registerFunction(std::map<std::string, Creator> &map)
+
+template <typename Provider>
+class PotentialLibrary
 {
-    map[InfoClass::name] = &InfoClass::create;
+    public:
+        PotentialLibrary();
+        ~PotentialLibrary() = default;
+        std::function<std::unique_ptr<Provider>()> create(std::string name)
+        {
+            return functions_[name];
+        };
+        std::vector<std::string> available() const
+        {
+            std::vector<std::string> result;
+            for (auto f :  functions_)
+            {
+                result.push_back(f.first);
+            }
+            return result;
+        };
+
+    private:
+        std::map<std::string, std::function<std::unique_ptr<Provider>()> > functions_;
 };
 
-class IDensityDifferentialProvider;
+}      // namespace volumedata
+}      // namespace gmx
 
-template <> PotentialLibrary<IDensityDifferentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationDifferentialInfo>(functions_);
-    registerFunction<KullbackLeiblerDifferentialInfo>(functions_);
-    registerFunction<InvertedDensityDifferentialInfo>(functions_);
-    registerFunction<FourierShellCorrelationDifferentialInfo>(functions_);
-};
-
-class IDensityDensityPotentialProvider;
-template <> PotentialLibrary<IDensityDensityPotentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationDensityDensityInfo>(functions_);
-    // registerFunction<KullbackLeiblerInfo>(functions_);
-    // registerFunction<FourierShellCorrelationInfo>(functions_);
-};
-
-class IStructureDensityPotentialProvider;
-template <> PotentialLibrary<IStructureDensityPotentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationStructureDensityInfo>(functions_);
-    // registerFunction<KullbackLeiblerInfo>(functions_);
-    // registerFunction<InvertedDensityInfo>(functions_);
-    // registerFunction<FourierShellCorrelationInfo>(functions_);
-};
-
-}
-}
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_PROVIDER_H */

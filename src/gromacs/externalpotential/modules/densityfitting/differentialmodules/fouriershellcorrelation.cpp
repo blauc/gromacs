@@ -36,36 +36,72 @@
 #include "fouriershellcorrelation.h"
 #include <memory>
 #include <string>
+
+#include "../densityspreader.h"
+#include "gromacs/fileio/json.h"
+#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/volumedata/fouriershellcorrelation.h"
+#include "gromacs/math/volumedata/gridinterpolator.h"
+#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/real.h"
+
 namespace gmx
 {
 namespace volumedata
 {
 
-const Field<real> &FourierShellCorrelation::evaluateDensityDifferential(
+const Field<real> &FourierShellCorrelationProvider::evaluateDensityDifferential(
         const Field<real> & /*comparant*/, const Field<real> &reference)
 {
-    differential.copy_grid(reference);
-    // differential(comparant);
-    // auto cc                      = volumedata::GridMeasures(reference).correlate(comparant);
-    // auto normSimulation          = comparant->properties().norm();
-    // auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
-    //                                                     real densitySimulation) {
-    //         return (densityExperiment - cc * densitySimulation) / (normSimulation);
-    //     };
-    // std::transform(reference.access().begin(), reference.access().end(),
-    //                comparant.access().begin(), differential.access().begin(),
-    //                densityGradientFunction);
-    return differential;
+    differential->copy_grid(reference);
+    // TODO: everything
+    return *differential;
 }
 
-std::string FourierShellCorrelationDifferentialInfo::name =
-    std::string("fsc");
-
-std::unique_ptr<IDensityDifferentialProvider>
-FourierShellCorrelationDifferentialInfo::create()
+real FourierShellCorrelationProvider::evaluateDensityDensityPotential(
+        const Field<real> &comparant, const Field<real> &reference,
+        const RVec &translation, const Quaternion &orientation)
 {
-    return std::unique_ptr<FourierShellCorrelation>(
-            new FourierShellCorrelation);
+    if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
+        (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
+    {
+        auto centerOfMass = GridReal(comparant).center_of_mass();
+        auto interpolated = GridInterpolator(reference).interpolateLinearly(
+                    comparant, translation, centerOfMass, orientation);
+        auto fscCurve = FourierShellCorrelation(reference).getFscCurve(
+                    *interpolated, reference);
+        return std::accumulate(std::begin(fscCurve), std::end(fscCurve), 0.) /
+               real(fscCurve.size());
+    }
+    auto fscCurve =
+        FourierShellCorrelation(reference).getFscCurve(comparant, reference);
+    return std::accumulate(std::begin(fscCurve), std::end(fscCurve), 0.) /
+           real(fscCurve.size());
+    ;
+};
+
+
+/**************************INFO CLasses****************************************/
+
+
+std::string FourierShellCorrelationProviderDensityDensityInfo::name =
+    std::string("fsc");
+std::string FourierShellCorrelationProviderDifferentialPotentialInfo::name = FourierShellCorrelationProviderDensityDensityInfo::name;
+
+std::unique_ptr<IDensityDensityPotentialProvider>
+FourierShellCorrelationProviderDensityDensityInfo::create()
+{
+    return std::unique_ptr<FourierShellCorrelationProvider>(
+            new FourierShellCorrelationProvider);
+}
+
+std::unique_ptr<IDifferentialPotentialProvider>
+FourierShellCorrelationProviderDifferentialPotentialInfo::create()
+{
+    return std::unique_ptr<FourierShellCorrelationProvider>(
+            new FourierShellCorrelationProvider);
 }
 
 } /* volumedata */

@@ -59,6 +59,8 @@ class GridReal;
 class GaussTransform
 {
     public:
+        GaussTransform()  = default;
+        ~GaussTransform() = default;
         virtual void set_grid(std::unique_ptr<GridReal> grid) = 0;
         void set_sigma(real sigma);
         void set_n_sigma(real n_sigma);
@@ -84,7 +86,8 @@ class FastGaussianGridding : public GaussTransform
 {
 
     public:
-        FastGaussianGridding() = default;
+        FastGaussianGridding()  = default;
+        ~FastGaussianGridding() = default;
         /*! \brief Checks if grid is rectangular and equispaced.
          */
         void set_grid(std::unique_ptr<GridReal> grid);

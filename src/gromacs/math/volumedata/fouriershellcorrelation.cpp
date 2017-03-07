@@ -52,11 +52,12 @@ namespace gmx
 namespace volumedata
 {
 
-FourierShellCorrelation::FourierShellCorrelation(FiniteGrid realGrid)
+FourierShellCorrelation::FourierShellCorrelation(const FiniteGrid &realGrid)
 {
-    realGrid.convertToReciprocalSpace();
-    auto spacing  = 2*std::max({norm(realGrid.unit_cell_XX()), norm(realGrid.unit_cell_YY()), norm(realGrid.unit_cell_ZZ())});
-    auto highestK = sqrt(norm(realGrid.cell_lengths()));
+    FiniteGrid reciprocalGrid = realGrid;
+    reciprocalGrid.convertToReciprocalSpace();
+    auto       spacing  = 2*std::max({norm(reciprocalGrid.unit_cell_XX()), norm(reciprocalGrid.unit_cell_YY()), norm(reciprocalGrid.unit_cell_ZZ())});
+    auto       highestK = sqrt(norm(realGrid.cell_lengths()));
     for (real binEdge = 0; binEdge < highestK +  spacing; binEdge += spacing)
     {
         binEdges_.insert(binEdge);

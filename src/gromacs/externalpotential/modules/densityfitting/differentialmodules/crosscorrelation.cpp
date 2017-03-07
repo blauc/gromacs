@@ -39,22 +39,19 @@
 #include <memory>
 #include <string>
 
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridmeasures.h"
-#include "gromacs/math/volumedata/gridreal.h"
-#include "gromacs/utility/real.h"
-#include "gromacs/math/volumedata/gridinterpolator.h"
 #include "../densityspreader.h"
 #include "gromacs/fileio/json.h"
+#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/volumedata/gridinterpolator.h"
+#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
 namespace volumedata
 {
-
-CrossCorrelation::CrossCorrelation() : differential {new (Field<real>)}
-{};
 
 const Field<real> &
 CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
@@ -73,107 +70,97 @@ CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
     return *differential;
 }
 
-real
-CrossCorrelation::evaluateDensityDensityPotential(
+real CrossCorrelation::evaluateDensityDensityPotential(
         const Field<real> &comparant, const Field<real> &reference,
-        const RVec &translation,
-        const Quaternion &orientation)
+        const RVec &translation, const Quaternion &orientation)
 {
-    if (!comparant.sameGridInAbsTolerance(reference, 1e-10) && (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
+    if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
+        (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
     {
         auto centerOfMass = GridReal(comparant).center_of_mass();
-        auto interpolated = GridInterpolator(reference).interpolateLinearly(comparant, translation, centerOfMass, orientation);
-        return GridMeasures(*interpolated).correlate(reference, correlationThreshold_);
+        auto interpolated = GridInterpolator(reference).interpolateLinearly(
+                    comparant, translation, centerOfMass, orientation);
+        return GridMeasures(*interpolated)
+                   .correlate(reference, correlationThreshold_);
     }
     return GridMeasures(comparant).correlate(reference, correlationThreshold_);
 };
 
 
-
-void
-CrossCorrelation::intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma)
+void CrossCorrelation::parseDifferentialOptionsString(
+        const std::string &options)
 {
-    if (spreader_ == nullptr)
-    {
-        spreader_ = std::unique_ptr<volumedata::DensitySpreader>(new DensitySpreader(reference, n_threads, n_sigma, sigma));
-    }
-};
+    parseOptions_(options);
+}
 
-real
-CrossCorrelation::evaluateStructureDensityPotential(
-        const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-        const Field<real> &reference, const RVec &translation,
-        const Quaternion &orientation)
+void CrossCorrelation::parseDensityDensityOptionsString(
+        const std::string &options)
 {
-    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
+    parseOptions_(options);
+}
 
-    auto spread_density = spreader_->spreadLocalAtoms(as_rvec_array(coordinates.data()), weights, coordinates.size(), translation, orientation);
-    return evaluateDensityDensityPotential(spread_density, reference);
-};
-
-real
-CrossCorrelation::evaluateGroupDensityPotential(
-        const WholeMoleculeGroup &atoms,
-        const Field<real> &reference, const RVec &translation,
-        const Quaternion &orientation)
+void CrossCorrelation::parseStructureDensityOptionsString(
+        const std::string &options)
 {
-    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
-    auto spread_density = spreader_->spreadLocalAtoms(atoms, translation, orientation);
-    return evaluateDensityDensityPotential(spread_density, reference);
-};
+    parseOptions_(options);
+}
 
-void
-CrossCorrelation::parseOptions_(const std::string &options)
+void CrossCorrelation::parseOptions_(const std::string &options)
 {
     json::Object parsed_json {
         options
     };
     if (parsed_json.has("sigma"))
     {
-        sigma_              = std::stof(parsed_json["sigma"]);
+        sigma_ = std::stof(parsed_json["sigma"]);
     }
     else
     {
-        fprintf(stderr, "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
+        fprintf(stderr,
+                "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
+    }
+    if (parsed_json.has("threshold"))
+    {
+        correlationThreshold_ = std::stof(parsed_json["threshold"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No threshold for correlation data given, guessing "
+                "threshold = 0.0 . \n");
     }
 
     if (parsed_json.has("n_threads"))
     {
-        n_threads_            = std::stof(parsed_json["n_threads"]);
+        n_threads_ = std::stof(parsed_json["n_threads"]);
     }
     else
     {
-        fprintf(stderr, "\n No number of threads provided, taking the maximum number of available threads.\n");
+        fprintf(stderr, "\n No number of threads provided, taking the maximum "
+                "number of available threads.\n");
         n_threads_ = gmx_omp_get_max_threads();
     }
 
     if (parsed_json.has("n_sigma"))
     {
-        n_sigma_            = std::stof(parsed_json["n_sigma"]);
+        n_sigma_ = std::stof(parsed_json["n_sigma"]);
     }
     else
     {
-        fprintf(stderr, "\n No density spread range provided, guessing n_sigma = 5 . \n");
+        fprintf(stderr,
+                "\n No density spread range provided, guessing n_sigma = 5 . \n");
     }
 }
 
-std::string CrossCorrelationDifferentialInfo::name = std::string("cross-correlation");
-
-std::unique_ptr<IDensityDifferentialProvider> CrossCorrelationDifferentialInfo::create()
-{
-    return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
-}
-
-std::string CrossCorrelationDensityDensityInfo::name = std::string("cross-correlation");
+/************************************** INFO Classes****************************/
+std::string CrossCorrelationDensityDensityInfo::name        = std::string("cross-correlation");
+std::string CrossCorrelationDifferentialPotentialInfo::name = CrossCorrelationDensityDensityInfo::name;
 
 std::unique_ptr<IDensityDensityPotentialProvider> CrossCorrelationDensityDensityInfo::create()
 {
     return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
 }
 
-std::string CrossCorrelationStructureDensityInfo::name = std::string("cross-correlation");
-
-std::unique_ptr<IStructureDensityPotentialProvider> CrossCorrelationStructureDensityInfo::create()
+std::unique_ptr<IDifferentialPotentialProvider> CrossCorrelationDifferentialPotentialInfo::create()
 {
     return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
 }

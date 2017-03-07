@@ -46,6 +46,9 @@ namespace gmx
 {
 namespace volumedata
 {
+DensitySpreader::~DensitySpreader()
+{
+};
 
 DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma) :
     simulated_density_ {new GridReal(grid)},
@@ -67,7 +70,7 @@ number_of_threads_ {
 }
 
 //TODO use wholemoleculegroup concept throughout
-const Field<real> &
+Field<real> *
 DensitySpreader::spreadLocalAtoms(const rvec * x, const std::vector<real> &weights, const int nAtoms,  const RVec &translation, const Quaternion &orientation)
 {
     std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
@@ -103,7 +106,7 @@ DensitySpreader::spreadLocalAtoms(const rvec * x, const std::vector<real> &weigh
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
 }
 
-const Field<real> &
+Field<real> *
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex)
 {
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
@@ -159,10 +162,10 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
             }
         }
     }
-    return *simulated_density_;
+    return simulated_density_.get();
 };
 
-const Field<real> &
+Field<real> *
 DensitySpreader::spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation)
 {
     simulated_density_->zero();
@@ -187,7 +190,6 @@ DensitySpreader::spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const R
     }
 
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
-
 }
 
 } /* volumedata */

@@ -300,6 +300,11 @@ FiniteGrid::FiniteGrid(const FiniteGrid &other) :  Finite3DLatticeIndices(other)
 {
 };
 
+FiniteGrid::FiniteGrid(FiniteGrid &other) :
+    Finite3DLatticeIndices(other), impl_(new FiniteGrid::Impl(*(other.impl_)))
+{
+};
+
 FiniteGrid &FiniteGrid::operator= (const FiniteGrid &other)
 {
     set_extend(other.extend());

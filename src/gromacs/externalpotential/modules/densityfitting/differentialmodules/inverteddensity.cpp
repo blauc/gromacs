@@ -34,8 +34,14 @@
  */
 
 #include "inverteddensity.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
+#include "gromacs/fileio/json.h"
 #include <memory>
 #include <string>
+#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/utility/gmxomp.h"
+
 
 namespace gmx
 {
@@ -47,15 +53,89 @@ const Field<real> &InvertedDensity::evaluateDensityDifferential(
     return reference;
 }
 
-std::string InvertedDensityDifferentialInfo::name =
+real
+InvertedDensity::evaluateStructureDensityPotential(
+        const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+        const Field<real> &reference, const RVec &translation,
+        const Quaternion &orientation)
+{
+    RVec centerOfMass {
+        0, 0, 0
+    };
+    real weight_sum = 0;
+    for (size_t atomIndex = 0; atomIndex != coordinates.size(); ++atomIndex)
+    {
+        RVec weighted_coordinate;
+        svmul(weights[atomIndex], coordinates[atomIndex], weighted_coordinate);
+        weight_sum += weights[atomIndex];
+        rvec_inc(centerOfMass, weighted_coordinate);
+    }
+    svmul(1./weight_sum, centerOfMass, centerOfMass);
+    auto referenceGridReal = GridReal(reference);
+    auto sumOverGrid       = [referenceGridReal, centerOfMass, translation, orientation] (const real sum, const RVec r){
+            return sum + referenceGridReal.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
+        };
+    return std::accumulate(std::begin(coordinates), std::end(coordinates), 0., sumOverGrid);
+};
+
+void
+InvertedDensity::parseOptions_(const std::string &options)
+{
+    json::Object parsed_json {
+        options
+    };
+    if (parsed_json.has("n_threads"))
+    {
+        number_of_threads_            = std::stof(parsed_json["n_threads"]);
+    }
+    else
+    {
+        fprintf(stderr, "\n No number of threads provided, taking the maximum number of available threads.\n");
+        number_of_threads_ = gmx_omp_get_max_threads();
+    };
+}
+
+real
+InvertedDensity::evaluateGroupDensityPotential(
+        const WholeMoleculeGroup &atoms,
+        const Field<real> &reference, const RVec &translation,
+        const Quaternion &orientation)
+{
+    real result       = 0;
+    RVec centerOfMass = atoms.weightedCenterOfMass();
+#pragma omp parallel num_threads(number_of_threads_) reduction(+:result)
+    {
+        int           thread           = gmx_omp_get_thread_num();
+        auto          beginThreadAtoms = atoms.begin(thread, number_of_threads_);
+        auto          endThreadAtoms   = atoms.end(thread, number_of_threads_);
+        for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
+        {
+            result += GridReal(reference).getLinearInterpolationAt(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation));
+        }
+    }
+    return result;
+};
+
+void InvertedDensity::parseDifferentialOptionsString(const std::string &options)
+{parseOptions_(options); }
+
+void
+InvertedDensity::parseStructureDensityOptionsString (const std::string &options)
+{parseOptions_(options); }
+
+/**************************INFO CLasses****************************************/
+
+
+std::string InvertedDensityDifferentialPotentialInfo::name =
     std::string("inverted-density");
 
-std::unique_ptr<IDensityDifferentialProvider>
-InvertedDensityDifferentialInfo::create()
+std::unique_ptr<IDifferentialPotentialProvider>
+InvertedDensityDifferentialPotentialInfo::create()
 {
     return std::unique_ptr<InvertedDensity>(
             new InvertedDensity);
 }
+
 
 } /* volumedata */
 } /* gmx */

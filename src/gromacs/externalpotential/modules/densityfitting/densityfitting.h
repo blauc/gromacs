@@ -62,6 +62,8 @@ class GridReal;
 class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
+class IDensityDifferentialProvider;
+class IStructureDensityPotentialProvider;
 }
 
 namespace externalpotential
@@ -94,33 +96,20 @@ class DensityFitting : public ExternalPotential
 
     private:
         void do_force_plain(const rvec x, rvec force);
-        void translate_atoms_into_map_(WholeMoleculeGroup * translationgroup);
-        void minimize_map_potential_through_translation_(const matrix box, const rvec x[]);
         RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
-        void inv_mul(std::vector<real> &target, const std::vector<real> & );
-        void spreadLocalAtoms_(WholeMoleculeGroup * spreadgroup);
         void sum_reduce_simulated_density_();
-        void ForceKernel_KL(GroupAtom &atom, const int &thread);
         void plot_forces(WholeMoleculeGroup * plotatoms);
         void initialize_target_density_();
-        void initializeThreadLocalBuffers_();
-        void initialize_spreading_();
-        void setCenterOfMass(WholeMoleculeGroup * atomgroup);
         void forceCalculation(WholeMoleculeGroup * fitatoms);
         std::string dumpParsedInput();
         void sumReduceNormalize_();
         void invertMultiplySimulatedDensity_();
-        RVec shiftedAndOriented(const RVec x);
         void writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step);
-        real KLDivergenceFromTargetOnMaster(WholeMoleculeGroup * atomgroup);
         void alignComDensityAtoms();
         bool optimizeTranslation(WholeMoleculeGroup * translationgroup, real &divergenceToCompareTo);
         bool optimizeOrientation(WholeMoleculeGroup * atomgroup, real &divergenceToCompareTo);
-        void doPotentialKL_( const matrix box, const rvec x[], const gmx_int64_t step);
-        void doPotentialCC_( const matrix box, const rvec x[], const gmx_int64_t step);
-        void doPotentialINV_( const matrix box, const rvec x[], const gmx_int64_t step);
-        void CCMethod( const matrix box, const rvec x[], const gmx_int64_t step);
         real getTotalScatteringSum_(WholeMoleculeGroup * atomgroup);
+        // std::string DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs);
 
         DensityFitting();
 
@@ -130,9 +119,11 @@ class DensityFitting : public ExternalPotential
         real norm_simulated_;
         int  every_nth_step_;
 
+        std::unique_ptr<volumedata::IDensityDifferentialProvider>       differentialProvider_;
+        std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
 
-        std::unique_ptr<volumedata::GridReal>             target_density_;
-        std::unique_ptr<volumedata::GridReal>             simulated_density_;
+        std::unique_ptr<volumedata::GridReal>                           target_density_;
+        std::unique_ptr<volumedata::GridReal>                           simulated_density_;
         std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
         real                    background_density_;
         volumedata::MrcMetaData meta_;

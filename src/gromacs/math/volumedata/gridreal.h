@@ -52,7 +52,8 @@ namespace volumedata
 class GridReal : public Field<real>, public CrystalSymmetry
 {
     public:
-        GridReal() = default;
+        GridReal()  = default;
+        ~GridReal() = default;
         GridReal(const Field<real> &baseField);
         GridReal(GridReal &other);
         void multiply(real value);

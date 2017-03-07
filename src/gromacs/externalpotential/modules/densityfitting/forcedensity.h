@@ -50,9 +50,28 @@
 #include "gromacs/utility/real.h"
 
 #include <array>
+#include <vector>
+
 
 namespace gmx
 {
+class WholeMoleculeGroup;
+
+namespace volumedata
+{
+class IDifferentialPotentialProvider;
+
+class DensityFittingForceCalculator
+{
+    public:
+        DensityFittingForceCalculator(const volumedata::Field<real> &reference, real sigma, int num_threads = 1);
+        void setForces(WholeMoleculeGroup * atoms, const IDifferentialPotentialProvider &provider);
+        std::vector<RVec> getForces(const std::vector<RVec> &forces, const std::vector<real> &weights, const IDifferentialPotentialProvider &provider);
+    private:
+        const volumedata::Field<real> &reference_;
+        real sigma_;
+        int  number_of_threads_;
+};
 
 class ForceDensity
 {
@@ -63,15 +82,16 @@ class ForceDensity
 
     private:
         void generateConvolutionDensity_();
-        void generateFourierTransformGrids_(const volumedata::FiniteGrid &grid);
+        void generateFourierTransformGrids_(const FiniteGrid &grid);
         real sigma_;
-        std::array<volumedata::Field<real>, DIM>      forces_;
-        std::array<volumedata::Field<t_complex>, DIM> forcesFT_;
-        std::array<volumedata::Field<t_complex>, DIM> convolutionDensity_;
-        volumedata::Field<t_complex>                  densityGradientFT_;
-        std::vector<volumedata::FourierTransformComplexToReal3D>
+        std::array<Field<real>, DIM>      forces_;
+        std::array<Field<t_complex>, DIM> forcesFT_;
+        std::array<Field<t_complex>, DIM> convolutionDensity_;
+        Field<t_complex>                  densityGradientFT_;
+        std::vector<FourierTransformComplexToReal3D>
         complexToRealFTarray_;
         volumedata::FourierTransformRealToComplex3D realToComplexFT_;
 };
+}
 }
 #endif /* end of include guard: GMX_EXTERNALPOTENIAL_FORCEDENSITY_H */

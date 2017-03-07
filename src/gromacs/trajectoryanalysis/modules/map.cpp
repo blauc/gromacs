@@ -57,10 +57,9 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
-#include "gromacs/externalpotential/modules/densityfitting/densitydifferential.h"
-#include "gromacs/externalpotential/modules/densityfitting/densitydifferentialprovider.h"
+#include "gromacs/externalpotential/modules/densityfitting/potential-differentialprovider.h"
+#include "gromacs/externalpotential/modules/densityfitting/provider.h"
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
-#include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
@@ -127,37 +126,37 @@ class Map : public TrajectoryAnalysisModule
         void openPotentialFileAndPrintHeader_();
         void openFscFileAndPrintHeader_();
 
-        std::string                                            fnmapinput_;
-        std::string                                            fnmapoutput_;
-        std::string                                            fnfrmapoutput_;
-        std::string                                            fnpotential_;
-        std::string                                            forcedensity_;
+        std::string                                                     fnmapinput_;
+        std::string                                                     fnmapoutput_;
+        std::string                                                     fnfrmapoutput_;
+        std::string                                                     fnpotential_;
+        std::string                                                     forcedensity_;
 
-        float                                                  sigma_   = 0.4;
-        float                                                  n_sigma_ = 5;
-        AnalysisData                                           mapdata_;
-        volumedata::GridReal                                   inputdensity_;
-        volumedata::GridReal                                   outputdensity_;
-        volumedata::GridReal                                   outputDensityBuffer_;
-        real                                                   spacing_ = 0.2;
-        bool                                                   bPrint_  = false;
-        std::vector<float>                                     weight_;
-        int                                                    every_                = 1;
-        real                                                   expAverage_           = 1.;
-        real                                                   correlationThreshold_ = 0.;
-        FILE                                                  *potentialFile_;
-        int                                                    nFr_      = 0;
-        bool                                                   bFit_     = false;
-        int                                                    nAtomsReference_;
-        std::vector<RVec>                                      referenceX;
-        matrix                                                 referenceBox;
-        std::vector<real>                                      fitWeights;
-        real                                                   inputGridEntropy;
-        bool                                                   bUseBox_       = false;
-        std::string                                            potentialType_ = "kullbackleibler";
-        volumedata::FourierShellCorrelation                    fsc_;
-        std::unique_ptr<volumedata::DensitySpreader>           spreader_;
-        FILE                                                  *fscFile_;
+        float                                                           sigma_   = 0.4;
+        float                                                           n_sigma_ = 5;
+        AnalysisData                                                    mapdata_;
+        volumedata::GridReal                                            inputdensity_;
+        volumedata::GridReal                                            outputdensity_;
+        volumedata::GridReal                                            outputDensityBuffer_;
+        real                                                            spacing_ = 0.2;
+        bool                                                            bPrint_  = false;
+        std::vector<float>                                              weight_;
+        int                                                             every_                = 1;
+        real                                                            expAverage_           = 1.;
+        real                                                            correlationThreshold_ = 0.;
+        FILE                                                           *potentialFile_;
+        int                                                             nFr_      = 0;
+        bool                                                            bFit_     = false;
+        int                                                             nAtomsReference_;
+        std::vector<RVec>                                               referenceX;
+        matrix                                                          referenceBox;
+        std::vector<real>                                               fitWeights;
+        bool                                                            bUseBox_       = false;
+        std::string                                                     potentialType_ = "kullbackleibler";
+        volumedata::FourierShellCorrelation                             fsc_;
+        std::unique_ptr<volumedata::DensitySpreader>                    spreader_;
+        FILE                                                           *fscFile_;
+        std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialCalculator_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -308,10 +307,14 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
                       std::end(inputdensity_.access().data()),
                       [](real &value) { value = std::max(value, (real)0.); });
         inputdensity_.normalize();
-        inputGridEntropy = volumedata::GridMeasures(inputdensity_).entropy();
-
+        auto        potentialCalculator_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
+        std::string optionsString        = "{\"sigma\":"+std::to_string(sigma_)+",\"n_sigma\":"+std::to_string(n_sigma_)+"}\n";
+        potentialCalculator_->parseStructureDensityOptionsString(optionsString);
         openPotentialFileAndPrintHeader_();
-        openFscFileAndPrintHeader_();
+        if (potentialType_.compare("fsc") == 0)
+        {
+            openFscFileAndPrintHeader_();
+        }
     }
     if (!forcedensity_.empty())
     {
@@ -394,7 +397,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         outputDensityBuffer_.zero();
     }
 
-    outputdensity_ = spreader_->spreadLocalAtoms(fr.x, weight_, fr.natoms, {0, 0, 0}, Quaternion {{1, 0, 0}, 0});
+    outputdensity_ = *spreader_->spreadLocalAtoms(fr.x, weight_, fr.natoms, {0, 0, 0}, Quaternion {{1, 0, 0}, 0});
 
     if (nFr_ == 1)
     {
@@ -469,7 +472,8 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 void Map::openPotentialFileAndPrintHeader_()
 {
     potentialFile_   = fopen(fnpotential_.c_str(), "w");
-    fprintf(potentialFile_, "time CrossCorrelation KLDivergence InvertedDensity FourierShellCorrelation");
+
+    fprintf(potentialFile_, "time        %s", potentialType_.c_str());
 }
 
 void Map::openFscFileAndPrintHeader_()
@@ -484,21 +488,17 @@ void Map::openFscFileAndPrintHeader_()
 void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
 {
     using namespace volumedata;
-
-    outputDensityBuffer_.normalize();
     fprintf(potentialFile_, "\n%8g ", fr.time);
-    auto potentials = PotentialLibrary<IDensityDensityPotentialProvider>().available();
-    for (auto potentialType : potentials)
+    std::vector<RVec> RVecCoordinates;
+    RVecCoordinates.assign(fr.x, fr.x+fr.natoms);
+    RVec              translation = {0, 0, 0};
+    Quaternion        orientation = {{1, 0, 0}, 0};
+    fprintf(potentialFile_, "%8g ", potentialCalculator_->evaluateStructureDensityPotential(RVecCoordinates, weight_, inputdensity_, translation, orientation));
+    if (potentialType_.compare("fsc") == 0)
     {
-        PotentialLibrary<IDensityDensityPotentialProvider>().create(potentialType)();
-        // fprintf(potentialFile_, "%8g ", outputDensityBuffer_, correlationThreshold_));
+        auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
+        fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
     }
-    fprintf(potentialFile_, "%8g ", volumedata::GridMeasures(inputdensity_).getKLCrossTermSameGrid(outputDensityBuffer_) - inputGridEntropy);
-    fprintf(potentialFile_, "%8g ", volumedata::GridMeasures(inputdensity_).gridSumAtCoordiantes(frX));
-    auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
-    fprintf(potentialFile_, "%8g ", std::accumulate(std::begin(fscCurve), std::end(fscCurve), 0.)/real(fscCurve.size()));
-
-    fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
 }
 
 void Map::frameToForceDensity_(const t_trxframe &fr)
@@ -506,17 +506,40 @@ void Map::frameToForceDensity_(const t_trxframe &fr)
     outputdensity_.normalize();
     inputdensity_.normalize();
 
+
+
+    auto              forceprovider = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
+    std::vector<RVec> coordinates;
+    coordinates.assign(fr.x, fr.x+fr.natoms);
+    forceprovider->planCoordinates(coordinates, weight_, inputdensity_, {0, 0, 0}, {{1., 0, 0}, 0.});
+    auto forcePlotterForces = forceprovider->evaluateCoordinateForces(coordinates, weight_, inputdensity_, {0, 0, 0}, {{1., 0, 0}, 0.});
+
+    auto plotter = externalpotential::ForcePlotter();
+    plotter.start_plot_forces("forces.bild");
+    plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
+                        fr.natoms, 1);
+    plotter.stop_plot_forces();
+
+    forcePlotterForces.clear();
+
+
+    volumedata::Field<real> forceFieldPlot;
+    forceFieldPlot.copy_grid(inputdensity_);
+
+
+
+    std::vector<RVec>       forcePlotterXs;
+    forceFieldPlot.multiplyGridPointNumber({0.3, 0.3, 0.3});
     volumedata::Df3File().write("inputdensity.df3", inputdensity_).writePovray();
     volumedata::MrcFile().write("outputdensity.ccp4", outputdensity_);
     volumedata::Df3File().write("outputdensity.df3", outputdensity_).writePovray();
 
-    auto densityDifferential = volumedata::PotentialLibrary<volumedata::IDensityDifferentialProvider>().create(potentialType_)();
-    auto densityGradient     = densityDifferential->evaluateDensityDifferential(outputdensity_, inputdensity_);
-
+    auto potentialProvider = volumedata::PotentialLibrary<volumedata::IDifferentialPotentialProvider>().create(potentialType_)();
+    auto densityGradient   = potentialProvider->evaluateDensityDifferential(inputdensity_, outputdensity_);
     volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);
-    volumedata::Df3File().write("densityGradient.df3", densityGradient).writePovray();
+    volumedata::Df3File().write("densityGradient.df3",  potentialProvider->evaluateDensityDifferential(inputdensity_, outputdensity_)).writePovray();
 
-    auto forceDensity = ForceDensity(densityGradient, sigma_).getForce();
+    auto forceDensity = volumedata::ForceDensity(densityGradient, sigma_).getForce();
 
     std::array<volumedata::GridReal, 3> forcedensityGridReal {
         {
@@ -525,27 +548,9 @@ void Map::frameToForceDensity_(const t_trxframe &fr)
             volumedata::GridReal(forceDensity[ZZ])
         }
     };
-    std::vector<RVec> forcePlotterForces;
 
-    for (int iAtom = 0; iAtom < fr.natoms; iAtom++)
-    {
-        forcePlotterForces.push_back(RVec {
-                                         forcedensityGridReal[XX].getLinearInterpolationAt(fr.x[iAtom]),
-                                         forcedensityGridReal[YY].getLinearInterpolationAt(fr.x[iAtom]),
-                                         forcedensityGridReal[ZZ].getLinearInterpolationAt(fr.x[iAtom])
-                                     });
-    }
-    auto plotter = externalpotential::ForcePlotter();
-    plotter.start_plot_forces("forces.bild");
-    plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
-                        fr.natoms, 1);
-    plotter.stop_plot_forces();
 
-    forcePlotterForces.clear();
-    volumedata::Field<real> forceFieldPlot;
-    forceFieldPlot.copy_grid(inputdensity_);
-    std::vector<RVec>       forcePlotterXs;
-    forceFieldPlot.multiplyGridPointNumber({0.3, 0.3, 0.3});
+
     auto                    plotField = [&forcePlotterForces, &forcePlotterXs,
                                          forcedensityGridReal](const real & /*value*/, RVec x) {
             forcePlotterForces.push_back(

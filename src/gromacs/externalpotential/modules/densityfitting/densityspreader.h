@@ -61,16 +61,16 @@ class DensitySpreader
 {
     public:
         explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma);
-        ~DensitySpreader() = default;
-        const Field<real> &spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation);
-        const Field<real> &spreadLocalAtoms(const rvec *x, const std::vector<real> &weights, int nAtoms,  const RVec &translation, const Quaternion &orientation);
+        ~DensitySpreader();
+        Field<real> * spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation);
+        Field<real> * spreadLocalAtoms(const rvec *x, const std::vector<real> &weights, int nAtoms,  const RVec &translation, const Quaternion &orientation);
     private:
         std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GridReal>> simulated_density_buffer_;
         std::unique_ptr < GridReal> simulated_density_;
         int number_of_threads_;
         RVec centerOfMass(WholeMoleculeGroup * atomgroup);
-        const Field<real> &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex);
+        Field<real> * sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex);
 };
 
 }

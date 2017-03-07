@@ -32,47 +32,32 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
-#define GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H
+#ifndef GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
+#define GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
 
-#include "gmxpre.h"
-#include <map>
-#include <string>
-#include <memory>
-#include <functional>
+// #include "gmxpre.h"
+#include <tuple>
 #include <vector>
 
 namespace gmx
 {
+class WholeMoleculeGroup;
+class Quaternion;
 namespace volumedata
 {
+class IDifferentialPotentialProvider;
+template<typename real> class Field;
 
-
-template <typename Provider>
-class PotentialLibrary
+class RigidBodyFit
 {
     public:
-        PotentialLibrary();
-        ~PotentialLibrary() = default;
-        std::function<std::unique_ptr<Provider>()> create(std::string name)
-        {
-            return functions_[name];
-        };
-        std::vector<std::string> available() const
-        {
-            std::vector<std::string> result;
-            for (auto f :  functions_)
-            {
-                result.push_back(f.first);
-            }
-            return result;
-        };
-
-    private:
-        std::map<std::string, std::function<std::unique_ptr<Provider>()> > functions_;
+        // std::tuple<std::RVec, Orientiation> fitDensities(const Field<real> & reference, const Field<real> & comparant, );
+        std::tuple<RVec, Orientiation> fitCoordinates(const Field<real> &reference, std::vector<RVec> x, std::vector<real> weights, const IDifferentialPotentialProvider &fitPotentialProvider);
+        RVec fitTranslation();
+        Quaternion fitOrientation();
+        std::tuple<RVec, Orientiation> fitWholeMoleculeGroup(const Field<real> &reference, WholeMoleculeGroup * atoms, const IDifferentialPotentialProvider &fitPotentialProvider);
 };
 
-}      // namespace volumedata
-}      // namespace gmx
-
-#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_DENSITYDIFFERENTIAL_H */
+}
+}
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H */
