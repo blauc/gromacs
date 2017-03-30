@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "common.h"
+#include "densitybasedpotential.h"
 #include <vector>
 
 
@@ -122,36 +122,36 @@ std::vector<RVec> densityBasedPotentialForce::force(const std::vector<RVec> &coo
     }
     return force_;
 }
-
-void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation,
-                                       const RVec &centerOfRotation )
-{
-
-    setDensityDifferential(*spread_density_, reference);
-    auto forceDensity = ForceDensity(*differential_, sigma_differential_).getForce();
-    std::array<volumedata::GridReal, 3> forceGrid { {
-                                                        volumedata::GridReal(forceDensity[XX]), volumedata::GridReal(forceDensity[YY]), volumedata::GridReal(forceDensity[ZZ])
-                                                    } };
-
-#pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid, translation, centerOfRotation, orientation) default(none)
-    {
-        int           thread             = gmx_omp_get_thread_num();
-        // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
-
-        auto beginThreadAtoms = atoms.begin(thread, n_threads_);
-        auto endThreadAtoms   = atoms.end(thread, n_threads_);
-
-        for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
-        {
-            auto r = orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfRotation, translation);
-            auto f = RVec {
-                forceGrid[XX].getLinearInterpolationAt(r), forceGrid[YY].getLinearInterpolationAt(r), forceGrid[ZZ].getLinearInterpolationAt(r)
-            };
-            svmul(*((*atom).properties), f, *(*atom).force);
-            orientation.rotate_backwards(*(*atom).force);
-        }
-    }
-}
+//
+// void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation,
+//                                        const RVec &centerOfRotation )
+// {
+//
+//     setDensityDifferential(*spread_density_, reference);
+//     auto forceDensity = ForceDensity(*differential_, sigma_differential_).getForce();
+//     std::array<volumedata::GridReal, 3> forceGrid { {
+//                                                         volumedata::GridReal(forceDensity[XX]), volumedata::GridReal(forceDensity[YY]), volumedata::GridReal(forceDensity[ZZ])
+//                                                     } };
+//
+// #pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid, translation, centerOfRotation, orientation) default(none)
+//     {
+//         int           thread             = gmx_omp_get_thread_num();
+//         // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
+//
+//         auto beginThreadAtoms = atoms.begin(thread, n_threads_);
+//         auto endThreadAtoms   = atoms.end(thread, n_threads_);
+//
+//         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
+//         {
+//             auto r = orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfRotation, translation);
+//             auto f = RVec {
+//                 forceGrid[XX].getLinearInterpolationAt(r), forceGrid[YY].getLinearInterpolationAt(r), forceGrid[ZZ].getLinearInterpolationAt(r)
+//             };
+//             svmul(*((*atom).properties), f, *(*atom).force);
+//             orientation.rotate_backwards(*(*atom).force);
+//         }
+//     }
+// }
 
 } /* volumedata */
 } /* gmx */

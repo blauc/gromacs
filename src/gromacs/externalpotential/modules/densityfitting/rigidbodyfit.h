@@ -61,14 +61,6 @@ class RigidBodyFit
                             const std::vector<real> &weights,
                             const PotentialForceEvaluator &fitPotentialProvider);
 
-        void fitWholeMoleculeGroup(const Field<real>        &reference,
-                                   const WholeMoleculeGroup *atoms,
-                                   const PotentialEvaluator &fitPotentialProvider);
-
-        void
-        fitWholeMoleculeGroup(const Field<real> &reference, const WholeMoleculeGroup *atoms,
-                              const PotentialForceEvaluator &fitPotentialProvider);
-
         RVec fitTranslation() const;
         Quaternion fitOrientation() const;
         real bestFitPotential() const;

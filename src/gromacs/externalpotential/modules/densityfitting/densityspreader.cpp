@@ -72,7 +72,7 @@ number_of_threads_ {
 
 //TODO use wholemoleculegroup concept throughout
 Field<real> *
-DensitySpreader::spreadLocalAtoms(const std::vector<RVec> x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation)
+DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation)
 {
     std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
     std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);

@@ -77,19 +77,9 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialProvider
              const RVec &translation = {0, 0, 0},
              const Quaternion &orientation = {{1, 0, 0}, 0},
              const RVec &centerOfRotation = {0, 0, 0});
-        std::unique_ptr<PotentialForceEvaluator>
-        plan(const WholeMoleculeGroup &atoms, const Field<real> &reference,
-             const std::string &options, const RVec &translation = {0, 0, 0},
-             const Quaternion &orientation = {{1, 0, 0}, 0},
-             const RVec &centerOfRotation = {0, 0, 0});
         std::unique_ptr<PotentialEvaluator>
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const Field<real> &reference,
-                      const std::string &options, const RVec &translation = {0, 0, 0},
-                      const Quaternion &orientation = {{1, 0, 0}, 0},
-                      const RVec &centerOfRotation = {0, 0, 0});
-        std::unique_ptr<PotentialEvaluator>
-        planPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
                       const std::string &options, const RVec &translation = {0, 0, 0},
                       const Quaternion &orientation = {{1, 0, 0}, 0},
                       const RVec &centerOfRotation = {0, 0, 0});

@@ -73,10 +73,6 @@ class densityBasedPotential : public PotentialEvaluator
                        const RVec &translation = {0, 0, 0},
                        const Quaternion &orientation = {{1, 0, 0}, 0},
                        const RVec &centerOfRotation = {0, 0, 0});
-        real potential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
-                       const RVec &translation = {0, 0, 0},
-                       const Quaternion &orientation = {{1, 0, 0}, 0},
-                       const RVec &centerOfRotation = {0, 0, 0});
         virtual real densityDensityPotential(const Field<real> &reference,
                                              const Field<real> &comparant);
 
@@ -94,10 +90,6 @@ class densityBasedPotentialForce : public densityBasedPotential,
                                             const real sigma,
                                             const real sigma_differential);
 
-        void force(WholeMoleculeGroup &atoms, const Field<real> &reference,
-                   const RVec &translation = {0, 0, 0},
-                   const Quaternion &orientation = {{1, 0, 0}, 0},
-                   const RVec &centerOfRotation = {0, 0, 0});
         std::vector<RVec> force(const std::vector<RVec> &coordinates,
                                 const std::vector<real> &weights,
                                 const Field<real> &reference,
