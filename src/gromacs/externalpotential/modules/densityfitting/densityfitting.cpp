@@ -49,7 +49,7 @@
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/math/quaternion.h"
-#include "provider.h"
+#include "potentiallibrary.h"
 #include "rigidbodyfit.h"
 
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
@@ -115,10 +115,10 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     auto fitatoms = wholemoleculegroup(x, box, 0);
     target_density_->normalize();
 
-    auto potentialevaluator = potentialProvider_->plan(*fitatoms, *target_density_, options_);
+    potentialEvaluator_ = potentialProvider_->plan(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
     if (isCenterOfMassCentered_)
     {
-        volumedata::RigidBodyFit().fitWholeMoleculeGroup(*target_density_, fitatoms, *potentialevaluator);
+        volumedata::RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);
     }
 
     const real timeStepNs = 0.004; // TODO: pass this from simulation input
@@ -167,7 +167,7 @@ DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step
     }
 }
 
-void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
+void DensityFitting::do_potential( const matrix /*box*/, const rvec /*x*/[], const gmx_int64_t /*step*/)
 {
     // auto fitatoms = wholemoleculegroup(x, box, 0);
     // // setCenterOfMass(fitatoms);

@@ -421,5 +421,11 @@ Group::local_weights_sum() const
             });
 }
 
+const std::vector<real> &
+Group::weights() const
+{
+    return weights_;
+};
+
 
 } // namespace gmx

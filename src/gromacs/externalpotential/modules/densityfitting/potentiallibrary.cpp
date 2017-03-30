@@ -40,6 +40,8 @@
 // #include "differentialmodules/fouriershellcorrelation.h"
 
 #include <vector>
+#include <map>
+
 namespace gmx
 {
 namespace volumedata

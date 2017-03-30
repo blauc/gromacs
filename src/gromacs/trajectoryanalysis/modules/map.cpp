@@ -57,7 +57,7 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
-#include "gromacs/externalpotential/modules/densityfitting/provider.h"
+#include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"

@@ -74,17 +74,6 @@ densityBasedPotential::potential(const std::vector<RVec> &coordinates,
     return densityDensityPotential(*spread_density_, reference);
 };
 
-real
-densityBasedPotential::potential(const WholeMoleculeGroup &atoms,
-                                 const Field<real>        &reference,
-                                 const RVec               &translation,
-                                 const Quaternion         &orientation,
-                                 const RVec               &centerOfRotation )
-{
-    spread_density_ = spreader_->spreadLocalAtoms(atoms, translation, orientation, centerOfRotation);
-    return densityDensityPotential(*spread_density_, reference);
-};
-
 densityBasedPotentialForce::densityBasedPotentialForce(const FiniteGrid &reference,
                                                        const int         n_threads,
                                                        const int         n_sigma,

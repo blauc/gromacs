@@ -165,6 +165,7 @@ class Group
         RVec local_coordinate_sum();
         RVec local_force_sum();
         real local_weights_sum() const;
+        const std::vector<real> &weights() const;
 
     protected:
 

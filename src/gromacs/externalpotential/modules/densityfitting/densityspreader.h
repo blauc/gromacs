@@ -68,7 +68,6 @@ class DensitySpreader
         std::vector < std::unique_ptr < volumedata::GridReal>> simulated_density_buffer_;
         std::unique_ptr < GridReal> simulated_density_;
         int number_of_threads_;
-        RVec centerOfMass(WholeMoleculeGroup * atomgroup);
         Field<real> * sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex);
 };
 

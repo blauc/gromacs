@@ -63,6 +63,7 @@ class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
 class IStructureDensityPotentialProvider;
+class PotentialForceEvaluator;
 }
 
 namespace externalpotential
@@ -110,6 +111,7 @@ class DensityFitting : public ExternalPotential
         std::string options_;
 
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
+        std::unique_ptr<volumedata::PotentialForceEvaluator>            potentialEvaluator_;
 
         std::unique_ptr<volumedata::GridReal>                           target_density_;
         std::unique_ptr<volumedata::GridReal>                           simulated_density_;

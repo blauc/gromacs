@@ -39,7 +39,7 @@
 
 #include "../densityspreader.h"
 #include "../potentialprovider.h"
-#include "common.h"
+#include "densitybasedpotential.h"
 #include "gromacs/math/volumedata/field.h"
 
 #include "gromacs/math/quaternion.h"
