@@ -53,7 +53,7 @@ struct gmx_mtop_atomlookup;
 namespace gmx
 {
 
-struct GroupAtom;
+class GroupAtom;
 
 namespace volumedata
 {
@@ -62,7 +62,6 @@ class GridReal;
 class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
-class IDensityDifferentialProvider;
 class IStructureDensityPotentialProvider;
 }
 
@@ -83,54 +82,44 @@ class DensityFitting : public ExternalPotential
     public:
 
         static std::unique_ptr<ExternalPotential> create();
+
         void do_potential(const matrix box, const rvec x[], const gmx_int64_t step);
         void read_input();
         void initialize(const matrix box, const rvec x[]);
         void broadcast_internal();
+
         bool do_this_step(gmx_int64_t step);
 
         real single_atom_properties(GroupAtom * atom, t_mdatoms * mdatoms, gmx_localtop_t * topology_loc, const gmx_mtop_t * topology_global);
         void finish();
 
-        real relative_kl_divergence(std::vector<real> &P, std::vector<real> &Q, std::vector<real> &Q_reference);
-
     private:
-        void do_force_plain(const rvec x, rvec force);
-        RVec pbc_dist(const rvec x, const rvec y, const  matrix box);
-        void sum_reduce_simulated_density_();
-        void plot_forces(WholeMoleculeGroup * plotatoms);
-        void initialize_target_density_();
-        void forceCalculation(WholeMoleculeGroup * fitatoms);
-        std::string dumpParsedInput();
-        void sumReduceNormalize_();
-        void invertMultiplySimulatedDensity_();
-        void writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step);
-        void alignComDensityAtoms();
-        bool optimizeTranslation(WholeMoleculeGroup * translationgroup, real &divergenceToCompareTo);
-        bool optimizeOrientation(WholeMoleculeGroup * atomgroup, real &divergenceToCompareTo);
-        real getTotalScatteringSum_(WholeMoleculeGroup * atomgroup);
-        // std::string DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs);
-
         DensityFitting();
 
-        real k_;
-        real sigma_;
-        real n_sigma_;
-        real norm_simulated_;
-        int  every_nth_step_;
+        void plot_forces(WholeMoleculeGroup * plotatoms);
+        std::string dumpParsedInput();
+        void writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step);
+        std::string logInitialisationString_(int nAtoms, int timeStepNs);
 
-        std::unique_ptr<volumedata::IDensityDifferentialProvider>       differentialProvider_;
+
+        real        k_;
+        real        sigma_;
+        real        n_sigma_;
+        real        norm_simulated_;
+        int         every_nth_step_;
+        std::string options_;
+
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
 
         std::unique_ptr<volumedata::GridReal>                           target_density_;
         std::unique_ptr<volumedata::GridReal>                           simulated_density_;
-        std::vector < std::unique_ptr < volumedata::GridReal>> force_density_;
         real                    background_density_;
         volumedata::MrcMetaData meta_;
         std::string             trajectory_name_;
         t_fileio               *out_;
         bool                    isCenterOfMassCentered_;
         RVec                    translation_;
+        RVec                    centerOfRotation_;
         std::vector<real>       reference_density_;
         real                    reference_divergence_ = 0;
         real                    k_factor_;
@@ -140,14 +129,11 @@ class DensityFitting : public ExternalPotential
         real                    exponentialDeltaEnergyAverage_;
         real                    maximumEnergyFluctuationPerAtom_;
         std::string             target_density_name_;
-        RVec                    centerOfMass_;
         Quaternion              orientation_;
         std::string             fitMethod_;
         std::function<void(const matrix box, const rvec x[])> initialize_;
-        std::function<void(const matrix box, const rvec x[], const gmx_int64_t step)> doPotential_;
-        std::vector < std::unique_ptr < volumedata::GridReal>> invertedDensityForces_;
-        bool bWriteXTC_;
-        real totalScatteringSum_;
+        bool                    bWriteXTC_;
+        real                    totalScatteringSum_;
 
 };
 

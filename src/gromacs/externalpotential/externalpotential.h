@@ -60,7 +60,7 @@ namespace gmx
 
 class MpiHelper;
 class Group;
-struct GroupAtom;
+class GroupAtom;
 class WholeMoleculeGroup;
 
 class IAtomProperties

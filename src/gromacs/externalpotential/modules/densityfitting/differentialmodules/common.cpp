@@ -34,77 +34,121 @@
  */
 
 #include "common.h"
+#include <vector>
+
+
+#include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
+#include "gromacs/externalpotential/atomgroups/group.h"
+#include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
+#include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
+
+#include "gromacs/math/vectypes.h"
+#include "gromacs/math/quaternion.h"
+
+#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/math/volumedata/volumedata.h"
+
+#include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
 namespace volumedata
 {
 
-void
-commonDensityBased::intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma)
+densityBasedPotential::densityBasedPotential(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma)
 {
-    if (spreader_ == nullptr)
-    {
-        spreader_ = std::unique_ptr<DensitySpreader>( new DensitySpreader(reference, n_threads, n_sigma, sigma));
-    }
+    spreader_ = std::unique_ptr<DensitySpreader>( new DensitySpreader(reference, n_threads, n_sigma, sigma));
 };
 
 real
-commonDensityBased::evaluateStructureDensityPotential( const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference, const RVec &translation, const Quaternion &orientation)
+densityBasedPotential::potential(const std::vector<RVec> &coordinates,
+                                 const std::vector<real> &weights,
+                                 const Field<real>       &reference,
+                                 const RVec              &translation,
+                                 const Quaternion        &orientation,
+                                 const RVec              &centerOfRotation  )
 {
-    return evaluateDensityDensityPotential(spread_density_, reference);
+    spread_density_ = spreader_->spreadLocalAtoms(coordinates, weights, translation, orientation, centerOfRotation);
+    return densityDensityPotential(*spread_density_, reference);
 };
 
-real commonDensityBased::evaluateGroupDensityPotential(
-        const WholeMoleculeGroup &atoms, const Field<real> &reference,
-        const RVec &translation, const Quaternion &orientation)
+real
+densityBasedPotential::potential(const WholeMoleculeGroup &atoms,
+                                 const Field<real>        &reference,
+                                 const RVec               &translation,
+                                 const Quaternion         &orientation,
+                                 const RVec               &centerOfRotation )
 {
-    return evaluateDensityDensityPotential(spread_density_, reference);
+    spread_density_ = spreader_->spreadLocalAtoms(atoms, translation, orientation, centerOfRotation);
+    return densityDensityPotential(*spread_density_, reference);
 };
 
-
-void commonDensityBased::planCoordinates(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation)
-{
-    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
-    spread_density_ = spreader_->spreadLocalAtoms(as_rvec_array(coordinates.data()), weights, coordinates.size(), translation, orientation);
+densityBasedPotentialForce::densityBasedPotentialForce(const FiniteGrid &reference,
+                                                       const int         n_threads,
+                                                       const int         n_sigma,
+                                                       const real        sigma,
+                                                       const real        sigma_differential) :
+    densityBasedPotential {reference, n_threads, n_sigma, sigma},  sigma_differential_ {
+    sigma_differential
+},
+n_threads_ {
+    n_threads
 }
-void commonDensityBased::planGroup(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation)
-{
-    intializeSpreaderIfNull_(reference, n_threads_, n_sigma_, sigma_);
-    spread_density_ = GridReal(spreader_->spreadLocalAtoms(atoms, translation, orientation));
-    spread_density_.normalize();
-}
-
-std::vector<RVec>
-commonDensityBased::evaluateCoordinateForces(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
 {
 };
 
-void commonDensityBased::evaluateGroupForces(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation);
+std::vector<RVec> densityBasedPotentialForce::force(const std::vector<RVec> &coordinates,
+                                                    const std::vector<real> &weights, const Field<real> &reference, const RVec &translation, const Quaternion &orientation,
+                                                    const RVec &centerOfRotation )
 {
 
-    differentialCalculator_(spread_density, reference);
-    auto forceDensity = ForceDensity(differential, sigma_).getForce();
+    setDensityDifferential(*spread_density_, reference);
+    auto forceDensity = ForceDensity(*differential_, sigma_differential_).getForce();
+    std::array<volumedata::GridReal, 3> forceGrid { {
+                                                        volumedata::GridReal(forceDensity[XX]), volumedata::GridReal(forceDensity[YY]), volumedata::GridReal(forceDensity[ZZ])
+                                                    } };
+    // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
+
+    for (size_t i = 0; i != coordinates.size(); ++i)
+    {
+        auto r = orientation.shiftedAndOriented(coordinates[i], centerOfRotation, translation);
+        auto f = RVec {
+            forceGrid[XX].getLinearInterpolationAt(r), forceGrid[YY].getLinearInterpolationAt(r), forceGrid[ZZ].getLinearInterpolationAt(r)
+        };
+        svmul(weights[i], f, force_[i]);
+        orientation.rotate_backwards(force_[i]);
+    }
+    return force_;
+}
+
+void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation,
+                                       const RVec &centerOfRotation )
+{
+
+    setDensityDifferential(*spread_density_, reference);
+    auto forceDensity = ForceDensity(*differential_, sigma_differential_).getForce();
     std::array<volumedata::GridReal, 3> forceGrid { {
                                                         volumedata::GridReal(forceDensity[XX]), volumedata::GridReal(forceDensity[YY]), volumedata::GridReal(forceDensity[ZZ])
                                                     } };
 
-#pragma omp parallel num_threads(number_of_threads_) shared(stderr,atoms,forceGrid) default(none)
+#pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid, translation, centerOfRotation, orientation) default(none)
     {
         int           thread             = gmx_omp_get_thread_num();
         // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
 
-        GroupIterator beginThreadAtoms = atoms->begin(thread, number_of_threads_);
-        GroupIterator endThreadAtoms   = atoms->end(thread, number_of_threads_);
+        auto beginThreadAtoms = atoms.begin(thread, n_threads_);
+        auto endThreadAtoms   = atoms.end(thread, n_threads_);
 
         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
         {
-            auto r = orientation_.shiftedAndOriented(*(*atom).xTransformed, centerOfMass_, translation_);
+            auto r = orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfRotation, translation);
             auto f = RVec {
                 forceGrid[XX].getLinearInterpolationAt(r), forceGrid[YY].getLinearInterpolationAt(r), forceGrid[ZZ].getLinearInterpolationAt(r)
             };
             svmul(*((*atom).properties), f, *(*atom).force);
-            orientation_.rotate_backwards(*(*atom).force);
+            orientation.rotate_backwards(*(*atom).force);
         }
     }
 }

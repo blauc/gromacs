@@ -34,10 +34,10 @@
  */
 #include "provider.h"
 
-#include "differentialmodules/crosscorrelation.h"
+// #include "differentialmodules/crosscorrelation.h"
 #include "differentialmodules/kullbackleibler.h"
-#include "differentialmodules/inverteddensity.h"
-#include "differentialmodules/fouriershellcorrelation.h"
+// #include "differentialmodules/inverteddensity.h"
+// #include "differentialmodules/fouriershellcorrelation.h"
 
 #include <vector>
 namespace gmx
@@ -51,41 +51,14 @@ void registerFunction(std::map<std::string, Creator> &map)
     map[InfoClass::name] = &InfoClass::create;
 };
 
-class IDensityDifferentialProvider;
-template <> PotentialLibrary<IDensityDifferentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
-    registerFunction<KullbackLeiblerDifferentialPotentialInfo>(functions_);
-    registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
-    registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
-};
-
-class IDensityDensityPotentialProvider;
-template <> PotentialLibrary<IDensityDensityPotentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationDensityDensityInfo>(functions_);
-    registerFunction<KullbackLeiblerDensityDensityInfo>(functions_);
-    registerFunction<FourierShellCorrelationProviderDensityDensityInfo>(functions_);
-};
-
 class IStructureDensityPotentialProvider;
 template <> PotentialLibrary<IStructureDensityPotentialProvider>::PotentialLibrary()
 {
-    registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
-    registerFunction<KullbackLeiblerDifferentialPotentialInfo>(functions_);
-    registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
-    registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
+    // registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
+    registerFunction<KullbackLeiblerPotentialInfo>(functions_);
+    // registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
+    // registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
 };
-
-class IDifferentialPotentialProvider;
-template <> PotentialLibrary<IDifferentialPotentialProvider>::PotentialLibrary()
-{
-    registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
-    registerFunction<KullbackLeiblerDifferentialPotentialInfo>(functions_);
-    registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
-    registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
-};
-
 
 }
 }

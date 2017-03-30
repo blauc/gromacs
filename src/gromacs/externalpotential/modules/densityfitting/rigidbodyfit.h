@@ -35,29 +35,49 @@
 #ifndef GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
 #define GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
 
-// #include "gmxpre.h"
+#include "gmxpre.h"
 #include <tuple>
 #include <vector>
+
+#include "gromacs/math/vectypes.h"
+#include "gromacs/math/quaternion.h"
 
 namespace gmx
 {
 class WholeMoleculeGroup;
-class Quaternion;
 namespace volumedata
 {
-class IDifferentialPotentialProvider;
-template<typename real> class Field;
-
+template <class T> class Field;
+class PotentialEvaluator;
+class PotentialForceEvaluator;
 class RigidBodyFit
 {
     public:
-        // std::tuple<std::RVec, Orientiation> fitDensities(const Field<real> & reference, const Field<real> & comparant, );
-        std::tuple<RVec, Orientiation> fitCoordinates(const Field<real> &reference, std::vector<RVec> x, std::vector<real> weights, const IDifferentialPotentialProvider &fitPotentialProvider);
-        RVec fitTranslation();
-        Quaternion fitOrientation();
-        std::tuple<RVec, Orientiation> fitWholeMoleculeGroup(const Field<real> &reference, WholeMoleculeGroup * atoms, const IDifferentialPotentialProvider &fitPotentialProvider);
-};
+        void fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
+                            const std::vector<real> &weights,
+                            const PotentialEvaluator &fitPotentialProvider);
 
+        void fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
+                            const std::vector<real> &weights,
+                            const PotentialForceEvaluator &fitPotentialProvider);
+
+        void fitWholeMoleculeGroup(const Field<real>        &reference,
+                                   const WholeMoleculeGroup *atoms,
+                                   const PotentialEvaluator &fitPotentialProvider);
+
+        void
+        fitWholeMoleculeGroup(const Field<real> &reference, const WholeMoleculeGroup *atoms,
+                              const PotentialForceEvaluator &fitPotentialProvider);
+
+        RVec fitTranslation() const;
+        Quaternion fitOrientation() const;
+        real bestFitPotential() const;
+
+    private:
+        RVec       translation_      = {0, 0, 0};
+        Quaternion orientation_      = {{1, 0, 0}, 0};
+        real       bestFitPotential_ = -GMX_REAL_MAX;
+};
 }
 }
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H */

@@ -36,10 +36,10 @@
 #define GMX_EXTERNALPOTENTIAL_PROVIDER_H
 
 #include "gmxpre.h"
-#include <map>
-#include <string>
-#include <memory>
 #include <functional>
+#include <map>
+#include <memory>
+#include <string>
 #include <vector>
 
 namespace gmx
@@ -47,9 +47,7 @@ namespace gmx
 namespace volumedata
 {
 
-
-template <typename Provider>
-class PotentialLibrary
+template <typename Provider> class PotentialLibrary
 {
     public:
         PotentialLibrary();
@@ -61,7 +59,7 @@ class PotentialLibrary
         std::vector<std::string> available() const
         {
             std::vector<std::string> result;
-            for (auto f :  functions_)
+            for (auto f : functions_)
             {
                 result.push_back(f.first);
             }
@@ -69,7 +67,7 @@ class PotentialLibrary
         };
 
     private:
-        std::map<std::string, std::function<std::unique_ptr<Provider>()> > functions_;
+        std::map < std::string, std::function < std::unique_ptr<Provider>()>> functions_;
 };
 
 }      // namespace volumedata

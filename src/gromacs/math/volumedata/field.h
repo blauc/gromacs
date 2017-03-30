@@ -50,11 +50,17 @@ namespace gmx
 namespace volumedata
 {
 
-template <class T>
+template <typename T>
 class Field : public FiniteGrid
 {
     public:
-        Field() = default;
+        Field()  = default;
+        ~Field() = default;
+        Field(Field<T> &other) : FiniteGrid {other}
+        {
+            copy_grid(other);
+            data_ = other.data_;
+        }
         Field(const Field<T> &other) : FiniteGrid {other}
         {
             copy_grid(other);

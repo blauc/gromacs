@@ -35,11 +35,14 @@
 #ifndef GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
 #define GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
 
-#include "gromacs/utility/real.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/utility/real.h"
 
-#include <vector>
+#include <memory>
 #include <string>
+#include <vector>
+
+#include "gromacs/math/quaternion.h"
 
 namespace gmx
 {
@@ -48,25 +51,68 @@ class WholeMoleculeGroup;
 namespace volumedata
 {
 
-template<typename real> class Field;
-class IDensityDensityPotentialProvider
+template <typename real> class Field;
+
+class PotentialEvaluator
 {
     public:
-        virtual void parseDensityDensityOptionsString(const std::string &options) = 0;
-        virtual real evaluateDensityDensityPotential(const Field<real> &comparant, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation ) = 0;
+        virtual real potential(const std::vector<RVec> &coordinates,
+                               const std::vector<real> &weights,
+                               const Field<real> &reference,
+                               const RVec &translation = {0, 0, 0},
+                               const Quaternion &orientation = {{1, 0, 0}, 0},
+                               const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        virtual real potential(const WholeMoleculeGroup &atoms,
+                               const Field<real> &reference,
+                               const RVec &translation = {0, 0, 0},
+                               const Quaternion &orientation = {{1, 0, 0}, 0},
+                               const RVec &centerOfRotation = {0, 0, 0}) = 0;
+};
+
+class PotentialForceEvaluator : public PotentialEvaluator
+{
+    public:
+        virtual void
+        force(WholeMoleculeGroup &atoms,
+              const Field<real> &reference,
+              const RVec &translation = {0, 0, 0},
+              const Quaternion &orientation = {{1, 0, 0}, 0},
+              const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        virtual std::vector<RVec>
+        force(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+              const Field<real> &reference, const RVec &translation = {0, 0, 0},
+              const Quaternion &orientation = {{1, 0, 0}, 0},
+              const RVec &centerOfRotation = {0, 0, 0}) = 0;
 };
 
 class IStructureDensityPotentialProvider
 {
     public:
+        IStructureDensityPotentialProvider()  = default;
+        ~IStructureDensityPotentialProvider() = default;
 
-        virtual void parseStructureDensityOptionsString (const std::string &options);
-        virtual void planCoordinates(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation); //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
-        virtual void planGroup(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation);                                               //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
-        virtual real evaluateStructureDensityPotential(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
-        virtual real evaluateGroupDensityPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation );
-        virtual void evaluateGroupForces(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation);
-        virtual std::vector<RVec> evaluateCoordinateForces(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
+        virtual std::unique_ptr<PotentialForceEvaluator>
+        plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+             const Field<real> &reference, const std::string &options,
+             const RVec &translation = {0, 0, 0},
+             const Quaternion &orientation = {{1, 0, 0}, 0},
+             const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        virtual std::unique_ptr<PotentialForceEvaluator>
+        plan(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+             const std::string &options, const RVec &translation = {0, 0, 0},
+             const Quaternion &orientation = {{1, 0, 0}, 0},
+             const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        virtual std::unique_ptr<PotentialEvaluator>
+        planPotential(const std::vector<RVec> &coordinates,
+                      const std::vector<real> &weights, const Field<real> &reference,
+                      const std::string &options, const RVec &translation = {0, 0, 0},
+                      const Quaternion &orientation = {{1, 0, 0}, 0},
+                      const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        virtual std::unique_ptr<PotentialEvaluator>
+        planPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+                      const std::string &options, const RVec &translation = {0, 0, 0},
+                      const Quaternion &orientation = {{1, 0, 0}, 0},
+                      const RVec &centerOfRotation = {0, 0, 0}) = 0;
 };
 
 }      /* volumedata */

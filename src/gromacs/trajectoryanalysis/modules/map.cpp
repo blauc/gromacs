@@ -57,9 +57,11 @@
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
-#include "gromacs/externalpotential/modules/densityfitting/potential-differentialprovider.h"
 #include "gromacs/externalpotential/modules/densityfitting/provider.h"
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
+#include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
+#include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
+
 #include "gromacs/math/quaternion.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
@@ -90,6 +92,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/math/vectypes.h"
 
 namespace gmx
 {
@@ -138,17 +141,18 @@ class Map : public TrajectoryAnalysisModule
         volumedata::GridReal                                            inputdensity_;
         volumedata::GridReal                                            outputdensity_;
         volumedata::GridReal                                            outputDensityBuffer_;
-        real                                                            spacing_ = 0.2;
-        bool                                                            bPrint_  = false;
+        real                                                            spacing_        = 0.2;
+        bool                                                            bPrint_         = false;
+        bool                                                            bRigidBodyFit_  = true;
         std::vector<float>                                              weight_;
         int                                                             every_                = 1;
         real                                                            expAverage_           = 1.;
         real                                                            correlationThreshold_ = 0.;
         FILE                                                           *potentialFile_;
-        int                                                             nFr_      = 0;
-        bool                                                            bFit_     = false;
+        int                                                             nFr_                          = 0;
+        bool                                                            bFitFramesToTopStructure_     = false;
         int                                                             nAtomsReference_;
-        std::vector<RVec>                                               referenceX;
+        std::vector<RVec>                                               referenceX_;
         matrix                                                          referenceBox;
         std::vector<real>                                               fitWeights;
         bool                                                            bUseBox_       = false;
@@ -156,13 +160,14 @@ class Map : public TrajectoryAnalysisModule
         volumedata::FourierShellCorrelation                             fsc_;
         std::unique_ptr<volumedata::DensitySpreader>                    spreader_;
         FILE                                                           *fscFile_;
-        std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialCalculator_;
+        std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
+        std::unique_ptr<volumedata::PotentialForceEvaluator>            potentialForceEvaluator_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
                       TrajectoryAnalysisSettings *settings)
 {
-    auto          potentialNames = volumedata::PotentialLibrary<volumedata::IDensityDifferentialProvider>().available();
+    auto          potentialNames = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().available();
     const char *  c_potentialTypes[4]; // TODO: this fixed size array is required for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
     {
@@ -224,10 +229,12 @@ void Map::initOptions(IOptionsContainer          *options,
                            .description("Calculate potential."));
     options->addOption(BooleanOption("print").store(&bPrint_).description(
                                "Output density information to terminal, then exit."));
+    options->addOption(BooleanOption("rigidBodyFit").store(&bRigidBodyFit_).description(
+                               "Use rigid body fitting in all steps."));
     options->addOption(BooleanOption("useBox").store(&bUseBox_).description(
                                "Use the box information in the structure file to setup the grid."));
     options->addOption(
-            BooleanOption("fit").store(&bFit_).description("Fit to structure."));
+            BooleanOption("fit").store(&bFitFramesToTopStructure_).description("Fit to structure."));
     options->addOption(
             FloatOption("expaverage")
                 .store(&expAverage_)
@@ -260,17 +267,25 @@ void Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/,
         }
         gmx_atomprop_destroy(atomprop);
     }
-    if (top.topology() && bFit_)
+    if (bFitFramesToTopStructure_)
     {
-        nAtomsReference_ = top.topology()->atoms.nr;
-        fitWeights.resize(nAtomsReference_, 1);
+        if (top.topology())
+        {
 
-        rvec *x = as_rvec_array(referenceX.data());
-        top.getTopologyConf(&x, referenceBox);
+            nAtomsReference_ = top.topology()->atoms.nr;
+            fitWeights.resize(nAtomsReference_, 1);
 
-        reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, x,
-                fitWeights.data());
-        referenceX.assign(x, x + nAtomsReference_);
+            rvec *x = as_rvec_array(referenceX_.data());
+            top.getTopologyConf(&x, referenceBox);
+
+            reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, x,
+                    fitWeights.data());
+            referenceX_.assign(x, x + nAtomsReference_);
+        }
+        else
+        {
+            GMX_THROW(InvalidInputError("Please provide a topology to fit to."));
+        }
     }
 }
 
@@ -303,18 +318,17 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     if (!fnpotential_.empty())
     {
         // set negative values to zero
-        std::for_each(std::begin(inputdensity_.access().data()),
-                      std::end(inputdensity_.access().data()),
-                      [](real &value) { value = std::max(value, (real)0.); });
+        std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value) { value = std::max(value, (real)0.); });
         inputdensity_.normalize();
-        auto        potentialCalculator_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
+        potentialProvider_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
         std::string optionsString        = "{\"sigma\":"+std::to_string(sigma_)+",\"n_sigma\":"+std::to_string(n_sigma_)+"}\n";
-        potentialCalculator_->parseStructureDensityOptionsString(optionsString);
+
         openPotentialFileAndPrintHeader_();
         if (potentialType_.compare("fsc") == 0)
         {
             openFscFileAndPrintHeader_();
         }
+
     }
     if (!forcedensity_.empty())
     {
@@ -335,8 +349,7 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
     fprintf(stderr, "Did not find suitable box for atom in structure file, "
             "guessing from structure extend.\n");
     clear_mat(box);
-    std::vector<RVec> x_RVec(fr.natoms);
-    x_RVec.assign(fr.x, fr.x + fr.natoms);
+    const std::vector<RVec> x_RVec(fr.x, fr.x + fr.natoms);
     for (int i = XX; i <= ZZ; i++)
     {
         auto compareIthComponent = [i](RVec a, RVec b) {
@@ -397,7 +410,9 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         outputDensityBuffer_.zero();
     }
 
-    outputdensity_ = *spreader_->spreadLocalAtoms(fr.x, weight_, fr.natoms, {0, 0, 0}, Quaternion {{1, 0, 0}, 0});
+    std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
+
+    outputdensity_ = *spreader_->spreadLocalAtoms(coordinates, weight_);
 
     if (nFr_ == 1)
     {
@@ -427,12 +442,12 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
     if (frnr % every_ == 0)
     {
         ++nFr_;
-        if (bFit_)
+        if (bFitFramesToTopStructure_)
         {
             reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, fr.x,
                     fitWeights.data());
             do_fit(nAtomsReference_, fitWeights.data(),
-                   as_rvec_array(referenceX.data()), fr.x);
+                   as_rvec_array(referenceX_.data()), fr.x);
         }
 
         if (nFr_ == 1)
@@ -488,108 +503,46 @@ void Map::openFscFileAndPrintHeader_()
 void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
 {
     using namespace volumedata;
+    real potential;
+
     fprintf(potentialFile_, "\n%8g ", fr.time);
+
     std::vector<RVec> RVecCoordinates;
     RVecCoordinates.assign(fr.x, fr.x+fr.natoms);
-    RVec              translation = {0, 0, 0};
-    Quaternion        orientation = {{1, 0, 0}, 0};
-    fprintf(potentialFile_, "%8g ", potentialCalculator_->evaluateStructureDensityPotential(RVecCoordinates, weight_, inputdensity_, translation, orientation));
+
+    if (bRigidBodyFit_)
+    {
+        RigidBodyFit rigidbodyfit;
+        rigidbodyfit.fitCoordinates(inputdensity_, RVecCoordinates, weight_,  *potentialForceEvaluator_);
+        potential = rigidbodyfit.bestFitPotential();
+    }
+    else
+    {
+        potential = potentialForceEvaluator_->potential(RVecCoordinates, weight_, inputdensity_);
+    }
+
+    fprintf(potentialFile_, "%8g ", potential);
+
     if (potentialType_.compare("fsc") == 0)
     {
         auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
         fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
     }
+
 }
 
 void Map::frameToForceDensity_(const t_trxframe &fr)
 {
-    outputdensity_.normalize();
-    inputdensity_.normalize();
+    const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
 
+    auto                    forcePlotterForces = potentialForceEvaluator_->force(coordinates, weight_, inputdensity_);
 
-
-    auto              forceprovider = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
-    std::vector<RVec> coordinates;
-    coordinates.assign(fr.x, fr.x+fr.natoms);
-    forceprovider->planCoordinates(coordinates, weight_, inputdensity_, {0, 0, 0}, {{1., 0, 0}, 0.});
-    auto forcePlotterForces = forceprovider->evaluateCoordinateForces(coordinates, weight_, inputdensity_, {0, 0, 0}, {{1., 0, 0}, 0.});
-
-    auto plotter = externalpotential::ForcePlotter();
+    auto                    plotter = externalpotential::ForcePlotter();
     plotter.start_plot_forces("forces.bild");
     plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
                         fr.natoms, 1);
     plotter.stop_plot_forces();
 
-    forcePlotterForces.clear();
-
-
-    volumedata::Field<real> forceFieldPlot;
-    forceFieldPlot.copy_grid(inputdensity_);
-
-
-
-    std::vector<RVec>       forcePlotterXs;
-    forceFieldPlot.multiplyGridPointNumber({0.3, 0.3, 0.3});
-    volumedata::Df3File().write("inputdensity.df3", inputdensity_).writePovray();
-    volumedata::MrcFile().write("outputdensity.ccp4", outputdensity_);
-    volumedata::Df3File().write("outputdensity.df3", outputdensity_).writePovray();
-
-    auto potentialProvider = volumedata::PotentialLibrary<volumedata::IDifferentialPotentialProvider>().create(potentialType_)();
-    auto densityGradient   = potentialProvider->evaluateDensityDifferential(inputdensity_, outputdensity_);
-    volumedata::MrcFile().write("densityGradient.ccp4", densityGradient);
-    volumedata::Df3File().write("densityGradient.df3",  potentialProvider->evaluateDensityDifferential(inputdensity_, outputdensity_)).writePovray();
-
-    auto forceDensity = volumedata::ForceDensity(densityGradient, sigma_).getForce();
-
-    std::array<volumedata::GridReal, 3> forcedensityGridReal {
-        {
-            volumedata::GridReal(forceDensity[XX]),
-            volumedata::GridReal(forceDensity[YY]),
-            volumedata::GridReal(forceDensity[ZZ])
-        }
-    };
-
-
-
-    auto                    plotField = [&forcePlotterForces, &forcePlotterXs,
-                                         forcedensityGridReal](const real & /*value*/, RVec x) {
-            forcePlotterForces.push_back(
-                    RVec {forcedensityGridReal[XX].getLinearInterpolationAt(x),
-                          forcedensityGridReal[YY].getLinearInterpolationAt(x),
-                          forcedensityGridReal[ZZ].getLinearInterpolationAt(x)});
-            forcePlotterXs.push_back(x);
-        };
-    volumedata::ApplyToField(forceFieldPlot, plotField);
-
-    plotter.start_plot_forces("forces_grid.bild");
-    plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
-                        as_rvec_array(forcePlotterForces.data()),
-                        forcePlotterXs.size(), 0.3);
-    plotter.stop_plot_forces();
-
-    forcePlotterForces.clear();
-    forcePlotterXs.clear();
-    auto weightDensityPlot = [this, &forcePlotterForces, &forcePlotterXs,
-                              forcedensityGridReal](const real & /*value*/,
-                                                    RVec x) {
-            auto forcevec =
-                RVec {
-                forcedensityGridReal[XX].getLinearInterpolationAt(x),
-                forcedensityGridReal[YY].getLinearInterpolationAt(x),
-                forcedensityGridReal[ZZ].getLinearInterpolationAt(x)
-            };
-            auto weight = this->outputdensity_.getLinearInterpolationAt(x);
-            svmul(weight, forcevec, forcevec);
-            forcePlotterForces.push_back(forcevec);
-            forcePlotterXs.push_back(x);
-        };
-
-    volumedata::ApplyToField(forceFieldPlot, weightDensityPlot);
-    plotter.start_plot_forces("forces_grid_weighted.bild");
-    plotter.plot_forces(as_rvec_array(forcePlotterXs.data()),
-                        as_rvec_array(forcePlotterForces.data()),
-                        forcePlotterXs.size(), 0.3);
-    plotter.stop_plot_forces();
 }
 
 void Map::finishAnalysis(int /*nframes*/) {}

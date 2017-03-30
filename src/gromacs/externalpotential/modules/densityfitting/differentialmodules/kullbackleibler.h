@@ -32,65 +32,85 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
- #define GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
+#ifndef GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
+#define GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H
 
 #include "gmxpre.h"
 
-
-#include "../densitydifferentialprovider.h"
-#include "../potential-differentialprovider.h"
-#include "gromacs/math/volumedata/field.h"
-#include "../potentialprovider.h"
 #include "../densityspreader.h"
+#include "../potentialprovider.h"
 #include "common.h"
+#include "gromacs/math/volumedata/field.h"
 
 #include "gromacs/math/quaternion.h"
 
-#include <string>
 #include <functional>
+#include <memory>
+#include <string>
 namespace gmx
 {
 class WholeMoleculeGroup;
 
 namespace volumedata
 {
-// template<typename real> Field;
-class KullbackLeibler : public commonDensityBased,
-                        public IDifferentialPotentialProvider, public IDensityDensityPotentialProvider
+
+class KullbackLeiblerPotentialForce : densityBasedPotentialForce
 {
     public:
-        KullbackLeibler() : commonDensityBased(std::bind(&KullbackLeibler::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
-        ~KullbackLeibler();
-        const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
-                                                       const Field<real> &reference);
-        real evaluateDensityDensityPotential(
-            const Field<real> &comparant, const Field<real> &reference,
-            const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
-        void parseDifferentialOptionsString(const std::string &options);
-        void parseDensityDensityOptionsString(const std::string &options);
-        void parseStructureDensityOptionsString (const std::string &options);
+        real densityDensityPotential(const Field<real> &reference,
+                                     const Field<real> &comparant);
+
+    private:
+        void setDensityDifferential(const Field<real> &reference,
+                                    const Field<real> &comparant);
+};
+
+// template<typename real> Field;
+class KullbackLeiblerProvider : public IStructureDensityPotentialProvider
+{
+    public:
+        KullbackLeiblerProvider()  = default;
+        ~KullbackLeiblerProvider() = default;
+        std::unique_ptr<PotentialForceEvaluator>
+        plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+             const Field<real> &reference, const std::string &options,
+             const RVec &translation = {0, 0, 0},
+             const Quaternion &orientation = {{1, 0, 0}, 0},
+             const RVec &centerOfRotation = {0, 0, 0});
+        std::unique_ptr<PotentialForceEvaluator>
+        plan(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+             const std::string &options, const RVec &translation = {0, 0, 0},
+             const Quaternion &orientation = {{1, 0, 0}, 0},
+             const RVec &centerOfRotation = {0, 0, 0});
+        std::unique_ptr<PotentialEvaluator>
+        planPotential(const std::vector<RVec> &coordinates,
+                      const std::vector<real> &weights, const Field<real> &reference,
+                      const std::string &options, const RVec &translation = {0, 0, 0},
+                      const Quaternion &orientation = {{1, 0, 0}, 0},
+                      const RVec &centerOfRotation = {0, 0, 0});
+        std::unique_ptr<PotentialEvaluator>
+        planPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+                      const std::string &options, const RVec &translation = {0, 0, 0},
+                      const Quaternion &orientation = {{1, 0, 0}, 0},
+                      const RVec &centerOfRotation = {0, 0, 0});
+
     private:
         void parseOptions_(const std::string &options);
+        real sigma_;
+        int  n_threads_;
+        int  n_sigma_;
+
 };
 /****************************INFO Classes**************************************/
 
-class KullbackLeiblerDensityDensityInfo
+class KullbackLeiblerPotentialInfo
 {
     public:
         static std::string name;
-        static std::unique_ptr<IDensityDensityPotentialProvider> create();
+        static std::unique_ptr<IStructureDensityPotentialProvider> create();
 };
 
-class KullbackLeiblerDifferentialPotentialInfo
-{
-    public:
-        static std::string name;
-        static std::unique_ptr<IDifferentialPotentialProvider> create();
-};
+}      /* volumedata */
+}      /* gmx */
 
-}       /* volumedata */
-}       /* gmx */
-
- #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H */
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H */

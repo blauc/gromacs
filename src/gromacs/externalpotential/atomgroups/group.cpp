@@ -203,11 +203,11 @@ GroupIterator Group::end()
     return GroupIterator(*this, num_atoms_loc_);
 };
 
-GroupAtom &Group::operator[](int i)
-{
-    GroupIterator result(*this, i);
-    return *result;
-};
+// GroupAtom &Group::operator[](int i)
+// {
+//     GroupIterator result(*this, i);
+//     return result;
+// };
 
 std::shared_ptr<GroupAtom> Group::atom(int i)
 {

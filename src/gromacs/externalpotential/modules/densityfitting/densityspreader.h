@@ -38,6 +38,8 @@
 #define GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
 
 #include "gromacs/utility/real.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/math/quaternion.h"
 #include <memory>
 #include <vector>
 #include "gromacs/math/volumedata/volumedata.h"
@@ -47,8 +49,6 @@ namespace gmx
 {
 
 class WholeMoleculeGroup;
-class Quaternion;
-
 namespace volumedata
 {
 
@@ -62,8 +62,8 @@ class DensitySpreader
     public:
         explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma);
         ~DensitySpreader();
-        Field<real> * spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation, const Quaternion &orientation);
-        Field<real> * spreadLocalAtoms(const rvec *x, const std::vector<real> &weights, int nAtoms,  const RVec &translation, const Quaternion &orientation);
+        Field<real> * spreadLocalAtoms(const WholeMoleculeGroup &spreadgroup, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0});
+        Field<real> * spreadLocalAtoms(const std::vector<RVec> x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0});
     private:
         std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
         std::vector < std::unique_ptr < volumedata::GridReal>> simulated_density_buffer_;

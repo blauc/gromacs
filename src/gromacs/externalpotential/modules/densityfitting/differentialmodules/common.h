@@ -33,56 +33,88 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
- #ifndef GMX_EXTERNALPOTENTIAL_COMMON_H
- #define GMX_EXTERNALPOTENTIAL_COMMON_H
+#ifndef GMX_EXTERNALPOTENTIAL_COMMON_H
+#define GMX_EXTERNALPOTENTIAL_COMMON_H
 #include "gmxpre.h"
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/quaternion.h"
-#include "../densityspreader.h"
 #include "gromacs/utility/real.h"
-#include <vector>
-#include <string>
-#include <functional>
+
+#include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 
 namespace gmx
 {
+
 class WholeMoleculeGroup;
+class Quaternion;
+
 namespace volumedata
 {
 
-class commonDensityBased
+class DensitySpreader;
+class FiniteGrid;
+// template<typename T> class Field;
+
+class densityBasedPotential : public PotentialEvaluator
 {
     public:
-        explicit commonDensityBased(const std::function<const Field<real> &(const Field<real> &reference, const Field<real> comparant)> &differentialCalculator) : differentialCalculator_ {differentialCalculator}
-        {};
-        void evaluateGroupForces(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation);
-        std::vector<RVec> evaluateCoordinateForces(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
-        real evaluateStructureDensityPotential(
-            const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-            const Field<real> &reference, const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
-        real evaluateGroupDensityPotential(
-            const WholeMoleculeGroup &atoms,
-            const Field<real> &reference, const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
-        void planCoordinates(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation); //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
-        void planGroup(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation);                                               //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
+        explicit densityBasedPotential(const FiniteGrid &reference,
+                                       const int n_threads = 1, const int n_sigma = 5,
+                                       const real sigma = 0.2);
+
+        real potential(const std::vector<RVec> &coordinates,
+                       const std::vector<real> &weights, const Field<real> &reference,
+                       const RVec &translation = {0, 0, 0},
+                       const Quaternion &orientation = {{1, 0, 0}, 0},
+                       const RVec &centerOfRotation = {0, 0, 0});
+        real potential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+                       const RVec &translation = {0, 0, 0},
+                       const Quaternion &orientation = {{1, 0, 0}, 0},
+                       const RVec &centerOfRotation = {0, 0, 0});
+        virtual real densityDensityPotential(const Field<real> &reference,
+                                             const Field<real> &comparant);
+
     protected:
-        void
-        intializeSpreaderIfNull_(const FiniteGrid &reference, const int n_threads, const int n_sigma, const real sigma);
-        const std::function<const Field<real> &(const Field<real> &reference, const Field<real> comparant)> &differentialCalculator_;
         std::unique_ptr<DensitySpreader> spreader_;
-        Field<real>                    * spread_density_;
-        std::unique_ptr < Field < real>> differential;
-
-        real sigma_     = 0.2;
-        real n_sigma_   = 5;
-        real n_threads_ = 1;
-
+        Field<real>                     *spread_density_;
 };
 
-}       /* volumedata */
-}       /* gmx */
+class densityBasedPotentialForce : public densityBasedPotential,
+                                   public PotentialForceEvaluator
+{
+    public:
+        explicit densityBasedPotentialForce(const FiniteGrid &reference,
+                                            const int n_threads, const int n_sigma,
+                                            const real sigma,
+                                            const real sigma_differential);
 
- #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_COMMON_H */
+        void force(WholeMoleculeGroup &atoms, const Field<real> &reference,
+                   const RVec &translation = {0, 0, 0},
+                   const Quaternion &orientation = {{1, 0, 0}, 0},
+                   const RVec &centerOfRotation = {0, 0, 0});
+        std::vector<RVec> force(const std::vector<RVec> &coordinates,
+                                const std::vector<real> &weights,
+                                const Field<real> &reference,
+                                const RVec &translation = {0, 0, 0},
+                                const Quaternion &orientation = {{1, 0, 0}, 0},
+                                const RVec &centerOfRotation = {0, 0, 0});
+
+    protected:
+        virtual void setDensityDifferential(const Field<real> &reference,
+                                            const Field<real> &comparant) = 0;
+        std::unique_ptr < Field < real>> differential_;
+        real              sigma_differential_;
+        int               n_threads_;
+        std::vector<RVec> force_;
+};
+
+}      /* volumedata */
+}      /* gmx */
+
+#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_COMMON_H */

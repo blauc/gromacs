@@ -135,7 +135,7 @@ class Group
          * Sets values in atom_ and returns this.
          * \warning Not thread safe!
          */
-        GroupAtom &operator[] (int i);
+        // GroupAtom &operator[] (int i);
 
         /*!\brief
          * Thread-save return a single atom of the group.

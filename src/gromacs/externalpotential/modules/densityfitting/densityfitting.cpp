@@ -49,7 +49,6 @@
 #include "gromacs/externalpotential/externalpotentialIO.h"
 #include "gromacs/externalpotential/forceplotter.h"
 #include "gromacs/math/quaternion.h"
-#include "potential-differentialprovider.h"
 #include "provider.h"
 #include "rigidbodyfit.h"
 
@@ -69,6 +68,7 @@
 #include "emscatteringfactors.h"
 #include "gromacs/utility/gmxomp.h"
 
+#include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 
 
 namespace gmx
@@ -90,31 +90,6 @@ real DensityFitting::single_atom_properties(GroupAtom * atom, t_mdatoms * /*mdat
     return atomicNumber2EmScatteringFactor(atomPropeties.atomnumber);
 }
 
-real DensityFitting::getTotalScatteringSum_(WholeMoleculeGroup * atomgroup)
-{
-    real weightssum = atomgroup->local_weights_sum();
-    if (mpi_helper() != nullptr)
-    {
-        mpi_helper()->to_reals_buffer(&weightssum, 1);
-        mpi_helper()->sum_allReduce();
-    }
-    return weightssum;
-}
-
-void
-DensityFitting::alignComDensityAtoms()
-{
-    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-    {
-        rvec_sub(target_density_->center_of_mass(), centerOfMass_, translation_);
-    }
-
-    if (mpi_helper() != nullptr)
-    {
-        mpi_helper()->broadcast(translation_, 3);
-    }
-}
-
 std::string
 DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs)
 {
@@ -131,7 +106,7 @@ DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs)
 void
 DensityFitting::initialize(const matrix box, const rvec x[])
 {
-    potentialProvider_ = volumedata::PotentialLibrary<volumedata::IDifferentialPotentialProvider>().create(fitMethod_)();
+    potentialProvider_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(fitMethod_)();
 
     if (bWriteXTC_)
     {
@@ -139,11 +114,11 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     }
     auto fitatoms = wholemoleculegroup(x, box, 0);
     target_density_->normalize();
-    totalScatteringSum_ = getTotalScatteringSum_(fitatoms);
 
+    auto potentialevaluator = potentialProvider_->plan(*fitatoms, *target_density_, options_);
     if (isCenterOfMassCentered_)
     {
-        volumedata::RigidBodyFit().fitWholeMoleculeGroup(target_density_, fitatoms, potentialProvider_);
+        volumedata::RigidBodyFit().fitWholeMoleculeGroup(*target_density_, fitatoms, *potentialevaluator);
     }
 
     const real timeStepNs = 0.004; // TODO: pass this from simulation input
@@ -152,17 +127,6 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     fprintf(input_output()->output_file(), "%s", logInitialisationString_(fitatoms->num_atoms_global(), timeStepNs).c_str());
     // fitatoms->medianSort();
 
-}
-
-
-void DensityFitting::sum_reduce_simulated_density_()
-{
-    mpi_helper()->to_reals_buffer(simulated_density_->access().data().data(), simulated_density_->access().data().size() );
-    mpi_helper()->sum_reduce();
-    if (mpi_helper()->isMaster())
-    {
-        mpi_helper()->from_reals_buffer(simulated_density_->access().data().data(), simulated_density_->access().data().size());
-    }
 }
 
 void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
@@ -182,7 +146,7 @@ void DensityFitting::plot_forces(WholeMoleculeGroup * plotatoms)
     fprintf(stderr, "max force:  %g \n", max_f);
     for (auto &atom : *plotatoms)
     {
-        plot.plot_force(orientation_.shiftedAndOriented(*atom.xTransformed, centerOfMass_, translation_), *atom.force, 0, 1.0/max_f);
+        plot.plot_force(orientation_.shiftedAndOriented(*atom.xTransformed, centerOfRotation_, translation_), *atom.force, 0, 1.0/max_f);
     }
     plot.stop_plot_forces();
 
@@ -197,7 +161,7 @@ DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step
         int               i = 0;
         for (auto atom : *atoms)
         {
-            x_out[i++] = orientation_.shiftedAndOriented(*atom.xTransformed, centerOfMass_, translation_);
+            x_out[i++] = orientation_.shiftedAndOriented(*atom.xTransformed, centerOfRotation_, translation_);
         }
         write_xtc(out_, atoms->num_atoms_global(), step, 0, *(atoms->box()), as_vec_array(x_out.data()), 1000);
     }
@@ -205,47 +169,47 @@ DensityFitting::writeTranslatedCoordinates_(WholeMoleculeGroup * atoms, int step
 
 void DensityFitting::do_potential( const matrix box, const rvec x[], const gmx_int64_t step)
 {
-    auto fitatoms = wholemoleculegroup(x, box, 0);
-    // setCenterOfMass(fitatoms);
-
-    if ( (step%(every_nth_step_) == 0) && (bWriteXTC_))
-    {
-        writeTranslatedCoordinates_(fitatoms, step);
-    }
-
-    if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-    {
-
-        auto delta_divergence  = volumedata::GridMeasures(*target_density_).getRelativeKLCrossTermSameGrid(*simulated_density_, reference_density_);
-        reference_divergence_ -= delta_divergence;
-        set_local_potential(k_*reference_divergence_);
-        reference_density_             = simulated_density_->access().data();
-        exponentialDeltaEnergyAverage_ = 0.3* (k_ * delta_divergence) + 0.7 * exponentialDeltaEnergyAverage_;
-        fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t", reference_divergence_, k_, exponentialDeltaEnergyAverage_);
-
-        if (exponentialDeltaEnergyAverage_ < optimalDeltaPotentialEnergy_)
-        {
-            k_ *= k_factor_;
-        }
-        else
-        {
-            k_ /= k_factor_;
-        }
-    }
-    else
-    {
-        set_local_potential(0);
-    }
-
-    forceCalculation(fitatoms);
-
-    // volumedata::MrcFile simulated_output;
-    if (step % (every_nth_step_) == 0)
-    {
-        // simulated_output.write("simulated.mrc", *simulated_density_);
-        plot_forces(fitatoms);
-    }
-    // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
+    // auto fitatoms = wholemoleculegroup(x, box, 0);
+    // // setCenterOfMass(fitatoms);
+    //
+    // if ( (step%(every_nth_step_) == 0) && (bWriteXTC_))
+    // {
+    //     writeTranslatedCoordinates_(fitatoms, step);
+    // }
+    //
+    // if (mpi_helper() == nullptr || mpi_helper()->isMaster())
+    // {
+    //
+    //
+    //     set_local_potential(k_*reference_divergence_);
+    //
+    //
+    //     exponentialDeltaEnergyAverage_ = 0.3* (deltaPotential) + 0.7 * exponentialDeltaEnergyAverage_;
+    //     fprintf(input_output()->output_file(), "%8g\t%8g\t%8g\t", reference_divergence_, k_, exponentialDeltaEnergyAverage_);
+    //
+    //     if (exponentialDeltaEnergyAverage_ < optimalDeltaPotentialEnergy_)
+    //     {
+    //         k_ *= k_factor_;
+    //     }
+    //     else
+    //     {
+    //         k_ /= k_factor_;
+    //     }
+    // }
+    // else
+    // {
+    //     set_local_potential(0);
+    // }
+    //
+    // forceCalculation(fitatoms);
+    //
+    // // volumedata::MrcFile simulated_output;
+    // if (step % (every_nth_step_) == 0)
+    // {
+    //     // simulated_output.write("simulated.mrc", *simulated_density_);
+    //     plot_forces(fitatoms);
+    // }
+    // // fitatoms->parallel_loop(std::bind( &DensityFitting::ForceKernel_KL, this, std::placeholders::_1, std::placeholders::_2));
 
 }
 
@@ -284,8 +248,9 @@ void DensityFitting::read_input()
     auto line = (char*) malloc(fsize + 1);;
     fsize = fread(line, fsize, 1, inputfile);
     // TODO: implement JSON scheme for checking input consistency
+    options_ = std::string(line);
     json::Object parsed_json {
-        std::string(line)
+        options_
     };
 
     if (parsed_json.has("k"))

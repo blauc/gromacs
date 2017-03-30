@@ -1,93 +1,93 @@
-/*
- * This file is part of the GROMACS molecular simulation package.
- *
- * Copyright (c) 2017, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
- *
- * GROMACS is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 2.1
- * of the License, or (at your option) any later version.
- *
- * GROMACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
- * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
- *
- * If you want to redistribute modifications to GROMACS, please
- * consider that scientific software is very special. Version
- * control is crucial - bugs must be traceable. We will be happy to
- * consider code for inclusion in the official distribution, but
- * derived work must not be called official GROMACS. Details are found
- * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
- *
- * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
- */
-#ifndef GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
-#define GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
-
-#include "gmxpre.h"
-
-#include "../potential-differentialprovider.h"
-#include "gromacs/math/quaternion.h"
-#include "gromacs/math/volumedata/field.h"
-#include "../densityspreader.h"
-#include <string>
-namespace gmx
-{
-class WholeMoleculeGroup;
-
-namespace volumedata
-{
-
-template <typename real> class Field;
-
-class InvertedDensity : public IDifferentialPotentialProvider
-{
-    public:
-        const Field<real> &
-        evaluateDensityDifferential(const Field<real>  & /*comparant*/,
-                                    const Field<real> &reference);
-        real evaluateStructureDensityPotential(
-            const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-            const Field<real> &reference, const RVec &translation = {0, 0, 0},
-            const Quaternion &orientation = {{0, 0, 1}, 0});
-        real evaluateGroupDensityPotential(const WholeMoleculeGroup &atoms,
-                                           const Field<real> &reference,
-                                           const RVec &translation = {0, 0, 0},
-                                           const Quaternion &orientation = {{0, 0, 1},
-                                                                            0});
-        void parseDifferentialOptionsString(const std::string &options);
-        void parseDensityDensityOptionsString(const std::string &options);
-        void parseStructureDensityOptionsString(const std::string &options);
-        void planCoordinates(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation); //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
-        void planGroup(const WholeMoleculeGroup &atoms, const Field<real> &reference, const RVec &translation, const Quaternion &orientation);                                               //TODO: this should return a plan object, that then can be executed to evaluate potential, forces etc.
-        void evaluateGroupForces(const WholeMoleculeGroup &atoms, const Field<real> &reference,   const RVec &translation, const Quaternion &orientation);
-        std::vector<RVec> evaluateCoordinateForces(const std::vector<RVec> &coordinates, const std::vector<real> &weights, const Field<real> &reference,  const RVec &translation, const Quaternion &orientation);
-    private:
-        real threshold_ = 0.;
-        void parseOptions_(const std::string &options);
-        int  number_of_threads_ = 1;
-};
-/****************************INFO Classes**************************************/
-
-class InvertedDensityDifferentialPotentialInfo
-{
-    public:
-        static std::string name;
-        static std::unique_ptr<IDifferentialPotentialProvider> create();
-};
-
-}      /* volumedata */
-}      /* gmx */
-
-#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H */
+// /*
+//  * This file is part of the GROMACS molecular simulation package.
+//  *
+//  * Copyright (c) 2017, by the GROMACS development team, led by
+//  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
+//  * and including many others, as listed in the AUTHORS file in the
+//  * top-level source directory and at http://www.gromacs.org.
+//  *
+//  * GROMACS is free software; you can redistribute it and/or
+//  * modify it under the terms of the GNU Lesser General Public License
+//  * as published by the Free Software Foundation; either version 2.1
+//  * of the License, or (at your option) any later version.
+//  *
+//  * GROMACS is distributed in the hope that it will be useful,
+//  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//  * Lesser General Public License for more details.
+//  *
+//  * You should have received a copy of the GNU Lesser General Public
+//  * License along with GROMACS; if not, see
+//  * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+//  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
+//  *
+//  * If you want to redistribute modifications to GROMACS, please
+//  * consider that scientific software is very special. Version
+//  * control is crucial - bugs must be traceable. We will be happy to
+//  * consider code for inclusion in the official distribution, but
+//  * derived work must not be called official GROMACS. Details are found
+//  * in the README & COPYING files - if they are missing, get the
+//  * official version at http://www.gromacs.org.
+//  *
+//  * To help us fund GROMACS development, we humbly ask that you cite
+//  * the research papers on the package. Check out http://www.gromacs.org.
+//  */
+// #ifndef GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
+// #define GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H
+//
+// #include "gmxpre.h"
+//
+// #include "gromacs/math/quaternion.h"
+// #include "gromacs/math/volumedata/field.h"
+// #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
+// #include <string>
+// namespace gmx
+// {
+// class WholeMoleculeGroup;
+//
+// namespace volumedata
+// {
+//
+// template <typename real> class Field;
+//
+// class InvertedDensity : public IStructureDensityPotentialProvider
+// {
+//     public:
+//
+//         std::unique_ptr<PotentialForceEvaluator>
+//         plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+//              const Field<real> &reference, const std::string &options,
+//              const RVec &translation = {0, 0, 0},
+//              const Quaternion &orientation = {{1, 0, 0}, 0});
+//         std::unique_ptr<PotentialForceEvaluator>
+//         plan(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+//              const std::string &options, const RVec &translation = {0, 0, 0},
+//              const Quaternion &orientation = {{1, 0, 0}, 0});
+//         std::unique_ptr<PotentialEvaluator>
+//         planPotential(const std::vector<RVec> &coordinates,
+//                       const std::vector<real> &weights, const Field<real> &reference,
+//                       const std::string &options, const RVec &translation = {0, 0, 0},
+//                       const Quaternion &orientation = {{1, 0, 0}, 0});
+//         std::unique_ptr<PotentialEvaluator>
+//         planPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+//                       const std::string &options, const RVec &translation = {0, 0, 0},
+//                       const Quaternion &orientation = {{1, 0, 0}, 0});
+//
+//     private:
+//         real threshold_ = 0.;
+//         void parseOptions_(const std::string &options);
+//         int  number_of_threads_ = 1;
+// };
+// /****************************INFO Classes**************************************/
+//
+// class InvertedDensityDifferentialPotentialInfo
+// {
+//     public:
+//         static std::string name;
+//         static std::unique_ptr<IStructureDensityPotentialProvider> create();
+// };
+//
+// }      /* volumedata */
+// }      /* gmx */
+//
+// #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H */

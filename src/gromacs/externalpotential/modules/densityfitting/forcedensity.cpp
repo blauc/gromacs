@@ -42,7 +42,6 @@
 
 #include "forcedensity.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
-#include "potential-differentialprovider.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/volumedata/fouriertransform.h"
 #include "gromacs/math/volumedata/field.h"
@@ -56,8 +55,6 @@ namespace gmx
 {
 namespace volumedata
 {
-
-
 
 ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
