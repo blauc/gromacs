@@ -47,6 +47,7 @@
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/math/quaternion.h"
 
+
 struct t_fileio;
 struct gmx_mtop_atomlookup;
 
@@ -63,7 +64,7 @@ class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
 class IStructureDensityPotentialProvider;
-class PotentialForceEvaluator;
+class PotentialEvaluator;
 }
 
 namespace externalpotential
@@ -111,7 +112,7 @@ class DensityFitting : public ExternalPotential
         std::string options_;
 
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr<volumedata::PotentialForceEvaluator>            potentialEvaluator_;
+        std::unique_ptr<volumedata::PotentialEvaluator>                 potentialEvaluator_;
 
         std::unique_ptr<volumedata::GridReal>                           target_density_;
         std::unique_ptr<volumedata::GridReal>                           simulated_density_;

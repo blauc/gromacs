@@ -61,6 +61,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
+#include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 
 #include "gromacs/math/quaternion.h"
 #include "gromacs/fileio/pdbio.h"
@@ -161,13 +162,14 @@ class Map : public TrajectoryAnalysisModule
         std::unique_ptr<volumedata::DensitySpreader>                    spreader_;
         FILE                                                           *fscFile_;
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr<volumedata::PotentialForceEvaluator>            potentialForceEvaluator_;
+        std::unique_ptr<volumedata::PotentialEvaluator>                 potentialEvaluator_;
+        std::unique_ptr<volumedata::ForceEvaluator>                     forceEvaluator_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
                       TrajectoryAnalysisSettings *settings)
 {
-    auto          potentialNames = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().available();
+    auto          potentialNames = volumedata::PotentialLibrary().available();
     const char *  c_potentialTypes[4]; // TODO: this fixed size array is required for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
     {
@@ -320,14 +322,12 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         // set negative values to zero
         std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value) { value = std::max(value, (real)0.); });
         inputdensity_.normalize();
-        potentialProvider_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(potentialType_)();
-        std::string optionsString        = "{\"sigma\":"+std::to_string(sigma_)+",\"n_sigma\":"+std::to_string(n_sigma_)+"}\n";
-
+        potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
         openPotentialFileAndPrintHeader_();
-        if (potentialType_.compare("fsc") == 0)
-        {
-            openFscFileAndPrintHeader_();
-        }
+        // if (potentialType_.compare("fsc") == 0)
+        // {
+        // openFscFileAndPrintHeader_();
+        // }
 
     }
     if (!forcedensity_.empty())
@@ -412,7 +412,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
 
     std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
 
-    outputdensity_ = *spreader_->spreadLocalAtoms(coordinates, weight_);
+    outputdensity_ = spreader_->spreadLocalAtoms(coordinates, weight_);
 
     if (nFr_ == 1)
     {
@@ -457,10 +457,16 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
                 weight_.assign(fr.natoms, 1);
                 fprintf(stderr, "\nSetting atom weights to unity.\n");
             }
+            std::vector<RVec> rVecCoordinates(fr.x, fr.x+fr.natoms);
+            std::string       optionsString        = "{\"sigma\":"+std::to_string(sigma_)+",\"n_sigma\":"+std::to_string(n_sigma_)+"}\n";
+
+            potentialEvaluator_ = potentialProvider_->planPotential(rVecCoordinates, weight_, inputdensity_, optionsString);
+            // forceEvaluator_ = potentialProvider_->planForce(rVecCoordinates, weight_, inputdensity_, optionsString);
+
         }
 
-        bool requiresDensity = !fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty() || !fnfrmapoutput_.empty();
-        if (requiresDensity)
+        bool bRequiresDensity = !fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty() || !fnfrmapoutput_.empty();
+        if (bRequiresDensity)
         {
             frameToDensity_(fr, nFr_);
         }
@@ -503,31 +509,28 @@ void Map::openFscFileAndPrintHeader_()
 void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
 {
     using namespace volumedata;
-    real potential;
+    real              potential;
 
-    fprintf(potentialFile_, "\n%8g ", fr.time);
+    std::vector<RVec> rVecCoordinates(fr.x, fr.x+fr.natoms);
 
-    std::vector<RVec> RVecCoordinates;
-    RVecCoordinates.assign(fr.x, fr.x+fr.natoms);
+    // if (bRigidBodyFit_)
+    // {
+    // RigidBodyFit rigidbodyfit;
+    // rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,  *potentialForceEvaluator_);
+    // potential = rigidbodyfit.bestFitPotential();
+    // }
+    // else
+    // {
+    potential = potentialEvaluator_->potential(rVecCoordinates, weight_, inputdensity_);
+    // }
 
-    if (bRigidBodyFit_)
-    {
-        RigidBodyFit rigidbodyfit;
-        rigidbodyfit.fitCoordinates(inputdensity_, RVecCoordinates, weight_,  *potentialForceEvaluator_);
-        potential = rigidbodyfit.bestFitPotential();
-    }
-    else
-    {
-        potential = potentialForceEvaluator_->potential(RVecCoordinates, weight_, inputdensity_);
-    }
-
-    fprintf(potentialFile_, "%8g ", potential);
-
-    if (potentialType_.compare("fsc") == 0)
-    {
-        auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
-        fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
-    }
+    fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);
+    //
+    // if (potentialType_.compare("fsc") == 0)
+    // {
+    //     auto fscCurve = fsc_.getFscCurve(outputDensityBuffer_, inputdensity_);
+    //     fprintf(fscFile_, "%s", (std::accumulate(std::begin(fscCurve), std::end(fscCurve), std::string(""),  [](std::string accumulant, const real &value){ return accumulant + std::string(" ") + std::to_string(value); })+ "\n").c_str());
+    // }
 
 }
 
@@ -535,7 +538,7 @@ void Map::frameToForceDensity_(const t_trxframe &fr)
 {
     const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
 
-    auto                    forcePlotterForces = potentialForceEvaluator_->force(coordinates, weight_, inputdensity_);
+    auto                    forcePlotterForces = forceEvaluator_->force(coordinates, weight_, inputdensity_);
 
     auto                    plotter = externalpotential::ForcePlotter();
     plotter.start_plot_forces("forces.bild");

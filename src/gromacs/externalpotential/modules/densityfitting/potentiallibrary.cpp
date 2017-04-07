@@ -53,11 +53,10 @@ void registerFunction(std::map<std::string, Creator> &map)
     map[InfoClass::name] = &InfoClass::create;
 };
 
-class IStructureDensityPotentialProvider;
-template <> PotentialLibrary<IStructureDensityPotentialProvider>::PotentialLibrary()
+PotentialLibrary::PotentialLibrary()
 {
-    // registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
     registerFunction<KullbackLeiblerPotentialInfo>(functions_);
+    // registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
     // registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
     // registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
 };

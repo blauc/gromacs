@@ -47,8 +47,8 @@ namespace gmx
 namespace volumedata
 {
 
-void KullbackLeiblerPotentialForce::setDensityDifferential(
-        const Field<real> &comparant, const Field<real> &reference)
+void KullbackLeiblerForce::setDensityDifferential(
+        const GridReal &comparant, const Field<real> &reference)
 {
     differential_->copy_grid(reference);
     auto sumSimulatedDensity     = GridReal(comparant).properties().sum();
@@ -64,7 +64,7 @@ void KullbackLeiblerPotentialForce::setDensityDifferential(
                    comparant.access().begin(), differential_->access().begin(),
                    densityGradientFunction);
 }
-real KullbackLeiblerPotentialForce::densityDensityPotential(
+real KullbackLeiblerPotential::densityDensityPotential(
         const Field<real> &reference, const Field<real> &comparant)
 {
     return GridMeasures(reference).getKLSameGrid(comparant);
@@ -86,6 +86,51 @@ real KullbackLeiblerPotentialForce::densityDensityPotential(
 //     }
 //     return GridMeasures(reference).getKLSameGrid(comparant);
 // };
+
+KullbackLeiblerForce::KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf) : densityBasedForce {spreader, sigma_differential, n_threads, spreadSelf}
+{
+}
+
+KullbackLeiblerPotential::KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf) : densityBasedPotential {spreader, spreadSelf}
+{
+}
+
+std::unique_ptr<ForceEvaluator> KullbackLeiblerProvider::planForce(
+        const std::vector<RVec> & /*coordinates*/, const std::vector<real> & /*weights*/,
+        const Field<real> &reference, const std::string &options,
+        const RVec & /*translation*/, const Quaternion & /*orientation*/,
+        const RVec & /*centerOfRotation*/)
+{
+    parseOptions_(options);
+    if (spreader_ == nullptr)
+    {
+        spreader_ = std::unique_ptr<DensitySpreader>(new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+        return std::unique_ptr<KullbackLeiblerForce>(new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, true));
+    }
+    else
+    {
+        return std::unique_ptr<KullbackLeiblerForce>(new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, false));
+    }
+};
+
+
+std::unique_ptr<PotentialEvaluator> KullbackLeiblerProvider::planPotential(
+        const std::vector<RVec> & /*coordinates*/, const std::vector<real> & /*weights*/,
+        const Field<real> &reference, const std::string &options,
+        const RVec & /*translation*/, const Quaternion & /*orientation*/,
+        const RVec & /*centerOfRotation*/)
+{
+    parseOptions_(options);
+    if (spreader_ != nullptr)
+    {
+        spreader_ = std::unique_ptr<DensitySpreader>(new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+        return std::unique_ptr<KullbackLeiblerPotential>(new KullbackLeiblerPotential(*spreader_, true));
+    }
+    else
+    {
+        return std::unique_ptr<KullbackLeiblerPotential>(new KullbackLeiblerPotential(*spreader_, false));
+    }
+};
 
 void KullbackLeiblerProvider::parseOptions_(const std::string &options)
 {
@@ -137,10 +182,11 @@ void KullbackLeiblerProvider::parseOptions_(const std::string &options)
 std::string KullbackLeiblerPotentialInfo::name =
     std::string("kullback-leibler");
 
-std::unique_ptr<IStructureDensityPotentialProvider>
+std::unique_ptr<IStructureDensityPotentialForceProvider>
 KullbackLeiblerPotentialInfo::create()
 {
-    return std::unique_ptr<IStructureDensityPotentialProvider>(new KullbackLeiblerProvider);
+    return std::unique_ptr<IStructureDensityPotentialForceProvider>(
+            new KullbackLeiblerProvider());
 }
 
 } /* volumedata */

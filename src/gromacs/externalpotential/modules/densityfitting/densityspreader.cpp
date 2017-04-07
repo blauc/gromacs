@@ -51,28 +51,32 @@ DensitySpreader::~DensitySpreader()
 };
 
 DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma) :
-    simulated_density_ {new GridReal(grid)},
-number_of_threads_ {
+    simulated_density_ {new GridReal(grid)}, number_of_threads_ {
     numberOfThreads
 }
 {
+
 #pragma omp parallel for ordered num_threads(number_of_threads_)
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        simulated_density_buffer_.emplace_back(new volumedata::GridReal(grid));
-        gauss_transform_.emplace_back(new volumedata::FastGaussianGridding());
+        (*simulated_density_buffer_).emplace_back(new GridReal(grid));
+        (*gauss_transform_).emplace_back(new FastGaussianGridding());
     }
-    for (auto &transform : gauss_transform_)
+    for (auto &transform : *gauss_transform_)
     {
         transform->set_sigma(sigma);
         transform->set_n_sigma(n_sigma);
     }
 }
 
+const GridReal &
+DensitySpreader::getSpreadGrid() const
+{
+    return *simulated_density_;
+}
 
-//TODO use wholemoleculegroup concept throughout
-Field<real> *
-DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation)
+const GridReal &
+DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
     std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);
@@ -82,24 +86,24 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
 #pragma omp parallel num_threads(number_of_threads_)
     {
         int           thread     = gmx_omp_get_thread_num();
-        simulated_density_buffer_[thread]->zero();
-        gauss_transform_[thread]->set_grid(std::move(simulated_density_buffer_[thread]));
+        (*simulated_density_buffer_)[thread]->zero();
+        (*gauss_transform_)[thread]->set_grid(std::move((*simulated_density_buffer_)[thread]));
         auto beginThreadAtoms = thread * (nAtoms / number_of_threads_ );
         auto endThreadAtoms   = (thread == number_of_threads_-1) ?  nAtoms : (thread+1) * ( nAtoms / number_of_threads_);
 
         for (auto atomIndex = beginThreadAtoms; atomIndex != endThreadAtoms; ++atomIndex)
         {
-            gauss_transform_[thread]->transform(orientation.shiftedAndOriented(x[atomIndex], centerOfRotation, translation), weights[atomIndex]);
+            (*gauss_transform_)[thread]->transform(orientation.shiftedAndOriented(x[atomIndex], centerOfRotation, translation), weights[atomIndex]);
         }
-        simulated_density_buffer_[thread] = gauss_transform_[thread]->finish_and_return_grid(); //TODO:std:move ?
-        minimumUsedGridIndex[thread]      = gauss_transform_[thread]->getMinimumUsedGridIndex();
-        maximumUsedGridIndex[thread]      = gauss_transform_[thread]->getMaximumUsedGridIndex();
+        (*simulated_density_buffer_)[thread] = (*gauss_transform_)[thread]->finish_and_return_grid(); //TODO:std:move ?
+        minimumUsedGridIndex[thread]         = (*gauss_transform_)[thread]->getMinimumUsedGridIndex();
+        maximumUsedGridIndex[thread]         = (*gauss_transform_)[thread]->getMaximumUsedGridIndex();
     }
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
 }
 
-Field<real> *
-DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex)
+const GridReal &
+DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
     std::vector<real>::iterator              simulatedDensityVoxelIterator;
@@ -123,7 +127,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     std::vector<volumedata::GridDataAccess<real> > simulatedDensityThreadGridData;
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        simulatedDensityThreadGridData.emplace_back(simulated_density_buffer_[thread]->extend(), simulated_density_buffer_[thread]->access().data());
+        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->extend(), (*simulated_density_buffer_)[thread]->access().data());
     }
 
     //
@@ -154,7 +158,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
             }
         }
     }
-    return simulated_density_.get();
+    return *simulated_density_;
 };
 
 } /* volumedata */

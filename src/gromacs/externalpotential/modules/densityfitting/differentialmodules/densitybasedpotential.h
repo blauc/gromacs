@@ -59,51 +59,50 @@ namespace volumedata
 
 class DensitySpreader;
 class FiniteGrid;
+class GridReal;
 // template<typename T> class Field;
 
 class densityBasedPotential : public PotentialEvaluator
 {
     public:
-        explicit densityBasedPotential(const FiniteGrid &reference,
-                                       const int n_threads = 1, const int n_sigma = 5,
-                                       const real sigma = 0.2);
+        explicit densityBasedPotential(const DensitySpreader &spreader, bool selfSpreading = true);
 
         real potential(const std::vector<RVec> &coordinates,
-                       const std::vector<real> &weights, const Field<real> &reference,
+                       const std::vector<real> &weights,
+                       const Field<real> &reference,
                        const RVec &translation = {0, 0, 0},
                        const Quaternion &orientation = {{1, 0, 0}, 0},
-                       const RVec &centerOfRotation = {0, 0, 0});
+                       const RVec &centerOfRotation = {0, 0, 0}) override;
         virtual real densityDensityPotential(const Field<real> &reference,
-                                             const Field<real> &comparant);
-
+                                             const Field<real> &comparant) = 0;
     protected:
-        std::unique_ptr<DensitySpreader> spreader_;
-        Field<real>                     *spread_density_;
+        const DensitySpreader &spreader_;
+        bool                   selfSpreading_;
 };
 
-class densityBasedPotentialForce : public densityBasedPotential,
-                                   public PotentialForceEvaluator
+
+// make a PotentialEvaluator member
+class densityBasedForce : public ForceEvaluator
 {
     public:
-        explicit densityBasedPotentialForce(const FiniteGrid &reference,
-                                            const int n_threads, const int n_sigma,
-                                            const real sigma,
-                                            const real sigma_differential);
+        explicit densityBasedForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool selfSpreading = false);
 
-        std::vector<RVec> force(const std::vector<RVec> &coordinates,
-                                const std::vector<real> &weights,
-                                const Field<real> &reference,
-                                const RVec &translation = {0, 0, 0},
-                                const Quaternion &orientation = {{1, 0, 0}, 0},
-                                const RVec &centerOfRotation = {0, 0, 0});
+        std::vector<RVec> &force(const std::vector<RVec> &coordinates,
+                                 const std::vector<real> &weights,
+                                 const Field<real> &reference,
+                                 const RVec &translation = {0, 0, 0},
+                                 const Quaternion &orientation = {{1, 0, 0}, 0},
+                                 const RVec &centerOfRotation = {0, 0, 0}) override;
 
     protected:
-        virtual void setDensityDifferential(const Field<real> &reference,
+        virtual void setDensityDifferential(const GridReal    &reference,
                                             const Field<real> &comparant) = 0;
         std::unique_ptr < Field < real>> differential_;
-        real              sigma_differential_;
-        int               n_threads_;
-        std::vector<RVec> force_;
+        real                   sigma_differential_;
+        int                    n_threads_;
+        std::vector<RVec>      force_;
+        const DensitySpreader &spreader_;
+        bool                   selfSpreading_;
 };
 
 }      /* volumedata */

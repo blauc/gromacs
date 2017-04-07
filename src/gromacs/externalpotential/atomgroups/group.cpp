@@ -63,6 +63,7 @@ constGroupAtom::constGroupAtom(const GroupAtom &atom)
     i_collective = atom.i_collective;
     i_global     = atom.i_global;
 }
+
 /*******************************************************************************
  * Group::Iterator
  */
@@ -107,9 +108,9 @@ GroupAtom &GroupIterator::operator*()
 constGroupIterator::constGroupIterator(const Group &group, int i) : atom_ {}
 {
     atom_.i_local      = group.ind_loc_.begin() + i;
-    atom_.force        = group.f_loc_.cbegin() + i;
+    atom_.force        = group.f_loc_.begin() + i;
     atom_.properties   = group.weights_.begin() + i;
-    atom_.xTransformed = group.xTransformed_.begin()+i;
+    atom_.xTransformed = group.xTransformed_.begin() + i;
     // if we never dereference group->end() or above , we are fines
     atom_.i_global   = group.ind_+i;
     x_               = group.x_;
@@ -416,7 +417,7 @@ Group::local_weights_sum() const
 {
     return std::accumulate(
             this->begin(), this->end(), 0.,
-            [] (const real &weightsum, GroupAtom local_atom) {
+            [] (const real &weightsum, const constGroupAtom &local_atom) {
                 return weightsum+*local_atom.properties;
             });
 }

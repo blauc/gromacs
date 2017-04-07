@@ -210,7 +210,7 @@ WholeMoleculeGroup::weighted_local_coordinate_sum() const
 {
     return std::accumulate(
             this->begin(), this->end(), RVec {0, 0, 0},
-            [](RVec &coordinate_sum, const GroupAtom &local_atom) {
+            [](RVec &coordinate_sum, const constGroupAtom &local_atom) {
                 RVec weighted_coordinate;
                 svmul(*local_atom.properties, *local_atom.xTransformed, weighted_coordinate);
                 rvec_inc(coordinate_sum, weighted_coordinate);

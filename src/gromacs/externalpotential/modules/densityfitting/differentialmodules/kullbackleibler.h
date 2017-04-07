@@ -54,29 +54,34 @@ class WholeMoleculeGroup;
 namespace volumedata
 {
 
-class KullbackLeiblerPotentialForce : densityBasedPotentialForce
+class KullbackLeiblerPotential : public densityBasedPotential
 {
     public:
-        real densityDensityPotential(const Field<real> &reference,
-                                     const Field<real> &comparant);
+        KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf);
 
-    private:
-        void setDensityDifferential(const Field<real> &reference,
-                                    const Field<real> &comparant);
+        real densityDensityPotential(const Field<real> &reference,
+                                     const Field<real> &comparant) override;
 };
 
-// template<typename real> Field;
-class KullbackLeiblerProvider : public IStructureDensityPotentialProvider
+class KullbackLeiblerForce : public densityBasedForce
 {
     public:
-        KullbackLeiblerProvider()  = default;
-        ~KullbackLeiblerProvider() = default;
-        std::unique_ptr<PotentialForceEvaluator>
-        plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-             const Field<real> &reference, const std::string &options,
-             const RVec &translation = {0, 0, 0},
-             const Quaternion &orientation = {{1, 0, 0}, 0},
-             const RVec &centerOfRotation = {0, 0, 0});
+        KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
+
+    private:
+        void setDensityDifferential(const GridReal    &reference,
+                                    const Field<real> &comparant) override;
+};
+
+class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
+{
+    public:
+        std::unique_ptr<ForceEvaluator>
+        planForce(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+                  const Field<real> &reference, const std::string &options,
+                  const RVec &translation = {0, 0, 0},
+                  const Quaternion &orientation = {{1, 0, 0}, 0},
+                  const RVec &centerOfRotation = {0, 0, 0});
         std::unique_ptr<PotentialEvaluator>
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const Field<real> &reference,
@@ -89,6 +94,7 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialProvider
         real sigma_;
         int  n_threads_;
         int  n_sigma_;
+        std::unique_ptr<DensitySpreader> spreader_;
 
 };
 /****************************INFO Classes**************************************/
@@ -97,7 +103,7 @@ class KullbackLeiblerPotentialInfo
 {
     public:
         static std::string name;
-        static std::unique_ptr<IStructureDensityPotentialProvider> create();
+        static std::unique_ptr<IStructureDensityPotentialForceProvider> create();
 };
 
 }      /* volumedata */

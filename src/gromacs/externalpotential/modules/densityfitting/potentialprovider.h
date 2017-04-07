@@ -64,10 +64,10 @@ class PotentialEvaluator
                                const RVec &centerOfRotation = {0, 0, 0}) = 0;
 };
 
-class PotentialForceEvaluator : public PotentialEvaluator
+class ForceEvaluator
 {
     public:
-        virtual std::vector<RVec>
+        virtual std::vector<RVec> &
         force(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
               const Field<real> &reference, const RVec &translation = {0, 0, 0},
               const Quaternion &orientation = {{1, 0, 0}, 0},
@@ -77,21 +77,29 @@ class PotentialForceEvaluator : public PotentialEvaluator
 class IStructureDensityPotentialProvider
 {
     public:
-        IStructureDensityPotentialProvider()  = default;
-        ~IStructureDensityPotentialProvider() = default;
 
-        virtual std::unique_ptr<PotentialForceEvaluator>
-        plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-             const Field<real> &reference, const std::string &options,
-             const RVec &translation = {0, 0, 0},
-             const Quaternion &orientation = {{1, 0, 0}, 0},
-             const RVec &centerOfRotation = {0, 0, 0}) = 0;
         virtual std::unique_ptr<PotentialEvaluator>
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const Field<real> &reference,
                       const std::string &options, const RVec &translation = {0, 0, 0},
                       const Quaternion &orientation = {{1, 0, 0}, 0},
                       const RVec &centerOfRotation = {0, 0, 0}) = 0;
+};
+
+class IStructureDensityForceProvider
+{
+
+    virtual std::unique_ptr<ForceEvaluator>
+    planForce(const std::vector<RVec> &coordinates,
+              const std::vector<real> &weights, const Field<real> &reference,
+              const std::string &options, const RVec &translation = {0, 0, 0},
+              const Quaternion &orientation = {{1, 0, 0}, 0},
+              const RVec &centerOfRotation = {0, 0, 0}) = 0;
+};
+
+class IStructureDensityPotentialForceProvider : public IStructureDensityForceProvider, public IStructureDensityPotentialProvider
+{
+
 };
 
 }      /* volumedata */

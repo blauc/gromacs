@@ -46,13 +46,13 @@ namespace gmx
 {
 namespace volumedata
 {
-
-template <typename Provider> class PotentialLibrary
+class IStructureDensityPotentialForceProvider;
+class PotentialLibrary
 {
     public:
         PotentialLibrary();
         ~PotentialLibrary() = default;
-        std::function<std::unique_ptr<Provider>()> create(std::string name)
+        std::function<std::unique_ptr<IStructureDensityPotentialForceProvider>()> create(std::string name)
         {
             return functions_[name];
         };
@@ -67,7 +67,8 @@ template <typename Provider> class PotentialLibrary
         };
 
     private:
-        std::map < std::string, std::function < std::unique_ptr<Provider>()>> functions_;
+        typedef std::function < std::unique_ptr<IStructureDensityPotentialForceProvider>()> providerCreator;
+        std::map < std::string, providerCreator> functions_;
 };
 
 }      // namespace volumedata

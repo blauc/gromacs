@@ -106,7 +106,7 @@ DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs)
 void
 DensityFitting::initialize(const matrix box, const rvec x[])
 {
-    potentialProvider_ = volumedata::PotentialLibrary<volumedata::IStructureDensityPotentialProvider>().create(fitMethod_)();
+    potentialProvider_ = volumedata::PotentialLibrary().create(fitMethod_)();
 
     if (bWriteXTC_)
     {
@@ -115,11 +115,11 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     auto fitatoms = wholemoleculegroup(x, box, 0);
     target_density_->normalize();
 
-    potentialEvaluator_ = potentialProvider_->plan(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
-    if (isCenterOfMassCentered_)
-    {
-        volumedata::RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);
-    }
+    potentialEvaluator_ = potentialProvider_->planPotential(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
+    // if (isCenterOfMassCentered_)
+    // {
+    // volumedata::RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);
+    // }
 
     const real timeStepNs = 0.004; // TODO: pass this from simulation input
     optimalDeltaPotentialEnergy_ = fitatoms->num_atoms_global()*std::sqrt((float)every_nth_step_) * timeStepNs * maximumEnergyFluctuationPerAtom_;

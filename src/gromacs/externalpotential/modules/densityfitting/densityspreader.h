@@ -40,10 +40,13 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/quaternion.h"
+
+
 #include <memory>
 #include <vector>
 #include "gromacs/math/volumedata/volumedata.h"
 
+#include "gromacs/math/volumedata/gridreal.h"
 
 namespace gmx
 {
@@ -62,13 +65,15 @@ class DensitySpreader
     public:
         explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma);
         ~DensitySpreader();
-        Field<real> * spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0});
+        const GridReal &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
+        const GridReal &getSpreadGrid() const;
+
     private:
-        std::vector < std::unique_ptr < volumedata::GaussTransform>> gauss_transform_;
-        std::vector < std::unique_ptr < volumedata::GridReal>> simulated_density_buffer_;
-        std::unique_ptr < GridReal> simulated_density_;
+        std::unique_ptr < std::vector < std::unique_ptr<volumedata::GaussTransform>>> gauss_transform_;
+        std::unique_ptr < std::vector < std::unique_ptr< volumedata::GridReal>>> simulated_density_buffer_;
+        std::unique_ptr< GridReal > simulated_density_;
         int number_of_threads_;
-        Field<real> * sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex);
+        const GridReal             &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const;
 };
 
 }
