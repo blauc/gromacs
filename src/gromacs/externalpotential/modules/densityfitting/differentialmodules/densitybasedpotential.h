@@ -66,15 +66,15 @@ class densityBasedPotential : public PotentialEvaluator
 {
     public:
         explicit densityBasedPotential(const DensitySpreader &spreader, bool selfSpreading = true);
-
+        ~densityBasedPotential() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights,
                        const Field<real> &reference,
                        const RVec &translation = {0, 0, 0},
                        const Quaternion &orientation = {{1, 0, 0}, 0},
-                       const RVec &centerOfRotation = {0, 0, 0}) override;
+                       const RVec &centerOfRotation = {0, 0, 0}) const override;
         virtual real densityDensityPotential(const Field<real> &reference,
-                                             const Field<real> &comparant) = 0;
+                                             const Field<real> &comparant) const = 0;
     protected:
         const DensitySpreader &spreader_;
         bool                   selfSpreading_;
@@ -86,21 +86,21 @@ class densityBasedForce : public ForceEvaluator
 {
     public:
         explicit densityBasedForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool selfSpreading = false);
+        ~densityBasedForce() = default;
 
-        std::vector<RVec> &force(const std::vector<RVec> &coordinates,
-                                 const std::vector<real> &weights,
-                                 const Field<real> &reference,
-                                 const RVec &translation = {0, 0, 0},
-                                 const Quaternion &orientation = {{1, 0, 0}, 0},
-                                 const RVec &centerOfRotation = {0, 0, 0}) override;
+        void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
+                   const std::vector<real> &weights,
+                   const Field<real> &reference,
+                   const RVec &translation = {0, 0, 0},
+                   const Quaternion &orientation = {{1, 0, 0}, 0},
+                   const RVec &centerOfRotation = {0, 0, 0}) const override;
 
     protected:
         virtual void setDensityDifferential(const GridReal    &reference,
-                                            const Field<real> &comparant) = 0;
+                                            const Field<real> &comparant) const = 0;
         std::unique_ptr < Field < real>> differential_;
         real                   sigma_differential_;
         int                    n_threads_;
-        std::vector<RVec>      force_;
         const DensitySpreader &spreader_;
         bool                   selfSpreading_;
 };

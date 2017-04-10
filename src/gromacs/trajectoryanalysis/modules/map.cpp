@@ -61,7 +61,6 @@
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
-#include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 
 #include "gromacs/math/quaternion.h"
 #include "gromacs/fileio/pdbio.h"
@@ -107,7 +106,8 @@ namespace
 class Map : public TrajectoryAnalysisModule
 {
     public:
-        Map() = default;
+        Map()  = default;
+        ~Map() = default;
 
         virtual void initOptions(IOptionsContainer          *options,
                                  TrajectoryAnalysisSettings *settings);
@@ -157,25 +157,25 @@ class Map : public TrajectoryAnalysisModule
         matrix                                                          referenceBox;
         std::vector<real>                                               fitWeights;
         bool                                                            bUseBox_       = false;
-        std::string                                                     potentialType_ = "kullbackleibler";
-        volumedata::FourierShellCorrelation                             fsc_;
-        std::unique_ptr<volumedata::DensitySpreader>                    spreader_;
-        FILE                                                           *fscFile_;
+        std::string                                                     potentialType_;
+        // volumedata::FourierShellCorrelation                             fsc_;
+        // std::unique_ptr<volumedata::DensitySpreader>                    spreader_;
+        // FILE                                                           *fscFile_;
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr<volumedata::PotentialEvaluator>                 potentialEvaluator_;
-        std::unique_ptr<volumedata::ForceEvaluator>                     forceEvaluator_;
+        volumedata::PotentialEvaluatorHandle potentialEvaluator;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
                       TrajectoryAnalysisSettings *settings)
 {
     auto          potentialNames = volumedata::PotentialLibrary().available();
-    const char *  c_potentialTypes[4]; // TODO: this fixed size array is required for StringOption enumValue
+    const char *  c_potentialTypes[1]; // TODO: this fixed size array is required for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
     {
         /* code */
         c_potentialTypes[i] = potentialNames[i].c_str();
     }
+    potentialType_ = potentialNames[0];
     static const char *const desc[] = {
         "[THISMODULE] is a tool to read in and write out (electron) density "
         "maps.",
@@ -304,11 +304,11 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
             fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
         }
     }
-    if (!fnmapoutput_.empty() || !fnpotential_.empty() || !forcedensity_.empty())
-    {
-        spreader_ =
-            std::unique_ptr<volumedata::DensitySpreader>(new volumedata::DensitySpreader(inputdensity_, 1, n_sigma_, sigma_));
-    }
+    // if (!fnmapoutput_.empty() || !fnpotential_.empty() || !forcedensity_.empty())
+    // {
+    //     spreader_ =
+    //         std::unique_ptr<volumedata::DensitySpreader>(new volumedata::DensitySpreader(inputdensity_, 1, n_sigma_, sigma_));
+    // }
     if (!fnpotential_.empty() || !forcedensity_.empty())
     {
         if (fnmapinput_.empty())
@@ -323,6 +323,7 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         std::for_each(std::begin(inputdensity_.access().data()), std::end(inputdensity_.access().data()), [](real &value) { value = std::max(value, (real)0.); });
         inputdensity_.normalize();
         potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
+
         openPotentialFileAndPrintHeader_();
         // if (potentialType_.compare("fsc") == 0)
         // {
@@ -330,110 +331,110 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         // }
 
     }
-    if (!forcedensity_.empty())
-    {
-        inputdensity_.normalize();
-    }
+    // if (!forcedensity_.empty())
+    // {
+    //     inputdensity_.normalize();
+    // }
 }
 
 void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
                              rvec translation)
 {
-    if ((det(fr.box) > 1e-6) && bUseBox_)
-    {
-        copy_mat(fr.box, box);
-        clear_rvec(translation); // TODO: more user options for setting translation
-        return;
-    }
-
-    fprintf(stderr, "Did not find suitable box for atom in structure file, "
-            "guessing from structure extend.\n");
-    clear_mat(box);
-    const std::vector<RVec> x_RVec(fr.x, fr.x + fr.natoms);
-    for (int i = XX; i <= ZZ; i++)
-    {
-        auto compareIthComponent = [i](RVec a, RVec b) {
-                return a[i] < b[i];
-            };
-        auto minMaxX             =
-            minmax_element(x_RVec.begin(), x_RVec.end(), compareIthComponent);
-        box[i][i] =
-            2 * n_sigma_ * sigma_ + (*minMaxX.second)[i] - (*minMaxX.first)[i];
-        translation[i] = -n_sigma_ * sigma_ + (*minMaxX.first)[i];
-    }
+    // if ((det(fr.box) > 1e-6) && bUseBox_)
+    // {
+    //     copy_mat(fr.box, box);
+    //     clear_rvec(translation); // TODO: more user options for setting translation
+    //     return;
+    // }
+    //
+    // fprintf(stderr, "Did not find suitable box for atom in structure file, "
+    //         "guessing from structure extend.\n");
+    // clear_mat(box);
+    // const std::vector<RVec> x_RVec(fr.x, fr.x + fr.natoms);
+    // for (int i = XX; i <= ZZ; i++)
+    // {
+    //     auto compareIthComponent = [i](RVec a, RVec b) {
+    //             return a[i] < b[i];
+    //         };
+    //     auto minMaxX             =
+    //         minmax_element(x_RVec.begin(), x_RVec.end(), compareIthComponent);
+    //     box[i][i] =
+    //         2 * n_sigma_ * sigma_ + (*minMaxX.second)[i] - (*minMaxX.first)[i];
+    //     translation[i] = -n_sigma_ * sigma_ + (*minMaxX.first)[i];
+    // }
 }
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    gmx::volumedata::IVec extend({(int)ceil(box[XX][XX] / spacing_),
-                                  (int)ceil(box[YY][YY] / spacing_),
-                                  (int)ceil(box[ZZ][ZZ] / spacing_)});
-    outputdensity_.set_extend(extend);
-    outputDensityBuffer_.set_extend(extend);
-    outputdensity_.set_cell(
-            {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
-            {90, 90, 90});
-    outputDensityBuffer_.set_cell(
-            {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
-            {90, 90, 90});
-    outputdensity_.set_translation(
-            {roundf(translation[XX] / spacing_) * spacing_,
-             roundf(translation[YY] / spacing_) * spacing_,
-             roundf(translation[ZZ] / spacing_) * spacing_});
-    outputDensityBuffer_.set_translation(
-            {roundf(translation[XX] / spacing_) * spacing_,
-             roundf(translation[YY] / spacing_) * spacing_,
-             roundf(translation[ZZ] / spacing_) * spacing_});
+    // gmx::volumedata::IVec extend({(int)ceil(box[XX][XX] / spacing_),
+    //                               (int)ceil(box[YY][YY] / spacing_),
+    //                               (int)ceil(box[ZZ][ZZ] / spacing_)});
+    // outputdensity_.set_extend(extend);
+    // outputDensityBuffer_.set_extend(extend);
+    // outputdensity_.set_cell(
+    //         {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
+    //         {90, 90, 90});
+    // outputDensityBuffer_.set_cell(
+    //         {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
+    //         {90, 90, 90});
+    // outputdensity_.set_translation(
+    //         {roundf(translation[XX] / spacing_) * spacing_,
+    //          roundf(translation[YY] / spacing_) * spacing_,
+    //          roundf(translation[ZZ] / spacing_) * spacing_});
+    // outputDensityBuffer_.set_translation(
+    //         {roundf(translation[XX] / spacing_) * spacing_,
+    //          roundf(translation[YY] / spacing_) * spacing_,
+    //          roundf(translation[ZZ] / spacing_) * spacing_});
 }
 
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
 {
-    if (nFr == 1)
-    {
-        if (fnmapinput_.empty())
-        {
-            // Guess the extend of the map if no box is given in structure file
-            // and no other input density is given.
-            matrix box;
-            rvec   translation;
-            set_box_from_frame(fr, box, translation);
-            set_finitegrid_from_box(box, translation);
-        }
-        else
-        {
-            // If a reference input density is given, copy the grid properties from
-            // here
-            outputdensity_.copy_grid(inputdensity_);
-            outputDensityBuffer_.copy_grid(inputdensity_);
-        }
-
-        outputDensityBuffer_.zero();
-    }
-
-    std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
-
-    outputdensity_ = spreader_->spreadLocalAtoms(coordinates, weight_);
-
-    if (nFr_ == 1)
-    {
-        std::copy(std::begin(outputdensity_.access().data()),
-                  std::end(outputdensity_.access().data()),
-                  std::begin(outputDensityBuffer_.access().data()));
-    }
-    else
-    {
-        // auto linearAveraging = [this](const real & current, const real &
-        // average){return (average * (nFr_ - 1) + current) / nFr_;};
-        auto exponentialAveraging = [this](const real &current,
-                                           const real &average) {
-                return expAverage_ * current + (1 - expAverage_) * average;
-            };
-        std::transform(std::begin(outputdensity_.access().data()),
-                       std::end(outputdensity_.access().data()),
-                       std::begin(outputdensity_.access().data()),
-                       std::begin(outputDensityBuffer_.access().data()),
-                       exponentialAveraging);
-    }
+    // if (nFr == 1)
+    // {
+    //     if (fnmapinput_.empty())
+    //     {
+    //         // Guess the extend of the map if no box is given in structure file
+    //         // and no other input density is given.
+    //         matrix box;
+    //         rvec   translation;
+    //         set_box_from_frame(fr, box, translation);
+    //         set_finitegrid_from_box(box, translation);
+    //     }
+    //     else
+    //     {
+    //         // If a reference input density is given, copy the grid properties from
+    //         // here
+    //         outputdensity_.copy_grid(inputdensity_);
+    //         outputDensityBuffer_.copy_grid(inputdensity_);
+    //     }
+    //
+    //     outputDensityBuffer_.zero();
+    // }
+    //
+    // std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
+    //
+    // outputdensity_ = spreader_->spreadLocalAtoms(coordinates, weight_);
+    //
+    // if (nFr_ == 1)
+    // {
+    //     std::copy(std::begin(outputdensity_.access().data()),
+    //               std::end(outputdensity_.access().data()),
+    //               std::begin(outputDensityBuffer_.access().data()));
+    // }
+    // else
+    // {
+    //     // auto linearAveraging = [this](const real & current, const real &
+    //     // average){return (average * (nFr_ - 1) + current) / nFr_;};
+    //     auto exponentialAveraging = [this](const real &current,
+    //                                        const real &average) {
+    //             return expAverage_ * current + (1 - expAverage_) * average;
+    //         };
+    //     std::transform(std::begin(outputdensity_.access().data()),
+    //                    std::end(outputdensity_.access().data()),
+    //                    std::begin(outputdensity_.access().data()),
+    //                    std::begin(outputDensityBuffer_.access().data()),
+    //                    exponentialAveraging);
+    // }
 }
 
 void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
@@ -442,13 +443,13 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
     if (frnr % every_ == 0)
     {
         ++nFr_;
-        if (bFitFramesToTopStructure_)
-        {
-            reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, fr.x,
-                    fitWeights.data());
-            do_fit(nAtomsReference_, fitWeights.data(),
-                   as_rvec_array(referenceX_.data()), fr.x);
-        }
+        // if (bFitFramesToTopStructure_)
+        // {
+        //     reset_x(nAtomsReference_, nullptr, nAtomsReference_, nullptr, fr.x,
+        //             fitWeights.data());
+        //     do_fit(nAtomsReference_, fitWeights.data(),
+        //            as_rvec_array(referenceX_.data()), fr.x);
+        // }
 
         if (nFr_ == 1)
         {
@@ -459,34 +460,32 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
             }
             std::vector<RVec> rVecCoordinates(fr.x, fr.x+fr.natoms);
             std::string       optionsString        = "{\"sigma\":"+std::to_string(sigma_)+",\"n_sigma\":"+std::to_string(n_sigma_)+"}\n";
-
-            potentialEvaluator_ = potentialProvider_->planPotential(rVecCoordinates, weight_, inputdensity_, optionsString);
-            // forceEvaluator_ = potentialProvider_->planForce(rVecCoordinates, weight_, inputdensity_, optionsString);
+            potentialEvaluator = potentialProvider_->planPotential(rVecCoordinates, weight_, inputdensity_, optionsString);
 
         }
 
-        bool bRequiresDensity = !fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty() || !fnfrmapoutput_.empty();
-        if (bRequiresDensity)
-        {
-            frameToDensity_(fr, nFr_);
-        }
+        // bool bRequiresDensity = !fnmapoutput_.empty() || !fnpotential_.empty()  || !forcedensity_.empty() || !fnfrmapoutput_.empty();
+        // if (bRequiresDensity)
+        // {
+        //     frameToDensity_(fr, nFr_);
+        // }
         if (!fnpotential_.empty())
         {
             frameToPotentials_(fr, nFr_);
         }
-        if (!fnmapoutput_.empty())
-        {
-            volumedata::MrcFile().write(fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4", outputdensity_);
-        }
-
-        if (!fnfrmapoutput_.empty())
-        {
-            volumedata::MrcFile().write(fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
-        }
-        if (!forcedensity_.empty())
-        {
-            frameToForceDensity_(fr);
-        }
+        // if (!fnmapoutput_.empty())
+        // {
+        //     volumedata::MrcFile().write(fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4", outputdensity_);
+        // }
+        //
+        // if (!fnfrmapoutput_.empty())
+        // {
+        //     volumedata::MrcFile().write(fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
+        // }
+        // if (!forcedensity_.empty())
+        // {
+        //     frameToForceDensity_(fr);
+        // }
     }
 }
 
@@ -499,11 +498,11 @@ void Map::openPotentialFileAndPrintHeader_()
 
 void Map::openFscFileAndPrintHeader_()
 {
-    fsc_                   = volumedata::FourierShellCorrelation(inputdensity_);
-    fscFile_               = fopen("fsccurve.dat", "w");
-    fprintf(fscFile_, "%s", (std::accumulate(std::begin(fsc_.getBinEdges()), std::end(fsc_.getBinEdges()), std::string(""),  [](std::string accumulant, const real &value){
-                                                 return accumulant + std::string(" ") + std::to_string(value);
-                                             })+ "\n").c_str());
+//     fsc_                   = volumedata::FourierShellCorrelation(inputdensity_);
+//     fscFile_               = fopen("fsccurve.dat", "w");
+//     fprintf(fscFile_, "%s", (std::accumulate(std::begin(fsc_.getBinEdges()), std::end(fsc_.getBinEdges()), std::string(""),  [](std::string accumulant, const real &value){
+//                                                  return accumulant + std::string(" ") + std::to_string(value);
+//                                              })+ "\n").c_str());
 }
 
 void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
@@ -521,7 +520,7 @@ void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
     // }
     // else
     // {
-    potential = potentialEvaluator_->potential(rVecCoordinates, weight_, inputdensity_);
+    potential = potentialEvaluator.potential(rVecCoordinates, weight_, inputdensity_);
     // }
 
     fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);
@@ -536,26 +535,28 @@ void Map::frameToPotentials_(const t_trxframe &fr, int /*nFr*/)
 
 void Map::frameToForceDensity_(const t_trxframe &fr)
 {
-    const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
-
-    auto                    forcePlotterForces = forceEvaluator_->force(coordinates, weight_, inputdensity_);
-
-    auto                    plotter = externalpotential::ForcePlotter();
-    plotter.start_plot_forces("forces.bild");
-    plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
-                        fr.natoms, 1);
-    plotter.stop_plot_forces();
+//     const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
+//
+//     auto                    forcePlotterForces = forceEvaluator_->force(coordinates, weight_, inputdensity_);
+//
+//     auto                    plotter = externalpotential::ForcePlotter();
+//     plotter.start_plot_forces("forces.bild");
+//     plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
+//                         fr.natoms, 1);
+//     plotter.stop_plot_forces();
 
 }
 
-void Map::finishAnalysis(int /*nframes*/) {}
+void Map::finishAnalysis(int /*nframes*/)
+{
+}
 
 void Map::writeOutput()
 {
     if (!fnpotential_.empty())
     {
         fclose(potentialFile_);
-        fclose(fscFile_);
+        // fclose(fscFile_);
     }
 }
 

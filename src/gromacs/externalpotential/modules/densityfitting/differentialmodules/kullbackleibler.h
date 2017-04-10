@@ -57,44 +57,49 @@ namespace volumedata
 class KullbackLeiblerPotential : public densityBasedPotential
 {
     public:
+        ~KullbackLeiblerPotential() = default;
         KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf);
 
         real densityDensityPotential(const Field<real> &reference,
-                                     const Field<real> &comparant) override;
+                                     const Field<real> &comparant) const override;
 };
 
 class KullbackLeiblerForce : public densityBasedForce
 {
     public:
+        ~KullbackLeiblerForce() = default;
         KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
 
     private:
         void setDensityDifferential(const GridReal    &reference,
-                                    const Field<real> &comparant) override;
+                                    const Field<real> &comparant) const override;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
 {
     public:
-        std::unique_ptr<ForceEvaluator>
+        ~KullbackLeiblerProvider() = default;
+        ForceEvaluatorHandle
         planForce(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
                   const Field<real> &reference, const std::string &options,
                   const RVec &translation = {0, 0, 0},
                   const Quaternion &orientation = {{1, 0, 0}, 0},
-                  const RVec &centerOfRotation = {0, 0, 0});
-        std::unique_ptr<PotentialEvaluator>
+                  const RVec &centerOfRotation = {0, 0, 0}) override;
+        PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const Field<real> &reference,
                       const std::string &options, const RVec &translation = {0, 0, 0},
                       const Quaternion &orientation = {{1, 0, 0}, 0},
-                      const RVec &centerOfRotation = {0, 0, 0});
+                      const RVec &centerOfRotation = {0, 0, 0}) override;
 
     private:
         void parseOptions_(const std::string &options);
         real sigma_;
         int  n_threads_;
         int  n_sigma_;
-        std::unique_ptr<DensitySpreader> spreader_;
+        std::unique_ptr<ForceEvaluator>     force_evaluator_;
+        std::unique_ptr<PotentialEvaluator> potential_evaluator_;
+        std::unique_ptr<DensitySpreader>    spreader_;
 
 };
 /****************************INFO Classes**************************************/

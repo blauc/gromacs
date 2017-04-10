@@ -115,7 +115,7 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     auto fitatoms = wholemoleculegroup(x, box, 0);
     target_density_->normalize();
 
-    potentialEvaluator_ = potentialProvider_->planPotential(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
+    // potentialEvaluator_ = potentialProvider_->planPotential(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
     // if (isCenterOfMassCentered_)
     // {
     // volumedata::RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);

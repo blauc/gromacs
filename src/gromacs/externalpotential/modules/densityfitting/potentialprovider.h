@@ -56,29 +56,43 @@ template <typename real> class Field;
 class PotentialEvaluator
 {
     public:
+        virtual ~PotentialEvaluator() = default;
         virtual real potential(const std::vector<RVec> &coordinates,
                                const std::vector<real> &weights,
                                const Field<real> &reference,
                                const RVec &translation = {0, 0, 0},
                                const Quaternion &orientation = {{1, 0, 0}, 0},
-                               const RVec &centerOfRotation = {0, 0, 0}) = 0;
+                               const RVec &centerOfRotation = {0, 0, 0}) const = 0;
 };
 
-class ForceEvaluator
+class PotentialEvaluatorHandle
 {
     public:
-        virtual std::vector<RVec> &
-        force(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-              const Field<real> &reference, const RVec &translation = {0, 0, 0},
-              const Quaternion &orientation = {{1, 0, 0}, 0},
-              const RVec &centerOfRotation = {0, 0, 0}) = 0;
+        PotentialEvaluatorHandle() = default;
+        PotentialEvaluatorHandle(const PotentialEvaluator * evaluator) : evaluator_ {evaluator}
+        {};
+        PotentialEvaluatorHandle(const PotentialEvaluatorHandle &other) : evaluator_ {other.evaluator_}
+        {};
+        ~PotentialEvaluatorHandle() = default;
+        real potential(const std::vector<RVec> &coordinates,
+                       const std::vector<real> &weights, const Field<real> &reference,
+                       const RVec &translation = {0, 0, 0},
+                       const Quaternion &orientation = {{1, 0, 0}, 0},
+                       const RVec &centerOfRotation = {0, 0, 0}) const
+        {
+            return evaluator_->potential(coordinates, weights, reference, translation,
+                                         orientation, centerOfRotation);
+        };
+
+    private:
+        const PotentialEvaluator * evaluator_;
 };
 
 class IStructureDensityPotentialProvider
 {
     public:
-
-        virtual std::unique_ptr<PotentialEvaluator>
+        virtual ~IStructureDensityPotentialProvider() = default;
+        virtual PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const Field<real> &reference,
                       const std::string &options, const RVec &translation = {0, 0, 0},
@@ -86,20 +100,57 @@ class IStructureDensityPotentialProvider
                       const RVec &centerOfRotation = {0, 0, 0}) = 0;
 };
 
-class IStructureDensityForceProvider
+class ForceEvaluator
 {
-
-    virtual std::unique_ptr<ForceEvaluator>
-    planForce(const std::vector<RVec> &coordinates,
-              const std::vector<real> &weights, const Field<real> &reference,
-              const std::string &options, const RVec &translation = {0, 0, 0},
-              const Quaternion &orientation = {{1, 0, 0}, 0},
-              const RVec &centerOfRotation = {0, 0, 0}) = 0;
+    public:
+        virtual ~ForceEvaluator() = default;
+        virtual void force(std::vector<RVec> &force,
+                           const std::vector<RVec> &coordinates,
+                           const std::vector<real> &weights,
+                           const Field<real> &reference,
+                           const RVec &translation = {0, 0, 0},
+                           const Quaternion &orientation = {{1, 0, 0}, 0},
+                           const RVec &centerOfRotation = {0, 0, 0}) const = 0;
 };
 
-class IStructureDensityPotentialForceProvider : public IStructureDensityForceProvider, public IStructureDensityPotentialProvider
+class ForceEvaluatorHandle
 {
+    public:
+        ForceEvaluatorHandle() = default;
+        ForceEvaluatorHandle(const ForceEvaluator * evaluator ) : evaluator_ {evaluator}
+        {};
+        void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
+                   const std::vector<real> &weights, const Field<real> &reference,
+                   const RVec &translation = {0, 0, 0},
+                   const Quaternion &orientation = {{1, 0, 0}, 0},
+                   const RVec &centerOfRotation = {0, 0, 0}) const
+        {
+            evaluator_->force(force, coordinates, weights, reference, translation,
+                              orientation, centerOfRotation);
+        };
 
+    private:
+        const ForceEvaluator *evaluator_;
+};
+
+class IStructureDensityForceProvider
+{
+    public:
+        virtual ~IStructureDensityForceProvider() = default;
+        virtual ForceEvaluatorHandle
+        planForce(const std::vector<RVec> &coordinates,
+                  const std::vector<real> &weights, const Field<real> &reference,
+                  const std::string &options, const RVec &translation = {0, 0, 0},
+                  const Quaternion &orientation = {{1, 0, 0}, 0},
+                  const RVec &centerOfRotation = {0, 0, 0}) = 0;
+};
+
+class IStructureDensityPotentialForceProvider
+    : public IStructureDensityForceProvider,
+      public IStructureDensityPotentialProvider
+{
+    public:
+        virtual ~IStructureDensityPotentialForceProvider() = default;
 };
 
 }      /* volumedata */

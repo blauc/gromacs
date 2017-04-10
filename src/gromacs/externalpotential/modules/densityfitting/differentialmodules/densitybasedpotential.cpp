@@ -67,7 +67,7 @@ real densityBasedPotential::potential(const std::vector<RVec> &coordinates,
                                       const Field<real>       &reference,
                                       const RVec              &translation,
                                       const Quaternion        &orientation,
-                                      const RVec              &centerOfRotation)
+                                      const RVec              &centerOfRotation) const
 {
     if (selfSpreading_)
     {
@@ -95,10 +95,10 @@ n_threads_ {
     selfSpreading
 } {};
 
-std::vector<RVec> &densityBasedForce::force(
-        const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-        const Field<real> &reference, const RVec &translation,
-        const Quaternion &orientation, const RVec &centerOfRotation)
+void densityBasedForce::force(std::vector<RVec> &force,
+                              const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+                              const Field<real> &reference, const RVec &translation,
+                              const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     if (selfSpreading_)
     {
@@ -131,10 +131,9 @@ std::vector<RVec> &densityBasedForce::force(
             forceGrid[YY].getLinearInterpolationAt(r),
             forceGrid[ZZ].getLinearInterpolationAt(r)
         };
-        svmul(weights[i], f, force_[i]);
-        orientation.rotate_backwards(force_[i]);
+        svmul(weights[i], f, force[i]);
+        orientation.rotate_backwards(force[i]);
     }
-    return force_;
 }
 //
 // void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const

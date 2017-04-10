@@ -50,8 +50,12 @@ DensitySpreader::~DensitySpreader()
 {
 };
 
-DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma) :
-    simulated_density_ {new GridReal(grid)}, number_of_threads_ {
+DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma) : gauss_transform_ {new std::vector < std::unique_ptr < volumedata::GaussTransform>>}, simulated_density_buffer_ {
+    new std::vector < std::unique_ptr < volumedata::GridReal>>
+},
+simulated_density_ {
+    new GridReal(grid)
+}, number_of_threads_ {
     numberOfThreads
 }
 {

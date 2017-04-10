@@ -61,5 +61,9 @@ PotentialLibrary::PotentialLibrary()
     // registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
 };
 
+PotentialLibrary::~PotentialLibrary()
+{
+}
+
 }
 }

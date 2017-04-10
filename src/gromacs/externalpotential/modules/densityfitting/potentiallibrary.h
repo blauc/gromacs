@@ -51,7 +51,7 @@ class PotentialLibrary
 {
     public:
         PotentialLibrary();
-        ~PotentialLibrary() = default;
+        ~PotentialLibrary();
         std::function<std::unique_ptr<IStructureDensityPotentialForceProvider>()> create(std::string name)
         {
             return functions_[name];
