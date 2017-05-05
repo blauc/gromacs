@@ -109,26 +109,23 @@ FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
     maximumUsedGridIndex_ = {0, 0, 0};
 };
 
-std::vector<real>
+void
 FastGaussianGridding::spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension)
 {
-    std::vector<real> result;
-
-    result.resize(2*m_spread+1);
+    spread_1d_[dimension].resize(2*m_spread+1);
 
     real E1         = weight*1./(sqrt(2*M_PI)*sigma_)*exp(-dx[dimension]*dx[dimension]/2.0); //< weight * nu / sqrt(2*pi) * exp(-dx_*dx_/2) , following the naming convention of Greengard et al., ;
     real E2         = exp(dx[dimension]*nu);                                                 //< exp(dx_*nu_) , following the naming convention of Greengard et al., ;
     real E2_power_l = E2;
 
-    result[m_spread] = E1;
+    spread_1d_[dimension][m_spread] = E1;
     for (int l = 1; l <= m_spread; l++)
     {
-        result[m_spread-l] = (E1 / E2_power_l) * E3[m_spread-l];
-        result[m_spread+l] = (E1 * E2_power_l) * E3[m_spread+l];
+        spread_1d_[dimension][m_spread-l] = (E1 / E2_power_l) * E3[m_spread-l];
+        spread_1d_[dimension][m_spread+l] = (E1 * E2_power_l) * E3[m_spread+l];
 
         E2_power_l *= E2;
     }
-    return result;
 };
 
 void
@@ -215,9 +212,9 @@ void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
     {
         dx[i]  = (x[i]-grid_->gridpoint_coordinate(grid_index_of_spread_atom_)[i])/sigma_;
     }
-    spread_1d_[XX] = spread_1d(weight, m_spread_, dx, nu_, E3_, XX);
-    spread_1d_[YY] = spread_1d(1, m_spread_, dx, nu_, E3_, YY);
-    spread_1d_[ZZ] = spread_1d(1, m_spread_, dx, nu_, E3_, ZZ);
+    spread_1d(weight, m_spread_, dx, nu_, E3_, XX);
+    spread_1d(1, m_spread_, dx, nu_, E3_, YY);
+    spread_1d(1, m_spread_, dx, nu_, E3_, ZZ);
     tensor_product_2d_();
 }
 

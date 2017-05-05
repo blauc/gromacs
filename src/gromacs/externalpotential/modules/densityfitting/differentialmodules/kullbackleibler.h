@@ -93,6 +93,7 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
                       const RVec &centerOfRotation = {0, 0, 0}) override;
 
     private:
+        void log_(const std::string &message);
         void parseOptions_(const std::string &options);
         real sigma_;
         int  n_threads_;

@@ -71,11 +71,10 @@ real densityBasedPotential::potential(const std::vector<RVec> &coordinates,
 {
     if (selfSpreading_)
     {
-
+        spreader_.zero();
         return densityDensityPotential(
-                spreader_.spreadLocalAtoms(coordinates, weights, translation,
-                                           orientation, centerOfRotation),
-                reference);
+                reference, spreader_.spreadLocalAtoms(coordinates, weights, translation,
+                                                      orientation, centerOfRotation));
     }
     else
     {

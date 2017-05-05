@@ -106,7 +106,7 @@ class FastGaussianGridding : public GaussTransform
         std::array<std::vector<real>, 3> spread_1d_;
         std::vector < std::vector < real>> spread_2d_;
     private:
-        std::vector<real> spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension);
+        void spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension);
         void tensor_product_2d_();
         void tensor_product_();
 

@@ -163,7 +163,6 @@ strip_enclosing_brackets(std::string &s, const char opening_bracket, const char 
 
 std::string pull_front_value_from_string(std::string &s)
 {
-    std::string result;
     if (starts_array(s))
     {
         return pull_array_string_from_string(s);
@@ -218,19 +217,24 @@ std::unique_ptr<Entry> create_value_object_from_string(std::string &s)
 
 Object::Object(std::string s)
 {
+    if (s.empty())
+    {
+        return;
+    }
     // remove all whitespace
     s.erase( std::remove_if( s.begin(), s.end(), ::isspace ), s.end() );
     strip_enclosing_brackets(s, '{', '}');
-    std::string key;
-    while (s.find("\"") != std::string::npos)
+    if (s.length() > 2)
     {
-        std::string key          = pull_front_key_from_string(s);
-        s.erase(s.begin(), s.begin()+s.find(":")+1);
-        std::string value_string = pull_front_value_from_string(s);
-        s.erase(s.begin(), s.begin()+s.find(",")+1);
-        value_[key] = create_value_object_from_string(value_string);
+        while (s.find("\"") != std::string::npos)
+        {
+            std::string key          = pull_front_key_from_string(s);
+            s.erase(s.begin(), s.begin()+s.find(":")+1);
+            std::string value_string = pull_front_value_from_string(s);
+            s.erase(s.begin(), s.begin()+s.find(",")+1);
+            value_[key] = create_value_object_from_string(value_string);
+        }
     }
-
 };
 
 bool Object::has(const std::string &key)

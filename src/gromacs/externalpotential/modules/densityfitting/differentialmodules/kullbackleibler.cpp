@@ -87,52 +87,65 @@ real KullbackLeiblerPotential::densityDensityPotential(
 //     return GridMeasures(reference).getKLSameGrid(comparant);
 // };
 
-KullbackLeiblerForce::KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf) : densityBasedForce {spreader, sigma_differential, n_threads, spreadSelf}
-{
-}
+KullbackLeiblerForce::KullbackLeiblerForce(const DensitySpreader &spreader,
+                                           real sigma_differential,
+                                           int n_threads, bool spreadSelf)
+    : densityBasedForce {spreader, sigma_differential, n_threads, spreadSelf}
+{}
 
-KullbackLeiblerPotential::KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf) : densityBasedPotential {spreader, spreadSelf}
-{
-}
+KullbackLeiblerPotential::KullbackLeiblerPotential(
+        const DensitySpreader &spreader, bool spreadSelf)
+    : densityBasedPotential {spreader, spreadSelf}
+{}
 
 ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
-        const std::vector<RVec> & /*coordinates*/, const std::vector<real> & /*weights*/,
-        const Field<real> &reference, const std::string &options,
-        const RVec & /*translation*/, const Quaternion & /*orientation*/,
-        const RVec & /*centerOfRotation*/)
+        const std::vector<RVec> & /*coordinates*/,
+        const std::vector<real> & /*weights*/, const Field<real> &reference,
+        const std::string &options, const RVec & /*translation*/,
+        const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
 {
     parseOptions_(options);
     if (spreader_ == nullptr)
     {
-        spreader_        = std::unique_ptr<DensitySpreader>(new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
-        force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, true));
+        spreader_ = std::unique_ptr<DensitySpreader>(
+                    new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+        force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
+                    new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, true));
     }
     else
     {
-        force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, false));
+        force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
+                    new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, false));
     }
     return ForceEvaluatorHandle(force_evaluator_.get());
 };
 
-
 PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
-        const std::vector<RVec> & /*coordinates*/, const std::vector<real> & /*weights*/,
-        const Field<real> &reference, const std::string &options,
-        const RVec & /*translation*/, const Quaternion & /*orientation*/,
-        const RVec & /*centerOfRotation*/)
+        const std::vector<RVec> & /*coordinates*/,
+        const std::vector<real> & /*weights*/, const Field<real> &reference,
+        const std::string &options, const RVec & /*translation*/,
+        const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
 {
     parseOptions_(options);
     if (spreader_ == nullptr)
     {
-        spreader_            = std::unique_ptr<DensitySpreader>(new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
-        potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(new KullbackLeiblerPotential(*spreader_, true));
+        spreader_ = std::unique_ptr<DensitySpreader>(
+                    new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+        potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
+                    new KullbackLeiblerPotential(*spreader_, true));
     }
     else
     {
-        potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(new KullbackLeiblerPotential(*spreader_, false));
+        potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
+                    new KullbackLeiblerPotential(*spreader_, false));
     }
     return PotentialEvaluatorHandle(potential_evaluator_.get());
 };
+
+void KullbackLeiblerProvider::log_(const std::string &message)
+{
+    fprintf(stderr, "\n%s\n", message.c_str());
+}
 
 void KullbackLeiblerProvider::parseOptions_(const std::string &options)
 {
@@ -145,18 +158,8 @@ void KullbackLeiblerProvider::parseOptions_(const std::string &options)
     }
     else
     {
-        fprintf(stderr,
-                "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
         sigma_ = 0.2;
-    }
-    if (parsed_json.has("sigma_"))
-    {
-        sigma_ = std::stof(parsed_json["sigma"]);
-    }
-    else
-    {
-        fprintf(stderr,
-                "\n No mobility estimate given, guessing sigma = 0.2 nm . \n");
+        log_("Guessing mobility = " + std::to_string(sigma_) + " nm.");
     }
     if (parsed_json.has("n_threads"))
     {
@@ -164,9 +167,8 @@ void KullbackLeiblerProvider::parseOptions_(const std::string &options)
     }
     else
     {
-        fprintf(stderr, "\n No number of threads provided, taking the maximum "
-                "number of available threads.\n");
         n_threads_ = gmx_omp_get_max_threads();
+        log_("Using maximum of threads: " + std::to_string(n_threads_) + ".");
     }
 
     if (parsed_json.has("n_sigma"))
@@ -175,8 +177,8 @@ void KullbackLeiblerProvider::parseOptions_(const std::string &options)
     }
     else
     {
-        fprintf(stderr,
-                "\n No density spread range provided, guessing n_sigma = 5 . \n");
+        n_sigma_ = 5;
+        log_("Using " + std::to_string(n_sigma_) + " to spread density.");
     }
 }
 

@@ -50,7 +50,7 @@ DensitySpreader::~DensitySpreader()
 {
 };
 
-DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, int sigma) : gauss_transform_ {new std::vector < std::unique_ptr < volumedata::GaussTransform>>}, simulated_density_buffer_ {
+DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < volumedata::GaussTransform>>}, simulated_density_buffer_ {
     new std::vector < std::unique_ptr < volumedata::GridReal>>
 },
 simulated_density_ {
@@ -63,8 +63,11 @@ simulated_density_ {
 #pragma omp parallel for ordered num_threads(number_of_threads_)
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        (*simulated_density_buffer_).emplace_back(new GridReal(grid));
-        (*gauss_transform_).emplace_back(new FastGaussianGridding());
+    #pragma omp critical
+        {
+            (*simulated_density_buffer_).emplace_back(new GridReal(grid));
+            (*gauss_transform_).emplace_back(new FastGaussianGridding());
+        }
     }
     for (auto &transform : *gauss_transform_)
     {
@@ -78,6 +81,15 @@ DensitySpreader::getSpreadGrid() const
 {
     return *simulated_density_;
 }
+
+void DensitySpreader::zero() const
+{
+    if (simulated_density_ != nullptr)
+    {
+        simulated_density_->zero();
+    }
+}
+
 
 const GridReal &
 DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const

@@ -241,12 +241,14 @@ void DensityFitting::read_input()
     {
         GMX_THROW(InconsistentInputError("Please provide an external potential input file."));
     }
+
+    // read whole inputfile as a single string
     fseek(inputfile, 0, SEEK_END);
     long fsize = ftell(inputfile);
     fseek(inputfile, 0, SEEK_SET);  //same as rewind(f);
-
     auto line = (char*) malloc(fsize + 1);;
-    fsize = fread(line, fsize, 1, inputfile);
+    fread(line, fsize, 1, inputfile);
+
     // TODO: implement JSON scheme for checking input consistency
     options_ = std::string(line);
     json::Object parsed_json {

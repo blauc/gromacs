@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,54 +32,34 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \internal \file
+ * \brief
+ * Declares trajectory analysis module for spreading atom density on a grid.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \ingroup module_trajectoryanalysis
+ */
+#ifndef GMX_TRAJECTORYANALYSIS_MODULES_DENSITYPOTENTIAL_H
+#define GMX_TRAJECTORYANALYSIS_MODULES_DENSITYPOTENTIAL_H
 
-
-#ifndef GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
-#define GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H
-
-#include "gromacs/utility/real.h"
-#include "gromacs/math/vectypes.h"
-#include "gromacs/math/quaternion.h"
-
-
-#include <memory>
-#include <vector>
-#include "gromacs/math/volumedata/volumedata.h"
-
-#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/trajectoryanalysis/analysismodule.h"
 
 namespace gmx
 {
 
-class WholeMoleculeGroup;
-namespace volumedata
+namespace analysismodules
 {
 
-template<typename real> class Field;
-class GridReal;
-class FiniteGrid;
-class GaussTransform;
-
-class DensitySpreader
+class DensityPotentialInfo
 {
     public:
-        explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma);
-        ~DensitySpreader();
-        const GridReal &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
-        void zero() const;
-        const GridReal &getSpreadGrid() const;
-
-    private:
-        std::unique_ptr < std::vector < std::unique_ptr<volumedata::GaussTransform>>> gauss_transform_;
-        std::unique_ptr < std::vector < std::unique_ptr< volumedata::GridReal>>> simulated_density_buffer_;
-        std::unique_ptr< GridReal > simulated_density_;
-        int number_of_threads_;
-        const GridReal             &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const;
+        static const char name[];
+        static const char shortDescription[];
+        static TrajectoryAnalysisModulePointer create();
 };
 
-}
+} // namespace analysismodules
 
-} /* gmx */
+} // namespace gmx
 
-
- #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_DENSITYSPREADER_H */
+#endif
