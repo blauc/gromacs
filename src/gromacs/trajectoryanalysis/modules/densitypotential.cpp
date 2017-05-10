@@ -95,6 +95,7 @@ class DensityPotential : public TrajectoryAnalysisModule
         std::string          fnmapinput_;
         std::string          fnpotential_ = std::string("potential.dat");
         std::string          forcedensity_;
+        std::string          fnoptions_;
         std::string          optionsstring_;
 
         volumedata::GridReal inputdensity_;
@@ -136,9 +137,6 @@ void DensityPotential::initOptions(IOptionsContainer          *options,
                            .store(&fnmapinput_)
                            .defaultBasename("ccp4in")
                            .description("CCP4 density map to compare to"));
-    options->addOption(StringOption("options")
-                           .store(&optionsstring_)
-                           .description("Options for the potential."));
     options->addOption(IntegerOption("every").store(&every_).description(
                                "Analyse only -every frame."));
     options->addOption(FileNameOption("potential")
@@ -146,6 +144,11 @@ void DensityPotential::initOptions(IOptionsContainer          *options,
                            .outputFile()
                            .store(&fnpotential_)
                            .description("Calculate potential."));
+    options->addOption(FileNameOption("options")
+                           .filetype(eftGenericData)
+                           .inputFile()
+                           .store(&fnoptions_)
+                           .description("Options for the potential."));
     options->addOption(BooleanOption("rigidBodyFit")
                            .store(&bRigidBodyFit_)
                            .description("Use rigid body fitting in all steps."));
@@ -192,6 +195,22 @@ void DensityPotential::optionsFinished(
     potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
     potentialFile_     = fopen(fnpotential_.c_str(), "w");
     fprintf(potentialFile_, "time        %s", potentialType_.c_str());
+
+    auto optionsFile = fopen(fnoptions_.c_str(), "r");
+    if (!fnoptions_.empty() && optionsFile)
+    {
+
+        fseek(optionsFile, 0, SEEK_END);
+        auto  length = ftell(optionsFile);
+        fseek(optionsFile, 0, SEEK_SET);
+        char *buffer = (char *)malloc(length + 1);
+        if (buffer)
+        {
+            fread(buffer, 1, length, optionsFile);
+        }
+        buffer[length] = '\0';
+        optionsstring_ = buffer;
+    }
 }
 
 void DensityPotential::initAfterFirstFrame(
@@ -205,7 +224,6 @@ void DensityPotential::initAfterFirstFrame(
     }
 
     std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-
     potentialEvaluator = potentialProvider_->planPotential(
                 rVecCoordinates, weight_, inputdensity_, optionsstring_);
 }

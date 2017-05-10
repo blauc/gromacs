@@ -79,7 +79,6 @@ real GridMeasures::correlate(const Field<real> &other, real threshold) const
         ++otherDatum;
     }
 
-
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
@@ -118,7 +117,7 @@ real GridMeasures::getRelativeKLCrossTermSameGrid(
             sum += p[i] * log(q[i] / (q_reference[i]));
         }
     }
-    return sum;
+    return -1 * reference_.grid_cell_volume() *sum;
 }
 
 real GridMeasures::getKLSameGrid(const Field<real> &other) const
@@ -144,7 +143,8 @@ real GridMeasures::getKLSameGrid(const Field<real> &other) const
             sum += p[i] * log(q[i] / p[i]);
         }
     }
-    return sum;
+
+    return -1 * reference_.grid_cell_volume() * sum;
 };
 
 real GridMeasures::getKLCrossTermSameGrid(const Field<real> &other) const
@@ -170,7 +170,7 @@ real GridMeasures::getKLCrossTermSameGrid(const Field<real> &other) const
             sum += p[i] * log(q[i]);
         }
     }
-    return sum;
+    return -1 * reference_.grid_cell_volume() *sum;
 };
 
 real GridMeasures::entropy() const
@@ -189,7 +189,7 @@ real GridMeasures::entropy() const
             sum += p[i] * log(p[i]);
         }
     }
-    return sum;
+    return -1 * reference_.grid_cell_volume() * sum;
 };
 }
 }
