@@ -46,7 +46,6 @@
 
 namespace gmx
 {
-class Quaternion;
 class WholeMoleculeGroup;
 namespace volumedata
 {

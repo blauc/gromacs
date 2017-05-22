@@ -91,7 +91,7 @@ struct t_pbc;
  * \param[out] xout   COG position for the indexed atoms.
  */
 void
-gmx_calc_cog(const gmx_mtop_t *top, rvec x[], int nrefat, const int index[], rvec xout);
+gmx_calc_cog(const gmx_mtop_t *top, const rvec x[], int nrefat, const int index[], rvec xout);
 /** Calculate a single center of mass. */
 void
 gmx_calc_com(const gmx_mtop_t *top, rvec x[], int nrefat, const int index[], rvec xout);

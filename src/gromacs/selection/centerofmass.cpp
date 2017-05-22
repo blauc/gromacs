@@ -51,7 +51,7 @@
 #include "gromacs/utility/gmxassert.h"
 
 void
-gmx_calc_cog(const gmx_mtop_t * /* top */, rvec x[], int nrefat, const int index[], rvec xout)
+gmx_calc_cog(const gmx_mtop_t * /* top */, const rvec x[], int nrefat, const int index[], rvec xout)
 {
     int                 m, ai;
 

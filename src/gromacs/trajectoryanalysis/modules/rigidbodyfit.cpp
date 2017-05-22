@@ -49,6 +49,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
+#include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/math/volumedata/gridreal.h"
@@ -59,6 +60,7 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
+
 
 namespace gmx
 {
@@ -124,9 +126,7 @@ void RigidBodyFit::initOptions(IOptionsContainer          *options,
     }
     potentialType_ = potentialNames[0];
     static const char *const desc[] = {
-        "[THISMODULE] Compares a structure or "
-        "trajectory to a three-dimensional "
-        "density function."
+        "[THISMODULE] Fits trajectory to a three-dimensional density."
     };
 
     settings->setHelpText(desc);
@@ -185,7 +185,6 @@ void RigidBodyFit::optionsFinished(
                   std::end(inputdensity_.access().data()),
                   [](real &value) { value = std::max(value, (real)0.); });
     potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
-    potentialFile_     = fopen(fnpotential_.c_str(), "w");
     fprintf(potentialFile_, "time        %s", potentialType_.c_str());
 
     auto optionsFile = fopen(fnoptions_.c_str(), "r");
@@ -224,55 +223,17 @@ void RigidBodyFit::analyzeFrame(int frnr, const t_trxframe &fr,
                                 t_pbc * /*pbc*/,
                                 TrajectoryAnalysisModuleData * /*pdata*/)
 {
-    if (frnr % every_ == 0)
-    {
+    std::vector<RVec>        rVecCoordinates(fr.x, fr.x + fr.natoms);
 
-        real              potential;
-
-        std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-
-        // if (bRigidBodyFit_)
-        // {
-        // RigidBodyFit rigidbodyfit;
-        // rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,
-        // *potentialForceEvaluator_);
-        // potential = rigidbodyfit.bestFitPotential();
-        // }
-        // else
-        // {
-        potential =
-            potentialEvaluator.potential(rVecCoordinates, weight_, inputdensity_);
-        // }
-
-        fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);
-
-        if (!forcedensity_.empty())
-        {
-            frameToForceDensity_(fr);
-        }
-    }
-}
-
-void RigidBodyFit::frameToForceDensity_(const t_trxframe &fr)
-{
-    //     const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
-    //
-    //     auto                    forcePlotterForces =
-    //     forceEvaluator_->force(coordinates, weight_, inputdensity_);
-    //
-    //     auto                    plotter = externalpotential::ForcePlotter();
-    //     plotter.start_plot_forces("forces.bild");
-    //     plotter.plot_forces(fr.x, as_rvec_array(forcePlotterForces.data()),
-    //                         fr.natoms, 1);
-    //     plotter.stop_plot_forces();
+    volumedata::RigidBodyFit rigidbodyfit;
+    rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,
+                                potentialEvaluator);
 }
 
 void RigidBodyFit::finishAnalysis(int /*nframes*/) {}
 
 void RigidBodyFit::writeOutput()
 {
-    fprintf(potentialFile_, "\n");
-    fclose(potentialFile_);
 }
 
 }       // namespace

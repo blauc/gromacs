@@ -36,39 +36,70 @@
 #define GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
 
 #include "gmxpre.h"
-#include <tuple>
+
 #include <vector>
 
-#include "gromacs/math/vectypes.h"
 #include "gromacs/math/quaternion.h"
+#include "gromacs/math/vectypes.h"
 
 namespace gmx
 {
-class WholeMoleculeGroup;
+
 namespace volumedata
 {
+
 template <class T> class Field;
-class PotentialEvaluator;
+class PotentialEvaluatorHandle;
 class PotentialForceEvaluator;
+
+class RigidBodyFitResult
+{
+    public:
+        RigidBodyFitResult(const RVec &translation, const RVec &center_of_rotation,
+                           const Quaternion &orientation,
+                           const real bestFitPotential);
+        RVec translation() const;
+        Quaternion orientation() const;
+        RVec centerOfRotation() const;
+        real potential() const;
+
+    private:
+        const RVec       translation_;
+        const RVec       center_of_rotation_;
+        const Quaternion orientation_;
+        const real       potential_;
+};
+
 class RigidBodyFit
 {
     public:
-        void fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
-                            const std::vector<real> &weights,
-                            const PotentialEvaluator &fitPotentialProvider);
+        RigidBodyFitResult
+        fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
+                       const std::vector<real> &weights,
+                       const PotentialForceEvaluator &fitPotentialProvider);
 
-        void fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
-                            const std::vector<real> &weights,
-                            const PotentialForceEvaluator &fitPotentialProvider);
-
-        RVec fitTranslation() const;
-        Quaternion fitOrientation() const;
-        real bestFitPotential() const;
+        RigidBodyFitResult
+        fitCoordinates(const Field<real> &reference, const std::vector<RVec> &x,
+                       const std::vector<real> &weights,
+                       const PotentialEvaluatorHandle &fitPotentialProvider);
 
     private:
-        RVec       translation_      = {0, 0, 0};
-        Quaternion orientation_      = {{1, 0, 0}, 0};
-        real       bestFitPotential_ = -GMX_REAL_MAX;
+        const real minimial_improvement_ = 1e-10;
+        const int  max_steps_            = 1e5;
+        RVec
+        gradientTranslation_(const Field<real> &reference, const std::vector<RVec> &x,
+                             const std::vector<real> &weights,
+                             const PotentialEvaluatorHandle &fitPotentialProvider,
+                             const RVec &translation,
+                             const RVec &center_of_rotation,
+                             const Quaternion &orientation);
+        Quaternion
+        gradientOrientation_(const Field<real> &reference, const std::vector<RVec> &x,
+                             const std::vector<real> &weights,
+                             const PotentialEvaluatorHandle &fitPotentialProvider,
+                             const RVec &translation,
+                             const RVec &center_of_rotation,
+                             const Quaternion &orientation);
 };
 }
 }
