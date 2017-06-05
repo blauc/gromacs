@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2008,2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2008,2009,2010,2011,2012,2013,2014,2015,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,6 +51,7 @@
 
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/ewald/pme.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -428,6 +429,28 @@ static float comm_cost_est(real limit, real cutoff,
         }
     }
 
+    if (EEL_PME(ir->coulombtype) || EVDW_PME(ir->vdwtype))
+    {
+        /* Check the PME grid restrictions.
+         * Currently these can only be invalid here with too few grid lines
+         * along the x dimension per rank doing PME.
+         */
+        int npme_x = (npme_tot > 1 ? npme[XX] : nc[XX]);
+
+        /* Currently we don't have the OpenMP thread count available here.
+         * But with threads we have only tighter restrictions and it's
+         * probably better anyhow to avoid settings where we need to reduce
+         * grid lines over multiple ranks, as the thread check will do.
+         */
+        bool useThreads     = true;
+        bool errorsAreFatal = false;
+        if (!gmx_pme_check_restrictions(ir->pme_order, ir->nkx, ir->nky, ir->nkz,
+                                        npme_x, useThreads, errorsAreFatal))
+        {
+            return -1;
+        }
+    }
+
     /* When two dimensions are (nearly) equal, use more cells
      * for the smallest index, so the decomposition does not
      * depend sensitively on the rounding of the box elements.
@@ -631,7 +654,7 @@ static real optimize_ncells(FILE *fplog,
          * we can save some time (e.g. 3D DD with pbc=xyz).
          * Here we ignore SIMD bondeds as they always do (fast) PBC.
          */
-        count_bonded_distances(mtop, ir, &pbcdxr, NULL);
+        count_bonded_distances(mtop, ir, &pbcdxr, nullptr);
         pbcdxr /= (double)mtop->natoms;
     }
     else

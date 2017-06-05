@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -182,7 +182,7 @@ BooleanOption::createStorage(const OptionManagerContainer & /*managers*/) const
 
 std::string IntegerOptionStorage::formatSingleValue(const int &value) const
 {
-    return formatString("%d", value);
+    return toString(value);
 }
 
 void IntegerOptionStorage::initConverter(ConverterType *converter)
@@ -224,7 +224,7 @@ IntegerOption::createStorage(const OptionManagerContainer & /*managers*/) const
 
 std::string Int64OptionStorage::formatSingleValue(const gmx_int64_t &value) const
 {
-    return formatString("%" GMX_PRId64, value);
+    return toString(value);
 }
 
 void Int64OptionStorage::initConverter(ConverterType *converter)
@@ -268,7 +268,7 @@ std::string DoubleOptionStorage::typeString() const
 
 std::string DoubleOptionStorage::formatSingleValue(const double &value) const
 {
-    return formatString("%g", value / factor_);
+    return toString(value / factor_);
 }
 
 void DoubleOptionStorage::initConverter(ConverterType *converter)
@@ -361,7 +361,7 @@ std::string FloatOptionStorage::typeString() const
 
 std::string FloatOptionStorage::formatSingleValue(const float &value) const
 {
-    return formatString("%g", value / factor_);
+    return toString(value / factor_);
 }
 
 void FloatOptionStorage::initConverter(ConverterType *converter)
@@ -445,24 +445,24 @@ FloatOption::createStorage(const OptionManagerContainer & /*managers*/) const
 StringOptionStorage::StringOptionStorage(const StringOption &settings)
     : MyBase(settings), info_(this)
 {
-    if (settings.defaultEnumIndex_ >= 0 && settings.enumValues_ == NULL)
+    if (settings.defaultEnumIndex_ >= 0 && settings.enumValues_ == nullptr)
     {
         GMX_THROW(APIError("Cannot set default enum index without enum values"));
     }
-    if (settings.enumValues_ != NULL)
+    if (settings.enumValues_ != nullptr)
     {
         int count = settings.enumValuesCount_;
         if (count < 0)
         {
             count = 0;
-            while (settings.enumValues_[count] != NULL)
+            while (settings.enumValues_[count] != nullptr)
             {
                 ++count;
             }
         }
         for (int i = 0; i < count; ++i)
         {
-            if (settings.enumValues_[i] == NULL)
+            if (settings.enumValues_[i] == nullptr)
             {
                 GMX_THROW(APIError("Enumeration value cannot be NULL"));
             }
@@ -475,7 +475,7 @@ StringOptionStorage::StringOptionStorage(const StringOption &settings)
                 GMX_THROW(APIError("Default enumeration index is out of range"));
             }
             const std::string *defaultValue = settings.defaultValue();
-            if (defaultValue != NULL && *defaultValue != allowed_[settings.defaultEnumIndex_])
+            if (defaultValue != nullptr && *defaultValue != allowed_[settings.defaultEnumIndex_])
             {
                 GMX_THROW(APIError("Conflicting default values"));
             }
@@ -558,7 +558,7 @@ EnumOptionStorage::EnumOptionStorage(const AbstractOption &settings,
                                      StorePointer store)
     : MyBase(settings, std::move(store)), info_(this)
 {
-    if (enumValues == NULL)
+    if (enumValues == nullptr)
     {
         GMX_THROW(APIError("Allowed values must be provided to EnumOption"));
     }
@@ -566,14 +566,14 @@ EnumOptionStorage::EnumOptionStorage(const AbstractOption &settings,
     if (count < 0)
     {
         count = 0;
-        while (enumValues[count] != NULL)
+        while (enumValues[count] != nullptr)
         {
             ++count;
         }
     }
     for (int i = 0; i < count; ++i)
     {
-        if (enumValues[i] == NULL)
+        if (enumValues[i] == nullptr)
         {
             GMX_THROW(APIError("Enumeration value cannot be NULL"));
         }
@@ -608,6 +608,11 @@ std::string EnumOptionStorage::formatSingleValue(const int &value) const
         return std::string();
     }
     return allowed_[value];
+}
+
+Variant EnumOptionStorage::normalizeValue(const int &value) const
+{
+    return Variant::create<std::string>(formatSingleValue(value));
 }
 
 void EnumOptionStorage::initConverter(ConverterType *converter)

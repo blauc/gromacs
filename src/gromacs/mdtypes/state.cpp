@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,6 +48,9 @@
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/swaphistory.h"
+#include "gromacs/pbcutil/boxutilities.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/utility/compare.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
@@ -55,45 +58,46 @@
 /* The source code in this file should be thread-safe.
       Please keep it that way. */
 
-static void zero_history(history_t *hist)
+history_t::history_t() : disre_initf(0),
+                         ndisrepairs(0),
+                         disre_rm3tav(nullptr),
+                         orire_initf(0),
+                         norire_Dtav(0),
+                         orire_Dtav(nullptr)
 {
-    hist->disre_initf  = 0;
-    hist->ndisrepairs  = 0;
-    hist->disre_rm3tav = NULL;
-    hist->orire_initf  = 0;
-    hist->norire_Dtav  = 0;
-    hist->orire_Dtav   = NULL;
-}
+};
 
-static void zero_ekinstate(ekinstate_t *eks)
+ekinstate_t::ekinstate_t() : bUpToDate(FALSE),
+                             ekin_n(0),
+                             ekinh(nullptr),
+                             ekinf(nullptr),
+                             ekinh_old(nullptr),
+                             ekin_total(),
+                             ekinscalef_nhc(),
+                             ekinscaleh_nhc(),
+                             vscale_nhc(),
+                             dekindl(0),
+                             mvcos(0)
 {
-    eks->ekin_n         = 0;
-    eks->ekinh          = NULL;
-    eks->ekinf          = NULL;
-    eks->ekinh_old      = NULL;
-    eks->ekinscalef_nhc.resize(0);
-    eks->ekinscaleh_nhc.resize(0);
-    eks->vscale_nhc.resize(0);
-    eks->dekindl        = 0;
-    eks->mvcos          = 0;
-}
+    clear_mat(ekin_total);
+};
 
-static void init_swapstate(swapstate_t *swapstate)
+static void init_swapstate(swaphistory_t *swapstate)
 {
     /* Ion/water position swapping */
     swapstate->eSwapCoords            = 0;
     swapstate->nIonTypes              = 0;
     swapstate->nAverage               = 0;
     swapstate->fluxleak               = 0;
-    swapstate->fluxleak_p             = NULL;
+    swapstate->fluxleak_p             = nullptr;
     swapstate->bFromCpt               = 0;
     swapstate->nat[eChan0]            = 0;
     swapstate->nat[eChan1]            = 0;
-    swapstate->xc_old_whole[eChan0]   = NULL;
-    swapstate->xc_old_whole[eChan1]   = NULL;
-    swapstate->xc_old_whole_p[eChan0] = NULL;
-    swapstate->xc_old_whole_p[eChan1] = NULL;
-    swapstate->ionType                = NULL;
+    swapstate->xc_old_whole[eChan0]   = nullptr;
+    swapstate->xc_old_whole[eChan1]   = nullptr;
+    swapstate->xc_old_whole_p[eChan0] = nullptr;
+    swapstate->xc_old_whole_p[eChan1] = nullptr;
+    swapstate->ionType                = nullptr;
 }
 
 void init_gtc_state(t_state *state, int ngtc, int nnhpres, int nhchainlength)
@@ -104,41 +108,45 @@ void init_gtc_state(t_state *state, int ngtc, int nnhpres, int nhchainlength)
     state->nosehoover_xi.resize(state->nhchainlength*state->ngtc, 0);
     state->nosehoover_vxi.resize(state->nhchainlength*state->ngtc, 0);
     state->therm_integral.resize(state->ngtc, 0);
+    state->baros_integral = 0.0;
     state->nhpres_xi.resize(state->nhchainlength*nnhpres, 0);
     state->nhpres_vxi.resize(state->nhchainlength*nnhpres, 0);
 }
 
 
-void init_state(t_state *state, int natoms, int ngtc, int nnhpres, int nhchainlength, int dfhistNumLambda)
+/* Checkpoint code relies on this function having no effect if
+   state->natoms is > 0 and passed as natoms. */
+void state_change_natoms(t_state *state, int natoms)
 {
-    state->natoms    = natoms;
-    state->flags     = 0;
-    state->fep_state = 0;
-    state->lambda.resize(efptNR, 0);
-    state->veta   = 0;
-    clear_mat(state->box);
-    clear_mat(state->box_rel);
-    clear_mat(state->boxv);
-    clear_mat(state->pres_prev);
-    clear_mat(state->svir_prev);
-    clear_mat(state->fvir_prev);
-    init_gtc_state(state, ngtc, nnhpres, nhchainlength);
+    state->natoms = natoms;
     if (state->natoms > 0)
     {
         /* We need to allocate one element extra, since we might use
          * (unaligned) 4-wide SIMD loads to access rvec entries.
          */
-        state->x.resize(state->natoms + 1);
-        state->v.resize(state->natoms + 1);
+        if (state->flags & (1 << estX))
+        {
+            state->x.resize(state->natoms + 1);
+        }
+        if (state->flags & (1 << estV))
+        {
+            state->v.resize(state->natoms + 1);
+        }
+        if (state->flags & (1 << estCGP))
+        {
+            state->cg_p.resize(state->natoms + 1);
+        }
     }
     else
     {
         state->x.resize(0);
         state->v.resize(0);
+        state->cg_p.resize(0);
     }
-    state->cg_p.resize(0);
-    zero_history(&state->hist);
-    zero_ekinstate(&state->ekinstate);
+}
+
+void init_dfhist_state(t_state *state, int dfhistNumLambda)
+{
     if (dfhistNumLambda > 0)
     {
         snew(state->dfhist, 1);
@@ -146,13 +154,8 @@ void init_state(t_state *state, int natoms, int ngtc, int nnhpres, int nhchainle
     }
     else
     {
-        state->dfhist = NULL;
+        state->dfhist = nullptr;
     }
-    state->swapstate       = NULL;
-    state->edsamstate      = NULL;
-    state->ddp_count       = 0;
-    state->ddp_count_cg_gl = 0;
-    state->cg_gl.resize(0);
 }
 
 void comp_state(const t_state *st1, const t_state *st2,
@@ -243,4 +246,66 @@ rvec *getRvecArrayFromPaddedRVecVector(const PaddedRVecVector *v,
     }
 
     return dest;
+}
+
+t_state::t_state() : natoms(0),
+                     ngtc(0),
+                     nnhpres(0),
+                     nhchainlength(0),
+                     flags(0),
+                     fep_state(0),
+                     lambda(),
+                     nosehoover_xi(),
+                     nosehoover_vxi(),
+                     nhpres_xi(),
+                     nhpres_vxi(),
+                     therm_integral(),
+                     baros_integral(0),
+                     veta(0),
+                     vol0(0),
+                     x(),
+                     v(),
+                     cg_p(),
+                     ekinstate(),
+                     hist(),
+                     dfhist(nullptr),
+                     ddp_count(0),
+                     ddp_count_cg_gl(0),
+                     cg_gl()
+{
+    // It would be nicer to initialize these with {} or {{0}} in the
+    // above initialization list, but uncrustify doesn't understand
+    // that.
+    // TODO Fix this if we switch to clang-format some time.
+    // cppcheck-suppress useInitializationList
+    lambda = {{ 0 }};
+    clear_mat(box);
+    clear_mat(box_rel);
+    clear_mat(boxv);
+    clear_mat(pres_prev);
+    clear_mat(svir_prev);
+    clear_mat(fvir_prev);
+}
+
+void set_box_rel(const t_inputrec *ir, t_state *state)
+{
+    /* Make sure the box obeys the restrictions before we fix the ratios */
+    correct_box(nullptr, 0, state->box, nullptr);
+
+    clear_mat(state->box_rel);
+
+    if (inputrecPreserveShape(ir))
+    {
+        const int ndim = ir->epct == epctSEMIISOTROPIC ? 2 : 3;
+        do_box_rel(ndim, ir->deform, state->box_rel, state->box, true);
+    }
+}
+
+void preserve_box_shape(const t_inputrec *ir, matrix box_rel, matrix box)
+{
+    if (inputrecPreserveShape(ir))
+    {
+        const int ndim = ir->epct == epctSEMIISOTROPIC ? 2 : 3;
+        do_box_rel(ndim, ir->deform, box_rel, box, false);
+    }
 }

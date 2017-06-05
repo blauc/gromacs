@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -37,13 +37,13 @@
 #ifndef GMX_MDLIB_UPDATE_H
 #define GMX_MDLIB_UPDATE_H
 
+#include "gromacs/math/paddedvector.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdtypes/state.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-struct ekinstate_t;
+class ekinstate_t;
 struct gmx_constr;
 struct gmx_ekindata_t;
 struct gmx_enerdata_t;
@@ -55,7 +55,7 @@ struct t_idef;
 struct t_inputrec;
 struct t_mdatoms;
 struct t_nrnb;
-struct t_state;
+class t_state;
 
 /* Abstract type for update */
 struct gmx_update_t;
@@ -106,6 +106,8 @@ void update_pcouple_after_coordinates(FILE             *fplog,
                                       const t_inputrec *inputrec,
                                       const t_mdatoms  *md,
                                       const matrix      pressure,
+                                      const matrix      forceVirial,
+                                      const matrix      constraintVirial,
                                       const matrix      parrinellorahmanMu,
                                       t_state          *state,
                                       t_nrnb           *nrnb,
@@ -181,7 +183,8 @@ void
 restore_ekinstate_from_state(t_commrec *cr,
                              gmx_ekindata_t *ekind, const ekinstate_t *ekinstate);
 
-void berendsen_tcoupl(t_inputrec *ir, gmx_ekindata_t *ekind, real dt);
+void berendsen_tcoupl(const t_inputrec *ir, const gmx_ekindata_t *ekind, real dt,
+                      std::vector<double> &therm_integral);
 
 void andersen_tcoupl(t_inputrec *ir, gmx_int64_t step,
                      const t_commrec *cr, const t_mdatoms *md, t_state *state, real rate, const gmx_bool *randomize, const real *boltzfac);
@@ -231,8 +234,8 @@ void parrinellorahman_pcoupl(FILE *fplog, gmx_int64_t step,
 void berendsen_pcoupl(FILE *fplog, gmx_int64_t step,
                       const t_inputrec *ir, real dt,
                       const tensor pres, const matrix box,
-                      matrix mu);
-
+                      const matrix force_vir, const matrix constraint_vir,
+                      matrix mu, double *baros_integral);
 
 void berendsen_pscale(const t_inputrec *ir, const matrix mu,
                       matrix box, matrix box_rel,

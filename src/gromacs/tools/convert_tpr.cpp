@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,9 +43,7 @@
 #include "gromacs/fileio/enxio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trrio.h"
-#include "gromacs/gmxpreprocess/readir.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
@@ -351,16 +349,15 @@ int gmx_convert_tpr(int argc, char *argv[])
     gmx_bool          bNsteps, bExtend, bUntil;
     gmx_mtop_t        mtop;
     t_atoms           atoms;
-    t_inputrec       *ir;
     t_state           state;
     int               gnx;
     char             *grpname;
-    int              *index = NULL;
+    int              *index = nullptr;
     char              buf[200], buf2[200];
     gmx_output_env_t *oenv;
     t_filenm          fnm[] = {
-        { efTPR, NULL,  NULL,    ffREAD  },
-        { efNDX, NULL,  NULL,    ffOPTRD },
+        { efTPR, nullptr,  nullptr,    ffREAD  },
+        { efNDX, nullptr,  nullptr,    ffOPTRD },
         { efTPR, "-o",  "tprout", ffWRITE }
     };
 #define NFILE asize(fnm)
@@ -382,7 +379,7 @@ int gmx_convert_tpr(int argc, char *argv[])
 
     /* Parse the command line */
     if (!parse_common_args(&argc, argv, 0, NFILE, fnm, asize(pa), pa,
-                           asize(desc), desc, 0, NULL, &oenv))
+                           asize(desc), desc, 0, nullptr, &oenv))
     {
         return 0;
     }
@@ -396,8 +393,8 @@ int gmx_convert_tpr(int argc, char *argv[])
     top_fn = ftp2fn(efTPR, NFILE, fnm);
     fprintf(stderr, "Reading toplogy and stuff from %s\n", top_fn);
 
-    gmx::MDModules mdModules;
-    ir = mdModules.inputrec();
+    t_inputrec  irInstance;
+    t_inputrec *ir = &irInstance;
     read_tpx_state(top_fn, ir, &state, &mtop);
     run_step = ir->init_step;
     run_t    = ir->init_step*ir->delta_t + ir->init_t;

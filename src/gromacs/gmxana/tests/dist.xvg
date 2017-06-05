@@ -1,0 +1,27 @@
+# This file was created Tue May 23 09:22:08 2017
+# Created by:
+#           :-) GROMACS - gmx pairdist, 2017-dev-20170516-ab3cfb7 (-:
+# 
+# Executable:   /home/cblau/local/gromacs-install/bin/gmx
+# Data prefix:  /home/cblau/local/gromacs-install
+# Working dir:  /home/cblau/Projects/gromacs/src/gromacs/gmxana/tests
+# Command line:
+#   gmx pairdist -f spc2-traj.xtc -s spc2-traj.pdb
+# gmx pairdist is part of G R O M A C S:
+#
+# Glycine aRginine prOline Methionine Alanine Cystine Serine
+#
+@    title "Minimum distance"
+@    xaxis  label "Time (ps)"
+@    yaxis  label "Distance (nm)"
+@TYPE xy
+@ view 0.15, 0.15, 0.75, 0.85
+@ legend on
+@ legend box on
+@ legend loctype view
+@ legend 0.78, 0.8
+@ legend length 2
+@ s0 legend "System"
+@ s1 legend "Water"
+      0.000    0.000    0.000
+      0.000    0.000    0.000

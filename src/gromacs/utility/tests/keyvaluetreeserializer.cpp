@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -38,6 +38,7 @@
 
 #include <gtest/gtest.h>
 
+#include "gromacs/utility/inmemoryserializer.h"
 #include "gromacs/utility/iserializer.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
 
@@ -46,11 +47,11 @@
 namespace
 {
 
-class RefDataWriteSerializer : public gmx::ISerializer
+class RefDataSerializer : public gmx::ISerializer
 {
     public:
-        RefDataWriteSerializer(gmx::test::TestReferenceChecker *parentChecker,
-                               const char                      *id)
+        RefDataSerializer(gmx::test::TestReferenceChecker *parentChecker,
+                          const char                      *id)
             : checker_(parentChecker->checkCompound("SerializedData", id))
         {
         }
@@ -64,6 +65,10 @@ class RefDataWriteSerializer : public gmx::ISerializer
         virtual void doInt(int *value)
         {
             checker_.checkInteger(*value, nullptr);
+        }
+        virtual void doInt64(gmx_int64_t *value)
+        {
+            checker_.checkInt64(*value, nullptr);
         }
         virtual void doFloat(float *value)
         {
@@ -82,42 +87,6 @@ class RefDataWriteSerializer : public gmx::ISerializer
         gmx::test::TestReferenceChecker checker_;
 };
 
-class RefDataReadSerializer : public gmx::ISerializer
-{
-    public:
-        RefDataReadSerializer(gmx::test::TestReferenceChecker *parentChecker,
-                              const char                      *id)
-            : checker_(parentChecker->checkCompound("SerializedData", id))
-        {
-        }
-
-        virtual bool reading() const { return true; }
-
-        virtual void doUChar(unsigned char *value)
-        {
-            *value = checker_.readUChar(nullptr);
-        }
-        virtual void doInt(int *value)
-        {
-            *value = checker_.readInteger(nullptr);
-        }
-        virtual void doFloat(float *value)
-        {
-            *value = checker_.readFloat(nullptr);
-        }
-        virtual void doDouble(double *value)
-        {
-            *value = checker_.readDouble(nullptr);
-        }
-        virtual void doString(std::string *value)
-        {
-            *value = checker_.readString(nullptr);
-        }
-
-    private:
-        gmx::test::TestReferenceChecker checker_;
-};
-
 class KeyValueTreeSerializerTest : public ::testing::Test
 {
     public:
@@ -128,18 +97,27 @@ class KeyValueTreeSerializerTest : public ::testing::Test
             gmx::test::TestReferenceChecker   checker(data.rootChecker());
             checker.checkKeyValueTreeObject(input, "Input");
             {
-                RefDataWriteSerializer        serializer(&checker, "Stream");
+                RefDataSerializer             serializer(&checker, "Stream");
                 gmx::serializeKeyValueTree(input, &serializer);
             }
+            std::vector<char>                 buffer = serializeTree(input);
             {
-                RefDataReadSerializer         serializer(&checker, "Stream");
+                gmx::InMemoryDeserializer     deserializer(buffer);
                 gmx::KeyValueTreeObject       output
-                    = gmx::deserializeKeyValueTree(&serializer);
+                    = gmx::deserializeKeyValueTree(&deserializer);
                 checker.checkKeyValueTreeObject(output, "Input");
             }
         }
 
         gmx::KeyValueTreeBuilder builder_;
+
+    private:
+        std::vector<char> serializeTree(const gmx::KeyValueTreeObject &tree)
+        {
+            gmx::InMemorySerializer serializer;
+            gmx::serializeKeyValueTree(tree, &serializer);
+            return serializer.finishAndGetBuffer();
+        }
 };
 
 TEST_F(KeyValueTreeSerializerTest, EmptyTree)

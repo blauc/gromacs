@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -49,6 +49,7 @@
 #include <sys/types.h>
 
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/ewald/pme.h"
 #include "gromacs/fft/calcgrid.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/enxio.h"
@@ -73,6 +74,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
 #include "gromacs/mdlib/compute_io.h"
+#include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/perf_est.h"
 #include "gromacs/mdrunutility/mdmodules.h"
@@ -91,6 +93,7 @@
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
@@ -260,7 +263,7 @@ static void check_bonds_timestep(gmx_mtop_t *mtop, double dt, warninp_t wi)
     w_a1      = w_a2 = -1;
     w_period2 = -1.0;
 
-    w_moltype = NULL;
+    w_moltype = nullptr;
     for (molt = 0; molt < mtop->nmoltype; molt++)
     {
         moltype = &mtop->moltype[molt];
@@ -322,7 +325,7 @@ static void check_bonds_timestep(gmx_mtop_t *mtop, double dt, warninp_t wi)
                         }
                     }
                     if (!bFound &&
-                        (w_moltype == NULL || period2 < w_period2))
+                        (w_moltype == nullptr || period2 < w_period2))
                     {
                         w_moltype = moltype;
                         w_a1      = a1;
@@ -334,7 +337,7 @@ static void check_bonds_timestep(gmx_mtop_t *mtop, double dt, warninp_t wi)
         }
     }
 
-    if (w_moltype != NULL)
+    if (w_moltype != nullptr)
     {
         bWarn = (w_period2 < gmx::square(min_steps_warn*dt));
         /* A check that would recognize most water models */
@@ -509,7 +512,7 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
            gmx_bool bMorse,
            warninp_t wi)
 {
-    t_molinfo      *molinfo = NULL;
+    t_molinfo      *molinfo = nullptr;
     int             nmolblock;
     gmx_molblock_t *molblock, *molbs;
     int             mb, i, nrmols, nmismatch;
@@ -603,11 +606,10 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
     }
 
     t_topology *conftop;
-    rvec       *x = NULL;
-    rvec       *v = NULL;
+    rvec       *x = nullptr;
+    rvec       *v = nullptr;
     snew(conftop, 1);
-    init_state(state, 0, 0, 0, 0, 0);
-    read_tps_conf(confin, conftop, NULL, &x, &v, state->box, FALSE);
+    read_tps_conf(confin, conftop, nullptr, &x, &v, state->box, FALSE);
     state->natoms = conftop->atoms.nr;
     if (state->natoms != sys->natoms)
     {
@@ -619,16 +621,18 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
      * a priori if the number of atoms in confin matches what we expect.
      */
     state->flags |= (1 << estX);
-    state->x.resize(state->natoms);
+    if (v != NULL)
+    {
+        state->flags |= (1 << estV);
+    }
+    state_change_natoms(state, state->natoms);
     for (int i = 0; i < state->natoms; i++)
     {
         copy_rvec(x[i], state->x[i]);
     }
     sfree(x);
-    if (v != NULL)
+    if (v != nullptr)
     {
-        state->flags |= (1 << estV);
-        state->v.resize(state->natoms);
         for (int i = 0; i < state->natoms; i++)
         {
             copy_rvec(v[i], state->v[i]);
@@ -783,7 +787,7 @@ static void cont_status(const char *slog, const char *ener,
             {
                 clear_rvec(state->v[i]);
             }
-            close_trj(fp);
+            close_trx(fp);
             /* Search for a frame without velocities */
             bReadVel = FALSE;
             read_first_frame(oenv, &fp, slog, &fr, TRX_NEED_X);
@@ -806,7 +810,7 @@ static void cont_status(const char *slog, const char *ener,
         copy_state(slog, &fr, bReadVel, state, &use_time);
     }
 
-    close_trj(fp);
+    close_trx(fp);
 
     /* Set the relative box lengths for preserving the box shape.
      * Note that this call can lead to differences in the last bit
@@ -825,7 +829,7 @@ static void cont_status(const char *slog, const char *ener,
 }
 
 static void read_posres(gmx_mtop_t *mtop, t_molinfo *molinfo, gmx_bool bTopB,
-                        char *fn,
+                        const char *fn,
                         int rc_scaling, int ePBC,
                         rvec com,
                         warninp_t wi)
@@ -844,7 +848,7 @@ static void read_posres(gmx_mtop_t *mtop, t_molinfo *molinfo, gmx_bool bTopB,
     t_atom         *atom;
 
     snew(top, 1);
-    read_tps_conf(fn, top, NULL, &x, &v, box, FALSE);
+    read_tps_conf(fn, top, nullptr, &x, &v, box, FALSE);
     natoms = top->atoms.nr;
     done_top(top);
     sfree(top);
@@ -1007,7 +1011,7 @@ static void read_posres(gmx_mtop_t *mtop, t_molinfo *molinfo, gmx_bool bTopB,
 }
 
 static void gen_posres(gmx_mtop_t *mtop, t_molinfo *mi,
-                       char *fnA, char *fnB,
+                       const char *fnA, const char *fnB,
                        int rc_scaling, int ePBC,
                        rvec com, rvec comB,
                        warninp_t wi)
@@ -1382,6 +1386,7 @@ static real get_max_reference_temp(const t_inputrec *ir,
  * Prints a note for each unbound atoms and a warning if any is present.
  */
 static void checkForUnboundAtoms(const gmx_moltype_t *molt,
+                                 gmx_bool             bVerbose,
                                  warninp_t            wi)
 {
     const t_atoms *atoms = &molt->atoms;
@@ -1419,9 +1424,11 @@ static void checkForUnboundAtoms(const gmx_moltype_t *molt,
         if (atoms->atom[a].ptype != eptVSite &&
             count[a] == 0)
         {
-            fprintf(stderr, "\nAtom %d '%s' in moleculetype '%s' is not bound by a potential or constraint to any other atom in the same moleculetype.\n",
-                    a + 1, *atoms->atomname[a], *molt->name);
-
+            if (bVerbose)
+            {
+                fprintf(stderr, "\nAtom %d '%s' in moleculetype '%s' is not bound by a potential or constraint to any other atom in the same moleculetype.\n",
+                        a + 1, *atoms->atomname[a], *molt->name);
+            }
             numDanglingAtoms++;
         }
     }
@@ -1429,7 +1436,7 @@ static void checkForUnboundAtoms(const gmx_moltype_t *molt,
     if (numDanglingAtoms > 0)
     {
         char buf[STRLEN];
-        sprintf(buf, "In moleculetype '%s' %d atoms are not bound by a potential or constraint to any other atom in the same moleculetype. Although technically this might not cause issues in a simulation, this often means that the user forgot to add a bond/potential/constraint or put multiple molecules in the same moleculetype definition by mistake.",
+        sprintf(buf, "In moleculetype '%s' %d atoms are not bound by a potential or constraint to any other atom in the same moleculetype. Although technically this might not cause issues in a simulation, this often means that the user forgot to add a bond/potential/constraint or put multiple molecules in the same moleculetype definition by mistake. Run with -v to get information for each atom.",
                 *molt->name, numDanglingAtoms);
         warning_note(wi, buf);
     }
@@ -1437,11 +1444,180 @@ static void checkForUnboundAtoms(const gmx_moltype_t *molt,
 
 /* Checks all moleculetypes for unbound atoms */
 static void checkForUnboundAtoms(const gmx_mtop_t *mtop,
+                                 gmx_bool          bVerbose,
                                  warninp_t         wi)
 {
     for (int mt = 0; mt < mtop->nmoltype; mt++)
     {
-        checkForUnboundAtoms(&mtop->moltype[mt], wi);
+        checkForUnboundAtoms(&mtop->moltype[mt], bVerbose, wi);
+    }
+}
+
+/*! \brief Checks if there are decoupled modes in moleculetype \p molt.
+ *
+ * The specific decoupled modes this routine check for are angle modes
+ * where the two bonds are constrained and the atoms a both ends are only
+ * involved in a single constraint; the mass of the two atoms needs to
+ * differ by more than \p massFactorThreshold.
+ */
+static bool haveDecoupledModeInMol(const gmx_moltype_t *molt,
+                                   const t_iparams     *iparams,
+                                   real                 massFactorThreshold)
+{
+    if (molt->ilist[F_CONSTR].nr == 0 && molt->ilist[F_CONSTRNC].nr == 0)
+    {
+        return false;
+    }
+
+    const t_atom * atom = molt->atoms.atom;
+
+    int            numFlexibleConstraints;
+    t_blocka       atomToConstraints = make_at2con(0, molt->atoms.nr,
+                                                   molt->ilist, iparams,
+                                                   FALSE,
+                                                   &numFlexibleConstraints);
+
+    bool           haveDecoupledMode = false;
+    for (int ftype = 0; ftype < F_NRE; ftype++)
+    {
+        if (interaction_function[ftype].flags & IF_ATYPE)
+        {
+            const int      nral = NRAL(ftype);
+            const t_ilist *il   = &molt->ilist[ftype];
+            for (int i = 0; i < il->nr; i += 1 + nral)
+            {
+                /* Here we check for the mass difference between the atoms
+                 * at both ends of the angle, that the atoms at the ends have
+                 * 1 contraint and the atom in the middle at least 3; we check
+                 * that the 3 atoms are linked by constraints below.
+                 * We check for at least three constraints for the middle atom,
+                 * since with only the two bonds in the angle, we have 3-atom
+                 * molecule, which has much more thermal exhange in this single
+                 * angle mode than molecules with more atoms.
+                 * Note that this check also catches molecules where more atoms
+                 * are connected to one or more atoms in the angle, but by
+                 * bond potentials instead of angles. But such cases will not
+                 * occur in "normal" molecules and it doesn't hurt running
+                 * those with higher accuracy settings as well.
+                 */
+                int a0 = il->iatoms[1 + i];
+                int a1 = il->iatoms[1 + i + 1];
+                int a2 = il->iatoms[1 + i + 2];
+                if ((atom[a0].m > atom[a2].m*massFactorThreshold ||
+                     atom[a2].m > atom[a0].m*massFactorThreshold) &&
+                    atomToConstraints.index[a0 + 1] - atomToConstraints.index[a0] == 1 &&
+                    atomToConstraints.index[a2 + 1] - atomToConstraints.index[a2] == 1 &&
+                    atomToConstraints.index[a1 + 1] - atomToConstraints.index[a1] >= 3)
+                {
+                    int  constraint0 = atomToConstraints.a[atomToConstraints.index[a0]];
+                    int  constraint2 = atomToConstraints.a[atomToConstraints.index[a2]];
+
+                    bool foundAtom0  = false;
+                    bool foundAtom2  = false;
+                    for (int conIndex = atomToConstraints.index[a1]; conIndex < atomToConstraints.index[a1 + 1]; conIndex++)
+                    {
+                        if (atomToConstraints.a[conIndex] == constraint0)
+                        {
+                            foundAtom0 = true;
+                        }
+                        if (atomToConstraints.a[conIndex] == constraint2)
+                        {
+                            foundAtom2 = true;
+                        }
+                    }
+                    if (foundAtom0 && foundAtom2)
+                    {
+                        haveDecoupledMode = true;
+                    }
+                }
+            }
+        }
+    }
+
+    done_blocka(&atomToConstraints);
+
+    return haveDecoupledMode;
+}
+
+/*! \brief Checks if the Verlet buffer and constraint accuracy is sufficient for decoupled dynamic modes.
+ *
+ * When decoupled modes are present and the accuray in insufficient,
+ * this routine issues a warning if the accuracy is insufficient.
+ */
+static void checkDecoupledModeAccuracy(const gmx_mtop_t *mtop,
+                                       const t_inputrec *ir,
+                                       warninp_t         wi)
+{
+    /* We only have issues with decoupled modes with normal MD.
+     * With stochastic dynamics equipartitioning is enforced strongly.
+     */
+    if (!EI_MD(ir->eI))
+    {
+        return;
+    }
+
+    /* When atoms of very different mass are involved in an angle potential
+     * and both bonds in the angle are constrained, the dynamic modes in such
+     * angles have very different periods and significant energy exchange
+     * takes several nanoseconds. Thus even a small amount of error in
+     * different algorithms can lead to violation of equipartitioning.
+     * The parameters below are mainly based on an all-atom chloroform model
+     * with all bonds constrained. Equipartitioning is off by more than 1%
+     * (need to run 5-10 ns) when the difference in mass between H and Cl
+     * is more than a factor 13 and the accuracy is less than the thresholds
+     * given below. This has been verified on some other molecules.
+     *
+     * Note that the buffer and shake parameters have unit length and
+     * energy/time, respectively, so they will "only" work correctly
+     * for atomistic force fields using MD units.
+     */
+    const real massFactorThreshold      = 13.0;
+    const real bufferToleranceThreshold = 1e-4;
+    const int  lincsIterationThreshold  = 2;
+    const int  lincsOrderThreshold      = 4;
+    const real shakeToleranceThreshold  = 0.005*ir->delta_t;
+
+    bool       lincsWithSufficientTolerance = (ir->eConstrAlg == econtLINCS && ir->nLincsIter >= lincsIterationThreshold && ir->nProjOrder >= lincsOrderThreshold);
+    bool       shakeWithSufficientTolerance = (ir->eConstrAlg == econtSHAKE && ir->shake_tol <= 1.1*shakeToleranceThreshold);
+    if (ir->cutoff_scheme == ecutsVERLET &&
+        ir->verletbuf_tol <= 1.1*bufferToleranceThreshold &&
+        (lincsWithSufficientTolerance || shakeWithSufficientTolerance))
+    {
+        return;
+    }
+
+    bool haveDecoupledMode = false;
+    for (int mt = 0; mt < mtop->nmoltype; mt++)
+    {
+        if (haveDecoupledModeInMol(&mtop->moltype[mt], mtop->ffparams.iparams,
+                                   massFactorThreshold))
+        {
+            haveDecoupledMode = true;
+        }
+    }
+
+    if (haveDecoupledMode)
+    {
+        char modeMessage[STRLEN];
+        sprintf(modeMessage, "There are atoms at both ends of an angle, connected by constraints and with masses that differ by more than a factor of %g. This means that there are likely dynamic modes that are only very weakly coupled.",
+                massFactorThreshold);
+        char buf[STRLEN];
+        if (ir->cutoff_scheme == ecutsVERLET)
+        {
+            sprintf(buf, "%s To ensure good equipartitioning, you need to either not use constraints on all bonds (but, if possible, only on bonds involving hydrogens) or use integrator = %s or decrease one or more tolerances: verlet-buffer-tolerance <= %g, LINCS iterations >= %d, LINCS order >= %d or SHAKE tolerance <= %g",
+                    modeMessage,
+                    ei_names[eiSD1],
+                    bufferToleranceThreshold,
+                    lincsIterationThreshold, lincsOrderThreshold,
+                    shakeToleranceThreshold);
+        }
+        else
+        {
+            sprintf(buf, "%s To ensure good equipartitioning, we suggest to switch to the %s cutoff-scheme, since that allows for better control over the Verlet buffer size and thus over the energy drift.",
+                    modeMessage,
+                    ecutscheme_names[ecutsVERLET]);
+        }
+        warning(wi, buf);
     }
 }
 
@@ -1539,12 +1715,11 @@ int gmx_grompp(int argc, char *argv[])
         "Specifying the [TT]-pp[tt] flag will get the pre-processed",
         "topology file written out so that you can verify its contents.[PAR]",
 
-        "When using position restraints a file with restraint coordinates",
-        "can be supplied with [TT]-r[tt], otherwise restraining will be done",
-        "with respect to the conformation from the [TT]-c[tt] option.",
-        "For free energy calculation the the coordinates for the B topology",
-        "can be supplied with [TT]-rb[tt], otherwise they will be equal to",
-        "those of the A topology.[PAR]",
+        "When using position restraints, a file with restraint coordinates",
+        "must be supplied with [TT]-r[tt] (can be the same file as supplied",
+        "for [TT]-c[tt]). For free energy calculations, separate reference",
+        "coordinates for the B topology can be supplied with [TT]-rb[tt],",
+        "otherwise they will be equal to those of the A topology.[PAR]",
 
         "Starting coordinates can be read from trajectory with [TT]-t[tt].",
         "The last frame with coordinates and velocities will be read,",
@@ -1596,13 +1771,11 @@ int gmx_grompp(int argc, char *argv[])
     int                nmi;
     t_molinfo         *mi, *intermolecular_interactions;
     gpp_atomtype_t     atype;
-    t_inputrec        *ir;
     int                nvsite, comb, mt;
     t_params          *plist;
     matrix             box;
     real               fudgeQQ;
     double             reppow;
-    char               fn[STRLEN], fnB[STRLEN];
     const char        *mdparin;
     int                ntype;
     gmx_bool           bNeedVel, bGenVel;
@@ -1613,17 +1786,17 @@ int gmx_grompp(int argc, char *argv[])
     char               warn_buf[STRLEN];
 
     t_filenm           fnm[] = {
-        { efMDP, NULL,  NULL,        ffREAD  },
+        { efMDP, nullptr,  nullptr,        ffREAD  },
         { efMDP, "-po", "mdout",     ffWRITE },
-        { efSTX, "-c",  NULL,        ffREAD  },
-        { efSTX, "-r",  NULL,        ffOPTRD },
-        { efSTX, "-rb", NULL,        ffOPTRD },
-        { efNDX, NULL,  NULL,        ffOPTRD },
-        { efTOP, NULL,  NULL,        ffREAD  },
+        { efSTX, "-c",  nullptr,        ffREAD  },
+        { efSTX, "-r",  "restraint", ffOPTRD },
+        { efSTX, "-rb", "restraint", ffOPTRD },
+        { efNDX, nullptr,  nullptr,        ffOPTRD },
+        { efTOP, nullptr,  nullptr,        ffREAD  },
         { efTOP, "-pp", "processed", ffOPTWR },
-        { efTPR, "-o",  NULL,        ffWRITE },
-        { efTRN, "-t",  NULL,        ffOPTRD },
-        { efEDR, "-e",  NULL,        ffOPTRD },
+        { efTPR, "-o",  nullptr,        ffWRITE },
+        { efTRN, "-t",  nullptr,        ffOPTRD },
+        { efEDR, "-e",  nullptr,        ffOPTRD },
         /* This group is needed by the VMD viewer as the start configuration for IMD sessions: */
         { efGRO, "-imd", "imdgroup", ffOPTWR },
         { efTRN, "-ref", "rotref",   ffOPTRW }
@@ -1652,23 +1825,29 @@ int gmx_grompp(int argc, char *argv[])
 
     /* Parse the command line */
     if (!parse_common_args(&argc, argv, 0, NFILE, fnm, asize(pa), pa,
-                           asize(desc), desc, 0, NULL, &oenv))
+                           asize(desc), desc, 0, nullptr, &oenv))
     {
         return 0;
     }
 
     /* Initiate some variables */
     gmx::MDModules mdModules;
-    ir = mdModules.inputrec();
+    t_inputrec     irInstance;
+    t_inputrec    *ir = &irInstance;
     snew(opts, 1);
-    init_ir(ir, opts);
+    snew(opts->include, STRLEN);
+    snew(opts->define, STRLEN);
 
     wi = init_warning(TRUE, maxwarn);
 
     /* PARAMETER file processing */
     mdparin = opt2fn("-f", NFILE, fnm);
     set_warning_line(wi, mdparin, -1);
-    get_ir(mdparin, opt2fn("-po", NFILE, fnm), ir, opts, wi);
+    try
+    {
+        get_ir(mdparin, opt2fn("-po", NFILE, fnm), &mdModules, ir, opts, WriteMdpHeader::yes, wi);
+    }
+    GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
     if (bVerbose)
     {
@@ -1708,13 +1887,13 @@ int gmx_grompp(int argc, char *argv[])
         pr_symtab(debug, 0, "Just opened", &sys->symtab);
     }
 
-    strcpy(fn, ftp2fn(efTOP, NFILE, fnm));
+    const char *fn = ftp2fn(efTOP, NFILE, fnm);
     if (!gmx_fexist(fn))
     {
         gmx_fatal(FARGS, "%s does not exist", fn);
     }
 
-    t_state state {};
+    t_state state;
     new_status(fn, opt2fn_null("-pp", NFILE, fnm), opt2fn("-c", NFILE, fnm),
                opts, ir, bZero, bGenVel, bVerbose, &state,
                atype, sys, &nmi, &mi, &intermolecular_interactions,
@@ -1797,25 +1976,21 @@ int gmx_grompp(int argc, char *argv[])
      */
     check_warning_error(wi, FARGS);
 
-    if (opt2bSet("-r", NFILE, fnm))
+    if (nint_ftype(sys, mi, F_POSRES) > 0 ||
+        nint_ftype(sys, mi, F_FBPOSRES) > 0)
     {
-        sprintf(fn, "%s", opt2fn("-r", NFILE, fnm));
-    }
-    else
-    {
-        sprintf(fn, "%s", opt2fn("-c", NFILE, fnm));
-    }
-    if (opt2bSet("-rb", NFILE, fnm))
-    {
-        sprintf(fnB, "%s", opt2fn("-rb", NFILE, fnm));
-    }
-    else
-    {
-        strcpy(fnB, fn);
-    }
+        const char *fn = opt2fn("-r", NFILE, fnm);
+        const char *fnB;
 
-    if (nint_ftype(sys, mi, F_POSRES) > 0 || nint_ftype(sys, mi, F_FBPOSRES) > 0)
-    {
+        if (opt2bSet("-rb", NFILE, fnm))
+        {
+            fnB = opt2fn("-rb", NFILE, fnm);
+        }
+        else
+        {
+            fnB = fn;
+        }
+
         if (bVerbose)
         {
             fprintf(stderr, "Reading position restraint coords from %s", fn);
@@ -1902,7 +2077,7 @@ int gmx_grompp(int argc, char *argv[])
     /* check masses */
     check_mol(sys, wi);
 
-    checkForUnboundAtoms(sys, wi);
+    checkForUnboundAtoms(sys, bVerbose, wi);
 
     for (i = 0; i < sys->nmoltype; i++)
     {
@@ -1913,6 +2088,8 @@ int gmx_grompp(int argc, char *argv[])
     {
         check_bonds_timestep(sys, ir->delta_t, wi);
     }
+
+    checkDecoupledModeAccuracy(sys, ir, wi);
 
     if (EI_ENERGY_MINIMIZATION(ir->eI) && 0 == ir->nsteps)
     {
@@ -2076,8 +2253,15 @@ int gmx_grompp(int argc, char *argv[])
             set_warning_line(wi, mdparin, -1);
             warning_error(wi, "Some of the Fourier grid sizes are set, but all of them need to be set.");
         }
-        calc_grid(stdout, box, ir->fourier_spacing,
-                  &(ir->nkx), &(ir->nky), &(ir->nkz));
+        const int minGridSize = minimalPmeGridSize(ir->pme_order);
+        calcFftGrid(stdout, box, ir->fourier_spacing, minGridSize,
+                    &(ir->nkx), &(ir->nky), &(ir->nkz));
+        if (ir->nkx < minGridSize ||
+            ir->nky < minGridSize ||
+            ir->nkz < minGridSize)
+        {
+            warning_error(wi, "The PME grid size should be >= 2*(pme-order - 1); either manually increase the grid size or decrease pme-order");
+        }
     }
 
     /* MRS: eventually figure out better logic for initializing the fep
@@ -2095,7 +2279,7 @@ int gmx_grompp(int argc, char *argv[])
             }
             else
             {
-                if (ir->fepvals->all_lambda[i] == NULL)
+                if (ir->fepvals->all_lambda[i] == nullptr)
                 {
                     gmx_fatal(FARGS, "Values of lambda not set for a free energy calculation!");
                 }
@@ -2107,7 +2291,7 @@ int gmx_grompp(int argc, char *argv[])
         }
     }
 
-    struct pull_t *pull = NULL;
+    struct pull_t *pull = nullptr;
 
     if (ir->bPull)
     {

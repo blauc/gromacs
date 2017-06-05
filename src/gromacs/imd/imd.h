@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -62,8 +62,11 @@
 
 #include "config.h"
 
+#include <cstdio>
+
 #include "gromacs/math/vectypes.h"
-#include "gromacs/timing/wallcycle.h"
+#include "gromacs/utility/basedefinitions.h"
+
 
 #if GMX_NATIVE_WINDOWS
 #include <Windows.h>
@@ -74,11 +77,13 @@ struct gmx_domdec_t;
 struct gmx_enerdata_t;
 struct gmx_mtop_t;
 struct gmx_output_env_t;
+struct gmx_wallcycle;
+struct t_commrec;
 struct t_filenm;
 struct t_gmx_IMD;
 struct t_IMD;
 struct t_inputrec;
-struct t_state;
+class t_state;
 
 static const char IMDstr[] = "IMD:";  /**< Tag output from the IMD module with this string. */
 
@@ -159,7 +164,7 @@ void init_IMD(t_inputrec *ir, t_commrec *cr, gmx_mtop_t *top_global,
 gmx_bool do_IMD(gmx_bool bIMD, gmx_int64_t step, t_commrec *cr,
                 gmx_bool bNS,
                 matrix box, rvec x[], t_inputrec *ir, double t,
-                gmx_wallcycle_t wcycle);
+                gmx_wallcycle *wcycle);
 
 
 /*! \brief Get the IMD update frequency.
@@ -181,7 +186,7 @@ int IMD_get_step(t_gmx_IMD *IMDsetup);
  */
 void IMD_apply_forces(gmx_bool bIMD, t_IMD *imd,
                       t_commrec *cr, rvec *f,
-                      gmx_wallcycle_t wcycle);
+                      gmx_wallcycle *wcycle);
 
 
 /*! \brief Copy energies and convert to float from enerdata to the IMD energy record.
@@ -220,7 +225,7 @@ void IMD_send_positions(t_IMD *imd);
 void IMD_prep_energies_send_positions(gmx_bool bIMD, gmx_bool bIMDstep,
                                       t_IMD *imd, gmx_enerdata_t *enerd,
                                       gmx_int64_t step, gmx_bool bHaveNewEnergies,
-                                      gmx_wallcycle_t wcycle);
+                                      gmx_wallcycle *wcycle);
 
 /*! \brief Finalize IMD and do some cleaning up.
  *

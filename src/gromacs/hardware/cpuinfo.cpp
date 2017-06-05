@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -776,7 +776,7 @@ detectProcCpuInfoArm(const std::map<std::string, std::string>   &cpuInfo,
     }
     if (cpuInfo.count("CPU architecture"))
     {
-        *family = std::strtol(cpuInfo.at("CPU architecture").c_str(), NULL, 10);
+        *family = std::strtol(cpuInfo.at("CPU architecture").c_str(), nullptr, 10);
         // For some 64-bit CPUs it appears to say 'AArch64' instead
         if (*family == 0 && cpuInfo.at("CPU architecture").find("AArch64") != std::string::npos)
         {
@@ -785,11 +785,11 @@ detectProcCpuInfoArm(const std::map<std::string, std::string>   &cpuInfo,
     }
     if (cpuInfo.count("CPU variant"))
     {
-        *model    = std::strtol(cpuInfo.at("CPU variant").c_str(), NULL, 16);
+        *model    = std::strtol(cpuInfo.at("CPU variant").c_str(), nullptr, 16);
     }
     if (cpuInfo.count("CPU revision"))
     {
-        *stepping = std::strtol(cpuInfo.at("CPU revision").c_str(), NULL, 10);
+        *stepping = std::strtol(cpuInfo.at("CPU revision").c_str(), nullptr, 10);
     }
 
     if (cpuInfo.count("Features"))
@@ -876,6 +876,15 @@ CpuInfo CpuInfo::detect()
     defined __x86_64__ || defined __amd64__ || defined _M_X64 || defined _M_AMD64
 
     result.vendor_            = detectX86Vendor();
+
+    if (result.vendor_ == CpuInfo::Vendor::Intel)
+    {
+        result.features_.insert(CpuInfo::Feature::X86_Intel);
+    }
+    else if (result.vendor_ == CpuInfo::Vendor::Amd)
+    {
+        result.features_.insert(CpuInfo::Feature::X86_Amd);
+    }
     detectX86Features(&result.brandString_, &result.family_, &result.model_,
                       &result.stepping_, &result.features_);
     result.logicalProcessors_ = detectX86LogicalProcessors();
@@ -944,6 +953,7 @@ const std::map<CpuInfo::Feature, std::string>
 CpuInfo::s_featureStrings_ =
 {
     { CpuInfo::Feature::X86_Aes, "aes"                            },
+    { CpuInfo::Feature::X86_Amd, "amd"                            },
     { CpuInfo::Feature::X86_Apic, "apic"                          },
     { CpuInfo::Feature::X86_Avx, "avx"                            },
     { CpuInfo::Feature::X86_Avx2, "avx2"                          },
@@ -962,6 +972,7 @@ CpuInfo::s_featureStrings_ =
     { CpuInfo::Feature::X86_Fma4, "fma4"                          },
     { CpuInfo::Feature::X86_Hle, "hle"                            },
     { CpuInfo::Feature::X86_Htt, "htt"                            },
+    { CpuInfo::Feature::X86_Intel, "intel"                        },
     { CpuInfo::Feature::X86_Lahf, "lahf"                          },
     { CpuInfo::Feature::X86_MisalignSse, "misalignsse"            },
     { CpuInfo::Feature::X86_Mmx, "mmx"                            },

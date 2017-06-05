@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -65,7 +65,7 @@ bool beCool(void)
      * a mutex for locking the variable...
      */
 #if GMX_COOL_QUOTES
-    return (getenv("GMX_NO_QUOTES") == NULL);
+    return (getenv("GMX_NO_QUOTES") == nullptr);
 #else
     /*be uncool*/
     return false;
@@ -629,7 +629,7 @@ std::string getCoolQuote()
         { "I was told I'd never make it to VP rank because I was too outspoken. Maybe so, but I think men will always find an excuse for keeping women in their 'place.' So, let's make that place the executive suite and start more of our own companies.", "Jean Bartik, ENIAC developer" },
         { "If it's a good idea, go ahead and do it. It's much easier to apologize than it is to get permission.", "Grace Hopper, developer of COBOL" },
         { "This isn't right. This isn't even wrong.", "Wolfgang Pauli" },
-        { "Louis Pasteur's theory of germs is ridicolous fiction.", "Pierre Pachet, Professor of Physiology at Toulouse, 1872" },
+        { "Louis Pasteur's theory of germs is ridiculous fiction.", "Pierre Pachet, Professor of Physiology at Toulouse, 1872" },
         { "Research ! A mere excuse for idleness; it has never achieved, and will never achieve any results of the slightest value.", "Benjamin Jowett, British theologian, 1817-93" },
         { "Problems worthy of attack prove their worth by hitting back.", "Piet Hein" },
         { "You should never bet against anything in science at odds of more than about 10^12 to 1.", "Ernest Rutherford" },
@@ -711,7 +711,7 @@ std::string getCoolQuote()
         { "Sir, spare your threats: The bug which you would fright me with I seek.", "Hermione, Act III, scene II of Shakespeare's Winter's Tale" },
         { "Erwin with his psi can do / Calculations quite a few. / But one thing has not been seen / Just what psi really mean.", "Felix Bloch" },
         { "Only entropy comes easy.", "Anton Chekov" },
-        { "The lovliest theories are being overthrown by these damned experiments; it is no fun being a chemist any more.", "Justus von Liebig, letter to J.J. Berzelius 1834" },
+        { "The loveliest theories are being overthrown by these damned experiments; it is no fun being a chemist any more.", "Justus von Liebig, letter to J.J. Berzelius 1834" },
         { "If all else fails, immortality can always be assured by spectacular error.", "John Kenneth Galbraith" },
         { "Always code as if the person who ends up maintaining your code is a violent psychopath who knows where you live.", "Martin Golding" },
         { "If I have not seen as far as others, it is because giants were standing on my shoulders.", "Hal Abelson" },
@@ -736,6 +736,21 @@ std::string getCoolQuote()
         { "They don't have half hours in the north", "Carl Caleman" },
         { "Safety lights are for dudes", "Ghostbusters 2016" },
         { "It's 2040 now. Our President is a plant.",  "Ghostbusters 2016" },
+        { "It's just B I O L O G Y, can't you see?" "Joe Jackson" },
+        { "Input, output, electricity", "Joni Mitchell" },
+        { "Your daddy ain't your daddy but your daddy don't know", "Dalahan" },
+        { "Why is the Earth moving 'round the sun? Floating in the vacuum with no purpose, not a one", "Fleet Foxes" },
+        { "Everybody has a plan until they get punched in the mouth", "Mike Tyson" },
+        { "Sacrifices must be made", "Otto Lilienthal, dying after having crashed with his glider in 1896" },
+        { "The secret to getting ahead is getting started", "Mark Twain" },
+        { "Water is just water", "Berk Hess" },
+        { "GROMACS First : Making MD Great Again", "Vedran Miletic" },
+        { "You still have to climb to the shoulders of the giants", "Vedran Miletic" },
+        { "The road to openness is paved with git commits", "Vedran Miletic" },
+        { "Performance and power are great targets for tuning, but really you want to tune for money!", "Erik Lindahl" },
+        { "Here are all the 'gmx' tools... but no gmx writethesis", "Christian Blau" },
+        { "The best part of winter in Stockholm is going to Australia", "Mark Abraham" },
+        { "If you don't know what you're doing, use a (M)BAR-based method", "Erik Lindahl" },
     };
 
     if (beCool())

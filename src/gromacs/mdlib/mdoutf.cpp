@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -49,37 +49,41 @@
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/trajectory_writing.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/imdoutputprovider.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 
 struct gmx_mdoutf {
-    t_fileio         *fp_trn;
-    t_fileio         *fp_xtc;
-    tng_trajectory_t  tng;
-    tng_trajectory_t  tng_low_prec;
-    int               x_compression_precision; /* only used by XTC output */
-    ener_file_t       fp_ene;
-    const char       *fn_cpt;
-    gmx_bool          bKeepAndNumCPT;
-    int               eIntegrator;
-    gmx_bool          bExpanded;
-    int               elamstats;
-    int               simulation_part;
-    FILE             *fp_dhdl;
-    int               natoms_global;
-    int               natoms_x_compressed;
-    gmx_groups_t     *groups; /* for compressed position writing */
-    gmx_wallcycle_t   wcycle;
-    rvec             *f_global;
+    t_fileio               *fp_trn;
+    t_fileio               *fp_xtc;
+    tng_trajectory_t        tng;
+    tng_trajectory_t        tng_low_prec;
+    int                     x_compression_precision; /* only used by XTC output */
+    ener_file_t             fp_ene;
+    const char             *fn_cpt;
+    gmx_bool                bKeepAndNumCPT;
+    int                     eIntegrator;
+    gmx_bool                bExpanded;
+    int                     elamstats;
+    int                     simulation_part;
+    FILE                   *fp_dhdl;
+    int                     natoms_global;
+    int                     natoms_x_compressed;
+    gmx_groups_t           *groups; /* for compressed position writing */
+    gmx_wallcycle_t         wcycle;
+    rvec                   *f_global;
+    gmx::IMDOutputProvider *outputProvider;
 };
 
 
 gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
                          int mdrun_flags, const t_commrec *cr,
+                         gmx::IMDOutputProvider *outputProvider,
                          const t_inputrec *ir, gmx_mtop_t *top_global,
                          const gmx_output_env_t *oenv, gmx_wallcycle_t wcycle)
 {
@@ -90,12 +94,12 @@ gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
 
     snew(of, 1);
 
-    of->fp_trn       = NULL;
-    of->fp_ene       = NULL;
-    of->fp_xtc       = NULL;
-    of->tng          = NULL;
-    of->tng_low_prec = NULL;
-    of->fp_dhdl      = NULL;
+    of->fp_trn       = nullptr;
+    of->fp_ene       = nullptr;
+    of->fp_xtc       = nullptr;
+    of->tng          = nullptr;
+    of->tng_low_prec = nullptr;
+    of->fp_dhdl      = nullptr;
 
     of->eIntegrator             = ir->eI;
     of->bExpanded               = ir->bExpanded;
@@ -103,7 +107,8 @@ gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
     of->simulation_part         = ir->simulation_part;
     of->x_compression_precision = static_cast<int>(ir->x_compression_precision);
     of->wcycle                  = wcycle;
-    of->f_global                = NULL;
+    of->f_global                = nullptr;
+    of->outputProvider          = outputProvider;
 
     if (MASTER(cr))
     {
@@ -192,7 +197,7 @@ gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
             }
         }
 
-        ir->efield->initOutput(fplog, nfile, fnm, bAppendFiles, oenv);
+        outputProvider->initOutput(fplog, nfile, fnm, bAppendFiles, oenv);
 
         /* Set up atom counts so they can be passed to actual
            trajectory-writing routines later. Also, XTC writing needs
@@ -244,7 +249,7 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
                                       gmx_mtop_t *top_global,
                                       gmx_int64_t step, double t,
                                       t_state *state_local, t_state *state_global,
-                                      energyhistory_t *energyHistory,
+                                      ObservablesHistory *observablesHistory,
                                       PaddedRVecVector *f_local)
 {
     rvec *f_global;
@@ -295,14 +300,14 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
                              DOMAINDECOMP(cr) ? cr->dd->nnodes : cr->nnodes,
                              of->eIntegrator, of->simulation_part,
                              of->bExpanded, of->elamstats, step, t,
-                             state_global, energyHistory);
+                             state_global, observablesHistory);
         }
 
         if (mdof_flags & (MDOF_X | MDOF_V | MDOF_F))
         {
-            const rvec *x = (mdof_flags & MDOF_X) ? as_rvec_array(state_global->x.data()) : NULL;
-            const rvec *v = (mdof_flags & MDOF_V) ? as_rvec_array(state_global->v.data()) : NULL;
-            const rvec *f = (mdof_flags & MDOF_F) ? f_global : NULL;
+            const rvec *x = (mdof_flags & MDOF_X) ? as_rvec_array(state_global->x.data()) : nullptr;
+            const rvec *v = (mdof_flags & MDOF_V) ? as_rvec_array(state_global->v.data()) : nullptr;
+            const rvec *f = (mdof_flags & MDOF_F) ? f_global : nullptr;
 
             if (of->fp_trn)
             {
@@ -336,7 +341,7 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
         }
         if (mdof_flags & MDOF_X_COMPRESSED)
         {
-            rvec *xxtc = NULL;
+            rvec *xxtc = nullptr;
 
             if (of->natoms_x_compressed == of->natoms_global)
             {
@@ -373,8 +378,8 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
                            state_local->box,
                            of->natoms_x_compressed,
                            xxtc,
-                           NULL,
-                           NULL);
+                           nullptr,
+                           nullptr);
             if (of->natoms_x_compressed != of->natoms_global)
             {
                 sfree(xxtc);
@@ -394,9 +399,9 @@ void mdoutf_tng_close(gmx_mdoutf_t of)
     }
 }
 
-void done_mdoutf(gmx_mdoutf_t of, const t_inputrec *ir)
+void done_mdoutf(gmx_mdoutf_t of)
 {
-    if (of->fp_ene != NULL)
+    if (of->fp_ene != nullptr)
     {
         close_enx(of->fp_ene);
     }
@@ -408,12 +413,12 @@ void done_mdoutf(gmx_mdoutf_t of, const t_inputrec *ir)
     {
         gmx_trr_close(of->fp_trn);
     }
-    if (of->fp_dhdl != NULL)
+    if (of->fp_dhdl != nullptr)
     {
         gmx_fio_fclose(of->fp_dhdl);
     }
-    ir->efield->finishOutput();
-    if (of->f_global != NULL)
+    of->outputProvider->finishOutput();
+    if (of->f_global != nullptr)
     {
         sfree(of->f_global);
     }

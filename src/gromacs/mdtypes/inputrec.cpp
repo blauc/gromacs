@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2010, The GROMACS development team.
- * Copyright (c) 2012,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,6 +39,7 @@
 #include "inputrec.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <algorithm>
@@ -52,9 +53,11 @@
 #include "gromacs/utility/compare.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/keyvaluetree.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
-#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/strconvert.h"
+#include "gromacs/utility/textwriter.h"
 #include "gromacs/utility/txtdump.h"
 
 //! Macro to select a bool name
@@ -66,6 +69,19 @@
 const int nstmin_berendsen_tcouple =  5;
 const int nstmin_berendsen_pcouple = 10;
 const int nstmin_harmonic          = 20;
+
+t_inputrec::t_inputrec()
+{
+    std::memset(this, 0, sizeof(*this));
+    snew(fepvals, 1);
+    snew(expandedvals, 1);
+    snew(simtempvals, 1);
+}
+
+t_inputrec::~t_inputrec()
+{
+    done_inputrec(this);
+}
 
 static int nst_wanted(const t_inputrec *ir)
 {
@@ -276,6 +292,18 @@ static void done_pull_params(pull_params_t *pull)
     sfree(pull->coord);
 }
 
+static void done_lambdas(t_lambda *fep)
+{
+    if (fep->n_lambda > 0)
+    {
+        for (int i = 0; i < efptNR; i++)
+        {
+            sfree(fep->all_lambda[i]);
+        }
+        sfree(fep->all_lambda);
+    }
+}
+
 void done_inputrec(t_inputrec *ir)
 {
     sfree(ir->opts.nrdf);
@@ -299,6 +327,8 @@ void done_inputrec(t_inputrec *ir)
     sfree(ir->opts.SAsteps);
     sfree(ir->opts.bOPT);
     sfree(ir->opts.bTS);
+    sfree(ir->opts.egp_flags);
+    done_lambdas(ir->fepvals);
     sfree(ir->fepvals);
     sfree(ir->expandedvals);
     sfree(ir->simtempvals);
@@ -308,6 +338,7 @@ void done_inputrec(t_inputrec *ir)
         done_pull_params(ir->pull);
         sfree(ir->pull);
     }
+    delete ir->params;
 }
 
 static void pr_qm_opts(FILE *fp, int indent, const char *title, const t_grpopts *opts)
@@ -957,9 +988,6 @@ void pr_inputrec(FILE *fp, int indent, const char *title, const t_inputrec *ir,
             pr_simtempvals(fp, indent, ir->simtempvals, ir->fepvals->n_lambda);
         }
 
-        /* ELECTRIC FIELDS */
-        ir->efield->printParameters(fp, indent);
-
         /* ION/WATER SWAPPING FOR COMPUTATIONAL ELECTROPHYSIOLOGY */
         PS("swapcoords", ESWAPTYPE(ir->eSwapCoords));
         if (ir->eSwapCoords != eswapNO)
@@ -976,6 +1004,13 @@ void pr_inputrec(FILE *fp, int indent, const char *title, const t_inputrec *ir,
         PR("userreal2", ir->userreal2);
         PR("userreal3", ir->userreal3);
         PR("userreal4", ir->userreal4);
+
+        if (!bMDPformat)
+        {
+            gmx::TextWriter writer(fp);
+            writer.wrapperSettings().setIndent(indent);
+            gmx::dumpKeyValueTree(&writer, *ir->params);
+        }
 
         pr_grp_opts(fp, indent, "grpopts", &(ir->opts), bMDPformat);
     }
@@ -1262,7 +1297,8 @@ void cmp_inputrec(FILE *fp, const t_inputrec *ir1, const t_inputrec *ir2, real f
     cmp_real(fp, "inputrec->userreal3", -1, ir1->userreal3, ir2->userreal3, ftol, abstol);
     cmp_real(fp, "inputrec->userreal4", -1, ir1->userreal4, ir2->userreal4, ftol, abstol);
     cmp_grpopts(fp, &(ir1->opts), &(ir2->opts), ftol, abstol);
-    ir1->efield->compare(fp, ir2->efield, ftol, abstol);
+    gmx::TextWriter writer(fp);
+    gmx::compareKeyValueTrees(&writer, *ir1->params, *ir2->params, ftol, abstol);
 }
 
 void comp_pull_AB(FILE *fp, pull_params_t *pull, real ftol, real abstol)
@@ -1321,4 +1357,62 @@ gmx_bool inputrecNphTrotter(const t_inputrec *ir)
 {
     return ( ( (ir->eI == eiVV) || (ir->eI == eiVVAK) ) &&
              (ir->epc == epcMTTK) && (ir->etc != etcNOSEHOOVER) );
+}
+
+bool integratorHasConservedEnergyQuantity(const t_inputrec *ir)
+{
+    if (!EI_MD(ir->eI))
+    {
+        // Energy minimization or stochastic integrator: no conservation
+        return false;
+    }
+    else if (ir->etc == etcNO && ir->epc == epcNO)
+    {
+        // The total energy is conserved, no additional conserved quanitity
+        return false;
+    }
+    else
+    {
+        // Shear stress with Parrinello-Rahman is not supported (tedious)
+        bool shearWithPR =
+            ((ir->epc == epcPARRINELLORAHMAN || ir->epc == epcMTTK) &&
+             (ir->ref_p[YY][XX] != 0 || ir->ref_p[ZZ][XX] != 0 || ir->ref_p[ZZ][YY] != 0));
+
+        return !ETC_ANDERSEN(ir->etc) && !shearWithPR;
+    }
+}
+
+int inputrec2nboundeddim(const t_inputrec *ir)
+{
+    if (ir->nwall == 2 && ir->ePBC == epbcXY)
+    {
+        return 3;
+    }
+    else
+    {
+        return ePBC2npbcdim(ir->ePBC);
+    }
+}
+
+int ndof_com(const t_inputrec *ir)
+{
+    int n = 0;
+
+    switch (ir->ePBC)
+    {
+        case epbcXYZ:
+        case epbcNONE:
+            n = 3;
+            break;
+        case epbcXY:
+            n = (ir->nwall == 0 ? 3 : 2);
+            break;
+        case epbcSCREW:
+            n = 1;
+            break;
+        default:
+            gmx_incons("Unknown pbc in calc_nrdf");
+    }
+
+    return n;
 }

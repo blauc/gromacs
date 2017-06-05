@@ -209,6 +209,15 @@ Run control
         the step number of the restart frame. :ref:`gmx convert-tpr`
         does this automatically.
 
+.. mdp:: simulation-part
+
+         (0)
+         A simulation can consist of multiple parts, each of which has
+         a part number. This option specifies what that number will
+         be, which helps keep track of parts that are logically the
+         same simulation. This option is generally useful to set only
+         when coping with a crashed simulation where files were lost.
+
 .. mdp:: comm-mode
 
    .. mdp-value:: Linear
@@ -1108,19 +1117,23 @@ Pressure coupling
 
 .. mdp:: pcoupltype
 
+   Specifies the kind of isotropy of the pressure coupling used. Each
+   kind takes one or more values for :mdp:`compressibility` and
+   :mdp:`ref-p`. Only a single value is permitted for :mdp:`tau-p`.
+
    .. mdp-value:: isotropic
 
       Isotropic pressure coupling with time constant
-      :mdp:`tau-p`. The compressibility and reference pressure are
-      set with :mdp:`compressibility` and :mdp:`ref-p`, one value is
-      needed.
+      :mdp:`tau-p`. One value each for :mdp:`compressibility` and
+      :mdp:`ref-p` is required.
 
    .. mdp-value:: semiisotropic
 
       Pressure coupling which is isotropic in the ``x`` and ``y``
       direction, but different in the ``z`` direction. This can be
-      useful for membrane simulations. 2 values are needed for ``x/y``
-      and ``z`` directions respectively.
+      useful for membrane simulations. Two values each for
+      :mdp:`compressibility` and :mdp:`ref-p` are required, for
+      ``x/y`` and ``z`` directions respectively.
 
    .. mdp-value:: anisotropic
 
@@ -1156,18 +1169,21 @@ Pressure coupling
 .. mdp:: tau-p
 
    (1) \[ps\]
-   time constant for coupling
+   The time constant for pressure coupling (one value for all
+   directions).
 
 .. mdp:: compressibility
 
    \[bar^-1\]
-   compressibility (NOTE: this is now really in bar-1) For water at 1
-   atm and 300 K the compressibility is 4.5e-5 bar^-1.
+   The compressibility (NOTE: this is now really in bar^-1) For water at 1
+   atm and 300 K the compressibility is 4.5e-5 bar^-1. The number of
+   required values is implied by :mdp:`pcoupltype`.
 
 .. mdp:: ref-p
 
    \[bar\]
-   reference pressure for coupling
+   The reference pressure for coupling. The number of required values
+   is implied by :mdp:`pcoupltype`.
 
 .. mdp:: refcoord-scaling
 
@@ -1608,7 +1624,7 @@ applicable pulling coordinate.
    their periodic image which is closest to
    :mdp:`pull-group1-pbcatom`. A value of 0 means that the middle
    atom (number wise) is used. This parameter is not used with
-   :mdp:`pull-group1-geometry` cylinder. A value of -1 turns on cosine
+   :mdp:`pull-coord1-geometry` cylinder. A value of -1 turns on cosine
    weighting, which is useful for a group of molecules in a periodic
    system, *e.g.* a water slab (see Engin et al. J. Chem. Phys. B
    2010).

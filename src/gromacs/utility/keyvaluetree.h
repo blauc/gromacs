@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,6 +36,27 @@
  * \brief
  * Declares a data structure for JSON-like structured key-value mapping.
  *
+ * A tree is composed of nodes that can have different types:
+ *  - _Value_ (gmx::KeyValueTreeValue) is a generic node that can
+ *    represent either a scalar value of arbitrary type, or an object or
+ *    an array.
+ *  - _Array_ (gmx::KeyValueTreeArray) is a collection of any number of values
+ *    (including zero).  The values can be of any type and different types
+ *    can be mixed in the same array.
+ *  - _Object_ (gmx::KeyValueTreeObject) is a collection of properties.
+ *    Each property must have a unique key.  Order of properties is preserved,
+ *    i.e., they can be iterated in the order they were added.
+ *  - _Property_ (gmx::KeyValueTreeProperty) is an arbitrary type of value
+ *    associated with a string key.
+ * The root object of a tree is typically an object, but could also be an
+ * array.  The data structure itself does not enforce any other constraints,
+ * but the context in which it is used can limit the allowed scalar types or,
+ * e.g., require arrays to have values of uniform type.  Also, several
+ * operations defined for the structure (string output, comparison,
+ * serialization, etc.) only work on a limited set of scalar types, or have
+ * limitations with the types of trees they work on (in particular, arrays are
+ * currently poorly supported).
+ *
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \inlibraryapi
  * \ingroup module_utility
@@ -50,6 +71,7 @@
 #include <utility>
 #include <vector>
 
+#include "gromacs/utility/real.h"
 #include "gromacs/utility/variant.h"
 
 namespace gmx
@@ -57,15 +79,43 @@ namespace gmx
 
 class KeyValueTreeArray;
 class KeyValueTreeObject;
+class TextWriter;
 
+/*! \libinternal \brief
+ * Identifies an entry in a key-value tree.
+ *
+ * This class is mainly an internal utility within the key-value tree
+ * implementation, but it is exposed on the API level where string-based
+ * specification of a location in the tree is necessary.  Constructors are not
+ * explicit to allow passing a simple string in contexts where a
+ * KeyValueTreePath is expected.
+ *
+ * The string specifying a location should start with a `/`, followed by the
+ * names of the properties separated by `/`.  For example, `/a/b/c` specifies
+ * property `c` in an object that is the value of `b` in an object that is the
+ * value of `a` at the root of the tree.
+ * Currently, there is no support for specifying paths to values within arrays
+ * (since none of the places where this is used implement array handling,
+ * either).
+ *
+ * \inlibraryapi
+ * \ingroup module_utility
+ */
 class KeyValueTreePath
 {
     public:
+        //! Creates an empty path (corresponds to the root object).
         KeyValueTreePath() = default;
+        //! Creates a path from given string representation.
+        KeyValueTreePath(const char *path);
+        //! Creates a path from given string representation.
         KeyValueTreePath(const std::string &path);
 
+        //! Adds another element to the path, making it a child of the old path.
         void append(const std::string &key) { path_.push_back(key); }
+        //! Removes the last element in the path, making it the parent path.
         void pop_back() { return path_.pop_back(); }
+        //! Removes and returns the last element in the path.
         std::string pop_last()
         {
             std::string result = std::move(path_.back());
@@ -73,11 +123,16 @@ class KeyValueTreePath
             return result;
         }
 
+        //! Whether the path is empty (pointing to the root object).
         bool empty() const { return path_.empty(); }
+        //! Returns the number of elements (=nesting level) in the path.
         size_t size() const { return path_.size(); }
+        //! Returns the i'th path element.
         const std::string &operator[](int i) const { return path_[i]; }
+        //! Returns all the path elements.
         const std::vector<std::string> &elements() const { return path_; }
 
+        //! Formats the path as a string for display.
         std::string toString() const;
 
     private:
@@ -87,24 +142,28 @@ class KeyValueTreePath
 class KeyValueTreeValue
 {
     public:
+        //! Returns whether the value is an array (KeyValueTreeArray).
         bool isArray() const;
+        //! Returns whether the value is an object (KeyValueTreeObject).
         bool isObject() const;
+        //! Returns whether the value is of a given type.
         template <typename T>
         bool isType() const { return value_.isType<T>(); }
+        //! Returns the type of the value.
         std::type_index type() const { return value_.type(); }
 
+        KeyValueTreeArray &asArray();
+        KeyValueTreeObject       &asObject();
         const KeyValueTreeArray  &asArray() const;
         const KeyValueTreeObject &asObject() const;
         template <typename T>
         const T                  &cast() const { return value_.cast<T>(); }
 
+        //! Returns the raw Variant value (always possible).
         const Variant            &asVariant() const { return value_; }
 
     private:
         explicit KeyValueTreeValue(Variant &&value) : value_(std::move(value)) {}
-
-        KeyValueTreeArray &asArray();
-        KeyValueTreeObject &asObject();
 
         Variant             value_;
 
@@ -116,12 +175,14 @@ class KeyValueTreeValue
 class KeyValueTreeArray
 {
     public:
+        //! Whether all elements of the array are objects.
         bool isObjectArray() const
         {
             return std::all_of(values_.begin(), values_.end(),
                                std::mem_fn(&KeyValueTreeValue::isObject));
         }
 
+        //! Returns the values in the array.
         const std::vector<KeyValueTreeValue> &values() const { return values_; }
 
     private:
@@ -145,12 +206,14 @@ class KeyValueTreeProperty
         IteratorType value_;
 
         friend class KeyValueTreeObject;
+        friend class KeyValueTreeObjectBuilder;
 };
 
 class KeyValueTreeObject
 {
     public:
         KeyValueTreeObject() = default;
+        //! Creates a deep copy of an object.
         KeyValueTreeObject(const KeyValueTreeObject &other)
         {
             for (const auto &value : other.values_)
@@ -159,6 +222,7 @@ class KeyValueTreeObject
                 values_.push_back(KeyValueTreeProperty(iter));
             }
         }
+        //! Assigns a deep copy of an object.
         KeyValueTreeObject &operator=(KeyValueTreeObject &other)
         {
             KeyValueTreeObject tmp(other);
@@ -166,35 +230,39 @@ class KeyValueTreeObject
             std::swap(tmp.values_, values_);
             return *this;
         }
+        //! Default move constructor.
         KeyValueTreeObject(KeyValueTreeObject &&)            = default;
+        //! Default move assignment.
         KeyValueTreeObject &operator=(KeyValueTreeObject &&) = default;
 
+        /*! \brief
+         * Returns all properties in the object.
+         *
+         * The properties are in the order they were added to the object.
+         */
         const std::vector<KeyValueTreeProperty> &properties() const { return values_; }
 
+        //! Whether a property with given key exists.
         bool keyExists(const std::string &key) const
         {
             return valueMap_.find(key) != valueMap_.end();
         }
+        //! Returns value for a given key.
         const KeyValueTreeValue &operator[](const std::string &key) const
         {
+            GMX_ASSERT(keyExists(key), "Accessing non-existent value");
             return valueMap_.at(key);
         }
+
+        /*! \brief
+         * Returns whether the given object shares any keys with `this`.
+         */
+        bool hasDistinctProperties(const KeyValueTreeObject &obj) const;
 
     private:
-        KeyValueTreeValue &operator[](const std::string &key)
-        {
-            return valueMap_.at(key);
-        }
-        std::map<std::string, KeyValueTreeValue>::iterator
-        addProperty(const std::string &key, KeyValueTreeValue &&value)
-        {
-            values_.reserve(values_.size() + 1);
-            auto iter = valueMap_.insert(std::make_pair(key, std::move(value))).first;
-            values_.push_back(KeyValueTreeProperty(iter));
-            return iter;
-        }
-
+        //! Keeps the properties by key.
         std::map<std::string, KeyValueTreeValue> valueMap_;
+        //! Keeps the insertion order of properties.
         std::vector<KeyValueTreeProperty>        values_;
 
         friend class KeyValueTreeObjectBuilder;
@@ -228,6 +296,38 @@ inline KeyValueTreeObject &KeyValueTreeValue::asObject()
 {
     return value_.castRef<KeyValueTreeObject>();
 }
+
+//! \cond libapi
+/*! \brief
+ * Writes a human-readable representation of the tree with given writer.
+ *
+ * The output format is designed to be readable by humans; if some
+ * particular machine-readable format is needed, that should be
+ * implemented outside the generic key-value tree code.
+ *
+ * \ingroup module_utility
+ */
+void dumpKeyValueTree(TextWriter *writer, const KeyValueTreeObject &tree);
+
+/*! \brief
+ * Compares two KeyValueTrees and prints any differences.
+ *
+ * \ingroup module_utility
+ */
+void compareKeyValueTrees(TextWriter               *writer,
+                          const KeyValueTreeObject &tree1,
+                          const KeyValueTreeObject &tree2,
+                          real                      ftol,
+                          real                      abstol);
+
+//! Helper function to format a simple KeyValueTreeValue.
+static inline std::string
+simpleValueToString(const KeyValueTreeValue &value)
+{
+    return simpleValueToString(value.asVariant());
+}
+
+//! \endcond
 
 } // namespace gmx
 

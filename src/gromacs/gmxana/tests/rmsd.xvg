@@ -1,0 +1,20 @@
+# This file was created Tue May 23 09:19:42 2017
+# Created by:
+#              :-) GROMACS - gmx rms, 2017-dev-20170516-ab3cfb7 (-:
+# 
+# Executable:   /home/cblau/local/gromacs-install/bin/gmx
+# Data prefix:  /home/cblau/local/gromacs-install
+# Working dir:  /home/cblau/Projects/gromacs/src/gromacs/gmxana/tests
+# Command line:
+#   gmx rms -f spc2-traj.xtc -s spc2-traj.pdb
+# gmx rms is part of G R O M A C S:
+#
+# GRowing Old MAkes el Chrono Sweat
+#
+@    title "RMSD"
+@    xaxis  label "Time (ps)"
+@    yaxis  label "RMSD (nm)"
+@TYPE xy
+@ subtitle "System after lsq fit to System"
+   0.0000000    0.0000000
+   0.0000000    3.4722168

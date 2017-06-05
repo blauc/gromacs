@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -374,8 +374,8 @@ do_pairs_general(int ftype, int nbonds,
             energygrp_vdw  = grppener->ener[egLJSR];
             break;
         default:
-            energygrp_elec = NULL; /* Keep compiler happy */
-            energygrp_vdw  = NULL; /* Keep compiler happy */
+            energygrp_elec = nullptr; /* Keep compiler happy */
+            energygrp_vdw  = nullptr; /* Keep compiler happy */
             gmx_fatal(FARGS, "Unknown function type %d in do_nonbonded14", ftype);
             break;
     }
@@ -607,7 +607,7 @@ do_pairs_simple(int nbonds,
         pbc_dx_aiuc(pbc, xi, xj, dr);
 
         T rsq   = dr[XX]*dr[XX] + dr[YY]*dr[YY] + dr[ZZ]*dr[ZZ];
-        T rinv  = invsqrt(rsq);
+        T rinv  = gmx::invsqrt(rsq);
         T rinv2 = rinv*rinv;
         T rinv6 = rinv2*rinv2*rinv2;
 
@@ -668,13 +668,13 @@ do_pairs(int ftype, int nbonds,
         t_pbc        pbc_no;
         const t_pbc *pbc_nonnull;
 
-        if (pbc != NULL)
+        if (pbc != nullptr)
         {
             pbc_nonnull   = pbc;
         }
         else
         {
-            set_pbc(&pbc_no, epbcNONE, NULL);
+            set_pbc(&pbc_no, epbcNONE, nullptr);
             pbc_nonnull   = &pbc_no;
         }
 

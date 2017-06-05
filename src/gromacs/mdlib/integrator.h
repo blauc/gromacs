@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,7 +48,6 @@
 #include "gromacs/mdtypes/fcdata.h"
 #include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/mdatom.h"
-#include "gromacs/mdtypes/state.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -58,13 +57,16 @@ class energyhistory_t;
 struct gmx_mtop_t;
 struct gmx_membed_t;
 struct gmx_output_env_t;
+struct ObservablesHistory;
 struct t_commrec;
 struct t_filenm;
 struct t_inputrec;
+class t_state;
 
 namespace gmx
 {
 
+class IMDOutputProvider;
 class MDLogger;
 
 /*! \brief Integrator algorithm implementation.
@@ -80,11 +82,12 @@ class MDLogger;
  * \param[in] vsite               Virtual site information
  * \param[in] constr              Constraint information
  * \param[in] stepout             How often we writen to the console
+ * \param[in] outputProvider      Additional output provider
  * \param[in] inputrec            Input record with mdp options
  * \param[in] top_global          Molecular topology for the whole system
  * \param[in] fcd                 Force and constraint data
  * \param[in] state_global        The state (x, v, f, box etc.) of the whole system
- * \param[in] energyHistory       The energy statistics history
+ * \param[in] observablesHistory  The observables statistics history
  * \param[in] mdatoms             Structure containing atom information
  * \param[in] nrnb                Accounting for floating point operations
  * \param[in] wcycle              Wall cycle timing information
@@ -106,10 +109,11 @@ typedef double integrator_t (FILE *fplog, t_commrec *cr, const gmx::MDLogger &md
                              int nstglobalcomm,
                              gmx_vsite_t *vsite, gmx_constr_t constr,
                              int stepout,
+                             gmx::IMDOutputProvider *outputProvider,
                              t_inputrec *inputrec,
                              gmx_mtop_t *top_global, t_fcdata *fcd,
                              t_state *state_global,
-                             energyhistory_t *energyHistory,
+                             ObservablesHistory *observablesHistory,
                              t_mdatoms *mdatoms,
                              t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                              gmx_edsam_t ed,

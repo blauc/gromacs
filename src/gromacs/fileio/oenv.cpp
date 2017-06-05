@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -41,6 +41,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 struct gmx_output_env_t
 {
@@ -77,12 +78,12 @@ struct gmx_output_env_t
 static const real  timefactors[] =   { real(0),  real(1e3),  real(1), real(1e-3), real(1e-6), real(1e-9), real(1e-12), real(0) };
 static const real  timeinvfactors[] = { real(0), real(1e-3),  real(1),  real(1e3),  real(1e6),  real(1e9),  real(1e12), real(0) };
 static const char *time_units_str[] = {
-    NULL, "fs", "ps", "ns", "us",
+    nullptr, "fs", "ps", "ns", "us",
     "\\mus", "ms", "s"
 };
 static const char *time_units_xvgr[] = {
-    NULL, "fs", "ps", "ns",
-    "ms", "s", NULL
+    nullptr, "fs", "ps", "ns",
+    "ms", "s", nullptr
 };
 
 
@@ -126,31 +127,21 @@ int output_env_get_verbosity(const gmx_output_env_t *oenv)
     return oenv->verbosity;
 }
 
-const char *output_env_get_time_unit(const gmx_output_env_t *oenv)
+std::string output_env_get_time_unit(const gmx_output_env_t *oenv)
 {
     return time_units_str[oenv->time_unit];
 }
 
-const char *output_env_get_time_label(const gmx_output_env_t *oenv)
+std::string output_env_get_time_label(const gmx_output_env_t *oenv)
 {
-    char *label;
-    snew(label, 20);
-
-    sprintf(label, "Time (%s)", time_units_str[oenv->time_unit] ?
-            time_units_str[oenv->time_unit] : "ps");
-
-    return label;
+    return gmx::formatString("Time (%s)", time_units_str[oenv->time_unit] ?
+                             time_units_str[oenv->time_unit] : "ps");
 }
 
-const char *output_env_get_xvgr_tlabel(const gmx_output_env_t *oenv)
+std::string output_env_get_xvgr_tlabel(const gmx_output_env_t *oenv)
 {
-    char *label;
-    snew(label, 20);
-
-    sprintf(label, "Time (%s)", time_units_xvgr[oenv->time_unit] ?
-            time_units_xvgr[oenv->time_unit] : "ps");
-
-    return label;
+    return gmx::formatString("Time (%s)", time_units_xvgr[oenv->time_unit] ?
+                             time_units_xvgr[oenv->time_unit] : "ps");
 }
 
 real output_env_get_time_factor(const gmx_output_env_t *oenv)
@@ -194,7 +185,7 @@ xvg_format_t output_env_get_xvg_format(const gmx_output_env_t *oenv)
 
 const char *output_env_get_program_display_name(const gmx_output_env_t *oenv)
 {
-    const char *displayName = NULL;
+    const char *displayName = nullptr;
 
     try
     {

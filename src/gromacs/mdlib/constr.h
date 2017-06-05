@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -64,7 +64,7 @@ extern "C" {
 #endif
 
 struct t_pbc;
-struct t_state;
+class t_state;
 
 enum
 {
@@ -206,7 +206,7 @@ gmx_bool constrain(FILE *log, gmx_bool bLog, gmx_bool bEner,
 
 gmx_constr_t init_constraints(FILE *log,
                               const gmx_mtop_t *mtop, const t_inputrec *ir,
-                              gmx_edsam_t ed, t_state *state,
+                              gmx_edsam_t ed, edsamhistory_t *edsamHistory, t_state *state,
                               struct t_commrec *cr);
 /* Initialize constraints stuff */
 
