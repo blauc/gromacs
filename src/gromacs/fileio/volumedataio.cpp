@@ -124,9 +124,9 @@ class MrcFile::Impl
         RVec read_float32_rvec_();
         IVec read_int32_ivec_();
         void write_int32_(int data);
-        void write_int32_ivec_(IVec i);
+        void write_int32_ivec_(const IVec &i);
         void write_float32_(real data);
-        void write_float32_rvec_(RVec i);
+        void write_float32_rvec_(const RVec &i);
 
         void set_meta(const volumedata::GridReal &grid_data);
         void set_grid_stats(const volumedata::GridReal &grid_data);
@@ -156,7 +156,7 @@ std::string MrcFile::Impl::print_to_string()
 
     result += "swap_bytes        : " + (meta_.swap_bytes == true ? std::string("true") : std::string("false"))    + " | swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture\n";
     result += "mrc_data_mode     : " + std::to_string(meta_.mrc_data_mode) + " | data mode, currently only mode 2 is supported (32-bit float real values)\n";
-    result += "machine_stamp     : " + std::to_string(meta_.machine_stamp) + " | endianess of map writing architecture (big endian " + std::to_string(0x44410000) + " little endian "+ std::to_string(0x11110000) + "\n";
+    result += "machine_stamp     : " + std::to_string(meta_.machine_stamp) + " | endianess of map writing architecture (big endian " + std::to_string(0x44411111) + " little endian "+ std::to_string(0x11111444) + "\n";
     result += "format_identifier : '";
     result.push_back(meta_.format_identifier[0]);
     result.push_back(meta_.format_identifier[1]);
@@ -236,7 +236,7 @@ bool MrcFile::Impl::is_crystallographic()
     return meta_.is_crystallographic;
 }
 
-void MrcFile::Impl::write_float32_rvec_(RVec i)
+void MrcFile::Impl::write_float32_rvec_(const RVec &i)
 {
     write_float32_(static_cast<float>(i[XX]));
     write_float32_(static_cast<float>(i[YY]));
@@ -372,7 +372,7 @@ IVec MrcFile::Impl::to_crs_order(IVec xyz_order)
     return result;
 }
 
-void MrcFile::Impl::write_int32_ivec_(IVec i)
+void MrcFile::Impl::write_int32_ivec_(const IVec &i)
 {
     write_int32_(i[XX]);
     write_int32_(i[YY]);
@@ -979,10 +979,12 @@ void MrcFile::Impl::set_metadata_mrc_default()
     meta_.extra                    = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
     meta_.extraskew                = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }};
     meta_.format_identifier        = "MAP ";
+
+    // check endianess
 #if GMX_INTEGER_BIG_ENDIAN
-    meta_.machine_stamp            = 0x11110000;
+    meta_.machine_stamp            = 1145110528;
 #else
-    meta_.machine_stamp            = 0x44410000;
+    meta_.machine_stamp            = 4369;
 #endif
 
     meta_.labels                   = {
