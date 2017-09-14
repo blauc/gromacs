@@ -47,6 +47,7 @@
 #include "gromacs/trajectoryanalysis/cmdlinerunner.h"
 
 #include "modules/angle.h"
+#include "modules/densitymorph.h"
 #include "modules/distance.h"
 #include "modules/freevolume.h"
 #include "modules/map.h"
@@ -95,6 +96,7 @@ void registerTrajectoryAnalysisModules(CommandLineModuleManager *manager)
     CommandLineModuleGroup group = manager->addModuleGroup("Trajectory analysis");
     registerModule<AngleInfo>(manager, group);
     registerModule<DistanceInfo>(manager, group);
+    registerModule<DensityMorphInfo>(manager, group);
     registerModule<FreeVolumeInfo>(manager, group);
     registerModule<PairDistanceInfo>(manager, group);
     registerModule<RdfInfo>(manager, group);
