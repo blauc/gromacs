@@ -395,10 +395,10 @@ TrajectoryAnalysisRunnerCommon::initOptions(IOptionsContainer *options,
 void
 TrajectoryAnalysisRunnerCommon::optionsFinished()
 {
-    if (impl_->trjfile_.empty() && impl_->topfile_.empty())
-    {
-        GMX_THROW(InconsistentInputError("No trajectory or topology provided, nothing to do!"));
-    }
+    // if (impl_->trjfile_.empty() && impl_->topfile_.empty())
+    // {
+    // GMX_THROW(InconsistentInputError("No trajectory or topology provided, nothing to do!"));
+    // }
 
     if (impl_->trajectoryGroup_.isValid() && impl_->trjfile_.empty())
     {
