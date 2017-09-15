@@ -138,10 +138,16 @@ real GridMeasures::getKLSameGrid(const Field<real> &other) const
     static, size / std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
     for (int i = 0; i < size; ++i)
     {
-        if ((p[i] > 0) && (q[i] > 0))
+        real pp = p[i];
+        if (pp > 0)
         {
-            sum += p[i] * log(q[i] / p[i]);
+            real r = q[i] / pp;
+            if (r > 0)
+            {
+                sum += pp * log(r);
+            }
         }
+
     }
 
     return -1 * reference_.grid_cell_volume() * sum;

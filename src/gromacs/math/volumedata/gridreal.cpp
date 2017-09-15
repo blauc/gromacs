@@ -50,6 +50,12 @@ GridReal::GridReal(GridReal &other)
 
 };
 
+GridReal::GridReal(const GridReal &other)
+    : Field<real>::Field<real>(other), CrystalSymmetry::CrystalSymmetry(other)
+{
+
+};
+
 void GridReal::multiply(real value)
 {
     std::for_each(access().data().begin(), access().data().end(),

@@ -45,6 +45,7 @@
 #include "gmxpre.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/math/volumedata/fouriertransform.h"
 #include "gromacs/utility/real.h"
 
@@ -64,13 +65,13 @@ class ForceDensity
         ForceDensity(const volumedata::Field<real> &grid,
                      real                           sigma);
         ~ForceDensity() = default;
-        const std::array<volumedata::Field<real>, DIM> &getForce();
+        const std::array<volumedata::GridReal, DIM> &getForce();
 
     private:
         void generateConvolutionDensity_();
         void generateFourierTransformGrids_(const FiniteGrid &grid);
         real sigma_;
-        std::array<Field<real>, DIM>                 forces_;
+        std::array<GridReal, DIM>                    forces_;
         std::array<Field<t_complex>, DIM>            forcesFT_;
         std::array<Field<t_complex>, DIM>            convolutionDensity_;
         Field<t_complex>                             densityGradientFT_;

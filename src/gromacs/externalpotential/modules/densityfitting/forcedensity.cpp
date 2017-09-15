@@ -103,7 +103,7 @@ void ForceDensity::generateConvolutionDensity_()
     }
 }
 
-const std::array<Field<real>, DIM> &
+const std::array<GridReal, DIM> &
 ForceDensity::getForce()
 {
     realToComplexFT_.result(densityGradientFT_);

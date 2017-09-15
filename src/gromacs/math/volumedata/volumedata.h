@@ -386,10 +386,20 @@ template <class T> class GridDataAccess
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        T &at(IVec index)
+        T &at(const IVec index)
         {
             return data_.at(latticeIndices3d_.ndx3d_to_ndx1d(index));
         };
+
+        const T &get(const IVec index) const
+        {
+            return data_.at(latticeIndices3d_.ndx3d_to_ndx1d(index));
+        };
+
+        const Finite3DLatticeIndices &indices()
+        {
+            return latticeIndices3d_;
+        }
 
     private:
         std::vector<T>        &data_;

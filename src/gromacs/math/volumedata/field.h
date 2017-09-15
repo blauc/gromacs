@@ -92,6 +92,11 @@ class Field : public FiniteGrid
             data_.resize(num_gridpoints());
         };
 
+        void swapData(Field<T> &other)
+        {
+            data_.swap(other.data_);
+        }
+
         void multiplyGridPointNumber(const RVec factor)
         {
             FiniteGrid::multiplyGridPointNumber(factor);

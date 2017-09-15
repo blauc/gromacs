@@ -1005,6 +1005,7 @@ void MrcFile::Impl::set_metadata_mrc_default()
 
 void MrcFile::Impl::close_file()
 {
+    gmx_fio_fclose(file_);
 }
 
 MrcFile::Impl::Impl() : file_(nullptr), file_size_(0), size_extrarecord(15),

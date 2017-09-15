@@ -56,6 +56,7 @@ class GridReal : public Field<real>, public CrystalSymmetry
         ~GridReal() = default;
         GridReal(const Field<real> &baseField);
         GridReal(GridReal &other);
+        GridReal(const GridReal &other);
         void multiply(real value);
 
         ScalarGridDataProperties<real> properties() const;

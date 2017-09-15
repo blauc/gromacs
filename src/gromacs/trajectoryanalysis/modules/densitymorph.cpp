@@ -46,20 +46,22 @@
 
 #include <string>
 
-#include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
-#include "gromacs/fileio/pdbio.h"
+
+#include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
+
 #include "gromacs/fileio/volumedataio.h"
+
+#include "gromacs/math/volumedata/densitypadding.h"
+#include "gromacs/math/volumedata/gridmeasures.h"
 #include "gromacs/math/volumedata/gridreal.h"
+
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
-#include "gromacs/topology/atomprop.h"
-#include "gromacs/topology/topology.h"
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
-
 
 namespace gmx
 {
@@ -92,17 +94,20 @@ class DensityMorph : public TrajectoryAnalysisModule
 
     private:
 
-        std::string          fnmobile_;
-        std::string          fntarget_;
-        std::string          fnforcedensity_;
-        std::string          fnmorphtraj_;
-
-        int                  every_ = 10;
-
+        void evaluateDensityDifferential_(const volumedata::GridReal &morph, volumedata::GridReal &differential);
+        void evaluateFlow_(const volumedata::GridReal &differential, std::array<volumedata::GridReal, DIM> &densityflow);
+        void applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, volumedata::GridDataAccess<real> &d_new, const volumedata::GridDataAccess<real> &d_old);
+        void scaleFlow_(std::array<volumedata::GridReal, DIM> &densityflow, real scale);
+        std::string          fnmobile_       = "from.ccp4";
+        std::string          fntarget_       = "to.ccp4";
+        std::string          fnforcedensity_ = "forcedensity.ccp4";
+        std::string          fnmorphtraj_    = "morph.ccp4";
         volumedata::GridReal mobile_;
         volumedata::GridReal target_;
-        volumedata::GridReal morph_;
-        int                  nFr_           = 10;
+        int                  every_          = 10;
+        int                  morphSteps_     = 10;
+        real                 morphstepscale_ = 1;
+        real                 sigma_          = 1;
         std::string          potentialType_;
         std::unique_ptr<volumedata::IStructureDensityPotentialProvider>
         potentialProvider_;
@@ -132,59 +137,289 @@ void DensityMorph::initOptions(IOptionsContainer          *options,
                            .inputFile()
                            .store(&fnmobile_)
                            .defaultBasename("mobile")
-                           .description("CCP4 density map to morph."));
+                           .description("CCP4 density map to oldMorph."));
 
-    options->addOption(IntegerOption("every")
-                           .store(&every_)
-                           .description("Write -every intermediate steps."));
+    options->addOption(IntegerOption("every").store(&every_).description(
+                               "Write every -every step."));
 
-    options->addOption(IntegerOption("n-frames")
-                           .store(&nFr_)
+    options->addOption(IntegerOption("steps")
+                           .store(&morphSteps_)
                            .description("Number of morphing iterations."));
+
+    options->addOption(FloatOption("step-scale")
+                           .store(&morphstepscale_)
+                           .description("Scale for density flow."));
+
+    options->addOption(FloatOption("sigma").store(&sigma_).description(
+                               "Feature size for morph."));
 
     options->addOption(FileNameOption("to")
                            .filetype(eftVolumeData)
                            .inputFile()
-                           .store(&fntarget_)
                            .defaultBasename("mobile")
-                           .description("CCP4 density map to morph into."));
+                           .store(&fntarget_)
+                           .description("CCP4 density map to oldMorph into."));
 
     options->addOption(FileNameOption("forces")
                            .filetype(eftVolumeData)
                            .outputFile()
-                           .store(&fnforcedensity_)
                            .defaultBasename("forces")
+                           .store(&fnforcedensity_)
                            .description("CCP4 density maps with forces."));
 
     options->addOption(FileNameOption("morph")
                            .filetype(eftVolumeData)
                            .outputFile()
                            .store(&fnmorphtraj_)
-                           .defaultBasename("morph")
                            .description("CCP4 density maps during morphing."));
 
     options->addOption(StringOption("potential-type")
                            .store(&potentialType_)
                            .description("potential type.")
                            .enumValue(c_potentialTypes));
-
 }
 
-void DensityMorph::initAnalysis( const TrajectoryAnalysisSettings & /*settings*/, const TopologyInformation        & /*top*/) {}
-void DensityMorph::optionsFinished(
-        TrajectoryAnalysisSettings * /*settings*/)
+void DensityMorph::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/,
+                                const TopologyInformation        & /*top*/) {}
+void DensityMorph::optionsFinished(TrajectoryAnalysisSettings * /*settings*/) {}
+void DensityMorph::initAfterFirstFrame(
+        const TrajectoryAnalysisSettings & /*settings*/,
+        const t_trxframe                 & /*fr*/) {}
+void DensityMorph::analyzeFrame(int /*frnr*/, const t_trxframe & /*fr*/,
+                                t_pbc * /*pbc*/,
+                                TrajectoryAnalysisModuleData * /*pdata*/) {}
+
+void DensityMorph::evaluateDensityDifferential_(const volumedata::GridReal &morph, volumedata::GridReal &differential)
 {
 
-    volumedata::MrcFile ccp4inputfile;
-    ccp4inputfile.read(fnmobile_, mobile_);
+    // define the derivative of the density
+    auto sumSimulatedDensity =
+        volumedata::GridReal(morph).properties().sum();
+    //
+    // auto cc = volumedata::GridMeasures(morph).correlate(target_);
+    // auto normSimulation = volumedata::GridReal(morph).properties().norm();
+    // auto densityGradientFunction = [normSimulation, cc](
+    //     real densityExperiment, real densitySimulation) {
+    //   return (densityExperiment - cc * densitySimulation) / (normSimulation);
+    // };
+    auto densityGradientFunction =
+        [sumSimulatedDensity](real densityExperiment, real densitySimulation)
+        {
+            return ((densityExperiment) / (densitySimulation)) *
+                   (1 - densitySimulation / sumSimulatedDensity);
+        };
 
-    potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
-
+    // evaluate density derivative
+    std::transform(morph.access().begin(), morph.access().end(),
+                   target_.access().begin(), differential.access().begin(),
+                   densityGradientFunction);
 
 }
-void DensityMorph::initAfterFirstFrame( const TrajectoryAnalysisSettings & /*settings*/, const t_trxframe & /*fr*/) { }
-void DensityMorph::analyzeFrame(int /*frnr*/, const t_trxframe & /*fr*/, t_pbc * /*pbc*/, TrajectoryAnalysisModuleData * /*pdata*/) {}
-void DensityMorph::finishAnalysis(int /*nframes*/) {}
+
+void DensityMorph::evaluateFlow_(const volumedata::GridReal &differential, std::array<volumedata::GridReal, DIM> &densityflow)
+{
+    // calculate force direction on grid from density derivative
+    auto paddedDifferential =
+        volumedata::DensityPadding(differential).pad({2.0, 2.0, 2.0});
+    auto paddedDensityFlow =
+        volumedata::ForceDensity(*paddedDifferential, sigma_).getForce();
+    for (size_t dimension = XX; dimension <= ZZ; dimension++)
+    {
+        densityflow[dimension] =
+            *volumedata::DensityPadding(paddedDensityFlow[dimension])
+                .unpad(differential.extend());
+    }
+
+    // find the scale for the flow
+    std::vector<real> flow_rms;
+    for (auto fd : densityflow)
+    {
+        flow_rms.push_back(
+                std::max(fabs(fd.properties().min()), fabs(fd.properties().max())));
+    }
+
+    scaleFlow_(densityflow, 1 / (*std::max_element(std::begin(flow_rms),
+                                                   std::end(flow_rms))));
+
+}
+
+void DensityMorph::scaleFlow_(std::array<volumedata::GridReal, DIM> &densityflow, real scale)
+{
+    for (size_t dimension = XX; dimension <= ZZ; dimension++)
+    {
+        densityflow[dimension].multiply(scale);
+    }
+}
+
+void DensityMorph::applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, volumedata::GridDataAccess<real> &d_new, const volumedata::GridDataAccess<real> &d_old)
+{
+    auto f = norm(f_vec);
+
+// flow into voxels
+    std::array<int, 3> direction;
+    for (size_t dimension = 0; dimension < DIM; dimension++)
+    {
+        if (f_vec[dimension] > 0)
+        {
+            direction[dimension] = 1;
+        }
+        else
+        {
+            direction[dimension] = -1;
+        }
+    }
+    svmul(1. / f, f_vec, f_vec);
+    IVec df {
+        0, 0, 0
+    };
+    real flow_sum = 0;
+    for (df[ZZ] = 0; df[ZZ] <= 1; df[ZZ]++)
+    {
+        for (df[YY] = 0; df[YY] <= 1; df[YY]++)
+        {
+            for (df[XX] = 0; df[XX] <= 1; df[XX]++)
+            {
+
+                auto receivingVoxel {
+                    gridIndex
+                };
+                for (size_t dimension = 0; dimension < DIM; dimension++)
+                {
+                    receivingVoxel[dimension] -= df[dimension] * direction[dimension];
+                }
+
+                // NOTE: checking boundaries here,
+                // but not for the flow away from voxels violates flow conversation
+                if (d_new.indices().inGrid(receivingVoxel))
+                {
+                    RVec share;
+                    for (size_t dimension = 0; dimension < DIM; dimension++)
+                    {
+                        share[dimension] = df[dimension] == 0 ? (1-fabs(f_vec[dimension])) : fabs(f_vec[dimension]);
+                    }
+                    auto voxel_voxel_flow =  share[XX]*share[YY]* share[ZZ] * fabs(f) * d_old.get(gridIndex);
+                    flow_sum                 += voxel_voxel_flow;
+                    d_new.at(receivingVoxel) += voxel_voxel_flow;
+                }
+            }
+        }
+    }
+
+    // flow away from voxels
+    d_new.at(gridIndex) += d_old.get(gridIndex) - flow_sum;
+
+}
+
+void DensityMorph::finishAnalysis(int /*nframes*/)
+{
+    if (every_ < 1)
+    {
+        GMX_THROW(
+                gmx::InconsistentInputError("Every must be integer bigger than one."));
+    }
+
+    volumedata::MrcFile().read(fnmobile_, mobile_);
+    volumedata::MrcFile().read(fntarget_, target_);
+
+    mobile_.add_offset(0.001);
+    target_.add_offset(0.001);
+
+    volumedata::GridReal                  oldMorph(mobile_);
+
+    auto                                  common_grid = (volumedata::FiniteGrid)mobile_;
+    volumedata::GridReal                  differential(common_grid);
+    volumedata::GridReal                  newMorph(common_grid);
+    std::array<volumedata::GridReal, DIM> densityflow;
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    auto basesum = mobile_.properties().sum();
+    for (int iMorphIterations = 0; iMorphIterations < morphSteps_;
+         iMorphIterations++)
+    {
+        auto densityDistance = volumedata::GridMeasures(target_).getKLSameGrid(oldMorph);
+        fprintf(stderr, "\r Iteration [%7d/%7d] : d = %7g ", iMorphIterations+1, morphSteps_, densityDistance);
+
+        evaluateDensityDifferential_(oldMorph, differential);
+        evaluateFlow_(differential, densityflow);
+        auto newDensityDistance = GMX_FLOAT_MAX;
+        while (densityDistance < newDensityDistance)
+        {
+            morphstepscale_ /= 2.;
+            if (morphstepscale_ < 1e2*GMX_FLOAT_EPS)
+            {
+                GMX_THROW(ToleranceError("Cannot move closer to target density before maximum number of steps reached."));
+            }
+            scaleFlow_(densityflow, morphstepscale_);
+            /*
+             * new, morphed state is:
+             *          density(r) <- (1 - s * |flow(r)|) * density(r)
+             *          density(r+|flow_direction|_max) <- s * |flow(r)| * density(r)
+             */
+            // go through grid and use densityflow to shift density
+
+            auto d_new = newMorph.access();
+            auto d_old = oldMorph.access();
+
+            auto extend = common_grid.extend();
+
+            std::array<volumedata::GridDataAccess<real>, 3> flow {
+                densityflow[XX].access(), densityflow[YY].access(), densityflow[ZZ].access()
+            };
+            // volumedata::MrcFile().write("flowxx.ccp4", densityflow[XX]);
+            // volumedata::MrcFile().write("flowyy.ccp4", densityflow[YY]);
+            // volumedata::MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
+            //
+            // volumedata::GridReal flowintensity(densityflow[XX]);
+            // std::transform(oldMorph.access().begin(), oldMorph.access().end(), densityflow[XX].access().begin(), flowintensity.access().begin(),[](real a,real b){return a*b;});
+            // volumedata::MrcFile().write("intensityxx.ccp4", flowintensity);
+
+
+            // create a new, morphed density
+            newMorph.zero();
+
+            for (int iz = 0; iz < extend[ZZ]; iz++)
+            {
+                for (int iy = 0; iy < extend[YY]; iy++)
+                {
+                    for (int ix = 0; ix < extend[XX]; ix++)
+                    {
+
+                        IVec gridIndex {
+                            ix, iy, iz
+                        };
+                        RVec f_vec {
+                            flow[XX].at(gridIndex), flow[YY].at(gridIndex),
+                            flow[ZZ].at(gridIndex)
+                        };
+                        applyFlowOnVoxel_(f_vec, gridIndex, d_new, d_old);
+
+                    }
+                }
+            }
+            newDensityDistance = volumedata::GridMeasures(target_).getKLSameGrid(newMorph);
+            fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, newMorph.properties().sum()-basesum);
+
+        }
+
+        if (morphstepscale_ < 0.5)
+        {
+            morphstepscale_ *= 4.0;
+        }
+        newMorph.swapData(oldMorph);
+        if (iMorphIterations % every_ == 0)
+        {
+            std::string s {
+                fnmorphtraj_
+            };
+            auto fnmorph = s.insert(s.size() - 5, std::to_string(iMorphIterations));
+            volumedata::MrcFile().write(fnmorph, oldMorph);
+            auto f = fopen((fnmorph+".dat").c_str(), "w+");
+            fprintf(f, "%s\n", oldMorph.print().c_str());
+            fclose(f);
+        }
+    }
+    fprintf(stderr, "\n");
+}
 void DensityMorph::writeOutput() {}
 
 }       // namespace
