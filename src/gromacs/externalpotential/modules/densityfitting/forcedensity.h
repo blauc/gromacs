@@ -54,7 +54,6 @@
 
 namespace gmx
 {
-class WholeMoleculeGroup;
 
 namespace volumedata
 {
