@@ -32,28 +32,36 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*!  \file
+ * \brief
+ * Defines volume data containers.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \inpublicapi
+ */
+#ifndef GMX_MATH_CONVOLUTION_H
+#define GMX_MATH_CONVOLUTION_H
 
-#ifndef GMX_MATH_DENSITYPADDING_H
-#define GMX_MATH_DENSITYPADDING_H
+#include "../field.h"
+#include "gromacs/math/gmxcomplex.h"
 
-#include "field.h"
 namespace gmx
 {
-namespace volumedata
-{
-class DensityPadding
+
+class GaussConvolution
 {
     public:
-        DensityPadding(const Field<real> &toPad);
-        std::unique_ptr < Field < real>> pad(RVec paddingFactor);
-
-        std::unique_ptr < Field < real>> padPower2();
-        std::unique_ptr < Field < real>> unpad(IVec extend);
+        GaussConvolution(const Field<real> &input);
+        std::unique_ptr < Field < real>> convolute(real sigma);
+        GaussConvolution &pad(RVec paddingFactor);
 
     private:
-        const Field<real> &toPad_;
+        IVec               extendBeforePadding_;
+        const Field<real> &input_;
+        std::unique_ptr < Field < real>> padded_input_;
+        std::unique_ptr < Field < t_complex>> fourierTransform_;
 };
-}
-}
 
-#endif /* end of include guard: GMX_MATH_DENSITYPADDING_H */
+}      // gmx
+
+#endif /* end of include guard: GMX_MATH_CONVOLUTION_H */

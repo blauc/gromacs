@@ -32,64 +32,77 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*!  \file
+/*! \internal \file
  * \brief
- * Defines volume data containers.
+ * Implements methods from crystalsymmetry.h
  *
  * \author Christian Blau <cblau@gwdg.de>
- * \inpublicapi
  */
-#include "convolution.h"
-#include "densitypadding.h"
-#include "fouriertransform.h"
-#include "gromacs/math/gmxcomplex.h"
-#include "gromacs/math/utilities.h"
-#include "gromacs/utility/real.h"
+#include "gmxpre.h"
 
-namespace gmx
-{
-namespace volumedata
+#include "crystalsymmetry.h"
+/********************************************************************
+ * CrystalSymmetry::Impl
+ */
+
+/*! \internal \brief
+ * Private implementation class for CrystalSymmetry.
+ *
+ */
+class CrystalSymmetry::Impl
 {
 
-GaussConvolution::GaussConvolution(const Field<real> &input)
-    : input_(input), padded_input_ {nullptr}
-{
-    extendBeforePadding_ = input_.extend();
+    public:
+        Impl()  = default;
+        ~Impl() = default;
+        Impl(const Impl &other);
+        Impl &operator=(const Impl &other);
+        int space_group_ = 1; //!< space group as defined by IUCr conventions (Table
+                              //! 12.3.4.1 Standard space-group symbols”, pages
+        //! 824-831, International Tables for Crystallography,
+        //! Volume A, fifth edition)
 };
 
-GaussConvolution &GaussConvolution::pad(RVec paddingFactor)
+CrystalSymmetry::Impl::Impl(const Impl &other)
 {
-    padded_input_ = DensityPadding(input_).pad(paddingFactor);
+    space_group_ = other.space_group_;
+};
+
+CrystalSymmetry::Impl &
+CrystalSymmetry::Impl::operator=(const Impl &other)
+{
+    space_group_ = other.space_group_;
     return *this;
-}
-
-std::unique_ptr < Field < real>> GaussConvolution::convolute(real sigma) {
-    if (padded_input_ != nullptr)
-    {
-        fourierTransform_ =
-            FourierTransformRealToComplex3D(*padded_input_).normalize().result();
-    }
-    else
-    {
-        fourierTransform_ =
-            FourierTransformRealToComplex3D(input_).normalize().result();
-    }
-    auto sigmaSquared          = gmx::square(sigma);
-    auto convoluteWithGaussian = [sigmaSquared](t_complex &value, RVec k) {
-            auto prefactor = 1/(sqrt(2)) * exp(-2.0 * M_PI * M_PI * sigmaSquared * norm2(k));
-            value.re *= prefactor;
-            value.im *= prefactor;
-        };
-
-    volumedata::ApplyToUnshiftedFourierTransform(*fourierTransform_).apply(convoluteWithGaussian);
-    auto result =
-        FourierTransformComplexToReal3D(*fourierTransform_).normalize().result();
-
-    if (padded_input_ != nullptr)
-    {
-        result = DensityPadding(*result).unpad(extendBeforePadding_);
-    }
-    return result;
 };
+
+
+/********************************************************************
+ * CrystalSymmetry
+ */
+
+void CrystalSymmetry::set_space_group(int space_group)
+{
+    impl_->space_group_ = space_group;
 }
+int CrystalSymmetry::space_group() const { return impl_->space_group_; }
+
+CrystalSymmetry::CrystalSymmetry() : impl_(new CrystalSymmetry::Impl()){};
+
+std::string CrystalSymmetry::print() const
+{
+    return "---crystal symmetry---\nspace group : " +
+           std::to_string(space_group()) + "---\n";
+};
+
+CrystalSymmetry::CrystalSymmetry(const CrystalSymmetry &other)
+    : impl_ {new CrystalSymmetry::Impl(*other.impl_)}
+{};
+
+CrystalSymmetry::~CrystalSymmetry() = default;
+
+CrystalSymmetry &
+CrystalSymmetry::operator=(const CrystalSymmetry &other)
+{
+    *impl_ = *other.impl_;
+    return *this;
 }

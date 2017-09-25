@@ -44,10 +44,10 @@
 #define GMX_MATH_VOLUMEDATA_FIELD_H
 
 #include "volumedata.h"
+#include "finitegrid.h"
+#include "griddataaccess.h"
 
 namespace gmx
-{
-namespace volumedata
 {
 
 template <typename T>
@@ -155,8 +155,6 @@ template <class T, class F> void ApplyToField(Field<T> &field, F function)
         rvec_inc(gridCoordinate_z, d_z);       // next step in grid z-direction
     }
 };
-
-}      // namespace volumedata
 
 }      // namespace gmx
 

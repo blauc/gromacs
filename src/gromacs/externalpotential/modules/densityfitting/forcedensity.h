@@ -46,7 +46,7 @@
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/volumedata/gridreal.h"
-#include "gromacs/math/volumedata/fouriertransform.h"
+#include "gromacs/math/volumedata/operations/fouriertransform.h"
 #include "gromacs/utility/real.h"
 
 #include <array>
@@ -56,16 +56,14 @@
 namespace gmx
 {
 
-namespace volumedata
-{
 
 class ForceDensity
 {
     public:
-        ForceDensity(const volumedata::Field<real> &grid,
+        ForceDensity(const Field<real>             &grid,
                      real                           sigma);
         ~ForceDensity() = default;
-        const std::array<volumedata::GridReal, DIM> &getForce();
+        const std::array<GridReal, DIM> &getForce();
 
     private:
         void generateConvolutionDensity_();
@@ -76,8 +74,7 @@ class ForceDensity
         std::array<Field<t_complex>, DIM>            convolutionDensity_;
         Field<t_complex>                             densityGradientFT_;
         std::vector<FourierTransformComplexToReal3D> complexToRealFTarray_;
-        volumedata::FourierTransformRealToComplex3D  realToComplexFT_;
+        FourierTransformRealToComplex3D              realToComplexFT_;
 };
-}
 }
 #endif /* end of include guard: GMX_EXTERNALPOTENIAL_FORCEDENSITY_H */

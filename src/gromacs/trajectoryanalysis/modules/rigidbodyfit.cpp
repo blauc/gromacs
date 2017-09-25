@@ -101,22 +101,22 @@ class RigidBodyFit : public TrajectoryAnalysisModule
         std::string          fntrajoutput_ = std::string("fitted.xtc");
         std::string          optionsstring_;
 
-        volumedata::GridReal inputdensity_;
+        GridReal             inputdensity_;
         bool                 bRigidBodyFit_ = true;
         std::vector<float>   weight_;
         int                  every_ = 1;
         FILE                *potentialFile_;
         int                  nFr_ = 0;
         std::string          potentialType_;
-        std::unique_ptr<volumedata::IStructureDensityPotentialProvider>
+        std::unique_ptr<IStructureDensityPotentialProvider>
         potentialProvider_;
-        volumedata::PotentialEvaluatorHandle potentialEvaluator;
+        PotentialEvaluatorHandle potentialEvaluator;
 };
 
 void RigidBodyFit::initOptions(IOptionsContainer          *options,
                                TrajectoryAnalysisSettings *settings)
 {
-    auto        potentialNames = volumedata::PotentialLibrary().available();
+    auto        potentialNames = PotentialLibrary().available();
     const char *c_potentialTypes[1]; // TODO: this fixed size array is required
                                      // for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
@@ -177,31 +177,31 @@ void RigidBodyFit::optionsFinished(
         TrajectoryAnalysisSettings * /*settings*/)
 {
 
-    volumedata::MrcFile ccp4inputfile;
+    MrcFile ccp4inputfile;
     ccp4inputfile.read(fnmapinput_, inputdensity_);
 
     // set negative values to zero
     std::for_each(std::begin(inputdensity_.access().data()),
                   std::end(inputdensity_.access().data()),
                   [](real &value) { value = std::max(value, (real)0.); });
-    potentialProvider_ = volumedata::PotentialLibrary().create(potentialType_)();
-    fprintf(potentialFile_, "time        %s", potentialType_.c_str());
-
-    auto optionsFile = fopen(fnoptions_.c_str(), "r");
-    if (!fnoptions_.empty() && optionsFile)
-    {
-
-        fseek(optionsFile, 0, SEEK_END);
-        auto  length = ftell(optionsFile);
-        fseek(optionsFile, 0, SEEK_SET);
-        char *buffer = (char *)malloc(length + 1);
-        if (buffer)
-        {
-            fread(buffer, 1, length, optionsFile);
-        }
-        buffer[length] = '\0';
-        optionsstring_ = buffer;
-    }
+    // potentialProvider_ = PotentialLibrary().create(potentialType_)();
+    // fprintf(potentialFile_, "time        %s", potentialType_.c_str());
+    //
+    // auto optionsFile = fopen(fnoptions_.c_str(), "r");
+    // if (!fnoptions_.empty() && optionsFile)
+    // {
+    //
+    //     fseek(optionsFile, 0, SEEK_END);
+    //     auto  length = ftell(optionsFile);
+    //     fseek(optionsFile, 0, SEEK_SET);
+    //     char *buffer = (char *)malloc(length + 1);
+    //     if (buffer)
+    //     {
+    //         fread(buffer, 1, length, optionsFile);
+    //     }
+    //     buffer[length] = '\0';
+    //     optionsstring_ = buffer;
+    // }
 }
 
 void RigidBodyFit::initAfterFirstFrame(
@@ -225,9 +225,9 @@ void RigidBodyFit::analyzeFrame(int frnr, const t_trxframe &fr,
 {
     std::vector<RVec>        rVecCoordinates(fr.x, fr.x + fr.natoms);
 
-    volumedata::RigidBodyFit rigidbodyfit;
-    rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,
-                                potentialEvaluator);
+    // RigidBodyFit             rigidbodyfit;
+    // rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,
+    // potentialEvaluator);
 }
 
 void RigidBodyFit::finishAnalysis(int /*nframes*/) {}

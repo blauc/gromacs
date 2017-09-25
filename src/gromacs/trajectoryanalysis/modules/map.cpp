@@ -50,7 +50,7 @@
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/math/do_fit.h"
-#include "gromacs/math/volumedata/improvedfastgausstransform.h"
+#include "gromacs/math/volumedata/operations/improvedfastgausstransform.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -59,6 +59,7 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
+#include "gromacs/utility/exceptions.h"
 
 namespace gmx
 {
@@ -92,29 +93,29 @@ class Map : public TrajectoryAnalysisModule
         void set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation);
         void frameToDensity_(const t_trxframe &fr, int nFr);
 
-        std::string          fnmapinput_;
-        std::string          fnmapoutput_;
-        std::string          fnfrmapoutput_;
+        std::string                      fnmapinput_;
+        std::string                      fnmapoutput_;
+        std::string                      fnfrmapoutput_;
 
-        float                sigma_   = 0.4;
-        float                n_sigma_ = 5;
-        volumedata::GridReal inputdensity_;
-        volumedata::GridReal outputdensity_;
-        volumedata::GridReal outputDensityBuffer_;
-        real                 spacing_       = 0.2;
-        bool                 bPrint_        = false;
-        bool                 bRigidBodyFit_ = true;
-        std::vector<float>   weight_;
-        int                  every_                    = 1;
-        real                 expAverage_               = 1.;
-        int                  nFr_                      = 0;
-        bool                 bFitFramesToTopStructure_ = false;
-        int                  nAtomsReference_;
-        std::vector<RVec>    referenceX_;
-        matrix               referenceBox;
-        std::vector<real>    fitWeights;
-        bool                 bUseBox_ = false;
-        std::unique_ptr<volumedata::DensitySpreader> spreader_;
+        float                            sigma_   = 0.4;
+        float                            n_sigma_ = 5;
+        GridReal                         inputdensity_;
+        GridReal                         outputdensity_;
+        GridReal                         outputDensityBuffer_;
+        real                             spacing_       = 0.2;
+        bool                             bPrint_        = false;
+        bool                             bRigidBodyFit_ = true;
+        std::vector<float>               weight_;
+        int                              every_                    = 1;
+        real                             expAverage_               = 1.;
+        int                              nFr_                      = 0;
+        bool                             bFitFramesToTopStructure_ = false;
+        int                              nAtomsReference_;
+        std::vector<RVec>                referenceX_;
+        matrix                           referenceBox;
+        std::vector<real>                fitWeights;
+        bool                             bUseBox_ = false;
+        std::unique_ptr<DensitySpreader> spreader_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -225,7 +226,7 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 
     if (!fnmapinput_.empty())
     {
-        volumedata::MrcFile ccp4inputfile;
+        MrcFile ccp4inputfile;
         ccp4inputfile.read(fnmapinput_, inputdensity_);
         if (bPrint_)
         {
@@ -264,9 +265,9 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    gmx::volumedata::IVec extend({(int)ceil(box[XX][XX] / spacing_),
-                                  (int)ceil(box[YY][YY] / spacing_),
-                                  (int)ceil(box[ZZ][ZZ] / spacing_)});
+    gmx::IVec extend({(int)ceil(box[XX][XX] / spacing_),
+                      (int)ceil(box[YY][YY] / spacing_),
+                      (int)ceil(box[ZZ][ZZ] / spacing_)});
     outputdensity_.set_extend(extend);
     outputDensityBuffer_.set_extend(extend);
     outputdensity_.set_cell(
@@ -307,8 +308,8 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
             outputDensityBuffer_.copy_grid(inputdensity_);
         }
 
-        spreader_ = std::unique_ptr<volumedata::DensitySpreader>(
-                    new volumedata::DensitySpreader(outputdensity_, 1, n_sigma_, sigma_));
+        spreader_ = std::unique_ptr<DensitySpreader>(
+                    new DensitySpreader(outputdensity_, 1, n_sigma_, sigma_));
 
 
         outputDensityBuffer_.zero();
@@ -368,14 +369,14 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
         if (!fnmapoutput_.empty())
         {
-            volumedata::MrcFile().write(
+            MrcFile().write(
                     fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4",
                     outputdensity_);
         }
 
         if (!fnfrmapoutput_.empty())
         {
-            volumedata::MrcFile().write(
+            MrcFile().write(
                     fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) +
                     std::to_string(frnr) + ".ccp4",
                     outputDensityBuffer_);

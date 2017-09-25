@@ -29,14 +29,11 @@
 #include <vector>
 #include <memory>
 #include "gromacs/math/vec.h"
-#include "gridreal.h"
+#include "../gridreal.h"
 #include "gausstransform.h"
 #include <map>
 
 namespace gmx
-{
-
-namespace volumedata
 {
 
 class ImprovedFastGaussTransform;
@@ -72,10 +69,10 @@ class ImprovedFastGaussTransform : public GaussTransform
         uint64_t factorial(const int n);
         real pbc_dist(ivec i, ivec n, matrix b, ivec ndx);
         RVec distanceToExpansionCenter(IVec expansionCenterIndex, RVec x);
-        void integrate_densities_at_expansion_centers(volumedata::GridReal &map);
+        void integrate_densities_at_expansion_centers(GridReal &map);
 
     private:
-        volumedata::Field < std::unique_ptr < ExpansionCenter>> expansionCenterField_;
+        Field < std::unique_ptr < ExpansionCenter>> expansionCenterField_;
         int                                            n_I_;
         int                                            maximum_expansion_order_;
         std::vector<real>                              multinomials_;
@@ -83,6 +80,5 @@ class ImprovedFastGaussTransform : public GaussTransform
         std::map<real, real> gaussLUT_;
 };
 
-}      // namesepace volumedata
 }      // namespace gmx
 #endif /* IFGT_H_ */

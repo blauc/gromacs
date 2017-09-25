@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2017, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,35 +32,38 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "potentiallibrary.h"
-
-// #include "differentialmodules/crosscorrelation.h"
-#include "differentialmodules/kullbackleibler.h"
-// #include "differentialmodules/inverteddensity.h"
-// #include "differentialmodules/fouriershellcorrelation.h"
-
+#ifndef GMX_MATH_GRIDMEASURES_H
+#define GMX_MATH_GRIDMEASURES_H
+#include <memory>
 #include <vector>
-#include <map>
+#include <set>
+#include "gromacs/utility/real.h"
+#include "gromacs/math/gmxcomplex.h"
 
 namespace gmx
 {
 
-template<typename InfoClass, typename Creator>
-void registerFunction(std::map<std::string, Creator> &map)
+template<typename real> class Field;
+class GridMeasures
 {
-    map[InfoClass::name] = &InfoClass::create;
-};
+    public:
+        GridMeasures(const Field<real> &reference);
+        real correlate(const Field<real> &other, real threshold = -GMX_REAL_MAX) const;
+        real getRelativeKLCrossTermSameGrid(
+            const Field<real> &other, const std::vector<real> &other_reference) const;
+        real getRelativeKLCrossTerm(const Field<real>          &other,
+                                    const std::vector<real>    &other_reference) const;
+        real getKLCrossTermSameGrid(const Field<real> &other) const;
+        real getKLCrossTerm(const Field<real> &other) const;
+        real getKLSameGrid(const Field<real> &other) const;
+        real entropy() const;
+        real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
 
-PotentialLibrary::PotentialLibrary()
-{
-    registerFunction<KullbackLeiblerPotentialInfo>(functions_);
-    // registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
-    // registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
-    // registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
+    private:
+        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
+        const Field<real> &reference_;
 };
-
-PotentialLibrary::~PotentialLibrary()
-{
 }
 
-} // namespace gmx
+
+#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */

@@ -54,9 +54,6 @@ namespace gmx
 class WholeMoleculeGroup;
 class Quaternion;
 
-namespace volumedata
-{
-
 class DensitySpreader;
 class FiniteGrid;
 class GridReal;
@@ -105,7 +102,6 @@ class densityBasedForce : public ForceEvaluator
         bool                   selfSpreading_;
 };
 
-}      /* volumedata */
 }      /* gmx */
 
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_COMMON_H */

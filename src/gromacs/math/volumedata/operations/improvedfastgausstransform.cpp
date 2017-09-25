@@ -7,7 +7,6 @@
 
 #include "improvedfastgausstransform.h"
 #include "gromacs/math/vec.h"
-#include "volumedata.h"
 #include "gausstransform.h"
 #include "gromacs/simd/simd_math.h"
 
@@ -17,8 +16,6 @@
 namespace gmx
 {
 
-namespace volumedata
-{
 
 ExpansionCenter::ExpansionCenter(ImprovedFastGaussTransform * ifgt) : ifgt_(ifgt)
 {
@@ -361,7 +358,5 @@ ImprovedFastGaussTransform::finish_and_return_grid()
     }
     return std::move(grid_);
 }
-
-} /* volumedata */
 
 } /* gmx */

@@ -56,8 +56,6 @@ namespace gmx
 
 class GroupAtom;
 
-namespace volumedata
-{
 struct MrcMetaData;
 class GridReal;
 class FastGaussianGridding;
@@ -65,7 +63,6 @@ class FastGaussianGriddingForce;
 class GaussTransform;
 class IStructureDensityPotentialProvider;
 class PotentialEvaluator;
-}
 
 namespace externalpotential
 {
@@ -111,11 +108,11 @@ class DensityFitting : public ExternalPotential
         int         every_nth_step_;
         std::string options_;
 
-        std::unique_ptr<volumedata::IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr<volumedata::GridReal>                           target_density_;
-        std::unique_ptr<volumedata::GridReal>                           simulated_density_;
+        std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
+        std::unique_ptr<GridReal>                           target_density_;
+        std::unique_ptr<GridReal>                           simulated_density_;
         real                    background_density_;
-        volumedata::MrcMetaData meta_;
+        MrcMetaData             meta_;
         std::string             trajectory_name_;
         t_fileio               *out_;
         bool                    isCenterOfMassCentered_;
@@ -147,7 +144,8 @@ class DensityFittingInfo
         static const int   numberWholeMoleculeGroups;
         static externalpotential::ModuleCreator create;
 };
-} // namespace externalpotential
+
+}
 } // namespace gmx
 
 #endif

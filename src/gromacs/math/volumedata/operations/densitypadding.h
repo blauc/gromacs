@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2017, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,35 +32,29 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "potentiallibrary.h"
 
-// #include "differentialmodules/crosscorrelation.h"
-#include "differentialmodules/kullbackleibler.h"
-// #include "differentialmodules/inverteddensity.h"
-// #include "differentialmodules/fouriershellcorrelation.h"
+#ifndef GMX_MATH_DENSITYPADDING_H
+#define GMX_MATH_DENSITYPADDING_H
 
-#include <vector>
-#include <map>
+#include <memory>
+#include "gromacs/math/vectypes.h"
 
 namespace gmx
 {
+template<class real> class Field;
 
-template<typename InfoClass, typename Creator>
-void registerFunction(std::map<std::string, Creator> &map)
+class DensityPadding
 {
-    map[InfoClass::name] = &InfoClass::create;
+    public:
+        DensityPadding(const Field<real> &toPad);
+        std::unique_ptr < Field < real>> pad(RVec paddingFactor);
+
+        std::unique_ptr < Field < real>> padPower2();
+        std::unique_ptr < Field < real>> unpad(IVec extend);
+
+    private:
+        const Field<real> &toPad_;
 };
+}      // namespace gmx
 
-PotentialLibrary::PotentialLibrary()
-{
-    registerFunction<KullbackLeiblerPotentialInfo>(functions_);
-    // registerFunction<CrossCorrelationDifferentialPotentialInfo>(functions_);
-    // registerFunction<InvertedDensityDifferentialPotentialInfo>(functions_);
-    // registerFunction<FourierShellCorrelationProviderDifferentialPotentialInfo>(functions_);
-};
-
-PotentialLibrary::~PotentialLibrary()
-{
-}
-
-} // namespace gmx
+#endif /* end of include guard: GMX_MATH_DENSITYPADDING_H */

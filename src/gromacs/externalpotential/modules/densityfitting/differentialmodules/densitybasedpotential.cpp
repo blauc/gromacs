@@ -53,8 +53,6 @@
 
 namespace gmx
 {
-namespace volumedata
-{
 
 densityBasedPotential::densityBasedPotential(const DensitySpreader &spreader,
                                              bool                   selfSpreading)
@@ -110,13 +108,13 @@ void densityBasedForce::force(std::vector<RVec> &force,
                                                           centerOfRotation),
                                reference);
     }
-    auto forceDensity =
+    auto                    forceDensity =
         ForceDensity(*differential_, sigma_differential_).getForce();
-    std::array<volumedata::GridReal, 3> forceGrid {
+    std::array<GridReal, 3> forceGrid {
         {
-            volumedata::GridReal(forceDensity[XX]),
-            volumedata::GridReal(forceDensity[YY]),
-            volumedata::GridReal(forceDensity[ZZ])
+            GridReal(forceDensity[XX]),
+            GridReal(forceDensity[YY]),
+            GridReal(forceDensity[ZZ])
         }
     };
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
@@ -144,10 +142,10 @@ void densityBasedForce::force(std::vector<RVec> &force,
 //     setDensityDifferential(*spread_density_, reference);
 //     auto forceDensity = ForceDensity(*differential_,
 //     sigma_differential_).getForce();
-//     std::array<volumedata::GridReal, 3> forceGrid { {
-//                                                         volumedata::GridReal(forceDensity[XX]),
-//                                                         volumedata::GridReal(forceDensity[YY]),
-//                                                         volumedata::GridReal(forceDensity[ZZ])
+//     std::array<GridReal, 3> forceGrid { {
+//                                                         GridReal(forceDensity[XX]),
+//                                                         GridReal(forceDensity[YY]),
+//                                                         GridReal(forceDensity[ZZ])
 //                                                     } };
 //
 // #pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid,
@@ -174,5 +172,4 @@ void densityBasedForce::force(std::vector<RVec> &force,
 //     }
 // }
 
-} /* volumedata */
 } /* gmx */

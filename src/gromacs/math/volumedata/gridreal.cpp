@@ -36,9 +36,11 @@
  * GridReal
  */
 #include "gridreal.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/math/volumedata/operations/griddataproperties.h"
+#include <array>
+
 namespace gmx
-{
-namespace volumedata
 {
 
 GridReal::GridReal(const Field<real> &baseField)
@@ -84,7 +86,7 @@ RVec GridReal::center_of_mass()
 {
     rvec weighted_grid_coordinate;
     RVec com = {0, 0, 0};
-    for (size_t i = 0; i < num_gridpoints(); i++)
+    for (int i = 0; i < num_gridpoints(); i++)
     {
         svmul(access().data()[i], gridpoint_coordinate(i),
               weighted_grid_coordinate);
@@ -165,6 +167,5 @@ real GridReal::getLinearInterpolationAt(RVec r) const
     }
 
     return ((1 - w_z) * interpolated_xy[0] + w_z * interpolated_xy[1]) / 8.0;
-}
 }
 }

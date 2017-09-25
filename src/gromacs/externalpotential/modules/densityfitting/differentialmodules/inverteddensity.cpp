@@ -45,8 +45,6 @@
 //
 // namespace gmx
 // {
-// namespace volumedata
-// {
 //
 // // const Field<real> &InvertedDensity::evaluateDensityDifferential(
 // //         const Field<real> & /*comparant*/, const Field<real> &reference)
@@ -127,5 +125,4 @@
 //     return std::unique_ptr<InvertedDensity>(new InvertedDensity);
 // }
 //
-// } /* volumedata */
 // } /* gmx */

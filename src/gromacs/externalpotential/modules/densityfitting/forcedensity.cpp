@@ -43,7 +43,7 @@
 #include "forcedensity.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/math/volumedata/fouriertransform.h"
+#include "gromacs/math/volumedata/operations/fouriertransform.h"
 #include "gromacs/math/volumedata/field.h"
 #include <algorithm>
 
@@ -52,8 +52,6 @@
  */
 
 namespace gmx
-{
-namespace volumedata
 {
 
 ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
@@ -124,6 +122,5 @@ ForceDensity::getForce()
     }
     return forces_;
 };
-} /* volumedata */
 
 } // gmx

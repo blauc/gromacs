@@ -34,11 +34,10 @@
  */
 
 #include "densitypadding.h"
-#include "field.h"
+#include "../field.h"
+#include <cmath>
 
 namespace gmx
-{
-namespace volumedata
 {
 
 std::unique_ptr < Field < real>>
@@ -94,6 +93,5 @@ DensityPadding::unpad(IVec unPadExtend) {
     }
 
     return unpadded;
-}
 }
 }

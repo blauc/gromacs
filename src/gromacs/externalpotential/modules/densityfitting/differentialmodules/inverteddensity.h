@@ -45,8 +45,6 @@
 // {
 // class WholeMoleculeGroup;
 //
-// namespace volumedata
-// {
 //
 // template <typename real> class Field;
 //
@@ -87,7 +85,6 @@
 //         static std::unique_ptr<IStructureDensityPotentialProvider> create();
 // };
 //
-// }      /* volumedata */
 // }      /* gmx */
 //
 // #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_INVERTEDDENSITY_H */

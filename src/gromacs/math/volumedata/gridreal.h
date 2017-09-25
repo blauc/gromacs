@@ -32,15 +32,16 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_MATH_GRIDREAL_H
- #define GMX_MATH_GRIDREAL_H
+#ifndef GMX_MATH_GRIDREAL_H
+#define GMX_MATH_GRIDREAL_H
 
 #include "field.h"
+#include "crystalsymmetry.h"
+#include "operations/griddataproperties.h"
+
 namespace gmx
 {
-namespace volumedata
-{
-
+// template<class T> class ScalarGridDataProperties;
 /*!
  * \brief
  * Real-space, real-value data on a dense grid with symmetry (symmetry can be
@@ -82,7 +83,6 @@ class GridReal : public Field<real>, public CrystalSymmetry
         RVec center_of_mass();
 };
 
-}
 }
 
  #endif /* end of include guard: GMX_MATH_GRIDREAL_H */

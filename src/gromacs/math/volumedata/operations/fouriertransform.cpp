@@ -42,7 +42,7 @@
 
 #include "fouriertransform.h"
 #include "densitypadding.h"
-#include "gridreal.h"
+#include "../gridreal.h"
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
@@ -53,8 +53,6 @@
 #include <fftw3.h>
 
 namespace gmx
-{
-namespace volumedata
 {
 
 IVec FourierTransform3D::columnMajorExtendToRowMajorExtend(IVec extend) const
@@ -304,6 +302,5 @@ void ApplyToUnshiftedFourierTransform::applyToAllRowsWithinColumn_(
         appliedFunction(*itValue, k);
         rvec_inc(k, deltakRow);
     }
-}
 }
 }

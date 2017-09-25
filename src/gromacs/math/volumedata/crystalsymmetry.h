@@ -32,41 +32,47 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDMEASURES_H
-#define GMX_MATH_GRIDMEASURES_H
+
+#ifndef GMX_MATH_CRYSTALSYMMETRY_H
+#define GMX_MATH_CRYSTALSYMMETRY_H
+
 #include <memory>
-#include <vector>
-#include <set>
-#include "gromacs/utility/real.h"
-#include "gromacs/math/gmxcomplex.h"
+#include <string>
 
-namespace gmx
-{
-namespace volumedata
-{
-
-template<typename real> class Field;
-class GridMeasures
+/*!  \brief
+ * Methods for handling crystal symmetry.
+ */
+class CrystalSymmetry
 {
     public:
-        GridMeasures(const Field<real> &reference);
-        real correlate(const Field<real> &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const Field<real> &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const Field<real>          &other,
-                                    const std::vector<real>    &other_reference) const;
-        real getKLCrossTermSameGrid(const Field<real> &other) const;
-        real getKLCrossTerm(const Field<real> &other) const;
-        real getKLSameGrid(const Field<real> &other) const;
-        real entropy() const;
-        real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
+        CrystalSymmetry();
+        CrystalSymmetry(const CrystalSymmetry &other);
+        ~CrystalSymmetry();
+        CrystalSymmetry &operator=(const CrystalSymmetry &other);
+
+        /*! \brief
+         * Set space group.
+         *
+         * \param[in] space_group according to "International Tables for
+         * Crystallography Table 12.3.4.1 Standard space-group symbol"
+         */
+        void set_space_group(int space_group);
+
+        /*! \brief
+         * retreive space group
+         *
+         * \returns space group according to "International Tables for Crystallography
+         * Table 12.3.4.1 Standard space-group symbol"
+         */
+        int space_group() const;
+        /*! \brief Writes all information about the grid of reals in human readable
+         * form to a string.
+         */
+        std::string print() const;
 
     private:
-        real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const Field<real> &reference_;
+        class Impl;
+        std::unique_ptr<CrystalSymmetry::Impl> impl_;
 };
-}
-}
 
-
-#endif /* end of include guard: GMX_MATH_GRIDMEASURES_H */
+#endif

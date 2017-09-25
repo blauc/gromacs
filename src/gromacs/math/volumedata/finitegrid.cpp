@@ -1,133 +1,12 @@
-/*
- * This file is part of the GROMACS molecular simulation package.
- *
- * Copyright (c) 2016, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
- *
- * GROMACS is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public License
- * as published by the Free Software Foundation; either version 2.1
- * of the License, or (at your option) any later version.
- *
- * GROMACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
- * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
- *
- * If you want to redistribute modifications to GROMACS, please
- * consider that scientific software is very special. Version
- * control is crucial - bugs must be traceable. We will be happy to
- * consider code for inclusion in the official distribution, but
- * derived work must not be called official GROMACS. Details are found
- * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
- *
- * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
- */
-/*! \internal \file
- * \brief
- * Implements methods from volumedata.h
- *
- * \author Christian Blau <cblau@gwdg.de>
- */
-#include "gmxpre.h"
-
-#include "gromacs/math/invertmatrix.h"
-#include "volumedata.h"
-
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <numeric>
-#include <string>
-#include <vector>
-
-#include "gromacs/math/utilities.h"
+#include "finitegrid.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/math/vectypes.h"
-
-#include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/gmxomp.h"
+#include "gromacs/math/utilities.h"
+#include "gromacs/math/invertmatrix.h"
+#include <string>
 
 namespace gmx
 {
 
-namespace volumedata
-{
-
-/********************************************************************
- * CrystalSymmetry::Impl
- */
-
-/*! \internal \brief
- * Private implementation class for CrystalSymmetry.
- *
- */
-class CrystalSymmetry::Impl
-{
-
-    public:
-        Impl()  = default;
-        ~Impl() = default;
-        Impl(const Impl &other);
-        Impl &operator=(const Impl &other);
-        int space_group_ = 1; //!< space group as defined by IUCr conventions (Table
-                              //! 12.3.4.1 Standard space-group symbols”, pages
-        //! 824-831, International Tables for Crystallography,
-        //! Volume A, fifth edition)
-};
-
-CrystalSymmetry::Impl::Impl(const Impl &other)
-{
-    space_group_ = other.space_group_;
-};
-
-CrystalSymmetry::Impl &
-CrystalSymmetry::Impl::operator=(const Impl &other)
-{
-    space_group_ = other.space_group_;
-    return *this;
-};
-
-
-/********************************************************************
- * CrystalSymmetry
- */
-
-void CrystalSymmetry::set_space_group(int space_group)
-{
-    impl_->space_group_ = space_group;
-}
-int CrystalSymmetry::space_group() const { return impl_->space_group_; }
-
-CrystalSymmetry::CrystalSymmetry() : impl_(new CrystalSymmetry::Impl()){};
-
-std::string CrystalSymmetry::print() const
-{
-    return "---crystal symmetry---\nspace group : " +
-           std::to_string(space_group()) + "---\n";
-};
-
-CrystalSymmetry::CrystalSymmetry(const CrystalSymmetry &other)
-    : impl_ {new CrystalSymmetry::Impl(*other.impl_)}
-{};
-
-CrystalSymmetry::~CrystalSymmetry() = default;
-
-CrystalSymmetry &
-CrystalSymmetry::operator=(const CrystalSymmetry &other)
-{
-    *impl_ = *other.impl_;
-    return *this;
-}
 /********************************************************************
  * FiniteGrid::Impl
  */
@@ -325,63 +204,10 @@ void FiniteGrid::convertToReciprocalSpace()
     resetCell();
 }
 
-Finite3DLatticeIndices::Finite3DLatticeIndices() = default;
-
-Finite3DLatticeIndices::Finite3DLatticeIndices(const Finite3DLatticeIndices &other)
-{
-    extend_          = other.extend_;
-    numGridPointsXY_ = other.numGridPointsXY_;
-    numGridPoints_   = other.numGridPoints_;
-};
-
-Finite3DLatticeIndices::Finite3DLatticeIndices(IVec extend)
-{
-    set_extend(extend);
-}
-
-
-
-void Finite3DLatticeIndices::set_extend(IVec extend)
-{
-    extend_          = extend;
-    numGridPointsXY_ = extend[XX] * extend[YY];
-    numGridPoints_   = numGridPointsXY_ * extend[ZZ];
-}
-
-IVec Finite3DLatticeIndices::extend() const { return extend_; }
-
-void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
-{
-    for (size_t i = 0; i <= ZZ; i++)
-    {
-        extend_[i] = std::ceil(extend_[i] * factor[i]);
-    }
-    numGridPointsXY_ = extend_[XX] * extend_[YY];
-    numGridPoints_   = numGridPointsXY_ * extend_[ZZ];
-}
 
 real FiniteGrid::grid_cell_volume() const
 {
     return det(impl_->cell_) / (real)num_gridpoints();
-}
-
-int Finite3DLatticeIndices::ndx3d_to_ndx1d(IVec ndx3D) const
-{
-    auto result = ndx3D[XX] > -1 ? ndx3D[XX] : extend_[XX] + ndx3D[XX];
-    result += ndx3D[YY] > -1 ? extend_[XX] * ndx3D[YY]
-        : extend_[XX] * (extend_[YY] + ndx3D[YY]);
-    result += ndx3D[ZZ] > -1 ? numGridPointsXY_ * ndx3D[ZZ]
-        : numGridPointsXY_ * (extend_[ZZ] + ndx3D[ZZ]);
-    return result;
-}
-
-IVec Finite3DLatticeIndices::ndx1d_to_ndx3d(int i) const
-{
-    IVec result;
-    result[XX] = (i % extend_[XX]) % extend_[YY];
-    result[YY] = (i / extend_[XX]) % extend_[YY];
-    result[ZZ] = (i / extend_[XX]) / extend_[YY];
-    return result;
 }
 
 void FiniteGrid::set_translation(RVec translate)
@@ -390,13 +216,6 @@ void FiniteGrid::set_translation(RVec translate)
 }
 
 RVec FiniteGrid::translation() const { return impl_->translate_; }
-
-size_t Finite3DLatticeIndices::numGridPointsXY() const
-{
-    return numGridPointsXY_;
-}
-
-size_t Finite3DLatticeIndices::num_gridpoints() const { return numGridPoints_; }
 
 RVec FiniteGrid::cell_lengths() const
 {
@@ -515,25 +334,6 @@ real FiniteGrid::avg_spacing()
            3;
 }
 
-bool Finite3DLatticeIndices::inGrid(int gridIndex, int dimension) const
-{
-    return ((gridIndex >= 0) && (gridIndex < extend_[dimension]));
-}
-
-bool Finite3DLatticeIndices::inGrid(IVec gridIndex) const
-{
-    if ((gridIndex[XX] < 0) || (gridIndex[YY] < 0) || (gridIndex[ZZ] < 0))
-    {
-        return false;
-    }
-    if ((gridIndex[XX] >= extend_[XX]) || (gridIndex[YY] >= extend_[YY]) ||
-        (gridIndex[ZZ] >= extend_[ZZ]))
-    {
-        return false;
-    }
-    return true;
-}
-
 RVec FiniteGrid::gridpoint_coordinate(IVec i) const
 {
     RVec result;
@@ -594,7 +394,4 @@ std::string FiniteGrid::print() const
     return result + "  ----- end finite grid -----\n\n";
 }
 
-
-} // namespace volumedata
-
-} // namespace gmx
+} // gmx

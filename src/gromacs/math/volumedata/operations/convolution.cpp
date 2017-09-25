@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,51 +32,61 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \internal \file
+/*!  \file
  * \brief
- * Implements helper class for autocorrelation tests
+ * Defines volume data containers.
  *
  * \author Christian Blau <cblau@gwdg.de>
+ * \inpublicapi
  */
-#ifndef GMX_MATH_FOURIERSHELLCORRELATION_H_
-#define GMX_MATH_FOURIERSHELLCORRELATION_H_
-
-#include "volumedata.h"
-#include "field.h"
+#include "convolution.h"
+#include "densitypadding.h"
+#include "fouriertransform.h"
 #include "gromacs/math/gmxcomplex.h"
-#include <set>
-#include <map>
-#include <vector>
+#include "gromacs/math/utilities.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
-namespace volumedata
+
+GaussConvolution::GaussConvolution(const Field<real> &input)
+    : input_(input), padded_input_ {nullptr}
 {
-
-class FourierShellCorrelation
-{
-    public:
-        typedef std::map < real, std::vector < t_complex>> fourierShell;
-        FourierShellCorrelation() = default;
-        /*! \brief Set bins from real-space grid guaranteeing six datapoints per shell.
-         *
-         */
-        FourierShellCorrelation(const FiniteGrid &RealGrid);
-        /*! \brief Calculate fourier shells with custom binning. */
-        FourierShellCorrelation(const std::set<real> &binEdges);
-        const std::set<real> &getBinEdges() const;
-        std::vector<real> getFscCurve(const Field<real> &reference, const Field<real> &other);
-
-    private:
-        class BinShells_;
-        void allocateShellDataContainersFromBins_(const std::set<real> &binEdges);
-        real correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const;
-        std::set<real> binEdges_;
-        fourierShell   referenceShells_;
-        fourierShell   otherShells_;
-
+    extendBeforePadding_ = input_.extend();
 };
 
-}      /* volumedata */
+GaussConvolution &GaussConvolution::pad(RVec paddingFactor)
+{
+    padded_input_ = DensityPadding(input_).pad(paddingFactor);
+    return *this;
 }
-#endif /* end of include guard: GMX_MATH_FOURIERSHELLCORRELATION_H_ */
+
+std::unique_ptr < Field < real>> GaussConvolution::convolute(real sigma) {
+    if (padded_input_ != nullptr)
+    {
+        fourierTransform_ =
+            FourierTransformRealToComplex3D(*padded_input_).normalize().result();
+    }
+    else
+    {
+        fourierTransform_ =
+            FourierTransformRealToComplex3D(input_).normalize().result();
+    }
+    auto sigmaSquared          = gmx::square(sigma);
+    auto convoluteWithGaussian = [sigmaSquared](t_complex &value, RVec k) {
+            auto prefactor = 1/(sqrt(2)) * exp(-2.0 * M_PI * M_PI * sigmaSquared * norm2(k));
+            value.re *= prefactor;
+            value.im *= prefactor;
+        };
+
+    ApplyToUnshiftedFourierTransform(*fourierTransform_).apply(convoluteWithGaussian);
+    auto result =
+        FourierTransformComplexToReal3D(*fourierTransform_).normalize().result();
+
+    if (padded_input_ != nullptr)
+    {
+        result = DensityPadding(*result).unpad(extendBeforePadding_);
+    }
+    return result;
+};
+}

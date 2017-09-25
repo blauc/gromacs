@@ -42,15 +42,15 @@
 #ifndef GMX_MATH_FOURIERTRANSFORM_H
 #define GMX_MATH_FOURIERTRANSFORM_H
 
-#include "field.h"
+#include "../field.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/real.h"
 #include <fftw3.h>
 #include <memory>
+#include <functional>
+
 namespace gmx
-{
-namespace volumedata
 {
 
 IVec realGridExtendFromFourierTransfrom(IVec extend);
@@ -117,6 +117,5 @@ class ApplyToUnshiftedFourierTransform
                                          FunctionOnComplexField appliedFunction);
         const Field<t_complex> &field_;
 };
-}
 }
 #endif /* end of include guard: GMX_MATH_FOURIERTRANSFORM_H */

@@ -51,9 +51,6 @@ namespace gmx
 {
 class WholeMoleculeGroup;
 
-namespace volumedata
-{
-
 class KullbackLeiblerPotential : public densityBasedPotential
 {
     public:
@@ -112,7 +109,6 @@ class KullbackLeiblerPotentialInfo
         static std::unique_ptr<IStructureDensityPotentialForceProvider> create();
 };
 
-}      /* volumedata */
 }      /* gmx */
 
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_KULLBACKLEIBLER_H */

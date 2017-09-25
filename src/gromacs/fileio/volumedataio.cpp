@@ -57,11 +57,9 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/math/units.h"
-
+#include "gromacs/math/volumedata/operations/griddataproperties.h"
 
 namespace gmx
-{
-namespace volumedata
 {
 
 /*******************************************************************************
@@ -86,9 +84,9 @@ class MrcFile::Impl
 
         std::string print_to_string();
 
-        void do_mrc(const volumedata::GridReal &grid_data, bool bRead);
-        void do_mrc_data_(volumedata::GridReal &grid_data, bool bRead);
-        void do_mrc_header_(volumedata::GridReal &grid_data, bool bRead);
+        void do_mrc(const GridReal &grid_data, bool bRead);
+        void do_mrc_data_(GridReal &grid_data, bool bRead);
+        void do_mrc_header_(GridReal &grid_data, bool bRead);
 
         void set_mrc_data_mode(int mode);
 
@@ -128,8 +126,8 @@ class MrcFile::Impl
         void write_float32_(real data);
         void write_float32_rvec_(const RVec &i);
 
-        void set_meta(const volumedata::GridReal &grid_data);
-        void set_grid_stats(const volumedata::GridReal &grid_data);
+        void set_meta(const GridReal &grid_data);
+        void set_grid_stats(const GridReal &grid_data);
 
 
         bool colummn_row_section_order_valid_(IVec crs_to_xyz);
@@ -390,7 +388,7 @@ bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
     return valid_crs_set == crs_set;
 };
 
-void MrcFile::Impl::do_mrc_header_(volumedata::GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_header_(GridReal &grid_data, bool bRead)
 {
 
     if (bRead)
@@ -842,7 +840,7 @@ void MrcFile::Impl::write_float32_(real data)
     fwrite(&to_write, sizeof(to_write), 1, file_);
 }
 
-void MrcFile::Impl::do_mrc_data_(volumedata::GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_data_(GridReal &grid_data, bool bRead)
 {
     if (bRead)
     {
@@ -923,11 +921,11 @@ void MrcFile::Impl::check_swap_bytes()
 
 }
 
-void MrcFile::Impl::do_mrc(const volumedata::GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc(const GridReal &grid_data, bool bRead)
 {
     //TODO: avoid const cast
-    do_mrc_header_(*(const_cast<volumedata::GridReal*>(&grid_data)), bRead);
-    do_mrc_data_(*(const_cast<volumedata::GridReal*>(&grid_data)), bRead);
+    do_mrc_header_(*(const_cast<GridReal*>(&grid_data)), bRead);
+    do_mrc_data_(*(const_cast<GridReal*>(&grid_data)), bRead);
 }
 
 bool MrcFile::Impl::known_extension(std::string filename)
@@ -1024,7 +1022,7 @@ MrcFile::Impl::~Impl()
     }
 };
 
-void MrcFile::Impl::set_meta(const volumedata::GridReal &grid_data)
+void MrcFile::Impl::set_meta(const GridReal &grid_data)
 {
     set_grid_stats(grid_data);
     IVec index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
@@ -1032,7 +1030,7 @@ void MrcFile::Impl::set_meta(const volumedata::GridReal &grid_data)
 }
 
 void
-MrcFile::Impl::set_grid_stats(const volumedata::GridReal &grid_data)
+MrcFile::Impl::set_grid_stats(const GridReal &grid_data)
 {
     auto properties = grid_data.properties();
     meta_.min_value  = properties.min();
@@ -1075,7 +1073,7 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, Mrc
     impl_->close_file();
 }
 
-void MrcFile::write(std::string filename, const volumedata::GridReal &grid_data)
+void MrcFile::write(std::string filename, const GridReal &grid_data)
 {
     bool bRead = false;
     impl_->set_meta(grid_data);
@@ -1110,7 +1108,7 @@ void MrcFile::read(std::string filename, GridReal &grid_data)
 }
 
 Df3File::SuccessfulDf3Write
-Df3File::write(std::string filename, const gmx::volumedata::GridReal &grid_data)
+Df3File::write(std::string filename, const gmx::GridReal &grid_data)
 {
     auto    file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t xExtendShort {
@@ -1140,7 +1138,7 @@ Df3File::write(std::string filename, const gmx::volumedata::GridReal &grid_data)
     return Df3File::SuccessfulDf3Write(filename, grid_data);
 }
 
-Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::volumedata::GridReal &grid_data) : filename_ {filename}, gridData_ {
+Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::GridReal &grid_data) : filename_ {filename}, gridData_ {
     grid_data
 } {};
 
@@ -1176,7 +1174,5 @@ void Df3File::SuccessfulDf3Write::writePovray()
     gmx_fio_fclose(file);
 
 }
-
-} // namespace volumedata
 
 } // namespace gmx

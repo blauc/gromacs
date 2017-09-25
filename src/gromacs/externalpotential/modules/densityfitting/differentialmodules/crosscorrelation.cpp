@@ -50,8 +50,6 @@
 //
 // namespace gmx
 // {
-// namespace volumedata
-// {
 //
 // const Field<real> &
 // CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
@@ -165,5 +163,4 @@
 //     return std::unique_ptr<CrossCorrelation>(new CrossCorrelation);
 // }
 //
-// } /* volumedata */
 // } /* gmx */

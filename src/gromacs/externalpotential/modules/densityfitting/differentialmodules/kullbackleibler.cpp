@@ -35,8 +35,8 @@
 
 #include "kullbackleibler.h"
 #include "gromacs/fileio/json.h"
-#include "gromacs/math/volumedata/gridinterpolator.h"
-#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/gridinterpolator.h"
+#include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/gmxomp.h"
 #include <memory>
@@ -44,9 +44,6 @@
 
 namespace gmx
 {
-namespace volumedata
-{
-
 void KullbackLeiblerForce::setDensityDifferential(
         const GridReal &comparant, const Field<real> &reference) const
 {
@@ -193,5 +190,4 @@ KullbackLeiblerPotentialInfo::create()
             new KullbackLeiblerProvider());
 }
 
-} /* volumedata */
 } /* gmx */

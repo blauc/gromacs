@@ -52,11 +52,6 @@
 namespace gmx
 {
 
-/*! \brief Classes for writing, reading, and storing volumetric data.
- */
-namespace volumedata
-{
-
 /*! \brief
  * A container for the metadata in mrc file formats (compatible with ccp4 and map and mostly imod).
  *
@@ -177,8 +172,6 @@ class Df3File
     public:
         SuccessfulDf3Write write(std::string filename, const GridReal &grid_data);
 };
-
-}      // namespace volumedata
 
 }      // namespace gmx
 #endif /* end of include guard: GMX_FILEIO_VOLUMEDATAIO_H_ */

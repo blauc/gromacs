@@ -39,11 +39,10 @@
 #include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/selection/centerofmass.h"
+#include "gromacs/math/vec.h"
 
 #include <algorithm>
 namespace gmx
-{
-namespace volumedata
 {
 
 RigidBodyFitResult RigidBodyFit::fitCoordinates(
@@ -279,10 +278,10 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 //     // accept translation if new potential better
 //     auto translationBeforeTrial = translation_;
 //     auto spreader_              =
-//     std::unique_ptr<volumedata::DensitySpreader>(
+//     std::unique_ptr<DensitySpreader>(
 //                 new DensitySpreader(reference, n_threads, n_sigma, sigma));
 //     spreadLocalAtoms_(translationgroup);
-//     // volumedata::MrcFile().write("test.mrc", *simulated_density_);
+//     // MrcFile().write("test.mrc", *simulated_density_);
 //
 //     forceCalculation(translationgroup);
 //     auto force = translationgroup->local_force_sum();
@@ -333,5 +332,4 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 //     return succededReducingDivergence;
 // };
 
-} /* volumedata */
 } /* gmx */

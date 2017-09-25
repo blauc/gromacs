@@ -47,8 +47,6 @@
 namespace gmx
 {
 class WholeMoleculeGroup;
-namespace volumedata
-{
 
 template <typename real> class Field;
 
@@ -152,6 +150,5 @@ class IStructureDensityPotentialForceProvider
         virtual ~IStructureDensityPotentialForceProvider() = default;
 };
 
-}      /* volumedata */
 }      /* gmx */
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H */

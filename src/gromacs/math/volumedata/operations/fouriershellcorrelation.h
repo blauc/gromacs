@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,36 +32,47 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_MATH_GRIDINTERPOLATOR_H
- #define GMX_MATH_GRIDINTERPOLATOR_H
+/*! \internal \file
+ * \brief
+ * Implements helper class for autocorrelation tests
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ */
+#ifndef GMX_MATH_FOURIERSHELLCORRELATION_H_
+#define GMX_MATH_FOURIERSHELLCORRELATION_H_
 
-#include "volumedata.h"
-#include "gridreal.h"
+#include "../field.h"
+#include "gromacs/math/gmxcomplex.h"
+#include <set>
+#include <map>
+#include <vector>
 
 namespace gmx
 {
-class Quaternion;
-namespace volumedata
-{
 
-class GridInterpolator
+class FourierShellCorrelation
 {
     public:
-        GridInterpolator(const FiniteGrid &basis);
-        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other);
-        /*! \brief
-            Interpolating after shifting and orienting the other grid.
+        typedef std::map < real, std::vector < t_complex>> fourierShell;
+        FourierShellCorrelation() = default;
+        /*! \brief Set bins from real-space grid guaranteeing six datapoints per shell.
+         *
          */
-        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
-
-        void makeUniform();
+        FourierShellCorrelation(const FiniteGrid &RealGrid);
+        /*! \brief Calculate fourier shells with custom binning. */
+        FourierShellCorrelation(const std::set<real> &binEdges);
+        const std::set<real> &getBinEdges() const;
+        std::vector<real> getFscCurve(const Field<real> &reference, const Field<real> &other);
 
     private:
-        std::unique_ptr<GridReal> interpolatedGrid_;
+        class BinShells_;
+        void allocateShellDataContainersFromBins_(const std::set<real> &binEdges);
+        real correlateComplex_(const std::vector<t_complex> &a, const std::vector<t_complex> &b) const;
+        std::set<real> binEdges_;
+        fourierShell   referenceShells_;
+        fourierShell   otherShells_;
+
 };
 
-
 }
-}
-
- #endif /* end of include guard: GMX_MATH_GRIDINTERPOLATOR_H */
+#endif /* end of include guard: GMX_MATH_FOURIERSHELLCORRELATION_H_ */

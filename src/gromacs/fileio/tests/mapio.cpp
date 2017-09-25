@@ -67,8 +67,8 @@ class MapTest : public ::testing::Test
 
 TEST_F(MapTest, CanReadMapFile)
 {
-    gmx::volumedata::GridReal grid_data;
-    gmx::volumedata::MrcFile  map_file;
+    gmx::GridReal             grid_data;
+    gmx::MrcFile              map_file;
     std::string               filename = fileManager_.getInputFilePath("EMD-2578.map");
 
     map_file.read(filename, grid_data);
@@ -77,9 +77,9 @@ TEST_F(MapTest, CanReadMapFile)
 
 TEST_F(MapTest, IORoundTripMapFile)
 {
-    gmx::volumedata::GridReal    grid_data;
-    gmx::volumedata::MrcFile     map_file;
-    gmx::volumedata::MrcMetaData metadata;
+    gmx::GridReal                grid_data;
+    gmx::MrcFile                 map_file;
+    gmx::MrcMetaData             metadata;
     const int                    header_byte_size = 1024;
     int                          fread_size;
     bool                         bOwnGridStats    = false;

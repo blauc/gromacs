@@ -44,7 +44,6 @@
 
 #include <memory>
 #include <vector>
-#include "gromacs/math/volumedata/volumedata.h"
 
 #include "gromacs/math/volumedata/gridreal.h"
 
@@ -52,8 +51,6 @@ namespace gmx
 {
 
 class WholeMoleculeGroup;
-namespace volumedata
-{
 
 template<typename real> class Field;
 class GridReal;
@@ -70,14 +67,12 @@ class DensitySpreader
         const GridReal &getSpreadGrid() const;
 
     private:
-        std::unique_ptr < std::vector < std::unique_ptr<volumedata::GaussTransform>>> gauss_transform_;
-        std::unique_ptr < std::vector < std::unique_ptr< volumedata::GridReal>>> simulated_density_buffer_;
+        std::unique_ptr < std::vector < std::unique_ptr<GaussTransform>>> gauss_transform_;
+        std::unique_ptr < std::vector < std::unique_ptr< GridReal>>> simulated_density_buffer_;
         std::unique_ptr< GridReal > simulated_density_;
         int number_of_threads_;
         const GridReal             &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const;
 };
-
-}
 
 } /* gmx */
 

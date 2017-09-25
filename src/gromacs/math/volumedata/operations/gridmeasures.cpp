@@ -35,16 +35,15 @@
 
 #include "gridmeasures.h"
 #include "fouriertransform.h"
-#include "gridreal.h"
+#include "../gridreal.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
-#include "volumedata.h"
 #include <map>
 #include <iterator>
 #include <set>
+#include "griddataproperties.h"
+#include "gromacs/utility/exceptions.h"
 
 namespace gmx
-{
-namespace volumedata
 {
 
 GridMeasures::GridMeasures(const Field<real> &reference)
@@ -197,5 +196,4 @@ real GridMeasures::entropy() const
     }
     return -1 * reference_.grid_cell_volume() * sum;
 };
-}
 }

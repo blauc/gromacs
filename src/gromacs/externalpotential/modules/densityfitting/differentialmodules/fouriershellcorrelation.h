@@ -46,8 +46,6 @@
 // {
 // class WholeMoleculeGroup;
 //
-// namespace volumedata
-// {
 // template <typename real> class Field;
 // class DensitySpreader;
 // class FiniteGrid;
@@ -89,7 +87,6 @@
 //         static std::unique_ptr<IDifferentialPotentialProvider> create();
 // };
 //
-// }      /* volumedata */
 // }      /* gmx */
 // #endif /* end of include guard: \
 //           GMX_EXTERNALPOTENTIAL_FOURIERSHELLCORRELATION_H */

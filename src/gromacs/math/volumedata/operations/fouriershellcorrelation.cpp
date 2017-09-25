@@ -46,10 +46,10 @@
 
 #include <set>
 #include <functional>
+#include <numeric>
+#include <algorithm>
 
 namespace gmx
-{
-namespace volumedata
 {
 
 FourierShellCorrelation::FourierShellCorrelation(const FiniteGrid &realGrid)
@@ -150,6 +150,5 @@ FourierShellCorrelation::correlateComplex_(const std::vector<t_complex> &a, cons
     return mulSum/sqrt(normASquare*normBSquare);
 };
 
-} /* volumedata */
 
 } /* gmx */

@@ -45,9 +45,6 @@
 namespace gmx
 {
 
-namespace volumedata
-{
-
 template <class T> class Field;
 class PotentialEvaluatorHandle;
 class PotentialForceEvaluator;
@@ -101,6 +98,5 @@ class RigidBodyFit
                              const RVec &center_of_rotation,
                              const Quaternion &orientation);
 };
-}
-}
+}      // namespace gmx
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H */

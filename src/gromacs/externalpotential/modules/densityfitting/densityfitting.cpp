@@ -58,9 +58,9 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
-#include "gromacs/math/volumedata/gausstransform.h"
+#include "gromacs/math/volumedata/operations/gausstransform.h"
 #include "gromacs/math/volumedata/gridreal.h"
-#include "gromacs/math/volumedata/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/fileio/xtcio.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/mtop_lookup.h"
@@ -106,7 +106,7 @@ DensityFitting::logInitialisationString_(int nAtoms, int timeStepNs)
 void
 DensityFitting::initialize(const matrix box, const rvec x[])
 {
-    potentialProvider_ = volumedata::PotentialLibrary().create(fitMethod_)();
+    potentialProvider_ = PotentialLibrary().create(fitMethod_)();
 
     if (bWriteXTC_)
     {
@@ -118,7 +118,7 @@ DensityFitting::initialize(const matrix box, const rvec x[])
     // potentialEvaluator_ = potentialProvider_->planPotential(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
     // if (isCenterOfMassCentered_)
     // {
-    // volumedata::RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);
+    // RigidBodyFit().fitCoordinates(*target_density_, fitatoms->xTransformed(), fitatoms->weights(), *potentialEvaluator_);
     // }
 
     const real timeStepNs = 0.004; // TODO: pass this from simulation input
@@ -203,7 +203,7 @@ void DensityFitting::do_potential( const matrix /*box*/, const rvec /*x*/[], con
     //
     // forceCalculation(fitatoms);
     //
-    // // volumedata::MrcFile simulated_output;
+    // // MrcFile simulated_output;
     // if (step % (every_nth_step_) == 0)
     // {
     //     // simulated_output.write("simulated.mrc", *simulated_density_);
@@ -214,8 +214,8 @@ void DensityFitting::do_potential( const matrix /*box*/, const rvec /*x*/[], con
 }
 
 DensityFitting::DensityFitting() : ExternalPotential(),
-                                   target_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
-                                   simulated_density_(std::unique_ptr<volumedata::GridReal>(new volumedata::GridReal())),
+                                   target_density_(std::unique_ptr<GridReal>(new GridReal())),
+                                   simulated_density_(std::unique_ptr<GridReal>(new GridReal())),
                                    translation_({0, 0, 0}
                                                 ), number_of_threads_ {
     std::max(1, gmx_omp_nthreads_get(emntDefault))
@@ -321,17 +321,17 @@ void DensityFitting::read_input()
 
     if (parsed_json.has("target_density"))
     {
-        volumedata::MrcFile  target_input_file;
+        MrcFile  target_input_file;
         target_density_name_ = parsed_json["target_density"];
         target_input_file.read(target_density_name_, *target_density_);
         if (parsed_json.has("target_density_used"))
         {
-            volumedata::MrcFile target_output_file;
+            MrcFile target_output_file;
             target_output_file.write(parsed_json["target_density_used"], *target_density_);
         }
         else
         {
-            volumedata::MrcFile target_output_file;
+            MrcFile target_output_file;
             target_output_file.write("target.ccp4", *target_density_);
         }
     }

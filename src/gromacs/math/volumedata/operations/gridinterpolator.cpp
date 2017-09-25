@@ -34,9 +34,8 @@
  */
 #include "gridinterpolator.h"
 #include "gromacs/math/quaternion.h"
+#include "gromacs/math/vec.h"
 namespace gmx
-{
-namespace volumedata
 {
 GridInterpolator::GridInterpolator(const FiniteGrid &basis)
     : interpolatedGrid_ {std::unique_ptr<GridReal>(new GridReal)}
@@ -103,5 +102,4 @@ GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &transla
 
 void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
 
-}
 }

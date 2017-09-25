@@ -32,14 +32,10 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-file(GLOB MATH_SOURCES *.cpp)
-set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${MATH_SOURCES} PARENT_SCOPE)
+file(GLOB MATH_SOURCES *.cpp operations/*.cpp)
 
 gmx_install_headers(
-    hilbertsort.h
     volumedata.h
-    gausstransform.h
-    improvedfastgausstransform.h
     )
 
 if (BUILD_TESTING)

@@ -49,8 +49,6 @@
 //
 // namespace gmx
 // {
-// namespace volumedata
-// {
 //
 // const Field<real> &FourierShellCorrelationProvider::evaluateDensityDifferential(
 //         const Field<real> & /*comparant*/, const Field<real> &reference)
@@ -104,5 +102,4 @@
 //             new FourierShellCorrelationProvider);
 // }
 //
-// } /* volumedata */
 // } /* gmx */

@@ -40,12 +40,10 @@
  * \inpublicapi
  */
 #include "gausstransform.h"
-#include "gridreal.h"
+#include "../gridreal.h"
 #include "gromacs/utility/exceptions.h"
 
 namespace gmx
-{
-namespace volumedata
 {
 
 void
@@ -230,7 +228,5 @@ FastGaussianGridding::finish_and_return_grid()
 {
     return std::move(grid_);
 }
-
-}    // namespace volumedata
 
 }    // namespace gmx

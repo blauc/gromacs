@@ -52,8 +52,6 @@ namespace gmx
 
 typedef BasicVector<int> IVec;
 
-namespace volumedata
-{
 class GridReal;
 
 class GaussTransform
@@ -116,9 +114,6 @@ class FastGaussianGridding : public GaussTransform
         std::vector<real>                E3_;      //< exp(-l^2*nu^2/2) , following the naming convention of Greengard et al., ;
 };
 
-
-}      // namespace volumedata
-
-}      // namespace volumedata
+}      // namespace gmx
 
 #endif /* end of include guard: _GAUSSTRANSFORM_H */

@@ -44,8 +44,6 @@
 
 namespace gmx
 {
-namespace volumedata
-{
 class IStructureDensityPotentialForceProvider;
 class PotentialLibrary
 {
@@ -71,7 +69,6 @@ class PotentialLibrary
         std::map < std::string, providerCreator> functions_;
 };
 
-}      // namespace volumedata
 }      // namespace gmx
 
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_PROVIDER_H */

@@ -32,40 +32,32 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*!  \file
- * \brief
- * Defines volume data containers.
- *
- * \author Christian Blau <cblau@gwdg.de>
- * \inpublicapi
- */
-#ifndef GMX_MATH_CONVOLUTION_H
-#define GMX_MATH_CONVOLUTION_H
+ #ifndef GMX_MATH_GRIDINTERPOLATOR_H
+ #define GMX_MATH_GRIDINTERPOLATOR_H
 
-#include "field.h"
-#include "gromacs/math/gmxcomplex.h"
+#include "../gridreal.h"
 
 namespace gmx
 {
-namespace volumedata
-{
+class Quaternion;
 
-
-class GaussConvolution
+class GridInterpolator
 {
     public:
-        GaussConvolution(const Field<real> &input);
-        std::unique_ptr < Field < real>> convolute(real sigma);
-        GaussConvolution &pad(RVec paddingFactor);
+        GridInterpolator(const FiniteGrid &basis);
+        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other);
+        /*! \brief
+            Interpolating after shifting and orienting the other grid.
+         */
+        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
+
+        void makeUniform();
 
     private:
-        IVec               extendBeforePadding_;
-        const Field<real> &input_;
-        std::unique_ptr < Field < real>> padded_input_;
-        std::unique_ptr < Field < t_complex>> fourierTransform_;
+        std::unique_ptr<GridReal> interpolatedGrid_;
 };
 
-}      // volumedata/
-}      // gmx
 
-#endif /* end of include guard: GMX_MATH_CONVOLUTION_H */
+}
+
+ #endif /* end of include guard: GMX_MATH_GRIDINTERPOLATOR_H */

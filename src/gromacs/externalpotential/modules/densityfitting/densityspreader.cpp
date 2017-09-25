@@ -35,23 +35,20 @@
 #include "densityspreader.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/volumedata.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/gmxomp.h"
-#include "gromacs/math/volumedata/gausstransform.h"
+#include "gromacs/math/volumedata/operations/gausstransform.h"
 #include "gromacs/math/quaternion.h"
 
 
 namespace gmx
 {
-namespace volumedata
-{
 DensitySpreader::~DensitySpreader()
 {
 };
 
-DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < volumedata::GaussTransform>>}, simulated_density_buffer_ {
-    new std::vector < std::unique_ptr < volumedata::GridReal>>
+DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
+    new std::vector < std::unique_ptr < GridReal>>
 },
 simulated_density_ {
     new GridReal(grid)
@@ -94,8 +91,8 @@ void DensitySpreader::zero() const
 const GridReal &
 DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
 {
-    std::vector<volumedata::IVec>            minimumUsedGridIndex(number_of_threads_);
-    std::vector<volumedata::IVec>            maximumUsedGridIndex(number_of_threads_);
+    std::vector<IVec>            minimumUsedGridIndex(number_of_threads_);
+    std::vector<IVec>            maximumUsedGridIndex(number_of_threads_);
 
     auto nAtoms = x.size();
 
@@ -124,11 +121,11 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
     std::vector<real>::iterator              simulatedDensityVoxelIterator;
 
-    volumedata::IVec gridStart;
-    volumedata::IVec gridEnd;
+    IVec gridStart;
+    IVec gridEnd;
     for (int i = XX; i <= ZZ; ++i)
     {
-        auto ithElementLarger = [i](volumedata::IVec a, volumedata::IVec b){
+        auto ithElementLarger = [i](IVec a, IVec b){
                 return a[i] < b[i];
             };
         gridStart[i] = (*std::min_element(std::begin(minimumUsedGridIndex), std::end(minimumUsedGridIndex), ithElementLarger))[i];
@@ -140,7 +137,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     auto simulatedDensityData = simulated_density_->access();
 
     // store the data accessors for threadlocal grid data in a vector
-    std::vector<volumedata::GridDataAccess<real> > simulatedDensityThreadGridData;
+    std::vector<GridDataAccess<real> > simulatedDensityThreadGridData;
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
         simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->extend(), (*simulated_density_buffer_)[thread]->access().data());
@@ -177,5 +174,4 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     return *simulated_density_;
 };
 
-} /* volumedata */
 } /* gmx */
