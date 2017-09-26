@@ -38,6 +38,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/real.h"
 
+
 namespace gmx
 {
 

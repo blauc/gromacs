@@ -32,10 +32,14 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#ifndef GMX_MPIHELPER_H
+#define GMX_MPIHELPER_H
+
 
 #include <vector>
 #include "gromacs/utility/real.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/utility/gmxmpi.h"
 
 namespace gmx
 {
@@ -67,3 +71,4 @@ class MpiHelper
 };
 
 } // namespace gmx
+#endif

@@ -119,6 +119,8 @@ class Group
 {
     public:
 
+        Group() = default;
+
         friend GroupIterator;
         friend constGroupIterator;
         GroupIterator begin(int thread_index, int num_threads);
@@ -147,6 +149,7 @@ class Group
          * copy constructor used for initialisation in derived classes
          */
         Group(const Group &group);
+
         Group(int nat, int *ind, bool bParallel);
         ~Group();
         void set_indices(gmx_ga2la_t  *ga2la);

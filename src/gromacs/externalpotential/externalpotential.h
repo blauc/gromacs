@@ -139,7 +139,7 @@ class ExternalPotential
 
         void set_local_virial(tensor virial);
 
-        MpiHelper *mpi_helper();
+        MpiHelper * mpi_helper();
 
         std::shared_ptr<ExternalPotentialIO> input_output();
 
