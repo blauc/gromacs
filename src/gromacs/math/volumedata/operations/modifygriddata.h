@@ -32,16 +32,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDREAL_H
-#define GMX_MATH_GRIDREAL_H
+#ifndef GMX_MATH_MODIFYGRIDDATA_H
+#define GMX_MATH_MODIFYGRIDDATA_H
 
-#include "field.h"
-#include "crystalsymmetry.h"
-#include "operations/griddataproperties.h"
+#include "../field.h"
 
 namespace gmx
 {
-// template<class T> class ScalarGridDataProperties;
 /*!
  * \brief
  * Real-space, real-value data on a dense grid with symmetry (symmetry can be
@@ -50,25 +47,22 @@ namespace gmx
  * Data is stored in 1d vector following (x,y,z) convention: x fastest, y
  * medium, z slowest dimension
  */
-class GridReal : public Field<real>, public CrystalSymmetry
+class ModifyGridData
 {
     public:
-        GridReal()  = default;
-        ~GridReal() = default;
-        GridReal(const Field<real> &baseField);
-        GridReal(GridReal &other);
-        GridReal(const GridReal &other);
+        ModifyGridData(Field<real> &grid);
+        ~ModifyGridData() = default;
+        ModifyGridData &multiply(real value);
 
-        ScalarGridDataProperties<real> properties() const;
-
-        real getLinearInterpolationAt(RVec r) const;
-        /*! \brief Writes all information about the grid of reals in human readable
-         * form to a string.
+        ModifyGridData &add_offset(real value);
+        /*! \brief Rescale values so their sum * grid_cell_volume is one.
          */
-        std::string print() const;
-        /*! \brief Center of mass as the weighted sum of gridpoint coordinates.
+        real normalize();
+        /*! \brief Set all voxel values to zero.
          */
-        RVec center_of_mass();
+        ModifyGridData &zero();
+    private:
+        Field<real> &grid_;
 };
 
 }

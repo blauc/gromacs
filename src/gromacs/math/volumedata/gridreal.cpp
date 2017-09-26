@@ -58,25 +58,6 @@ GridReal::GridReal(const GridReal &other)
 
 };
 
-void GridReal::multiply(real value)
-{
-    std::for_each(access().data().begin(), access().data().end(),
-                  [value](real &v) { v *= value; });
-}
-
-real GridReal::normalize()
-{
-    real integratedDensity =  properties().sum() / this->num_gridpoints();
-    multiply(1/integratedDensity);
-    return integratedDensity;
-}
-
-void GridReal::add_offset(real value)
-{
-    std::for_each(access().data().begin(), access().data().end(),
-                  [value](real &datum) { datum += value; });
-}
-
 ScalarGridDataProperties<real> GridReal::properties() const
 {
     return ScalarGridDataProperties<real>(access().data());
@@ -109,11 +90,6 @@ std::string GridReal::print() const
     result += "\n----- end real number grid -----\n\n";
     return result;
 }
-
-void GridReal::zero()
-{
-    std::fill(access().data().begin(), access().data().end(), 0);
-};
 
 real GridReal::getLinearInterpolationAt(RVec r) const
 {

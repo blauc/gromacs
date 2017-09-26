@@ -36,6 +36,7 @@
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/math/volumedata/operations/gausstransform.h"
 #include "gromacs/math/quaternion.h"
@@ -83,7 +84,7 @@ void DensitySpreader::zero() const
 {
     if (simulated_density_ != nullptr)
     {
-        simulated_density_->zero();
+        ModifyGridData(*simulated_density_).zero();
     }
 }
 
@@ -99,7 +100,7 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
 #pragma omp parallel num_threads(number_of_threads_)
     {
         int           thread     = gmx_omp_get_thread_num();
-        (*simulated_density_buffer_)[thread]->zero();
+        ModifyGridData(*((*simulated_density_buffer_)[thread])).zero();
         (*gauss_transform_)[thread]->set_grid(std::move((*simulated_density_buffer_)[thread]));
         auto beginThreadAtoms = thread * (nAtoms / number_of_threads_ );
         auto endThreadAtoms   = (thread == number_of_threads_-1) ?  nAtoms : (thread+1) * ( nAtoms / number_of_threads_);

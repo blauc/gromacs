@@ -32,45 +32,48 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDREAL_H
-#define GMX_MATH_GRIDREAL_H
-
-#include "field.h"
-#include "crystalsymmetry.h"
-#include "operations/griddataproperties.h"
+/********************************************************************
+ * GridReal
+ */
+#include "modifygriddata.h"
+#include "griddataproperties.h"
+#include "gromacs/math/vec.h"
+#include <array>
 
 namespace gmx
 {
-// template<class T> class ScalarGridDataProperties;
-/*!
- * \brief
- * Real-space, real-value data on a dense grid with symmetry (symmetry can be
- * none).
- *
- * Data is stored in 1d vector following (x,y,z) convention: x fastest, y
- * medium, z slowest dimension
- */
-class GridReal : public Field<real>, public CrystalSymmetry
+
+ModifyGridData::ModifyGridData(Field<real> &grid)
+    : grid_ {grid}
 {
-    public:
-        GridReal()  = default;
-        ~GridReal() = default;
-        GridReal(const Field<real> &baseField);
-        GridReal(GridReal &other);
-        GridReal(const GridReal &other);
 
-        ScalarGridDataProperties<real> properties() const;
+};
 
-        real getLinearInterpolationAt(RVec r) const;
-        /*! \brief Writes all information about the grid of reals in human readable
-         * form to a string.
-         */
-        std::string print() const;
-        /*! \brief Center of mass as the weighted sum of gridpoint coordinates.
-         */
-        RVec center_of_mass();
+ModifyGridData &ModifyGridData::multiply(real value)
+{
+    std::for_each(grid_.access().data().begin(), grid_.access().data().end(),
+                  [value](real &v) { v *= value; });
+    return *this;
+}
+
+real ModifyGridData::normalize()
+{
+    real integratedDensity =  BasicGridDataProperties<real>(grid_.access().data()).sum() / grid_.num_gridpoints();
+    multiply(1/integratedDensity);
+    return integratedDensity;
+}
+
+ModifyGridData &ModifyGridData::add_offset(real value)
+{
+    std::for_each(grid_.access().data().begin(), grid_.access().data().end(),
+                  [value](real &datum) { datum += value; });
+    return *this;
+}
+
+ModifyGridData &ModifyGridData::zero()
+{
+    std::fill(grid_.access().data().begin(), grid_.access().data().end(), 0);
+    return *this;
 };
 
 }
-
- #endif /* end of include guard: GMX_MATH_GRIDREAL_H */

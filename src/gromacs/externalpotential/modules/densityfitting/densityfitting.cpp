@@ -67,6 +67,7 @@
 #include "gromacs/topology/atoms.h"
 #include "emscatteringfactors.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/math/volumedata/operations/modifygriddata.h"
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 
@@ -113,7 +114,7 @@ DensityFitting::initialize(const matrix box, const rvec x[])
         out_  = open_xtc(trajectory_name_.c_str(), "w");
     }
     auto fitatoms = wholemoleculegroup(x, box, 0);
-    target_density_->normalize();
+    ModifyGridData(*target_density_).normalize();
 
     // potentialEvaluator_ = potentialProvider_->planPotential(fitatoms->xTransformed(), fitatoms->weights(), *target_density_, options_);
     // if (isCenterOfMassCentered_)

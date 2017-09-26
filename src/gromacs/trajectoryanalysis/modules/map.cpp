@@ -51,6 +51,7 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/volumedata/operations/improvedfastgausstransform.h"
+#include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -312,7 +313,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
                     new DensitySpreader(outputdensity_, 1, n_sigma_, sigma_));
 
 
-        outputDensityBuffer_.zero();
+        ModifyGridData(outputDensityBuffer_).zero();
     }
 
     std::vector<RVec> coordinates(fr.x, fr.x + fr.natoms);

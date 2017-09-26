@@ -55,6 +55,7 @@
 
 #include "gromacs/math/volumedata/operations/densitypadding.h"
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/exceptions.h"
 
@@ -248,7 +249,7 @@ void DensityMorph::scaleFlow_(std::array<GridReal, DIM> &densityflow, real scale
 {
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
     {
-        densityflow[dimension].multiply(scale);
+        ModifyGridData(densityflow[dimension]).multiply(scale);
     }
 }
 
@@ -322,8 +323,8 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
     MrcFile().read(fnmobile_, mobile_);
     MrcFile().read(fntarget_, target_);
 
-    mobile_.add_offset(0.001);
-    target_.add_offset(0.001);
+    ModifyGridData(mobile_).add_offset(0.001);
+    ModifyGridData(target_).add_offset(0.001);
 
     GridReal                              oldMorph(mobile_);
 
@@ -376,7 +377,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
 
 
             // create a new, morphed density
-            newMorph.zero();
+            ModifyGridData(newMorph).zero();
 
             for (int iz = 0; iz < extend[ZZ]; iz++)
             {
