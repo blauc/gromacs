@@ -50,7 +50,7 @@
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/math/do_fit.h"
-#include "gromacs/math/volumedata/operations/improvedfastgausstransform.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
