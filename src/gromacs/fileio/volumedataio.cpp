@@ -57,7 +57,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/math/units.h"
-#include "gromacs/math/volumedata/operations/griddataproperties.h"
+#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 
 namespace gmx
 {
@@ -1032,7 +1032,7 @@ void MrcFile::Impl::set_meta(const GridReal &grid_data)
 void
 MrcFile::Impl::set_grid_stats(const GridReal &grid_data)
 {
-    auto properties = grid_data.properties();
+    auto properties = RealFieldMeasure(grid_data);
     meta_.min_value  = properties.min();
     meta_.max_value  = properties.max();
     meta_.mean_value = properties.mean();
@@ -1126,8 +1126,9 @@ Df3File::write(std::string filename, const gmx::GridReal &grid_data)
     fputc(yExtendShort & 0xff, file_);
     fputc(zExtendShort >> 8, file_);
     fputc(zExtendShort & 0xff, file_);
-    auto gridMax = grid_data.properties().max();
-    auto gridMin = grid_data.properties().min();
+    auto measure = RealFieldMeasure(grid_data);
+    auto gridMax = measure.max();
+    auto gridMin = measure.min();
     for (auto voxel : grid_data.access().data())
     {
         auto scaledValue = float(voxel - gridMin)/float(gridMax-gridMin);

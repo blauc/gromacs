@@ -36,7 +36,7 @@
  * GridReal
  */
 #include "modifygriddata.h"
-#include "griddataproperties.h"
+#include "realfieldmeasure.h"
 #include "gromacs/math/vec.h"
 #include <array>
 
@@ -45,34 +45,30 @@ namespace gmx
 
 ModifyGridData::ModifyGridData(Field<real> &grid)
     : grid_ {grid}
-{
-
-};
+{ };
 
 ModifyGridData &ModifyGridData::multiply(real value)
 {
-    std::for_each(grid_.access().data().begin(), grid_.access().data().end(),
-                  [value](real &v) { v *= value; });
+    std::for_each(grid_.begin(), grid_.end(), [value](real &v) { v *= value; });
     return *this;
 }
 
 real ModifyGridData::normalize()
 {
-    real integratedDensity =  BasicGridDataProperties<real>(grid_.access().data()).sum() / grid_.num_gridpoints();
+    real integratedDensity =  RealFieldMeasure(grid_).mean();
     multiply(1/integratedDensity);
     return integratedDensity;
 }
 
 ModifyGridData &ModifyGridData::add_offset(real value)
 {
-    std::for_each(grid_.access().data().begin(), grid_.access().data().end(),
-                  [value](real &datum) { datum += value; });
+    std::for_each(grid_.begin(), grid_.end(), [value](real &datum) { datum += value; });
     return *this;
 }
 
 ModifyGridData &ModifyGridData::zero()
 {
-    std::fill(grid_.access().data().begin(), grid_.access().data().end(), 0);
+    std::fill(grid_.begin(), grid_.end(), 0);
     return *this;
 };
 

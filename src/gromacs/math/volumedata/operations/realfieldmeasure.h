@@ -32,87 +32,60 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_MATH_GRIDDATAPROPERTIES_H
-#define GMX_MATH_GRIDDATAPROPERTIES_H
+#ifndef GMX_MATH_REALFIELDMEASURE_H
+#define GMX_MATH_REALFIELDMEASURE_H
 
 #include <vector>
 #include <numeric>
 #include <algorithm>
 #include "gromacs/math/functions.h"
+#include "../field.h"
+#include "gromacs/math/vec.h"
+#include <string>
+#include "gromacs/utility/gmxomp.h"
 
 namespace gmx
 {
 
-template <class T> class BasicGridDataProperties
+class RealFieldMeasure
 {
     public:
-        explicit BasicGridDataProperties(const std::vector<T> &data) : data_ {data}
-        {}
+        explicit RealFieldMeasure(const Field<real> &realfield);
         /*! \brief The sum of all grid values. */
-        T sum() const
-        {
-            return std::accumulate(std::begin(data_), std::end(data_), 0.);
-        }
-
+        real sum() const;
         /*! \brief The minimum grid data value. */
-        T min() const
-        {
-            return *std::min_element(std::begin(data_), std::end(data_));
-        };
+        real min() const;
         /*! \brief The maximum grid data value. */
-        T max() const
-        {
-            return *std::max_element(std::begin(data_), std::end(data_));
-        };
+        real max() const;
         /*! \brief The mean grid data value. */
-        T mean() const { return sum() / static_cast<float>(data_.size()); };
+        real mean() const;
         /*! \brief
          * The size of the griddata in bytes.
          */
-        size_t data_size() const { return data_.size(); };
+        size_t data_size() const;
 
-        T sumOfSquareDeviation() const
-        {
-            T data_mean        = mean();
-            return std::accumulate(
-                    std::begin(data_), std::end(data_), 0.,
-                    [ data_mean ](const T &a, T b) { return a + gmx::square(b - data_mean); });
-        }
+        real sumOfSquareDeviation() const;
 
-        T normSquared() const
-        {
-            return std::accumulate( std::begin(data_), std::end(data_), 0., [](const T &a, const T &b) { return a + square(b); });
-        }
+        real normSquared() const;
 
-        T norm() const
-        {
-            return sqrt(normSquared());
-        }
+        real norm() const;
         /*! \brief The variance of data values.
          *
          * Two pass algorithm, where mean is calculated fist, due to large expected
          * amount of data. (Typical data size=1,000,000)
          */
-        T var() const
-        {
-            return sumOfSquareDeviation() / static_cast<real>(data_.size());
-        }
-
-    private:
-        const std::vector<T> &data_;
-};
-
-template <class T>
-class ScalarGridDataProperties : public BasicGridDataProperties<T>
-{
-    public:
-        explicit ScalarGridDataProperties(const std::vector<T> &data)
-            : BasicGridDataProperties<T>{data}, data_ {data} {};
+        real var() const;
         /*! \brief The root mean square deviation of grid data values. */
-        T rms() const { return sqrt(BasicGridDataProperties<T>::var()); };
+        real rms() const;
+
+
+        RVec center_of_mass() const;
+
+        std::string to_string() const;
+        real entropy() const;
 
     private:
-        const std::vector<T> &data_;
+        const Field<real> &realfield_;
 };
 
 }      // namespace gmx

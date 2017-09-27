@@ -342,7 +342,7 @@ RVec FiniteGrid::gridpoint_coordinate(IVec i) const
     return result;
 };
 
-RVec FiniteGrid::gridpoint_coordinate(int i)
+RVec FiniteGrid::gridpoint_coordinate(int i) const
 {
     return gridpoint_coordinate(ndx1d_to_ndx3d(i));
 }

@@ -72,6 +72,27 @@ class Field : public FiniteGrid
             copy_grid(other);
         };
 
+        typename std::vector<T>::iterator begin()
+        {
+            return std::begin(data_);
+        }
+
+        typename std::vector<T>::iterator end()
+        {
+            return std::end(data_);
+        }
+
+        typename std::vector<T>::const_iterator cbegin() const
+        {
+            return data_.cbegin();
+        }
+
+        typename std::vector<T>::const_iterator cend() const
+        {
+            return data_.cend();
+        }
+
+
         GridDataAccess<T> access() const
         {
             return GridDataAccess<T>(extend(), data_);

@@ -61,6 +61,7 @@
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 
+#include <algorithm>
 
 namespace gmx
 {

@@ -55,6 +55,7 @@
 
 #include "gromacs/math/volumedata/operations/densitypadding.h"
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/exceptions.h"
@@ -196,7 +197,7 @@ void DensityMorph::evaluateDensityDifferential_(const GridReal &morph, GridReal 
 
     // define the derivative of the density
     auto sumSimulatedDensity =
-        GridReal(morph).properties().sum();
+        RealFieldMeasure(morph).sum();
     //
     // auto cc = GridMeasures(morph).correlate(target_);
     // auto normSimulation = GridReal(morph).properties().norm();
@@ -236,8 +237,8 @@ void DensityMorph::evaluateFlow_(const GridReal &differential, std::array<GridRe
     std::vector<real> flow_rms;
     for (auto fd : densityflow)
     {
-        flow_rms.push_back(
-                std::max(fabs(fd.properties().min()), fabs(fd.properties().max())));
+        auto measure = RealFieldMeasure(fd);
+        flow_rms.push_back(std::max(fabs(measure.min()), fabs(measure.max())));
     }
 
     scaleFlow_(densityflow, 1 / (*std::max_element(std::begin(flow_rms),
@@ -334,7 +335,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
     std::array<GridReal, DIM>             densityflow;
     fprintf(stderr, "\n");
     fflush(stderr);
-    auto basesum = mobile_.properties().sum();
+    auto basesum = RealFieldMeasure(mobile_).sum();
     for (int iMorphIterations = 0; iMorphIterations < morphSteps_;
          iMorphIterations++)
     {
@@ -399,7 +400,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                 }
             }
             newDensityDistance = GridMeasures(target_).getKLSameGrid(newMorph);
-            fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, newMorph.properties().sum()-basesum);
+            fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, RealFieldMeasure(newMorph).sum()-basesum);
 
         }
 
@@ -416,7 +417,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
             auto fnmorph = s.insert(s.size() - 5, std::to_string(iMorphIterations));
             MrcFile().write(fnmorph, oldMorph);
             auto f = fopen((fnmorph+".dat").c_str(), "w+");
-            fprintf(f, "%s\n", oldMorph.print().c_str());
+            fprintf(f, "%s\n", RealFieldMeasure(oldMorph).to_string().c_str());
             fclose(f);
         }
     }

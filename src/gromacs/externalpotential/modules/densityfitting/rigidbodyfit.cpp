@@ -38,6 +38,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/math/volumedata/field.h"
 #include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/selection/centerofmass.h"
 #include "gromacs/math/vec.h"
 
@@ -52,7 +53,7 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
 {
 
     // first guess of parameters
-    auto             center_of_mass_density = GridReal(reference).center_of_mass();
+    auto             center_of_mass_density = RealFieldMeasure(reference).center_of_mass();
     rvec             center_of_geometry_structure;
     std::vector<int> indices(x.size());
     std::iota(indices.begin(), indices.end(), 0);

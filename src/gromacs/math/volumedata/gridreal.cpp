@@ -37,7 +37,6 @@
  */
 #include "gridreal.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/math/volumedata/operations/griddataproperties.h"
 #include <array>
 
 namespace gmx
@@ -57,39 +56,6 @@ GridReal::GridReal(const GridReal &other)
 {
 
 };
-
-ScalarGridDataProperties<real> GridReal::properties() const
-{
-    return ScalarGridDataProperties<real>(access().data());
-}
-
-RVec GridReal::center_of_mass()
-{
-    rvec weighted_grid_coordinate;
-    RVec com = {0, 0, 0};
-    for (int i = 0; i < num_gridpoints(); i++)
-    {
-        svmul(access().data()[i], gridpoint_coordinate(i),
-              weighted_grid_coordinate);
-        rvec_inc(com, weighted_grid_coordinate);
-    }
-    svmul(1. / (properties().sum()), com, com);
-    return com;
-}
-
-std::string GridReal::print() const
-{
-    std::string result;
-    result += "------- real number grid -------\n";
-    result += FiniteGrid::print();
-    result += "  min  :" + std::to_string(properties().min()) + "\n";
-    result += "  max  :" + std::to_string(properties().max()) + "\n";
-    result += "  mean :" + std::to_string(properties().mean()) + "\n";
-    result += "  var  :" + std::to_string(properties().var()) + "\n";
-    result += "  rms  :" + std::to_string(properties().rms()) + "\n";
-    result += "\n----- end real number grid -----\n\n";
-    return result;
-}
 
 real GridReal::getLinearInterpolationAt(RVec r) const
 {

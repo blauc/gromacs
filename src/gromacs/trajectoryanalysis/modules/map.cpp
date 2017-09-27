@@ -52,6 +52,7 @@
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
+#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -232,7 +233,7 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         if (bPrint_)
         {
             fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
-            fprintf(stderr, "\n%s\n", inputdensity_.print().c_str());
+            fprintf(stderr, "\n%s\n", RealFieldMeasure(inputdensity_).to_string().c_str());
         }
     }
 }

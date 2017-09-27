@@ -37,7 +37,6 @@
 
 #include "field.h"
 #include "crystalsymmetry.h"
-#include "operations/griddataproperties.h"
 
 namespace gmx
 {
@@ -59,16 +58,7 @@ class GridReal : public Field<real>, public CrystalSymmetry
         GridReal(GridReal &other);
         GridReal(const GridReal &other);
 
-        ScalarGridDataProperties<real> properties() const;
-
         real getLinearInterpolationAt(RVec r) const;
-        /*! \brief Writes all information about the grid of reals in human readable
-         * form to a string.
-         */
-        std::string print() const;
-        /*! \brief Center of mass as the weighted sum of gridpoint coordinates.
-         */
-        RVec center_of_mass();
 };
 
 }

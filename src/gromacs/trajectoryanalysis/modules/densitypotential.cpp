@@ -45,6 +45,7 @@
 #include "densitypotential.h"
 
 #include <string>
+#include <algorithm>
 
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"

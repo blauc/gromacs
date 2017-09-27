@@ -41,6 +41,7 @@
 #include "gromacs/math/volumedata/operations/gausstransform.h"
 #include "gromacs/math/quaternion.h"
 
+#include <algorithm>
 
 namespace gmx
 {

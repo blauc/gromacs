@@ -37,6 +37,7 @@
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/volumedata/operations/gridinterpolator.h"
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/gmxomp.h"
 #include <memory>
@@ -48,7 +49,7 @@ void KullbackLeiblerForce::setDensityDifferential(
         const GridReal &comparant, const Field<real> &reference) const
 {
     differential_->copy_grid(reference);
-    auto sumSimulatedDensity     = GridReal(comparant).properties().sum();
+    auto sumSimulatedDensity     = RealFieldMeasure(comparant).sum();
     auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
                                                          real densitySimulation) {
             return (densitySimulation > 1e-15 && densityExperiment > 1e-15)

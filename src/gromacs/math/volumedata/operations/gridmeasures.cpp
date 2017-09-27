@@ -36,12 +36,13 @@
 #include "gridmeasures.h"
 #include "fouriertransform.h"
 #include "../gridreal.h"
+#include "realfieldmeasure.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include <map>
 #include <iterator>
 #include <set>
-#include "griddataproperties.h"
 #include "gromacs/utility/exceptions.h"
+#include <numeric>
 
 namespace gmx
 {
@@ -53,10 +54,11 @@ GridMeasures::GridMeasures(const Field<real> &reference)
 real GridMeasures::correlate_(const std::vector<real> &a,
                               const std::vector<real> &b) const
 {
-    auto              aMean           = ScalarGridDataProperties<real>(a).mean();
-    auto              aSSE            = ScalarGridDataProperties<real>(a).sumOfSquareDeviation();
-    auto              bMean           = ScalarGridDataProperties<real>(b).mean();
-    auto              bSSE            = ScalarGridDataProperties<real>(b).sumOfSquareDeviation();
+
+    auto              aMean = std::accumulate(a.cbegin(), a.cend(), 0.) / a.size();
+    auto              aSSE  = std::accumulate(a.cbegin(), a.cend(), 0., [ aMean ](const real &a, real b) { return a + gmx::square(b - aMean); });
+    auto              bMean = std::accumulate(b.cbegin(), b.cend(), 0.) / b.size();
+    auto              bSSE  = std::accumulate(b.cbegin(), b.cend(), 0., [ bMean ](const real &a, real b) { return a + gmx::square(b - bMean); });
     std::vector<real> mulArray;
     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(mulArray), [aMean, bMean](real aValue, real bValue) { return (aValue - aMean) * (bValue - bMean); });
     return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
@@ -178,22 +180,5 @@ real GridMeasures::getKLCrossTermSameGrid(const Field<real> &other) const
     return -1 * reference_.grid_cell_volume() *sum;
 };
 
-real GridMeasures::entropy() const
-{
-    auto P    = reference_.access().data();
-    auto p    = P.begin();
-    int  size = P.size();
-    real sum  = 0;
-#pragma omp parallel for num_threads(std::max( \
-    1, gmx_omp_nthreads_get(emntDefault))) reduction(+ : sum) schedule( \
-    static, size / std::max(1, gmx_omp_nthreads_get(emntDefault)) + 1)
-    for (int i = 0; i < size; ++i)
-    {
-        if (p[i] > 0)
-        {
-            sum += p[i] * log(p[i]);
-        }
-    }
-    return -1 * reference_.grid_cell_volume() * sum;
-};
+
 }
