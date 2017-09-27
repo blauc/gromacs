@@ -59,7 +59,6 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/volumedata/operations/gausstransform.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/fileio/xtcio.h"
 #include "gromacs/topology/mtop_util.h"
@@ -215,8 +214,8 @@ void DensityFitting::do_potential( const matrix /*box*/, const rvec /*x*/[], con
 }
 
 DensityFitting::DensityFitting() : ExternalPotential(),
-                                   target_density_(std::unique_ptr<GridReal>(new GridReal())),
-                                   simulated_density_(std::unique_ptr<GridReal>(new GridReal())),
+                                   target_density_(std::unique_ptr < Field < real>>(new Field<real>())),
+                                   simulated_density_(std::unique_ptr < Field < real>>(new Field<real>())),
                                    translation_({0, 0, 0}
                                                 ), number_of_threads_ {
     std::max(1, gmx_omp_nthreads_get(emntDefault))

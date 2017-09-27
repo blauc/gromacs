@@ -39,7 +39,7 @@
 // #include <memory>
 // #include <string>
 // #include "gromacs/math/volumedata/gridmeasures.h"
-// #include "gromacs/math/volumedata/gridreal.h"
+//
 // #include "gromacs/utility/gmxomp.h"
 //
 //
@@ -70,9 +70,9 @@
 // //         rvec_inc(centerOfMass, weighted_coordinate);
 // //     }
 // //     svmul(1./weight_sum, centerOfMass, centerOfMass);
-// //     auto referenceGridReal = GridReal(reference);
-// //     auto sumOverGrid       = [referenceGridReal, centerOfMass, translation, orientation] (const real sum, const RVec r){
-// //             return sum + referenceGridReal.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
+// //     auto referenceField<real> = Field<real>(reference);
+// //     auto sumOverGrid       = [referenceField<real>, centerOfMass, translation, orientation] (const real sum, const RVec r){
+// //             return sum + referenceField<real>.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
 // //         };
 // //     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0., sumOverGrid);
 // // };
@@ -109,7 +109,7 @@
 // //         auto          endThreadAtoms   = atoms.end(thread, number_of_threads_);
 // //         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
 // //         {
-// //             result += GridReal(reference).getLinearInterpolationAt(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation));
+// //             result += Field<real>(reference).getLinearInterpolationAt(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation));
 // //         }
 // //     }
 // //     return result;

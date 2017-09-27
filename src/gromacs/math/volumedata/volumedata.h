@@ -46,7 +46,7 @@
  *
  * \ref gmx::Field binds one-dimensional data array to a \ref gmx::FiniteGrid.
  *
- * \ref gmx::GridReal provides functionality for real valued data on the grid.
+ * \ref gmx::Field<real> provides functionality for real valued data on the grid.
  *
  * \ref gmx::GridDataAccess provides convinience functionality for accessing slabs, slices and columns of densities.
  *

@@ -38,7 +38,7 @@
 namespace gmx
 {
 GridInterpolator::GridInterpolator(const FiniteGrid &basis)
-    : interpolatedGrid_ {std::unique_ptr<GridReal>(new GridReal)}
+    : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>)}
 {
     interpolatedGrid_->copy_grid(basis);
 };
@@ -48,8 +48,8 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
  *      find rational number grid cell index in input grid
  *      use fractional part for weights
  */
-std::unique_ptr<GridReal>
-GridInterpolator::interpolateLinearly(const GridReal &other)
+std::unique_ptr < Field < real>>
+GridInterpolator::interpolateLinearly(const Field<real> &other)
 {
     if (other.sameGridInAbsTolerance(*interpolatedGrid_))
     {
@@ -66,15 +66,15 @@ GridInterpolator::interpolateLinearly(const GridReal &other)
             for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
             {
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
-                interpolatedGridAccess.at({i_x, i_y, i_z}) = other.getLinearInterpolationAt(r);
+                interpolatedGridAccess.at({i_x, i_y, i_z}) = getLinearInterpolationAt(other, r);
             }
         }
     }
     return std::move(interpolatedGrid_);
 };
 
-std::unique_ptr<GridReal>
-GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
+std::unique_ptr < Field < real>>
+GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
 {
     if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
     {
@@ -91,7 +91,7 @@ GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &transla
             {
 
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
-                interpolatedGridAccess.at({i_x, i_y, i_z}) = other.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
+                interpolatedGridAccess.at({i_x, i_y, i_z}) = getLinearInterpolationAt(other, orientation.shiftedAndOriented(r, centerOfMass, translation));
 
             }
         }
@@ -101,5 +101,60 @@ GridInterpolator::interpolateLinearly(const GridReal &other, const RVec &transla
 
 
 void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
+
+real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const RVec &r) const
+{
+    auto rIndexInGrid = field.coordinateToRealGridIndex(r);
+    auto iIndexInGrid = field.coordinate_to_gridindex_floor_ivec(r);
+
+    auto w_x = rIndexInGrid[XX] - (real)iIndexInGrid[XX];
+    auto w_y = rIndexInGrid[YY] - (real)iIndexInGrid[YY];
+    auto w_z = rIndexInGrid[ZZ] - (real)iIndexInGrid[ZZ];
+
+    std::array<std::array<std::array<real, 2>, 2>, 2> cube;
+    auto data = field.access();
+
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        for (int ii_y = 0; ii_y <= 1; ++ii_y)
+        {
+            for (int ii_x = 0; ii_x <= 1; ++ii_x)
+            {
+                auto cube_index = iIndexInGrid;
+                cube_index[XX] += ii_x;
+                cube_index[YY] += ii_y;
+                cube_index[ZZ] += ii_z;
+                if (field.inGrid(cube_index))
+                {
+                    cube[ii_x][ii_y][ii_z] = data.at(cube_index);
+                }
+                else
+                {
+                    cube[ii_x][ii_y][ii_z] = 0;
+                }
+            }
+        }
+    }
+
+    std::array<std::array<real, 2>, 2> interpolated_x;
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        for (int ii_y = 0; ii_y <= 1; ++ii_y)
+        {
+            interpolated_x[ii_y][ii_z] =
+                (1 - w_x) * cube[0][ii_y][ii_z] + (w_x)*cube[1][ii_y][ii_z];
+        }
+    }
+
+    std::array<real, 2> interpolated_xy;
+    for (int ii_z = 0; ii_z <= 1; ++ii_z)
+    {
+        interpolated_xy[ii_z] = (1 - w_y) * interpolated_x[0][ii_z] +
+            (w_y)*interpolated_x[1][ii_z];
+    }
+
+    return ((1 - w_z) * interpolated_xy[0] + w_z * interpolated_xy[1]) / 8.0;
+}
+
 
 }

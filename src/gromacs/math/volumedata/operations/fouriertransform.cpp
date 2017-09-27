@@ -42,7 +42,7 @@
 
 #include "fouriertransform.h"
 #include "densitypadding.h"
-#include "../gridreal.h"
+#include "../field.h"
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"

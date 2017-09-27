@@ -35,26 +35,29 @@
  #ifndef GMX_MATH_GRIDINTERPOLATOR_H
  #define GMX_MATH_GRIDINTERPOLATOR_H
 
-#include "../gridreal.h"
+#include "../field.h"
 
 namespace gmx
 {
 class Quaternion;
 
+template<class T> class Field;
+
 class GridInterpolator
 {
     public:
         GridInterpolator(const FiniteGrid &basis);
-        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other);
+        std::unique_ptr < Field < real>> interpolateLinearly(const Field<real> &other);
         /*! \brief
             Interpolating after shifting and orienting the other grid.
          */
-        std::unique_ptr<GridReal> interpolateLinearly(const GridReal &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
+        std::unique_ptr < Field < real>> interpolateLinearly(const Field<real> &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
+        real getLinearInterpolationAt(const Field<real> &field, const RVec &r) const;
 
         void makeUniform();
 
     private:
-        std::unique_ptr<GridReal> interpolatedGrid_;
+        std::unique_ptr < Field < real>> interpolatedGrid_;
 };
 
 

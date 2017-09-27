@@ -84,9 +84,9 @@ class MrcFile::Impl
 
         std::string print_to_string();
 
-        void do_mrc(const GridReal &grid_data, bool bRead);
-        void do_mrc_data_(GridReal &grid_data, bool bRead);
-        void do_mrc_header_(GridReal &grid_data, bool bRead);
+        void do_mrc(const Field<real> &grid_data, bool bRead);
+        void do_mrc_data_(Field<real> &grid_data, bool bRead);
+        void do_mrc_header_(Field<real> &grid_data, bool bRead);
 
         void set_mrc_data_mode(int mode);
 
@@ -126,8 +126,8 @@ class MrcFile::Impl
         void write_float32_(real data);
         void write_float32_rvec_(const RVec &i);
 
-        void set_meta(const GridReal &grid_data);
-        void set_grid_stats(const GridReal &grid_data);
+        void set_meta(const Field<real> &grid_data);
+        void set_grid_stats(const Field<real> &grid_data);
 
 
         bool colummn_row_section_order_valid_(IVec crs_to_xyz);
@@ -388,7 +388,7 @@ bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
     return valid_crs_set == crs_set;
 };
 
-void MrcFile::Impl::do_mrc_header_(GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
 {
 
     if (bRead)
@@ -556,11 +556,11 @@ void MrcFile::Impl::do_mrc_header_(GridReal &grid_data, bool bRead)
      * For image stacks ISPG = 0 */
     if (bRead)
     {
-        grid_data.set_space_group(read_int32_());
+        meta_.space_group = read_int32_();
     }
     else
     {
-        write_int32_(grid_data.space_group());
+        write_int32_(meta_.space_group);
     }
 
     /* 24 | NSYMBT | signed int | 80n
@@ -840,7 +840,7 @@ void MrcFile::Impl::write_float32_(real data)
     fwrite(&to_write, sizeof(to_write), 1, file_);
 }
 
-void MrcFile::Impl::do_mrc_data_(GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
     if (bRead)
     {
@@ -921,11 +921,11 @@ void MrcFile::Impl::check_swap_bytes()
 
 }
 
-void MrcFile::Impl::do_mrc(const GridReal &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc(const Field<real> &grid_data, bool bRead)
 {
     //TODO: avoid const cast
-    do_mrc_header_(*(const_cast<GridReal*>(&grid_data)), bRead);
-    do_mrc_data_(*(const_cast<GridReal*>(&grid_data)), bRead);
+    do_mrc_header_(*(const_cast<Field<real>*>(&grid_data)), bRead);
+    do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
 }
 
 bool MrcFile::Impl::known_extension(std::string filename)
@@ -965,6 +965,7 @@ void MrcFile::Impl::open_file(std::string filename, bool bRead)
 void MrcFile::Impl::set_metadata_mrc_default()
 {
     meta_.swap_bytes               = false;
+    meta_.space_group              = 1;
     meta_.mrc_data_mode            = 2;
     meta_.num_bytes_extened_header = 0;
     meta_.has_skew_matrix          = false;
@@ -1022,7 +1023,7 @@ MrcFile::Impl::~Impl()
     }
 };
 
-void MrcFile::Impl::set_meta(const GridReal &grid_data)
+void MrcFile::Impl::set_meta(const Field<real> &grid_data)
 {
     set_grid_stats(grid_data);
     IVec index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
@@ -1030,7 +1031,7 @@ void MrcFile::Impl::set_meta(const GridReal &grid_data)
 }
 
 void
-MrcFile::Impl::set_grid_stats(const GridReal &grid_data)
+MrcFile::Impl::set_grid_stats(const Field<real> &grid_data)
 {
     auto properties = RealFieldMeasure(grid_data);
     meta_.min_value  = properties.min();
@@ -1057,7 +1058,7 @@ std::string MrcFile::print_to_string()
     return impl_->print_to_string();
 }
 
-void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta, bool bOwnGridStats)
+void MrcFile::write_with_own_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta, bool bOwnGridStats)
 {
     bool bRead = false;
 
@@ -1073,7 +1074,7 @@ void MrcFile::write_with_own_meta(std::string filename, GridReal &grid_data, Mrc
     impl_->close_file();
 }
 
-void MrcFile::write(std::string filename, const GridReal &grid_data)
+void MrcFile::write(std::string filename, const Field<real> &grid_data)
 {
     bool bRead = false;
     impl_->set_meta(grid_data);
@@ -1085,21 +1086,21 @@ void MrcFile::write(std::string filename, const GridReal &grid_data)
 
 void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
 {
-    GridReal griddata;
-    bool     bRead = true;
+    Field<real> griddata;
+    bool        bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(griddata, bRead);
     impl_->close_file();
     meta = impl_->meta_;
 }
 
-void MrcFile::read_with_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta)
+void MrcFile::read_with_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta)
 {
     read(filename, grid_data);
     meta = impl_->meta_;
 }
 
-void MrcFile::read(std::string filename, GridReal &grid_data)
+void MrcFile::read(std::string filename, Field<real> &grid_data)
 {
     bool bRead = true;
     impl_->open_file(filename, bRead);
@@ -1108,7 +1109,7 @@ void MrcFile::read(std::string filename, GridReal &grid_data)
 }
 
 Df3File::SuccessfulDf3Write
-Df3File::write(std::string filename, const gmx::GridReal &grid_data)
+Df3File::write(std::string filename, const gmx::Field<real> &grid_data)
 {
     auto    file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t xExtendShort {
@@ -1139,7 +1140,7 @@ Df3File::write(std::string filename, const gmx::GridReal &grid_data)
     return Df3File::SuccessfulDf3Write(filename, grid_data);
 }
 
-Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::GridReal &grid_data) : filename_ {filename}, gridData_ {
+Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::Field<real> &grid_data) : filename_ {filename}, gridData_ {
     grid_data
 } {};
 

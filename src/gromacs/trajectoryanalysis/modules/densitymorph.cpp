@@ -57,7 +57,7 @@
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
-#include "gromacs/math/volumedata/gridreal.h"
+
 #include "gromacs/utility/exceptions.h"
 
 #include "gromacs/options/basicoptions.h"
@@ -97,21 +97,21 @@ class DensityMorph : public TrajectoryAnalysisModule
 
     private:
 
-        void evaluateDensityDifferential_(const GridReal &morph, GridReal &differential);
-        void evaluateFlow_(const GridReal &differential, std::array<GridReal, DIM> &densityflow);
+        void evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential);
+        void evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow);
         void applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old);
-        void scaleFlow_(std::array<GridReal, DIM> &densityflow, real scale);
-        std::string          fnmobile_       = "from.ccp4";
-        std::string          fntarget_       = "to.ccp4";
-        std::string          fnforcedensity_ = "forcedensity.ccp4";
-        std::string          fnmorphtraj_    = "morph.ccp4";
-        GridReal             mobile_;
-        GridReal             target_;
-        int                  every_          = 10;
-        int                  morphSteps_     = 10;
-        real                 morphstepscale_ = 1;
-        real                 sigma_          = 1;
-        std::string          potentialType_;
+        void scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale);
+        std::string             fnmobile_       = "from.ccp4";
+        std::string             fntarget_       = "to.ccp4";
+        std::string             fnforcedensity_ = "forcedensity.ccp4";
+        std::string             fnmorphtraj_    = "morph.ccp4";
+        Field<real>             mobile_;
+        Field<real>             target_;
+        int                     every_          = 10;
+        int                     morphSteps_     = 10;
+        real                    morphstepscale_ = 1;
+        real                    sigma_          = 1;
+        std::string             potentialType_;
         std::unique_ptr<IStructureDensityPotentialProvider>
         potentialProvider_;
         PotentialEvaluatorHandle potentialEvaluator;
@@ -192,7 +192,7 @@ void DensityMorph::analyzeFrame(int /*frnr*/, const t_trxframe & /*fr*/,
                                 t_pbc * /*pbc*/,
                                 TrajectoryAnalysisModuleData * /*pdata*/) {}
 
-void DensityMorph::evaluateDensityDifferential_(const GridReal &morph, GridReal &differential)
+void DensityMorph::evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential)
 {
 
     // define the derivative of the density
@@ -200,7 +200,7 @@ void DensityMorph::evaluateDensityDifferential_(const GridReal &morph, GridReal 
         RealFieldMeasure(morph).sum();
     //
     // auto cc = GridMeasures(morph).correlate(target_);
-    // auto normSimulation = GridReal(morph).properties().norm();
+    // auto normSimulation = Field<real>(morph).properties().norm();
     // auto densityGradientFunction = [normSimulation, cc](
     //     real densityExperiment, real densitySimulation) {
     //   return (densityExperiment - cc * densitySimulation) / (normSimulation);
@@ -219,7 +219,7 @@ void DensityMorph::evaluateDensityDifferential_(const GridReal &morph, GridReal 
 
 }
 
-void DensityMorph::evaluateFlow_(const GridReal &differential, std::array<GridReal, DIM> &densityflow)
+void DensityMorph::evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow)
 {
     // calculate force direction on grid from density derivative
     auto paddedDifferential =
@@ -246,7 +246,7 @@ void DensityMorph::evaluateFlow_(const GridReal &differential, std::array<GridRe
 
 }
 
-void DensityMorph::scaleFlow_(std::array<GridReal, DIM> &densityflow, real scale)
+void DensityMorph::scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale)
 {
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
     {
@@ -327,12 +327,12 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
     ModifyGridData(mobile_).add_offset(0.001);
     ModifyGridData(target_).add_offset(0.001);
 
-    GridReal                              oldMorph(mobile_);
+    Field<real>                              oldMorph(mobile_);
 
-    auto                                  common_grid = (FiniteGrid)mobile_;
-    GridReal                              differential(common_grid);
-    GridReal                              newMorph(common_grid);
-    std::array<GridReal, DIM>             densityflow;
+    auto                                     common_grid = (FiniteGrid)mobile_;
+    Field<real>                              differential(common_grid);
+    Field<real>                              newMorph(common_grid);
+    std::array<Field<real>, DIM>             densityflow;
     fprintf(stderr, "\n");
     fflush(stderr);
     auto basesum = RealFieldMeasure(mobile_).sum();
@@ -372,7 +372,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);
             // MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
             //
-            // GridReal flowintensity(densityflow[XX]);
+            // Field<real> flowintensity(densityflow[XX]);
             // std::transform(oldMorph.access().begin(), oldMorph.access().end(), densityflow[XX].access().begin(), flowintensity.access().begin(),[](real a,real b){return a*b;});
             // MrcFile().write("intensityxx.ccp4", flowintensity);
 

@@ -95,29 +95,29 @@ class Map : public TrajectoryAnalysisModule
         void set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation);
         void frameToDensity_(const t_trxframe &fr, int nFr);
 
-        std::string                      fnmapinput_;
-        std::string                      fnmapoutput_;
-        std::string                      fnfrmapoutput_;
+        std::string                         fnmapinput_;
+        std::string                         fnmapoutput_;
+        std::string                         fnfrmapoutput_;
 
-        float                            sigma_   = 0.4;
-        float                            n_sigma_ = 5;
-        GridReal                         inputdensity_;
-        GridReal                         outputdensity_;
-        GridReal                         outputDensityBuffer_;
-        real                             spacing_       = 0.2;
-        bool                             bPrint_        = false;
-        bool                             bRigidBodyFit_ = true;
-        std::vector<float>               weight_;
-        int                              every_                    = 1;
-        real                             expAverage_               = 1.;
-        int                              nFr_                      = 0;
-        bool                             bFitFramesToTopStructure_ = false;
-        int                              nAtomsReference_;
-        std::vector<RVec>                referenceX_;
-        matrix                           referenceBox;
-        std::vector<real>                fitWeights;
-        bool                             bUseBox_ = false;
-        std::unique_ptr<DensitySpreader> spreader_;
+        float                               sigma_   = 0.4;
+        float                               n_sigma_ = 5;
+        Field<real>                         inputdensity_;
+        Field<real>                         outputdensity_;
+        Field<real>                         outputDensityBuffer_;
+        real                                spacing_       = 0.2;
+        bool                                bPrint_        = false;
+        bool                                bRigidBodyFit_ = true;
+        std::vector<float>                  weight_;
+        int                                 every_                    = 1;
+        real                                expAverage_               = 1.;
+        int                                 nFr_                      = 0;
+        bool                                bFitFramesToTopStructure_ = false;
+        int                                 nAtomsReference_;
+        std::vector<RVec>                   referenceX_;
+        matrix                              referenceBox;
+        std::vector<real>                   fitWeights;
+        bool                                bUseBox_ = false;
+        std::unique_ptr<DensitySpreader>    spreader_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,

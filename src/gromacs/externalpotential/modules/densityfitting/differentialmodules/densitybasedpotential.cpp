@@ -45,8 +45,8 @@
 #include "gromacs/math/vectypes.h"
 
 #include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridreal.h"
-#include "gromacs/math/volumedata/volumedata.h"
+
+#include "gromacs/math/volumedata/operations/gridinterpolator.h"
 
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/real.h"
@@ -108,13 +108,13 @@ void densityBasedForce::force(std::vector<RVec> &force,
                                                           centerOfRotation),
                                reference);
     }
-    auto                    forceDensity =
+    auto                       forceDensity =
         ForceDensity(*differential_, sigma_differential_).getForce();
-    std::array<GridReal, 3> forceGrid {
+    std::array<Field<real>, 3> forceGrid {
         {
-            GridReal(forceDensity[XX]),
-            GridReal(forceDensity[YY]),
-            GridReal(forceDensity[ZZ])
+            Field<real>(forceDensity[XX]),
+            Field<real>(forceDensity[YY]),
+            Field<real>(forceDensity[ZZ])
         }
     };
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
@@ -124,9 +124,9 @@ void densityBasedForce::force(std::vector<RVec> &force,
         auto r = orientation.shiftedAndOriented(coordinates[i], centerOfRotation,
                                                 translation);
         auto f = RVec {
-            forceGrid[XX].getLinearInterpolationAt(r),
-            forceGrid[YY].getLinearInterpolationAt(r),
-            forceGrid[ZZ].getLinearInterpolationAt(r)
+            GridInterpolator(forceGrid[XX]).getLinearInterpolationAt(forceGrid[XX], r),
+            GridInterpolator(forceGrid[YY]).getLinearInterpolationAt(forceGrid[YY], r),
+            GridInterpolator(forceGrid[ZZ]).getLinearInterpolationAt(forceGrid[ZZ], r)
         };
         svmul(weights[i], f, force[i]);
         orientation.rotate_backwards(force[i]);
@@ -142,10 +142,10 @@ void densityBasedForce::force(std::vector<RVec> &force,
 //     setDensityDifferential(*spread_density_, reference);
 //     auto forceDensity = ForceDensity(*differential_,
 //     sigma_differential_).getForce();
-//     std::array<GridReal, 3> forceGrid { {
-//                                                         GridReal(forceDensity[XX]),
-//                                                         GridReal(forceDensity[YY]),
-//                                                         GridReal(forceDensity[ZZ])
+//     std::array<Field<real>, 3> forceGrid { {
+//                                                         Field<real>(forceDensity[XX]),
+//                                                         Field<real>(forceDensity[YY]),
+//                                                         Field<real>(forceDensity[ZZ])
 //                                                     } };
 //
 // #pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid,

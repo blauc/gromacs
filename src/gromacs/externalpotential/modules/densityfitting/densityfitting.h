@@ -57,7 +57,7 @@ namespace gmx
 class GroupAtom;
 
 struct MrcMetaData;
-class GridReal;
+template<class T> class Field;
 class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
@@ -109,8 +109,8 @@ class DensityFitting : public ExternalPotential
         std::string options_;
 
         std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr<GridReal>                           target_density_;
-        std::unique_ptr<GridReal>                           simulated_density_;
+        std::unique_ptr < Field < real>>                           target_density_;
+        std::unique_ptr < Field < real>>                           simulated_density_;
         real                    background_density_;
         MrcMetaData             meta_;
         std::string             trajectory_name_;

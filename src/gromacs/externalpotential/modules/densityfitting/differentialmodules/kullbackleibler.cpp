@@ -38,7 +38,6 @@
 #include "gromacs/math/volumedata/operations/gridinterpolator.h"
 #include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/math/volumedata/operations/realfieldmeasure.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/utility/gmxomp.h"
 #include <memory>
 #include <string>
@@ -46,7 +45,7 @@
 namespace gmx
 {
 void KullbackLeiblerForce::setDensityDifferential(
-        const GridReal &comparant, const Field<real> &reference) const
+        const Field<real> &comparant, const Field<real> &reference) const
 {
     differential_->copy_grid(reference);
     auto sumSimulatedDensity     = RealFieldMeasure(comparant).sum();
@@ -76,7 +75,7 @@ real KullbackLeiblerPotential::densityDensityPotential(
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //     (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = GridReal(comparant).center_of_mass();
+//         auto centerOfMass = Field<real>(comparant).center_of_mass();
 //         auto interpolated =
 //         GridInterpolator(reference).interpolateLinearly(comparant,
 //         translation, centerOfMass, orientation);

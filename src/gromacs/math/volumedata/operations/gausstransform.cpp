@@ -40,14 +40,14 @@
  * \inpublicapi
  */
 #include "gausstransform.h"
-#include "../gridreal.h"
+#include "../field.h"
 #include "gromacs/utility/exceptions.h"
 
 namespace gmx
 {
 
 void
-GaussTransform::set_grid(std::unique_ptr<GridReal> grid)
+GaussTransform::set_grid(std::unique_ptr < Field < real>> grid)
 {
     grid_ = std::move((grid));
 };
@@ -78,7 +78,7 @@ GaussTransform::getMaximumUsedGridIndex()
 
 
 void
-FastGaussianGridding::set_grid(std::unique_ptr<GridReal> grid)
+FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
 {
     if (grid->rectangular())
     {
@@ -223,7 +223,7 @@ FastGaussianGridding::transform(const rvec x, real weight)
     tensor_product_();
 }
 
-std::unique_ptr<GridReal>
+std::unique_ptr < Field < real>>
 FastGaussianGridding::finish_and_return_grid()
 {
     return std::move(grid_);

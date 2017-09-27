@@ -56,8 +56,7 @@ class Quaternion;
 
 class DensitySpreader;
 class FiniteGrid;
-class GridReal;
-// template<typename T> class Field;
+template<class T> class Field;
 
 class densityBasedPotential : public PotentialEvaluator
 {
@@ -93,8 +92,8 @@ class densityBasedForce : public ForceEvaluator
                    const RVec &centerOfRotation = {0, 0, 0}) const override;
 
     protected:
-        virtual void setDensityDifferential(const GridReal    &reference,
-                                            const Field<real> &comparant) const = 0;
+        virtual void setDensityDifferential(const Field<real>    &reference,
+                                            const Field<real>    &comparant) const = 0;
         std::unique_ptr < Field < real>> differential_;
         real                   sigma_differential_;
         int                    n_threads_;

@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /********************************************************************
- * GridReal
+ * Field<real>
  */
 #include "modifygriddata.h"
 #include "realfieldmeasure.h"

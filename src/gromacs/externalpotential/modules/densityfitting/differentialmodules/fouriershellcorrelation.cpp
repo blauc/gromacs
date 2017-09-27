@@ -43,7 +43,7 @@
 // #include "gromacs/math/volumedata/fouriershellcorrelation.h"
 // #include "gromacs/math/volumedata/gridinterpolator.h"
 // #include "gromacs/math/volumedata/gridmeasures.h"
-// #include "gromacs/math/volumedata/gridreal.h"
+//
 // #include "gromacs/utility/gmxomp.h"
 // #include "gromacs/utility/real.h"
 //
@@ -65,7 +65,7 @@
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //         (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = GridReal(comparant).center_of_mass();
+//         auto centerOfMass = Field<real>(comparant).center_of_mass();
 //         auto interpolated = GridInterpolator(reference).interpolateLinearly(
 //                     comparant, translation, centerOfMass, orientation);
 //         auto fscCurve = FourierShellCorrelation(reference).getFscCurve(

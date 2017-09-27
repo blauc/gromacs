@@ -35,7 +35,6 @@
 #include "densityspreader.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/math/volumedata/operations/gausstransform.h"
@@ -50,10 +49,10 @@ DensitySpreader::~DensitySpreader()
 };
 
 DensitySpreader::DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
-    new std::vector < std::unique_ptr < GridReal>>
+    new std::vector < std::unique_ptr < Field<real>>>
 },
 simulated_density_ {
-    new GridReal(grid)
+    new Field<real>(grid)
 }, number_of_threads_ {
     numberOfThreads
 }
@@ -64,7 +63,7 @@ simulated_density_ {
     {
     #pragma omp critical
         {
-            (*simulated_density_buffer_).emplace_back(new GridReal(grid));
+            (*simulated_density_buffer_).emplace_back(new Field<real>(grid));
             (*gauss_transform_).emplace_back(new FastGaussianGridding());
         }
     }
@@ -75,7 +74,7 @@ simulated_density_ {
     }
 }
 
-const GridReal &
+const Field<real> &
 DensitySpreader::getSpreadGrid() const
 {
     return *simulated_density_;
@@ -90,7 +89,7 @@ void DensitySpreader::zero() const
 }
 
 
-const GridReal &
+const Field<real> &
 DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     std::vector<IVec>            minimumUsedGridIndex(number_of_threads_);
@@ -117,7 +116,7 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
 }
 
-const GridReal &
+const Field<real> &
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);

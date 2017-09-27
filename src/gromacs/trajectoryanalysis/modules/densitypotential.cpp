@@ -52,7 +52,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
-#include "gromacs/math/volumedata/gridreal.h"
+
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -93,19 +93,19 @@ class DensityPotential : public TrajectoryAnalysisModule
     private:
         void frameToForceDensity_(const t_trxframe &fr);
 
-        std::string          fnmapinput_;
-        std::string          fnpotential_ = std::string("potential.dat");
-        std::string          forcedensity_;
-        std::string          fnoptions_;
-        std::string          optionsstring_;
+        std::string             fnmapinput_;
+        std::string             fnpotential_ = std::string("potential.dat");
+        std::string             forcedensity_;
+        std::string             fnoptions_;
+        std::string             optionsstring_;
 
-        GridReal             inputdensity_;
-        bool                 bRigidBodyFit_ = true;
-        std::vector<float>   weight_;
-        int                  every_ = 1;
-        FILE                *potentialFile_;
-        int                  nFr_ = 0;
-        std::string          potentialType_;
+        Field<real>             inputdensity_;
+        bool                    bRigidBodyFit_ = true;
+        std::vector<float>      weight_;
+        int                     every_ = 1;
+        FILE                   *potentialFile_;
+        int                     nFr_ = 0;
+        std::string             potentialType_;
         std::unique_ptr<IStructureDensityPotentialProvider>
         potentialProvider_;
         PotentialEvaluatorHandle potentialEvaluator;

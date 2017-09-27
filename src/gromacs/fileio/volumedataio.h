@@ -47,7 +47,7 @@
 #include <memory>
 #include <string>
 
-#include "gromacs/math/volumedata/gridreal.h"
+#include "gromacs/math/volumedata/field.h"
 
 namespace gmx
 {
@@ -60,6 +60,7 @@ namespace gmx
  */
 struct MrcMetaData{
     bool                       swap_bytes;               //!< swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture)
+    int                        space_group;              //!< space group as defined by IUCr conventions (Table 12.3.4.1 Standard space-group symbols”, pages 824-831, International Tables for Crystallography, Volume A, fifth edition)
     int                        mrc_data_mode;            //!< data mode, currently only mode 2 is supported (32-bit float real values)
     int                        machine_stamp;            //!< endianess of map writing architecture (big endian; 0x44410000 , little endian: 0x11110000)
     std::string                format_identifier;        //!< for all density formats: four 1-byte chars reading "MAP " (a little pointless, I know)
@@ -113,7 +114,7 @@ class MrcFile
          * \param[in] filename name of the file to write the griddata to, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data real-valued, real-space data on a grid
          */
-        void write(std::string filename, const GridReal &grid_data);
+        void write(std::string filename, const Field<real> &grid_data);
 
         /*! \brief Write real-spaced, real-valued griddata to file with user-defined metadata.
          *
@@ -122,21 +123,21 @@ class MrcFile
          * \param[in] meta struct with own metadata
          * \param[in] bOwnGridStats calculate min, max, mean and rms self if true, otherwise copy from metadata
          */
-        void write_with_own_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta, bool bOwnGridStats);
+        void write_with_own_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta, bool bOwnGridStats);
 
         /*! \brief Reads real-spaced, real-valued griddata from file.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
          */
-        void read(std::string filename, GridReal &grid_data);
+        void read(std::string filename, Field<real> &grid_data);
         /*! \brief Reads real-spaced, real-valued voxel data and the map header / metadata.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
          */
-        void read_with_meta(std::string filename, GridReal &grid_data, MrcMetaData &meta);
+        void read_with_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta);
 
         /*! \brief Reads
          *
@@ -164,13 +165,13 @@ class Df3File
         {
             public:
                 void writePovray();
-                SuccessfulDf3Write(std::string filename, const GridReal &grid_data);
+                SuccessfulDf3Write(std::string filename, const Field<real> &grid_data);
             private:
-                std::string     filename_;
-                const GridReal &gridData_;
+                std::string        filename_;
+                const Field<real> &gridData_;
         };
     public:
-        SuccessfulDf3Write write(std::string filename, const GridReal &grid_data);
+        SuccessfulDf3Write write(std::string filename, const Field<real> &grid_data);
 };
 
 }      // namespace gmx

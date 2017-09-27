@@ -35,7 +35,8 @@
 
 #include "gridmeasures.h"
 #include "fouriertransform.h"
-#include "../gridreal.h"
+#include "../field.h"
+#include "gridinterpolator.h"
 #include "realfieldmeasure.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include <map>
@@ -85,10 +86,10 @@ real GridMeasures::correlate(const Field<real> &other, real threshold) const
 
 real GridMeasures::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
-    GridReal referenceGridReal(reference_);
+    auto ref = this->reference_;
     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
-                           [referenceGridReal] (const real sum, const RVec r){
-                               return sum + referenceGridReal.getLinearInterpolationAt(r);
+                           [ref] (const real sum, const RVec r){
+                               return sum + GridInterpolator(ref).getLinearInterpolationAt(ref, r);
                            });
 };
 

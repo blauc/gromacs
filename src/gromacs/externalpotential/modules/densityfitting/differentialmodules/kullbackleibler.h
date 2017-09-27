@@ -68,8 +68,8 @@ class KullbackLeiblerForce : public densityBasedForce
         KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
 
     private:
-        void setDensityDifferential(const GridReal    &reference,
-                                    const Field<real> &comparant) const override;
+        void setDensityDifferential(const Field<real>    &reference,
+                                    const Field<real>    &comparant) const override;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider

@@ -44,7 +44,7 @@
 // #include "gromacs/math/volumedata/field.h"
 // #include "gromacs/math/volumedata/gridinterpolator.h"
 // #include "gromacs/math/volumedata/gridmeasures.h"
-// #include "gromacs/math/volumedata/gridreal.h"
+//
 // #include "gromacs/utility/gmxomp.h"
 // #include "gromacs/utility/real.h"
 //
@@ -57,7 +57,7 @@
 // {
 //     differential->copy_grid(reference);
 //     auto cc                      = GridMeasures(reference).correlate(comparant);
-//     auto normSimulation          = GridReal(comparant).properties().norm();
+//     auto normSimulation          = Field<real>(comparant).properties().norm();
 //     auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
 //                                                         real densitySimulation) {
 //             return (densityExperiment - cc * densitySimulation) / (normSimulation);
@@ -75,7 +75,7 @@
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //         (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = GridReal(comparant).center_of_mass();
+//         auto centerOfMass = Field<real>(comparant).center_of_mass();
 //         auto interpolated = GridInterpolator(reference).interpolateLinearly(
 //                     comparant, translation, centerOfMass, orientation);
 //         return GridMeasures(*interpolated)

@@ -45,7 +45,6 @@
 #include "gmxpre.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/gridreal.h"
 #include "gromacs/math/volumedata/operations/fouriertransform.h"
 #include "gromacs/utility/real.h"
 
@@ -63,18 +62,18 @@ class ForceDensity
         ForceDensity(const Field<real>             &grid,
                      real                           sigma);
         ~ForceDensity() = default;
-        const std::array<GridReal, DIM> &getForce();
+        const std::array<Field<real>, DIM> &getForce();
 
     private:
         void generateConvolutionDensity_();
         void generateFourierTransformGrids_(const FiniteGrid &grid);
         real sigma_;
-        std::array<GridReal, DIM>                    forces_;
-        std::array<Field<t_complex>, DIM>            forcesFT_;
-        std::array<Field<t_complex>, DIM>            convolutionDensity_;
-        Field<t_complex>                             densityGradientFT_;
-        std::vector<FourierTransformComplexToReal3D> complexToRealFTarray_;
-        FourierTransformRealToComplex3D              realToComplexFT_;
+        std::array<Field<real>, DIM>                    forces_;
+        std::array<Field<t_complex>, DIM>               forcesFT_;
+        std::array<Field<t_complex>, DIM>               convolutionDensity_;
+        Field<t_complex>                                densityGradientFT_;
+        std::vector<FourierTransformComplexToReal3D>    complexToRealFTarray_;
+        FourierTransformRealToComplex3D                 realToComplexFT_;
 };
 }
 #endif /* end of include guard: GMX_EXTERNALPOTENIAL_FORCEDENSITY_H */
