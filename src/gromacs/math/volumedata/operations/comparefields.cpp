@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "gridmeasures.h"
+#include "comparefields.h"
 #include "fouriertransform.h"
 #include "../field.h"
 #include "gridinterpolator.h"
@@ -48,12 +48,14 @@
 namespace gmx
 {
 
-GridMeasures::GridMeasures(const Field<real> &reference)
-    : reference_ {reference}
+CompareFields::CompareFields(const Field<real> &reference, const Field<real> &other)
+    : reference_ {reference}, other_ {
+    other
+}
 {};
 
-real GridMeasures::correlate_(const std::vector<real> &a,
-                              const std::vector<real> &b) const
+real CompareFields::correlate_(const std::vector<real> &a,
+                               const std::vector<real> &b) const
 {
 
     auto              aMean = std::accumulate(a.cbegin(), a.cend(), 0.) / a.size();
@@ -65,12 +67,12 @@ real GridMeasures::correlate_(const std::vector<real> &a,
     return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
 }
 
-real GridMeasures::correlate(const Field<real> &other, real threshold) const
+real CompareFields::correlate(real threshold) const
 {
     std::vector<real> referenceAboveThreshold;
     std::vector<real> otherWhereReferenceAboveThreshold;
 
-    auto              otherDatum = other.access().begin();
+    auto              otherDatum = other_.access().begin();
     for (auto &referenceDatum : reference_.access())
     {
         if (referenceDatum > threshold)
@@ -84,7 +86,7 @@ real GridMeasures::correlate(const Field<real> &other, real threshold) const
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
-real GridMeasures::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
+real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
     auto ref = this->reference_;
     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
@@ -93,11 +95,10 @@ real GridMeasures::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
                            });
 };
 
-real GridMeasures::getRelativeKLCrossTermSameGrid(
-        const Field<real> &other, const std::vector<real> &other_reference) const
+real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
 {
     auto P = reference_.access().data();
-    auto Q = other.access().data();
+    auto Q = other_.access().data();
     // for numerical stability use a reference density
     if (P.size() != Q.size())
     {
@@ -122,14 +123,13 @@ real GridMeasures::getRelativeKLCrossTermSameGrid(
     return -1 * reference_.grid_cell_volume() *sum;
 }
 
-real GridMeasures::getKLSameGrid(const Field<real> &other) const
+real CompareFields::getKLSameGrid() const
 {
     auto P = reference_.access().data();
-    auto Q = other.access().data();
+    auto Q = other_.access().data();
     if (P.size() != Q.size())
     {
-        GMX_THROW(APIError(
-                          "KL-CrossTerm calculation requires euqally sized input vectors."));
+        GMX_THROW(APIError("KL-CrossTerm calculation requires euqally sized input vectors."));
     }
     auto p    = P.begin();
     auto q    = Q.begin();
@@ -155,10 +155,10 @@ real GridMeasures::getKLSameGrid(const Field<real> &other) const
     return -1 * reference_.grid_cell_volume() * sum;
 };
 
-real GridMeasures::getKLCrossTermSameGrid(const Field<real> &other) const
+real CompareFields::getKLCrossTermSameGrid() const
 {
     auto P = reference_.access().data();
-    auto Q = other.access().data();
+    auto Q = other_.access().data();
     if (P.size() != Q.size())
     {
         GMX_THROW(APIError(

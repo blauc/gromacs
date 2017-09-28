@@ -54,7 +54,7 @@
 #include "gromacs/fileio/volumedataio.h"
 
 #include "gromacs/math/volumedata/operations/densitypadding.h"
-#include "gromacs/math/volumedata/operations/gridmeasures.h"
+#include "gromacs/math/volumedata/operations/comparefields.h"
 #include "gromacs/math/volumedata/operations/realfieldmeasure.h"
 #include "gromacs/math/volumedata/operations/modifygriddata.h"
 
@@ -339,7 +339,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
     for (int iMorphIterations = 0; iMorphIterations < morphSteps_;
          iMorphIterations++)
     {
-        auto densityDistance = GridMeasures(target_).getKLSameGrid(oldMorph);
+        auto densityDistance = CompareFields(target_, oldMorph).getKLSameGrid();
         fprintf(stderr, "\r Iteration [%7d/%7d] : d = %7g ", iMorphIterations+1, morphSteps_, densityDistance);
 
         evaluateDensityDifferential_(oldMorph, differential);
@@ -399,7 +399,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     }
                 }
             }
-            newDensityDistance = GridMeasures(target_).getKLSameGrid(newMorph);
+            newDensityDistance = CompareFields(target_, newMorph).getKLSameGrid();
             fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, RealFieldMeasure(newMorph).sum()-basesum);
 
         }

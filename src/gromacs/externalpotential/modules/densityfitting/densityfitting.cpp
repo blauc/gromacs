@@ -59,7 +59,6 @@
 #include "gromacs/fileio/volumedataio.h"
 #include "gromacs/fileio/json.h"
 #include "gromacs/math/volumedata/operations/gausstransform.h"
-#include "gromacs/math/volumedata/operations/gridmeasures.h"
 #include "gromacs/fileio/xtcio.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/mtop_lookup.h"

@@ -44,24 +44,22 @@ namespace gmx
 {
 
 template<typename real> class Field;
-class GridMeasures
+class CompareFields
 {
     public:
-        GridMeasures(const Field<real> &reference);
-        real correlate(const Field<real> &other, real threshold = -GMX_REAL_MAX) const;
-        real getRelativeKLCrossTermSameGrid(
-            const Field<real> &other, const std::vector<real> &other_reference) const;
-        real getRelativeKLCrossTerm(const Field<real>          &other,
-                                    const std::vector<real>    &other_reference) const;
-        real getKLCrossTermSameGrid(const Field<real> &other) const;
-        real getKLCrossTerm(const Field<real> &other) const;
-        real getKLSameGrid(const Field<real> &other) const;
-        real entropy() const;
+        CompareFields(const Field<real> &reference, const Field<real> &other);
+        real correlate(real threshold = -GMX_REAL_MAX) const;
+        real getRelativeKLCrossTermSameGrid( const std::vector<real> &other_reference) const;
+        real getRelativeKLCrossTerm(const std::vector<real>    &other_reference) const;
+        real getKLCrossTermSameGrid() const;
+        real getKLCrossTerm() const;
+        real getKLSameGrid() const;
         real gridSumAtCoordiantes(const std::vector<RVec> &coordinates);
 
     private:
         real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
         const Field<real> &reference_;
+        const Field<real> &other_;
 };
 }
 
