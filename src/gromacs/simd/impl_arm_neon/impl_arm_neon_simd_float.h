@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -42,6 +42,8 @@
 #include <cstdint>
 
 #include <arm_neon.h>
+
+#include "gromacs/math/utilities.h"
 
 namespace gmx
 {
@@ -372,8 +374,10 @@ maskzFma(SimdFloat a, SimdFloat b, SimdFloat c, SimdFBool m)
 static inline SimdFloat gmx_simdcall
 maskzRsqrt(SimdFloat x, SimdFBool m)
 {
+    // The result will always be correct since we mask the result with m, but
+    // for debug builds we also want to make sure not to generate FP exceptions
 #ifndef NDEBUG
-    x.simdInternal_ = vbslq_f32(m, vdupq_n_f32(1.0f), x.simdInternal_);
+    x.simdInternal_ = vbslq_f32(m.simdInternal_, x.simdInternal_, vdupq_n_f32(1.0f));
 #endif
     return {
                vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(vrsqrteq_f32(x.simdInternal_)),
@@ -384,8 +388,10 @@ maskzRsqrt(SimdFloat x, SimdFBool m)
 static inline SimdFloat gmx_simdcall
 maskzRcp(SimdFloat x, SimdFBool m)
 {
+    // The result will always be correct since we mask the result with m, but
+    // for debug builds we also want to make sure not to generate FP exceptions
 #ifndef NDEBUG
-    x.simdInternal_ = vbslq_f32(m, vdupq_n_f32(1.0f), x.simdInternal_);
+    x.simdInternal_ = vbslq_f32(m.simdInternal_, x.simdInternal_, vdupq_n_f32(1.0f));
 #endif
     return {
                vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(vrecpeq_f32(x.simdInternal_)),
@@ -440,13 +446,20 @@ frexp(SimdFloat value, SimdFInt32 * exponent)
     };
 }
 
+template <MathOptimization opt = MathOptimization::Safe>
 static inline SimdFloat gmx_simdcall
 ldexp(SimdFloat value, SimdFInt32 exponent)
 {
     const int32x4_t exponentBias = vdupq_n_s32(127);
-    int32x4_t       iExponent;
+    int32x4_t       iExponent    = vaddq_s32(exponent.simdInternal_, exponentBias);
 
-    iExponent = vshlq_n_s32( vaddq_s32(exponent.simdInternal_, exponentBias), 23);
+    if (opt == MathOptimization::Safe)
+    {
+        // Make sure biased argument is not negative
+        iExponent = vmaxq_s32(iExponent, vdupq_n_s32(0));
+    }
+
+    iExponent = vshlq_n_s32( iExponent, 23);
 
     return {
                vmulq_f32(value.simdInternal_, vreinterpretq_f32_s32(iExponent))
@@ -572,7 +585,7 @@ static inline SimdFInt32 gmx_simdcall
 operator<<(SimdFInt32 a, int n)
 {
     return {
-               vshlq_n_s32(a.simdInternal_, n)
+               vshlq_s32(a.simdInternal_, vdupq_n_s32(n >= 32 ? 32 : n))
     };
 }
 
@@ -580,7 +593,7 @@ static inline SimdFInt32 gmx_simdcall
 operator>>(SimdFInt32 a, int n)
 {
     return {
-               vshrq_n_s32(a.simdInternal_, n)
+               vshlq_s32(a.simdInternal_, vdupq_n_s32(n >= 32 ? -32 : -n))
     };
 }
 

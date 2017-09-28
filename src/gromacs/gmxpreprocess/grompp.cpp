@@ -1070,7 +1070,7 @@ static int nrdf_internal(t_atoms *atoms)
     return nrdf;
 }
 
-void
+static void
 spline1d( double        dx,
           double *      y,
           int           n,
@@ -1100,7 +1100,7 @@ spline1d( double        dx,
 }
 
 
-void
+static void
 interpolate1d( double     xmin,
                double     dx,
                double *   ya,
@@ -1122,7 +1122,7 @@ interpolate1d( double     xmin,
 }
 
 
-void
+static void
 setup_cmap (int              grid_spacing,
             int              nc,
             real *           grid,
@@ -1200,7 +1200,7 @@ setup_cmap (int              grid_spacing,
     }
 }
 
-void init_cmap_grid(gmx_cmap_t *cmap_grid, int ngrid, int grid_spacing)
+static void init_cmap_grid(gmx_cmap_t *cmap_grid, int ngrid, int grid_spacing)
 {
     int i, nelem;
 
@@ -1637,13 +1637,13 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
     /* Calculate the buffer size for simple atom vs atoms list */
     ls.cluster_size_i = 1;
     ls.cluster_size_j = 1;
-    calc_verlet_buffer_size(mtop, det(box), ir, buffer_temp,
-                            &ls, &n_nonlin_vsite, &rlist_1x1);
+    calc_verlet_buffer_size(mtop, det(box), ir, ir->nstlist, ir->nstlist - 1,
+                            buffer_temp, &ls, &n_nonlin_vsite, &rlist_1x1);
 
     /* Set the pair-list buffer size in ir */
     verletbuf_get_list_setup(FALSE, FALSE, &ls);
-    calc_verlet_buffer_size(mtop, det(box), ir, buffer_temp,
-                            &ls, &n_nonlin_vsite, &ir->rlist);
+    calc_verlet_buffer_size(mtop, det(box), ir, ir->nstlist, ir->nstlist - 1,
+                            buffer_temp, &ls, &n_nonlin_vsite, &ir->rlist);
 
     if (n_nonlin_vsite > 0)
     {
@@ -1668,7 +1668,7 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
 
 int gmx_grompp(int argc, char *argv[])
 {
-    static const char *desc[] = {
+    const char        *desc[] = {
         "[THISMODULE] (the gromacs preprocessor)",
         "reads a molecular topology file, checks the validity of the",
         "file, expands the topology from a molecular description to an atomic",
@@ -1804,10 +1804,10 @@ int gmx_grompp(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     /* Command line options */
-    static gmx_bool bRenum   = TRUE;
-    static gmx_bool bRmVSBds = TRUE, bZero = FALSE;
-    static int      i, maxwarn = 0;
-    static real     fr_time = -1;
+    gmx_bool        bRenum   = TRUE;
+    gmx_bool        bRmVSBds = TRUE, bZero = FALSE;
+    int             i, maxwarn = 0;
+    real            fr_time = -1;
     t_pargs         pa[]    = {
         { "-v",       FALSE, etBOOL, {&bVerbose},
           "Be loud and noisy" },

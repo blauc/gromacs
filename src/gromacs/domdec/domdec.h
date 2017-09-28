@@ -61,9 +61,7 @@
 #include <stdio.h>
 
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/hardware/hw_info.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/mdatom.h"
@@ -77,6 +75,7 @@
 struct gmx_domdec_t;
 struct gmx_ddbox_t;
 struct gmx_domdec_zones_t;
+struct MdrunOptions;
 struct t_commrec;
 struct t_inputrec;
 class t_state;
@@ -129,27 +128,73 @@ int dd_pme_maxshift_x(const gmx_domdec_t *dd);
 /*! \brief Returns the maximum shift for coordinate communication in PME, dim y */
 int dd_pme_maxshift_y(const gmx_domdec_t *dd);
 
+/*! \brief The options for the domain decomposition MPI task ordering. */
+enum class DdRankOrder
+{
+    select,     //!< First value (needed to cope with command-line parsing)
+    interleave, //!< Interleave the PP and PME ranks
+    pp_pme,     //!< First all PP ranks, all PME rank at the end
+    cartesian,  //!< Use Cartesian communicators for PP, PME and PP-PME
+    nr          //!< The number of options
+};
+
+/*! \brief The options for the dynamic load balancing. */
+enum class DlbOption
+{
+    select,           //!< First value (needed to cope with command-line parsing)
+    turnOnWhenUseful, //!< Turn on DLB when we think it would improve performance
+    no,               //!< Never turn on DLB
+    yes,              //!< Turn on DLB from the start and keep it on
+    nr                //!< The number of options
+};
+
+/*! \libinternal \brief Structure containing all (command line) options for the domain decomposition */
+struct DomdecOptions
+{
+    /*! \brief Constructor */
+    DomdecOptions();
+
+    //! If true, check that all bonded interactions have been assigned to exactly one domain/rank.
+    gmx_bool          checkBondedInteractions;
+    //! If true, don't communicate all atoms between the non-bonded cut-off and the larger bonded cut-off, but only those that have non-local bonded interactions. This significantly reduces the communication volume.
+    gmx_bool          useBondedCommunication;
+    //! The domain decomposition grid cell count, 0 means let domdec choose based on the number of ranks.
+    ivec              numCells;
+    //! The number of separate PME ranks requested, -1 = auto.
+    int               numPmeRanks;
+    //! Ordering of the PP and PME ranks, values from enum above.
+    DdRankOrder       rankOrder;
+    //! The minimum communication range, used for extended the communication range for bonded interactions (nm).
+    real              minimumCommunicationRange;
+    //! Communication range for atom involved in constraints (P-LINCS) (nm).
+    real              constraintCommunicationRange;
+    //! Dynamic load balancing option, values from enum above.
+    DlbOption         dlbOption;
+    /*! \brief Fraction in (0,1) by whose reciprocal the initial
+     * DD cell size will be increased in order to provide a margin
+     * in which dynamic load balancing can act, while preserving
+     * the minimum cell size. */
+    real              dlbScaling;
+    //! String containing a vector of the relative sizes in the x direction of the corresponding DD cells.
+    const char       *cellSizeX;
+    //! String containing a vector of the relative sizes in the y direction of the corresponding DD cells.
+    const char       *cellSizeY;
+    //! String containing a vector of the relative sizes in the z direction of the corresponding DD cells.
+    const char       *cellSizeZ;
+};
+
 /*! \brief Initialized the domain decomposition, chooses the DD grid and PME ranks, return the DD struct */
-gmx_domdec_t *init_domain_decomposition(FILE             *fplog,
-                                        t_commrec        *cr,
-                                        unsigned long     Flags,
-                                        ivec              nc,
-                                        int               nPmeRanks,
-                                        int               dd_node_order,
-                                        real              comm_distance_min,
-                                        real              rconstr,
-                                        const char       *dlb_opt,
-                                        real              dlb_scale,
-                                        const char       *sizex,
-                                        const char       *sizey,
-                                        const char       *sizez,
-                                        const gmx_mtop_t *mtop,
-                                        const t_inputrec *ir,
-                                        matrix            box,
-                                        rvec             *x,
-                                        gmx_ddbox_t      *ddbox,
-                                        int              *npme_x,
-                                        int              *npme_y);
+gmx_domdec_t *init_domain_decomposition(FILE                *fplog,
+                                        t_commrec           *cr,
+                                        const DomdecOptions &options,
+                                        const MdrunOptions  &mdrunOptions,
+                                        const gmx_mtop_t    *mtop,
+                                        const t_inputrec    *ir,
+                                        const matrix         box,
+                                        const rvec          *xGlobal,
+                                        gmx_ddbox_t         *ddbox,
+                                        int                 *npme_x,
+                                        int                 *npme_y);
 
 /*! \brief Initialize data structures for bonded interactions */
 void dd_init_bondeds(FILE              *fplog,
@@ -194,28 +239,31 @@ void dd_dlb_lock(struct gmx_domdec_t *dd);
 /*! \brief Clear a lock such that with DLB=auto DLB may get turned on later */
 void dd_dlb_unlock(struct gmx_domdec_t *dd);
 
-/*! \brief Set up communication for averaging GPU wait times over ranks
+/*! \brief Set up communication for averaging GPU wait times over domains
  *
  * When domains (PP MPI ranks) share a GPU, the individual GPU wait times
  * are meaningless, as it depends on the order in which tasks on the same
  * GPU finish. Therefore there wait times need to be averaged over the ranks
  * sharing the same GPU. This function sets up the communication for that.
  */
-void dd_setup_dlb_resource_sharing(struct t_commrec           *cr,
-                                   const gmx_hw_info_t        *hwinfo,
-                                   const gmx_hw_opt_t         *hw_opt);
+void dd_setup_dlb_resource_sharing(t_commrec           *cr,
+                                   int                  gpu_id);
 
 /*! \brief Collects local rvec arrays \p lv to \p v on the master rank */
-void dd_collect_vec(struct gmx_domdec_t *dd,
-                    t_state *state_local, const PaddedRVecVector *lv, rvec *v);
+void dd_collect_vec(struct gmx_domdec_t    *dd,
+                    const t_state          *state_local,
+                    const PaddedRVecVector *lv,
+                    rvec                   *v);
 
 /*! \brief Collects local rvec arrays \p lv to \p v on the master rank */
-void dd_collect_vec(struct gmx_domdec_t *dd,
-                    t_state *state_local, const PaddedRVecVector *lv, PaddedRVecVector *v);
+void dd_collect_vec(struct gmx_domdec_t    *dd,
+                    const t_state          *state_local,
+                    const PaddedRVecVector *lv,
+                    PaddedRVecVector       *v);
 
 /*! \brief Collects the local state \p state_local to \p state on the master rank */
 void dd_collect_state(struct gmx_domdec_t *dd,
-                      t_state *state_local, t_state *state);
+                      const t_state *state_local, t_state *state);
 
 /*! \brief Cycle counter indices used internally in the domain decomposition */
 enum {
@@ -223,7 +271,7 @@ enum {
 };
 
 /*! \brief Add the wallcycle count to the DD counter */
-void dd_cycles_add(struct gmx_domdec_t *dd, float cycles, int ddCycl);
+void dd_cycles_add(const gmx_domdec_t *dd, float cycles, int ddCycl);
 
 /*! \brief Start the force flop count */
 void dd_force_flop_start(struct gmx_domdec_t *dd, t_nrnb *nrnb);
@@ -274,7 +322,7 @@ void dd_partition_system(FILE                *fplog,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,
-                         gmx_constr_t         constr,
+                         struct gmx_constr   *constr,
                          t_nrnb              *nrnb,
                          gmx_wallcycle_t      wcycle,
                          gmx_bool             bVerbose);
@@ -283,7 +331,7 @@ void dd_partition_system(FILE                *fplog,
 void reset_dd_statistics_counters(struct gmx_domdec_t *dd);
 
 /*! \brief Print statistics for domain decomposition communication */
-void print_dd_statistics(struct t_commrec *cr, t_inputrec *ir, FILE *fplog);
+void print_dd_statistics(struct t_commrec *cr, const t_inputrec *ir, FILE *fplog);
 
 /* In domdec_con.c */
 
@@ -353,7 +401,7 @@ t_blocka *make_charge_group_links(const gmx_mtop_t *mtop, gmx_domdec_t *dd,
 /*! \brief Calculate the maximum distance involved in 2-body and multi-body bonded interactions */
 void dd_bonded_cg_distance(FILE *fplog, const gmx_mtop_t *mtop,
                            const t_inputrec *ir,
-                           const rvec *x, matrix box,
+                           const rvec *x, const matrix box,
                            gmx_bool bBCheck,
                            real *r_2b, real *r_mb);
 
@@ -381,7 +429,7 @@ real dd_choose_grid(FILE *fplog,
                     t_commrec *cr, gmx_domdec_t *dd,
                     const t_inputrec *ir,
                     const gmx_mtop_t *mtop,
-                    matrix box, const gmx_ddbox_t *ddbox,
+                    const matrix box, const gmx_ddbox_t *ddbox,
                     int nPmeRanks,
                     gmx_bool bDynLoadBal, real dlb_scale,
                     real cellsize_limit, real cutoff_dd,

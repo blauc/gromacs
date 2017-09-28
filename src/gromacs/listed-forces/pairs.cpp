@@ -94,7 +94,7 @@ warning_rlimit(const rvec *x, int ai, int aj, int * global_atom_index, real r, r
 }
 
 /*! \brief Compute the energy and force for a single pair interaction */
-real
+static real
 evaluate_single(real r2, real tabscale, real *vftab, real tableStride,
                 real qq, real c6, real c12, real *velec, real *vvdw)
 {
@@ -143,7 +143,7 @@ evaluate_single(real r2, real tabscale, real *vftab, real tableStride,
 }
 
 /*! \brief Compute the energy and force for a single pair interaction under FEP */
-real
+static real
 free_energy_evaluate_single(real r2, real sc_r_power, real alpha_coul,
                             real alpha_vdw, real tabscale, real *vftab, real tableStride,
                             real qqA, real c6A, real c12A, real qqB,
@@ -342,7 +342,7 @@ do_pairs_general(int ftype, int nbonds,
                  const t_iatom iatoms[], const t_iparams iparams[],
                  const rvec x[], rvec4 f[], rvec fshift[],
                  const struct t_pbc *pbc, const struct t_graph *g,
-                 real *lambda, real *dvdl,
+                 const real *lambda, real *dvdl,
                  const t_mdatoms *md,
                  const t_forcerec *fr, gmx_grppairener_t *grppener,
                  int *global_atom_index)
@@ -416,6 +416,8 @@ do_pairs_general(int ftype, int nbonds,
     GMX_ASSERT(fr->pairsTable->interaction == GMX_TABLE_INTERACTION_ELEC_VDWREP_VDWDISP,
                "Pair interaction kernels need a table with Coulomb, repulsion and dispersion entries");
 
+    const real epsfac = fr->ic->epsfac;
+
     bFreeEnergy = FALSE;
     for (i = 0; (i < nbonds); )
     {
@@ -433,17 +435,17 @@ do_pairs_general(int ftype, int nbonds,
                      ((md->nPerturbed && (md->bPerturbed[ai] || md->bPerturbed[aj])) ||
                       iparams[itype].lj14.c6A != iparams[itype].lj14.c6B ||
                       iparams[itype].lj14.c12A != iparams[itype].lj14.c12B));
-                qq               = md->chargeA[ai]*md->chargeA[aj]*fr->epsfac*fr->fudgeQQ;
+                qq               = md->chargeA[ai]*md->chargeA[aj]*epsfac*fr->fudgeQQ;
                 c6               = iparams[itype].lj14.c6A;
                 c12              = iparams[itype].lj14.c12A;
                 break;
             case F_LJC14_Q:
-                qq               = iparams[itype].ljc14.qi*iparams[itype].ljc14.qj*fr->epsfac*iparams[itype].ljc14.fqq;
+                qq               = iparams[itype].ljc14.qi*iparams[itype].ljc14.qj*epsfac*iparams[itype].ljc14.fqq;
                 c6               = iparams[itype].ljc14.c6;
                 c12              = iparams[itype].ljc14.c12;
                 break;
             case F_LJC_PAIRS_NB:
-                qq               = iparams[itype].ljcnb.qi*iparams[itype].ljcnb.qj*fr->epsfac;
+                qq               = iparams[itype].ljcnb.qi*iparams[itype].ljcnb.qj*epsfac;
                 c6               = iparams[itype].ljcnb.c6;
                 c12              = iparams[itype].ljcnb.c12;
                 break;
@@ -488,7 +490,7 @@ do_pairs_general(int ftype, int nbonds,
         if (bFreeEnergy)
         {
             /* Currently free energy is only supported for F_LJ14, so no need to check for that if we got here */
-            qqB              = md->chargeB[ai]*md->chargeB[aj]*fr->epsfac*fr->fudgeQQ;
+            qqB              = md->chargeB[ai]*md->chargeB[aj]*epsfac*fr->fudgeQQ;
             c6B              = iparams[itype].lj14.c6B*6.0;
             c12B             = iparams[itype].lj14.c12B*12.0;
 
@@ -637,14 +639,14 @@ do_pairs(int ftype, int nbonds,
          const t_iatom iatoms[], const t_iparams iparams[],
          const rvec x[], rvec4 f[], rvec fshift[],
          const struct t_pbc *pbc, const struct t_graph *g,
-         real *lambda, real *dvdl,
+         const real *lambda, real *dvdl,
          const t_mdatoms *md,
          const t_forcerec *fr,
          gmx_bool bCalcEnergyAndVirial, gmx_grppairener_t *grppener,
          int *global_atom_index)
 {
     if (ftype == F_LJ14 &&
-        fr->vdwtype != evdwUSER && !EEL_USER(fr->eeltype) &&
+        fr->ic->vdwtype != evdwUSER && !EEL_USER(fr->ic->eeltype) &&
         !bCalcEnergyAndVirial && fr->efep == efepNO)
     {
         /* We use a fast code-path for plain LJ 1-4 without FEP.
@@ -662,7 +664,7 @@ do_pairs(int ftype, int nbonds,
         do_pairs_simple<SimdReal, GMX_SIMD_REAL_WIDTH,
                         const real *>(nbonds, iatoms, iparams,
                                       x, f, pbc_simd,
-                                      md, fr->epsfac*fr->fudgeQQ);
+                                      md, fr->ic->epsfac*fr->fudgeQQ);
 #else
         /* This construct is needed because pbc_dx_aiuc doesn't accept pbc=NULL */
         t_pbc        pbc_no;
@@ -681,7 +683,7 @@ do_pairs(int ftype, int nbonds,
         do_pairs_simple<real, 1,
                         const t_pbc *>(nbonds, iatoms, iparams,
                                        x, f, pbc_nonnull,
-                                       md, fr->epsfac*fr->fudgeQQ);
+                                       md, fr->ic->epsfac*fr->fudgeQQ);
 #endif
     }
     else

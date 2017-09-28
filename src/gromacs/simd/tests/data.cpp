@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,23 +32,40 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_HARDWARE_HARDWAREASSIGN_H
-#define GMX_HARDWARE_HARDWAREASSIGN_H
+#include "gmxpre.h"
 
-#include "gromacs/utility/basedefinitions.h"
+#include "data.h"
 
-struct gmx_gpu_info_t;
-struct gmx_gpu_opt_t;
-struct t_commrec;
+#include "gromacs/utility/real.h"
+
 
 namespace gmx
 {
-class MDLogger;
-}
+namespace test
+{
 
-void gmx_select_rank_gpu_ids(const gmx::MDLogger &mdlog, const t_commrec *cr,
-                             const gmx_gpu_info_t *gpu_info,
-                             gmx_bool bForceUseGPU,
-                             gmx_gpu_opt_t *gpu_opt);
+/*! \cond internal */
+/*! \addtogroup module_simd */
+/*! \{ */
 
-#endif
+// Common test data constants used both for SIMD, SIMD4, and scalar tests.
+// We both want numbers that are easy to identify with integer part from 0 to 9,
+// and to fill all digits in the mantissa and avoid identical differences
+// between adjacent numbers we add a fraction of primes.
+const real czero = 0.0;
+const real c0    = 0.0 + 1.0/3.0;
+const real c1    = 1.0 + 5.0/7.0;
+const real c2    = 2.0 + 9.0/13.0;
+const real c3    = 3.0 + 17.0/19.0;
+const real c4    = 4.0 + 23.0/29.0;
+const real c5    = 5.0 + 31.0/37.0;
+const real c6    = 6.0 + 41.0/43.0;
+const real c7    = 7.0 + 47.0/53.0;
+const real c8    = 8.0 + 59.0/61.0;
+
+/*! \} */
+/*! \endcond */
+
+} // namespace test
+
+} // namespace gmx

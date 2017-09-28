@@ -57,7 +57,9 @@ class energyhistory_t;
 struct gmx_mtop_t;
 struct gmx_membed_t;
 struct gmx_output_env_t;
+struct MdrunOptions;
 struct ObservablesHistory;
+struct ReplicaExchangeParameters;
 struct t_commrec;
 struct t_filenm;
 struct t_inputrec;
@@ -77,11 +79,9 @@ class MDLogger;
  * \param[in] nfile               Number of files
  * \param[in] fnm                 Filename structure array
  * \param[in] oenv                Output information
- * \param[in] bVerbose            Verbose output or not
- * \param[in] nstglobalcomm       How often global communication is done
+ * \param[in] mdrunOptions        Options for mdrun
  * \param[in] vsite               Virtual site information
  * \param[in] constr              Constraint information
- * \param[in] stepout             How often we writen to the console
  * \param[in] outputProvider      Additional output provider
  * \param[in] inputrec            Input record with mdp options
  * \param[in] top_global          Molecular topology for the whole system
@@ -91,24 +91,16 @@ class MDLogger;
  * \param[in] mdatoms             Structure containing atom information
  * \param[in] nrnb                Accounting for floating point operations
  * \param[in] wcycle              Wall cycle timing information
- * \param[in] ed                  Essential dynamics sampling information
  * \param[in] fr                  Force record with cut-off information and more
- * \param[in] repl_ex_nst         How often we do replica exchange (in steps)
- * \param[in] repl_ex_nex         How many replicas we have
- * \param[in] repl_ex_seed        The seed for Monte Carlo swaps
+ * \param[in] replExParams        Parameters for the replica exchange algorithm
  * \param[in] membed              Membrane embedding data structure
- * \param[in] cpt_period          How often to checkpoint the simulation
- * \param[in] max_hours           Maximume length of the simulation (wall time)
- * \param[in] imdport             Interactive MD port (socket)
- * \param[in] Flags               Flags to control mdrun
  * \param[in] walltime_accounting More timing information
  */
 typedef double integrator_t (FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                              int nfile, const t_filenm fnm[],
-                             const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                             int nstglobalcomm,
+                             const gmx_output_env_t *oenv,
+                             const MdrunOptions &mdrunOptions,
                              gmx_vsite_t *vsite, gmx_constr_t constr,
-                             int stepout,
                              gmx::IMDOutputProvider *outputProvider,
                              t_inputrec *inputrec,
                              gmx_mtop_t *top_global, t_fcdata *fcd,
@@ -116,13 +108,9 @@ typedef double integrator_t (FILE *fplog, t_commrec *cr, const gmx::MDLogger &md
                              ObservablesHistory *observablesHistory,
                              t_mdatoms *mdatoms,
                              t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                             gmx_edsam_t ed,
                              t_forcerec *fr,
-                             int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                             const ReplicaExchangeParameters &replExParams,
                              gmx_membed_t gmx_unused * membed,
-                             real cpt_period, real max_hours,
-                             int imdport,
-                             unsigned long Flags,
                              gmx_walltime_accounting_t walltime_accounting);
 
 }      // namespace gmx

@@ -104,8 +104,8 @@ static const char *wcn[ewcNR] =
     "Run", "Step", "PP during PME", "Domain decomp.", "DD comm. load",
     "DD comm. bounds", "Vsite constr.", "Send X to PME", "Neighbor search", "Launch GPU ops.",
     "Comm. coord.", "Born radii", "Force", "Wait + Comm. F", "PME mesh",
-    "PME redist. X/F", "PME spread/gather", "PME 3D-FFT", "PME 3D-FFT Comm.", "PME solve LJ", "PME solve Elec",
-    "PME wait for PP", "Wait + Recv. PME F", "Wait GPU nonlocal", "Wait GPU local", "NB X/F buffer ops.",
+    "PME redist. X/F", "PME spread", "PME gather", "PME 3D-FFT", "PME 3D-FFT Comm.", "PME solve LJ", "PME solve Elec",
+    "PME wait for PP", "Wait + Recv. PME F", "Wait GPU NB nonloc.", "Wait GPU NB local", "NB X/F buffer ops.",
     "Vsite spread", "COM pull force",
     "Write traj.", "Update", "Constraints", "Comm. energies",
     "Enforced rotation", "Add rot. forces", "Position swapping", "IMD", "ExtPot", "ExtPotAdd", "Test"
@@ -120,7 +120,9 @@ static const char *wcsn[ewcsNR] =
     "Bonded-FEP F",
     "Restraints F",
     "Listed buffer ops.",
+    "Nonbonded pruning",
     "Nonbonded F",
+    "Launch NB GPU tasks",
     "Ewald F correction",
     "NB X buffer ops.",
     "NB F buffer ops.",
@@ -184,8 +186,9 @@ gmx_wallcycle_t wallcycle_init(FILE *fplog, int resetstep, t_commrec gmx_unused 
     return wc;
 }
 
-void wallcycle_destroy(gmx_wallcycle_t wc)
-{
+/* TODO: Should be called from finish_run() or runner()
+   void wallcycle_destroy(gmx_wallcycle_t wc)
+   {
     if (wc == nullptr)
     {
         return;
@@ -204,7 +207,8 @@ void wallcycle_destroy(gmx_wallcycle_t wc)
         sfree(wc->wcsc);
     }
     sfree(wc);
-}
+   }
+ */
 
 static void wallcycle_all_start(gmx_wallcycle_t wc, int ewc, gmx_cycles_t cycle)
 {
@@ -606,9 +610,9 @@ static void print_cycles(FILE *fplog, double c2t, const char *name,
                          int nnodes, int nthreads,
                          int ncalls, double c_sum, double tot)
 {
-    char   nnodes_str[6];
-    char   nthreads_str[6];
-    char   ncalls_str[11];
+    char   nnodes_str[STRLEN];
+    char   nthreads_str[STRLEN];
+    char   ncalls_str[STRLEN];
     double wallt;
     double percentage = (tot > 0.) ? (100. * c_sum / tot) : 0.;
 
@@ -890,7 +894,7 @@ void wallcycle_print(FILE *fplog, const gmx::MDLogger &mdlog, int nnodes, int np
                 tot_k += gpu_t->ktime[i][j].t;
             }
         }
-        tot_gpu += tot_k;
+        tot_gpu += tot_k + gpu_t->pruneTime.t;
 
         tot_cpu_overlap = wc->wcc[ewcFORCE].c;
         if (wc->wcc[ewcPMEMESH].n > 0)
@@ -918,11 +922,23 @@ void wallcycle_print(FILE *fplog, const gmx::MDLogger &mdlog, int nnodes, int np
                 }
             }
         }
-
+        if (gpu_t->pruneTime.c)
+        {
+            print_gputimes(fplog, "Pruning kernel", gpu_t->pruneTime.c, gpu_t->pruneTime.t, tot_gpu);
+        }
         print_gputimes(fplog, "F D2H",  gpu_t->nb_c, gpu_t->nb_d2h_t, tot_gpu);
         fprintf(fplog, "%s\n", hline);
         print_gputimes(fplog, "Total ", gpu_t->nb_c, tot_gpu, tot_gpu);
         fprintf(fplog, "%s\n", hline);
+        if (gpu_t->dynamicPruneTime.c)
+        {
+            /* We print the dynamic pruning kernel timings after a separator
+             * and avoid adding it to tot_gpu as this is not in the force
+             * overlap. We print the fraction as relative to the rest.
+             */
+            print_gputimes(fplog, "*Dynamic pruning", gpu_t->dynamicPruneTime.c, gpu_t->dynamicPruneTime.t, tot_gpu);
+            fprintf(fplog, "%s\n", hline);
+        }
 
         gpu_cpu_ratio = tot_gpu/tot_cpu_overlap;
         if (gpu_t->nb_c > 0 && wc->wcc[ewcFORCE].n > 0)

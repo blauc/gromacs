@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -139,7 +139,6 @@ int cu_copy_D2H(void * /*h_dest*/, void * /*d_src*/, size_t /*bytes*/);
 /*! Launches asynchronous host to device memory copy in stream s. */
 int cu_copy_D2H_async(void * /*h_dest*/, void * /*d_src*/, size_t /*bytes*/, cudaStream_t /*s = 0*/);
 
-
 /*! Launches synchronous host to device memory copy. */
 int cu_copy_H2D(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/);
 
@@ -165,5 +164,35 @@ float cu_event_elapsed(cudaEvent_t /*start*/, cudaEvent_t /*end*/);
 
 /*! Waits for event end to complete and calculates the time between start and end. */
 int cu_wait_event_time(cudaEvent_t /*end*/, cudaEvent_t /*begin*/, float * /*time*/);
+
+/*! \brief Return whether texture objects are used on this device.
+ *
+ * \todo This should be static in cudautils.cu, as soon as texture destruction code is moved there as well
+ *
+ * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
+ * \return      true if texture objects are used on this device
+ */
+bool use_texobj(const gmx_device_info_t *dev_info);
+
+/*! \brief Initialize parameter lookup table.
+ *
+ * Initializes device memory, copies data from host and binds
+ * a texture to allocated device memory to be used for parameter lookup.
+ *
+ * \tparam[in] T         Raw data type
+ * \param[out] d_ptr     device pointer to the memory to be allocated
+ * \param[out] texObj    texture object to be initialized
+ * \param[out] texRef    texture reference to be initialized
+ * \param[in]  h_ptr     pointer to the host memory to be uploaded to the device
+ * \param[in]  numElem   number of elements in the h_ptr
+ * \param[in]  devInfo   pointer to the info struct of the device in use
+ */
+template <typename T>
+void initParamLookupTable(T                        * &d_ptr,
+                          cudaTextureObject_t       &texObj,
+                          const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                          const T                   *h_ptr,
+                          int                        numElem,
+                          const gmx_device_info_t   *devInfo);
 
 #endif

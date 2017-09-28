@@ -49,6 +49,7 @@ struct gmx_constr;
 struct gmx_localtop_t;
 struct gmx_output_env_t;
 struct gmx_update_t;
+struct MdrunOptions;
 struct nonbonded_verlet_t;
 struct t_mdatoms;
 struct t_nrnb;
@@ -61,11 +62,11 @@ class MDLogger;
 
 typedef struct gmx_global_stat *gmx_global_stat_t;
 
-void do_pbc_first_mtop(FILE *fplog, int ePBC, matrix box,
+void do_pbc_first_mtop(FILE *fplog, int ePBC, const matrix box,
                        const gmx_mtop_t *mtop, rvec x[]);
 
-void do_pbc_mtop(FILE *fplog, int ePBC, matrix box,
-                 gmx_mtop_t *mtop, rvec x[]);
+void do_pbc_mtop(FILE *fplog, int ePBC, const matrix box,
+                 const gmx_mtop_t *mtop, rvec x[]);
 
 /*! \brief Parallellizes put_atoms_in_box()
  *
@@ -121,7 +122,7 @@ void print_start(FILE *fplog, t_commrec *cr,
                  const char *name);
 
 void finish_run(FILE *log, const gmx::MDLogger &mdlog, t_commrec *cr,
-                t_inputrec *inputrec,
+                const t_inputrec *inputrec,
                 t_nrnb nrnb[], gmx_wallcycle_t wcycle,
                 gmx_walltime_accounting_t walltime_accounting,
                 nonbonded_verlet_t *nbv,
@@ -143,15 +144,16 @@ void do_constrain_first(FILE *log, gmx_constr *constr,
 void init_md(FILE *fplog,
              t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
              t_inputrec *ir, const gmx_output_env_t *oenv,
+             const MdrunOptions &mdrunOptions,
              double *t, double *t0,
-             gmx::ArrayRef<real> lambda, int *fep_state, double *lam0,
+             t_state *globalState, double *lam0,
              t_nrnb *nrnb, gmx_mtop_t *mtop,
              gmx_update_t **upd,
              int nfile, const t_filenm fnm[],
              gmx_mdoutf_t *outf, t_mdebin **mdebin,
              tensor force_vir, tensor shake_vir,
              rvec mu_tot,
-             gmx_bool *bSimAnn, t_vcm **vcm, unsigned long Flags,
+             gmx_bool *bSimAnn, t_vcm **vcm,
              gmx_wallcycle_t wcycle);
 /* Routine in sim_util.c */
 

@@ -47,17 +47,16 @@
 
 #include "config.h"
 
-#include <assert.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
+#include <csignal>
+#include <cstdlib>
+#include <cstring>
 
 #include <algorithm>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
-#include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/externalpotential/externalpotentialmanager.h"
 #include "gromacs/fileio/checkpoint.h"
@@ -67,7 +66,7 @@
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/hardware/cpuinfo.h"
 #include "gromacs/hardware/detecthardware.h"
-#include "gromacs/hardware/hardwareassign.h"
+#include "gromacs/hardware/printhardware.h"
 #include "gromacs/listed-forces/disre.h"
 #include "gromacs/listed-forces/orires.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
@@ -85,7 +84,9 @@
 #include "gromacs/mdlib/mdatoms.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/minimize.h"
+#include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_search.h"
+#include "gromacs/mdlib/nbnxn_tuning.h"
 #include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/sighandler.h"
 #include "gromacs/mdlib/sim_util.h"
@@ -103,6 +104,8 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
+#include "gromacs/taskassignment/hardwareassign.h"
+#include "gromacs/taskassignment/resourcedivision.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/trajectory/trajectoryframe.h"
@@ -115,13 +118,13 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/loggerbuilder.h"
 #include "gromacs/utility/pleasecite.h"
+#include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "deform.h"
 #include "md.h"
 #include "membed.h"
 #include "repl_ex.h"
-#include "resource-division.h"
 
 #ifdef GMX_FAHCORE
 #include "corewrap.h"
@@ -141,414 +144,88 @@ tMPI_Thread_mutex_t deform_init_box_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 #define MIN_ATOMS_PER_MPI_THREAD    90
 #define MIN_ATOMS_PER_GPU           900
 
-struct mdrunner_arglist
+namespace gmx
 {
-    gmx_hw_opt_t            hw_opt;
-    FILE                   *fplog;
-    t_commrec              *cr;
-    int                     nfile;
-    const t_filenm         *fnm;
-    const gmx_output_env_t *oenv;
-    gmx_bool                bVerbose;
-    int                     nstglobalcomm;
-    ivec                    ddxyz;
-    int                     dd_rank_order;
-    int                     npme;
-    real                    rdd;
-    real                    rconstr;
-    const char             *dddlb_opt;
-    real                    dlb_scale;
-    const char             *ddcsx;
-    const char             *ddcsy;
-    const char             *ddcsz;
-    const char             *nbpu_opt;
-    int                     nstlist_cmdline;
-    gmx_int64_t             nsteps_cmdline;
-    int                     nstepout;
-    int                     resetstep;
-    int                     nmultisim;
-    int                     repl_ex_nst;
-    int                     repl_ex_nex;
-    int                     repl_ex_seed;
-    real                    pforce;
-    real                    cpt_period;
-    real                    max_hours;
-    int                     imdport;
-    unsigned long           Flags;
-};
 
+void Mdrunner::reinitializeOnSpawnedThread()
+{
+    // TODO This duplication is formally necessary if any thread might
+    // modify any memory in fnm or the pointers it contains. If the
+    // contents are ever provably const, then we can remove this
+    // allocation (and memory leak).
+    // TODO This should probably become part of a copy constructor for
+    // Mdrunner.
+    fnm = dup_tfn(nfile, fnm);
 
-/* The function used for spawning threads. Extracts the mdrunner()
-   arguments from its one argument and calls mdrunner(), after making
-   a commrec. */
+    cr  = reinitialize_commrec_for_this_thread(cr);
+
+    if (!MASTER(cr))
+    {
+        // Only the master rank writes to the log files
+        fplog = nullptr;
+    }
+}
+
+/*! \brief The callback used for running on spawned threads.
+ *
+ * Obtains the pointer to the master mdrunner object from the one
+ * argument permitted to the thread-launch API call, copies it to make
+ * a new runner for this thread, reinitializes necessary data, and
+ * proceeds to the simulation. */
 static void mdrunner_start_fn(void *arg)
 {
     try
     {
-        struct mdrunner_arglist *mda = (struct mdrunner_arglist*)arg;
-        struct mdrunner_arglist  mc  = *mda; /* copy the arg list to make sure
-                                                that it's thread-local. This doesn't
-                                                copy pointed-to items, of course,
-                                                but those are all const. */
-        t_commrec *cr;                       /* we need a local version of this */
-        FILE      *fplog = nullptr;
-        t_filenm  *fnm;
-
-        fnm = dup_tfn(mc.nfile, mc.fnm);
-
-        cr = reinitialize_commrec_for_this_thread(mc.cr);
-
-        if (MASTER(cr))
-        {
-            fplog = mc.fplog;
-        }
-
-        gmx::mdrunner(&mc.hw_opt, fplog, cr, mc.nfile, fnm, mc.oenv,
-                      mc.bVerbose, mc.nstglobalcomm,
-                      mc.ddxyz, mc.dd_rank_order, mc.npme, mc.rdd,
-                      mc.rconstr, mc.dddlb_opt, mc.dlb_scale,
-                      mc.ddcsx, mc.ddcsy, mc.ddcsz,
-                      mc.nbpu_opt, mc.nstlist_cmdline,
-                      mc.nsteps_cmdline, mc.nstepout, mc.resetstep,
-                      mc.nmultisim, mc.repl_ex_nst, mc.repl_ex_nex, mc.repl_ex_seed, mc.pforce,
-                      mc.cpt_period, mc.max_hours, mc.imdport, mc.Flags);
+        auto masterMdrunner = reinterpret_cast<const gmx::Mdrunner *>(arg);
+        /* copy the arg list to make sure that it's thread-local. This
+           doesn't copy pointed-to items, of course, but those are all
+           const. */
+        gmx::Mdrunner mdrunner = *masterMdrunner;
+        mdrunner.reinitializeOnSpawnedThread();
+        mdrunner.mdrunner();
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 }
 
 
-/* called by mdrunner() to start a specific number of threads (including
-   the main thread) for thread-parallel runs. This in turn calls mdrunner()
-   for each thread.
-   All options besides nthreads are the same as for mdrunner(). */
-static t_commrec *mdrunner_start_threads(gmx_hw_opt_t *hw_opt,
-                                         FILE *fplog, t_commrec *cr, int nfile,
-                                         const t_filenm fnm[], const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                                         int nstglobalcomm,
-                                         ivec ddxyz, int dd_rank_order, int npme,
-                                         real rdd, real rconstr,
-                                         const char *dddlb_opt, real dlb_scale,
-                                         const char *ddcsx, const char *ddcsy, const char *ddcsz,
-                                         const char *nbpu_opt, int nstlist_cmdline,
-                                         gmx_int64_t nsteps_cmdline,
-                                         int nstepout, int resetstep,
-                                         int nmultisim, int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                                         real pforce, real cpt_period, real max_hours,
-                                         unsigned long Flags)
+/*! \brief Start thread-MPI threads.
+ *
+ * Called by mdrunner() to start a specific number of threads
+ * (including the main thread) for thread-parallel runs. This in turn
+ * calls mdrunner() for each thread. All options are the same as for
+ * mdrunner(). */
+t_commrec *Mdrunner::spawnThreads(int numThreadsToLaunch)
 {
-    int                      ret;
-    struct mdrunner_arglist *mda;
-    t_commrec               *crn; /* the new commrec */
-    t_filenm                *fnmn;
 
     /* first check whether we even need to start tMPI */
-    if (hw_opt->nthreads_tmpi < 2)
+    if (numThreadsToLaunch < 2)
     {
         return cr;
     }
 
-    /* a few small, one-time, almost unavoidable memory leaks: */
-    snew(mda, 1);
-    fnmn = dup_tfn(nfile, fnm);
-
-    /* fill the data structure to pass as void pointer to thread start fn */
-    /* hw_opt contains pointers, which should all be NULL at this stage */
-    mda->hw_opt          = *hw_opt;
-    mda->fplog           = fplog;
-    mda->cr              = cr;
-    mda->nfile           = nfile;
-    mda->fnm             = fnmn;
-    mda->oenv            = oenv;
-    mda->bVerbose        = bVerbose;
-    mda->nstglobalcomm   = nstglobalcomm;
-    mda->ddxyz[XX]       = ddxyz[XX];
-    mda->ddxyz[YY]       = ddxyz[YY];
-    mda->ddxyz[ZZ]       = ddxyz[ZZ];
-    mda->dd_rank_order   = dd_rank_order;
-    mda->npme            = npme;
-    mda->rdd             = rdd;
-    mda->rconstr         = rconstr;
-    mda->dddlb_opt       = dddlb_opt;
-    mda->dlb_scale       = dlb_scale;
-    mda->ddcsx           = ddcsx;
-    mda->ddcsy           = ddcsy;
-    mda->ddcsz           = ddcsz;
-    mda->nbpu_opt        = nbpu_opt;
-    mda->nstlist_cmdline = nstlist_cmdline;
-    mda->nsteps_cmdline  = nsteps_cmdline;
-    mda->nstepout        = nstepout;
-    mda->resetstep       = resetstep;
-    mda->nmultisim       = nmultisim;
-    mda->repl_ex_nst     = repl_ex_nst;
-    mda->repl_ex_nex     = repl_ex_nex;
-    mda->repl_ex_seed    = repl_ex_seed;
-    mda->pforce          = pforce;
-    mda->cpt_period      = cpt_period;
-    mda->max_hours       = max_hours;
-    mda->Flags           = Flags;
+    gmx::Mdrunner spawnedMdrunner = *this;
+    // TODO This duplication is formally necessary if any thread might
+    // modify any memory in fnm or the pointers it contains. If the
+    // contents are ever provably const, then we can remove this
+    // allocation (and memory leak).
+    // TODO This should probably become part of a copy constructor for
+    // Mdrunner.
+    spawnedMdrunner.fnm = dup_tfn(this->nfile, fnm);
 
     /* now spawn new threads that start mdrunner_start_fn(), while
        the main thread returns, we set thread affinity later */
-    ret = tMPI_Init_fn(TRUE, hw_opt->nthreads_tmpi, TMPI_AFFINITY_NONE,
-                       mdrunner_start_fn, (void*)(mda) );
-    if (ret != TMPI_SUCCESS)
+    if (tMPI_Init_fn(TRUE, numThreadsToLaunch, TMPI_AFFINITY_NONE,
+                     mdrunner_start_fn, static_cast<void*>(&spawnedMdrunner)) != TMPI_SUCCESS)
     {
-        return nullptr;
+        GMX_THROW(gmx::InternalError("Failed to spawn thread-MPI threads"));
     }
 
-    crn = reinitialize_commrec_for_this_thread(cr);
-    return crn;
+    return reinitialize_commrec_for_this_thread(cr);
 }
+
+}      // namespace
 
 #endif /* GMX_THREAD_MPI */
-
-
-/*! \brief Cost of non-bonded kernels
- *
- * We determine the extra cost of the non-bonded kernels compared to
- * a reference nstlist value of 10 (which is the default in grompp).
- */
-static const int    nbnxnReferenceNstlist = 10;
-//! The values to try when switching
-const int           nstlist_try[] = { 20, 25, 40 };
-//! Number of elements in the neighborsearch list trials.
-#define NNSTL  sizeof(nstlist_try)/sizeof(nstlist_try[0])
-/* Increase nstlist until the non-bonded cost increases more than listfac_ok,
- * but never more than listfac_max.
- * A standard (protein+)water system at 300K with PME ewald_rtol=1e-5
- * needs 1.28 at rcoulomb=0.9 and 1.24 at rcoulomb=1.0 to get to nstlist=40.
- * Note that both CPU and GPU factors are conservative. Performance should
- * not go down due to this tuning, except with a relatively slow GPU.
- * On the other hand, at medium/high parallelization or with fast GPUs
- * nstlist will not be increased enough to reach optimal performance.
- */
-/* CPU: pair-search is about a factor 1.5 slower than the non-bonded kernel */
-//! Max OK performance ratio beween force calc and neighbor searching
-static const float  nbnxn_cpu_listfac_ok    = 1.05;
-//! Too high performance ratio beween force calc and neighbor searching
-static const float  nbnxn_cpu_listfac_max   = 1.09;
-/* CPU: pair-search is about a factor 2-3 slower than the non-bonded kernel */
-//! Max OK performance ratio beween force calc and neighbor searching
-static const float  nbnxn_knl_listfac_ok    = 1.22;
-//! Too high performance ratio beween force calc and neighbor searching
-static const float  nbnxn_knl_listfac_max   = 1.3;
-/* GPU: pair-search is a factor 1.5-3 slower than the non-bonded kernel */
-//! Max OK performance ratio beween force calc and neighbor searching
-static const float  nbnxn_gpu_listfac_ok    = 1.20;
-//! Too high performance ratio beween force calc and neighbor searching
-static const float  nbnxn_gpu_listfac_max   = 1.30;
-
-/*! \brief Try to increase nstlist when using the Verlet cut-off scheme */
-static void increase_nstlist(FILE *fp, t_commrec *cr,
-                             t_inputrec *ir, int nstlist_cmdline,
-                             const gmx_mtop_t *mtop, matrix box,
-                             gmx_bool bGPU, const gmx::CpuInfo &cpuinfo)
-{
-    float                  listfac_ok, listfac_max;
-    int                    nstlist_orig, nstlist_prev;
-    verletbuf_list_setup_t ls;
-    real                   rlistWithReferenceNstlist, rlist_inc, rlist_ok, rlist_max;
-    real                   rlist_new, rlist_prev;
-    size_t                 nstlist_ind = 0;
-    gmx_bool               bBox, bDD, bCont;
-    const char            *nstl_gpu = "\nFor optimal performance with a GPU nstlist (now %d) should be larger.\nThe optimum depends on your CPU and GPU resources.\nYou might want to try several nstlist values.\n";
-    const char            *nve_err  = "Can not increase nstlist because an NVE ensemble is used";
-    const char            *vbd_err  = "Can not increase nstlist because verlet-buffer-tolerance is not set or used";
-    const char            *box_err  = "Can not increase nstlist because the box is too small";
-    const char            *dd_err   = "Can not increase nstlist because of domain decomposition limitations";
-    char                   buf[STRLEN];
-
-    if (nstlist_cmdline <= 0)
-    {
-        if (ir->nstlist == 1)
-        {
-            /* The user probably set nstlist=1 for a reason,
-             * don't mess with the settings.
-             */
-            return;
-        }
-
-        if (fp != nullptr && bGPU && ir->nstlist < nstlist_try[0])
-        {
-            fprintf(fp, nstl_gpu, ir->nstlist);
-        }
-        nstlist_ind = 0;
-        while (nstlist_ind < NNSTL && ir->nstlist >= nstlist_try[nstlist_ind])
-        {
-            nstlist_ind++;
-        }
-        if (nstlist_ind == NNSTL)
-        {
-            /* There are no larger nstlist value to try */
-            return;
-        }
-    }
-
-    if (EI_MD(ir->eI) && ir->etc == etcNO)
-    {
-        if (MASTER(cr))
-        {
-            fprintf(stderr, "%s\n", nve_err);
-        }
-        if (fp != nullptr)
-        {
-            fprintf(fp, "%s\n", nve_err);
-        }
-
-        return;
-    }
-
-    if (ir->verletbuf_tol == 0 && bGPU)
-    {
-        gmx_fatal(FARGS, "You are using an old tpr file with a GPU, please generate a new tpr file with an up to date version of grompp");
-    }
-
-    if (ir->verletbuf_tol < 0)
-    {
-        if (MASTER(cr))
-        {
-            fprintf(stderr, "%s\n", vbd_err);
-        }
-        if (fp != nullptr)
-        {
-            fprintf(fp, "%s\n", vbd_err);
-        }
-
-        return;
-    }
-
-    if (bGPU)
-    {
-        listfac_ok  = nbnxn_gpu_listfac_ok;
-        listfac_max = nbnxn_gpu_listfac_max;
-    }
-    else if (cpuinfo.feature(gmx::CpuInfo::Feature::X86_Avx512ER))
-    {
-        listfac_ok  = nbnxn_knl_listfac_ok;
-        listfac_max = nbnxn_knl_listfac_max;
-    }
-    else
-    {
-        listfac_ok  = nbnxn_cpu_listfac_ok;
-        listfac_max = nbnxn_cpu_listfac_max;
-    }
-
-    nstlist_orig = ir->nstlist;
-    if (nstlist_cmdline > 0)
-    {
-        if (fp)
-        {
-            sprintf(buf, "Getting nstlist=%d from command line option",
-                    nstlist_cmdline);
-        }
-        ir->nstlist = nstlist_cmdline;
-    }
-
-    verletbuf_get_list_setup(TRUE, bGPU, &ls);
-
-    /* Allow rlist to make the list a given factor larger than the list
-     * would be with the reference value for nstlist (10).
-     */
-    nstlist_prev = ir->nstlist;
-    ir->nstlist  = nbnxnReferenceNstlist;
-    calc_verlet_buffer_size(mtop, det(box), ir, -1, &ls, nullptr,
-                            &rlistWithReferenceNstlist);
-    ir->nstlist  = nstlist_prev;
-
-    /* Determine the pair list size increase due to zero interactions */
-    rlist_inc = nbnxn_get_rlist_effective_inc(ls.cluster_size_j,
-                                              mtop->natoms/det(box));
-    rlist_ok  = (rlistWithReferenceNstlist + rlist_inc)*std::cbrt(listfac_ok) - rlist_inc;
-    rlist_max = (rlistWithReferenceNstlist + rlist_inc)*std::cbrt(listfac_max) - rlist_inc;
-    if (debug)
-    {
-        fprintf(debug, "nstlist tuning: rlist_inc %.3f rlist_ok %.3f rlist_max %.3f\n",
-                rlist_inc, rlist_ok, rlist_max);
-    }
-
-    nstlist_prev = nstlist_orig;
-    rlist_prev   = ir->rlist;
-    do
-    {
-        if (nstlist_cmdline <= 0)
-        {
-            ir->nstlist = nstlist_try[nstlist_ind];
-        }
-
-        /* Set the pair-list buffer size in ir */
-        calc_verlet_buffer_size(mtop, det(box), ir, -1, &ls, nullptr, &rlist_new);
-
-        /* Does rlist fit in the box? */
-        bBox = (gmx::square(rlist_new) < max_cutoff2(ir->ePBC, box));
-        bDD  = TRUE;
-        if (bBox && DOMAINDECOMP(cr))
-        {
-            /* Check if rlist fits in the domain decomposition */
-            if (inputrec2nboundeddim(ir) < DIM)
-            {
-                gmx_incons("Changing nstlist with domain decomposition and unbounded dimensions is not implemented yet");
-            }
-            t_state state_tmp;
-            copy_mat(box, state_tmp.box);
-            bDD = change_dd_cutoff(cr, &state_tmp, ir, rlist_new);
-        }
-
-        if (debug)
-        {
-            fprintf(debug, "nstlist %d rlist %.3f bBox %d bDD %d\n",
-                    ir->nstlist, rlist_new, bBox, bDD);
-        }
-
-        bCont = FALSE;
-
-        if (nstlist_cmdline <= 0)
-        {
-            if (bBox && bDD && rlist_new <= rlist_max)
-            {
-                /* Increase nstlist */
-                nstlist_prev = ir->nstlist;
-                rlist_prev   = rlist_new;
-                bCont        = (nstlist_ind+1 < NNSTL && rlist_new < rlist_ok);
-            }
-            else
-            {
-                /* Stick with the previous nstlist */
-                ir->nstlist = nstlist_prev;
-                rlist_new   = rlist_prev;
-                bBox        = TRUE;
-                bDD         = TRUE;
-            }
-        }
-
-        nstlist_ind++;
-    }
-    while (bCont);
-
-    if (!bBox || !bDD)
-    {
-        gmx_warning(!bBox ? box_err : dd_err);
-        if (fp != nullptr)
-        {
-            fprintf(fp, "\n%s\n", bBox ? box_err : dd_err);
-        }
-        ir->nstlist = nstlist_orig;
-    }
-    else if (ir->nstlist != nstlist_orig || rlist_new != ir->rlist)
-    {
-        sprintf(buf, "Changing nstlist from %d to %d, rlist from %g to %g",
-                nstlist_orig, ir->nstlist,
-                ir->rlist, rlist_new);
-        if (MASTER(cr))
-        {
-            fprintf(stderr, "%s\n\n", buf);
-        }
-        if (fp != nullptr)
-        {
-            fprintf(fp, "%s\n\n", buf);
-        }
-        ir->rlist     = rlist_new;
-    }
-}
 
 /*! \brief Initialize variables for Verlet scheme simulation */
 static void prepare_verlet_scheme(FILE                           *fplog,
@@ -556,8 +233,8 @@ static void prepare_verlet_scheme(FILE                           *fplog,
                                   t_inputrec                     *ir,
                                   int                             nstlist_cmdline,
                                   const gmx_mtop_t               *mtop,
-                                  matrix                          box,
-                                  gmx_bool                        bUseGPU,
+                                  const matrix                    box,
+                                  bool                            makeGpuPairList,
                                   const gmx::CpuInfo             &cpuinfo)
 {
     /* For NVE simulations, we will retain the initial list buffer */
@@ -573,9 +250,9 @@ static void prepare_verlet_scheme(FILE                           *fplog,
          * calc_verlet_buffer_size gives the same results for 4x8 and 4x4
          * and 4x2 gives a larger buffer than 4x4, this is ok.
          */
-        verletbuf_get_list_setup(TRUE, bUseGPU, &ls);
+        verletbuf_get_list_setup(true, makeGpuPairList, &ls);
 
-        calc_verlet_buffer_size(mtop, det(box), ir, -1, &ls, nullptr, &rlist_new);
+        calc_verlet_buffer_size(mtop, det(box), ir, ir->nstlist, ir->nstlist - 1, -1, &ls, nullptr, &rlist_new);
 
         if (rlist_new != ir->rlist)
         {
@@ -598,7 +275,7 @@ static void prepare_verlet_scheme(FILE                           *fplog,
     if (EI_DYNAMICS(ir->eI))
     {
         /* Set or try nstlist values */
-        increase_nstlist(fplog, cr, ir, nstlist_cmdline, mtop, box, bUseGPU, cpuinfo);
+        increaseNstlist(fplog, cr, ir, nstlist_cmdline, mtop, box, makeGpuPairList, cpuinfo);
     }
 }
 
@@ -643,6 +320,65 @@ static void override_nsteps_cmdline(const gmx::MDLogger &mdlog,
 
 namespace gmx
 {
+
+//! Halt the run if there are inconsistences between user choices to run with GPUs and/or hardware detection.
+static void exitIfCannotForceGpuRun(bool                requirePhysicalGpu,
+                                    EmulateGpuNonbonded emulateGpuNonbonded,
+                                    bool                useVerletScheme,
+                                    bool                compatibleGpusFound)
+{
+    /* Was GPU acceleration either explicitly (-nb gpu) or implicitly
+     * (gpu ID passed) requested? */
+    if (!requirePhysicalGpu)
+    {
+        return;
+    }
+
+    if (GMX_GPU == GMX_GPU_NONE)
+    {
+        gmx_fatal(FARGS, "GPU acceleration requested, but %s was compiled without GPU support!",
+                  gmx::getProgramContext().displayName());
+    }
+
+    if (emulateGpuNonbonded == EmulateGpuNonbonded::Yes)
+    {
+        gmx_fatal(FARGS, "GPU emulation cannot be requested together with GPU acceleration!");
+    }
+
+    if (!useVerletScheme)
+    {
+        gmx_fatal(FARGS, "GPU acceleration requested, but can't be used without cutoff-scheme=Verlet");
+    }
+
+    if (!compatibleGpusFound)
+    {
+        gmx_fatal(FARGS, "GPU acceleration requested, but no compatible GPUs were detected.");
+    }
+}
+
+/*! \brief Return whether GPU acceleration is useful with the given settings.
+ *
+ * If not, logs a message about falling back to CPU code. */
+static bool gpuAccelerationIsUseful(const MDLogger   &mdlog,
+                                    const t_inputrec *ir,
+                                    bool              doRerun)
+{
+    if (doRerun && ir->opts.ngener > 1)
+    {
+        /* Rerun execution time is dominated by I/O and pair search,
+         * so GPUs are not very useful, plus they do not support more
+         * than one energy group. If the user requested GPUs
+         * explicitly, a fatal error is given later.  With non-reruns,
+         * we fall back to a single whole-of system energy group
+         * (which runs much faster than a multiple-energy-groups
+         * implementation would), and issue a note in the .log
+         * file. Users can re-run if they want the information. */
+        GMX_LOG(mdlog.warning).asParagraph().appendText("Multiple energy groups is not implemented for GPUs, so is not useful for this rerun, so falling back to the CPU");
+        return false;
+    }
+
+    return true;
+}
 
 //! \brief Return the correct integrator function.
 static integrator_t *my_integrator(unsigned int ei)
@@ -697,20 +433,8 @@ static gmx::LoggerOwner buildLogger(FILE *fplog, const t_commrec *cr)
     return builder.build();
 }
 
-int mdrunner(gmx_hw_opt_t *hw_opt,
-             FILE *fplog, t_commrec *cr, int nfile,
-             const t_filenm fnm[], const gmx_output_env_t *oenv, gmx_bool bVerbose,
-             int nstglobalcomm,
-             ivec ddxyz, int dd_rank_order, int npme, real rdd, real rconstr,
-             const char *dddlb_opt, real dlb_scale,
-             const char *ddcsx, const char *ddcsy, const char *ddcsz,
-             const char *nbpu_opt, int nstlist_cmdline,
-             gmx_int64_t nsteps_cmdline, int nstepout, int resetstep,
-             int gmx_unused nmultisim, int repl_ex_nst, int repl_ex_nex,
-             int repl_ex_seed, real pforce, real cpt_period, real max_hours,
-             int imdport, unsigned long Flags)
+int Mdrunner::mdrunner()
 {
-    gmx_bool                  bForceUseGPU, bTryUseGPU, bRerunMD;
     matrix                    box;
     gmx_ddbox_t               ddbox = {0};
     int                       npme_major, npme_minor;
@@ -729,12 +453,9 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_walltime_accounting_t walltime_accounting = nullptr;
     int                       rc;
     gmx_int64_t               reset_counters;
-    gmx_edsam_t               ed           = nullptr;
     int                       nthreads_pme = 1;
     gmx_membed_t *            membed       = nullptr;
     gmx_hw_info_t            *hwinfo       = nullptr;
-    /* The master rank decides early on bUseGPU and broadcasts this later */
-    gmx_bool                  bUseGPU            = FALSE;
 
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
@@ -743,24 +464,35 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     t_inputrec    *inputrec = &inputrecInstance;
     snew(mtop, 1);
 
-    if (Flags & MD_APPENDFILES)
+    if (mdrunOptions.continuationOptions.appendFiles)
     {
         fplog = nullptr;
     }
 
     bool doMembed = opt2bSet("-membed", nfile, fnm);
-    bRerunMD     = (Flags & MD_RERUN);
-    bForceUseGPU = (strncmp(nbpu_opt, "gpu", 3) == 0);
-    bTryUseGPU   = (strncmp(nbpu_opt, "auto", 4) == 0) || bForceUseGPU;
+    bool doRerun  = mdrunOptions.rerun;
+
+    /* Handle GPU-related user options. Later, we check consistency
+     * with things like whether support is compiled, or tMPI thread
+     * count. */
+    EmulateGpuNonbonded emulateGpuNonbonded = (getenv("GMX_EMULATE_GPU") != nullptr ?
+                                               EmulateGpuNonbonded::Yes : EmulateGpuNonbonded::No);
+    bool                forceUseCpu           = (strncmp(nbpu_opt, "cpu", 3) == 0);
+    if (!hw_opt.gpuIdTaskAssignment.empty() && forceUseCpu)
+    {
+        gmx_fatal(FARGS, "GPU IDs were specified, and short-ranged interactions were assigned to the CPU. Make no more than one of these choices.");
+    }
+    bool forceUsePhysicalGpu = (strncmp(nbpu_opt, "gpu", 3) == 0) || !hw_opt.gpuIdTaskAssignment.empty();
+    bool tryUsePhysicalGpu   = (strncmp(nbpu_opt, "auto", 4) == 0) && hw_opt.gpuIdTaskAssignment.empty() && (emulateGpuNonbonded == EmulateGpuNonbonded::No);
+    GMX_RELEASE_ASSERT(!(forceUsePhysicalGpu && tryUsePhysicalGpu), "Must either force use of "
+                       "GPUs for short-ranged interactions, or try to use them, not both.");
 
     // Here we assume that SIMMASTER(cr) does not change even after the
     // threads are started.
     gmx::LoggerOwner logOwner(buildLogger(fplog, cr));
     gmx::MDLogger    mdlog(logOwner.logger());
 
-    /* Detect hardware, gather information. This is an operation that is
-     * global for this process (MPI rank). */
-    hwinfo = gmx_detect_hardware(mdlog, cr, bTryUseGPU);
+    hwinfo = gmx_detect_hardware(mdlog, cr);
 
     gmx_print_detected_hardware(fplog, cr, mdlog, hwinfo);
 
@@ -776,39 +508,37 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         please_cite(fplog, "Berendsen95a");
     }
 
-    std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state);
-    t_state *                state         = stateInstance.get();
+    std::unique_ptr<t_state> globalState;
 
     if (SIMMASTER(cr))
     {
+        /* Only the master rank has the global state */
+        globalState = std::unique_ptr<t_state>(new t_state);
+
         /* Read (nearly) all data required for the simulation */
-        read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
+        read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, globalState.get(), mtop);
+
+        exitIfCannotForceGpuRun(forceUsePhysicalGpu,
+                                emulateGpuNonbonded,
+                                inputrec->cutoff_scheme == ecutsVERLET,
+                                compatibleGpusFound(hwinfo->gpu_info));
 
         if (inputrec->cutoff_scheme == ecutsVERLET)
         {
-            /* Here the master rank decides if all ranks will use GPUs */
-            bUseGPU = (hwinfo->gpu_info.n_dev_compatible > 0 ||
-                       getenv("GMX_EMULATE_GPU") != nullptr);
-
-            /* TODO add GPU kernels for this and replace this check by:
-             * (bUseGPU && (ir->vdwtype == evdwPME &&
-             *               ir->ljpme_combination_rule == eljpmeLB))
-             * update the message text and the content of nbnxn_acceleration_supported.
-             */
-            if (bUseGPU &&
-                !nbnxn_gpu_acceleration_supported(mdlog, inputrec, bRerunMD))
+            /* TODO This logic could run later, e.g. before -npme -1
+               is handled. If inputrec has already been communicated,
+               then the resulting tryUsePhysicalGpu does not need to
+               be communicated. */
+            if ((tryUsePhysicalGpu || forceUsePhysicalGpu) &&
+                !gpuAccelerationIsUseful(mdlog, inputrec, doRerun))
             {
                 /* Fallback message printed by nbnxn_acceleration_supported */
-                if (bForceUseGPU)
+                if (forceUsePhysicalGpu)
                 {
                     gmx_fatal(FARGS, "GPU acceleration requested, but not supported with the given input settings");
                 }
-                bUseGPU = FALSE;
+                tryUsePhysicalGpu = false;
             }
-
-            prepare_verlet_scheme(fplog, cr,
-                                  inputrec, nstlist_cmdline, mtop, state->box,
-                                  bUseGPU, *hwinfo->cpuInfo);
         }
         else
         {
@@ -817,38 +547,28 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                 gmx_fatal(FARGS, "Can not set nstlist with the group cut-off scheme");
             }
 
-            if (hwinfo->gpu_info.n_dev_compatible > 0)
+            if (compatibleGpusFound(hwinfo->gpu_info))
             {
                 GMX_LOG(mdlog.warning).asParagraph().appendText(
                         "NOTE: GPU(s) found, but the current simulation can not use GPUs\n"
                         "      To use a GPU, set the mdp option: cutoff-scheme = Verlet");
             }
-
-            if (bForceUseGPU)
-            {
-                gmx_fatal(FARGS, "GPU requested, but can't be used without cutoff-scheme=Verlet");
-            }
-
-#if GMX_TARGET_BGQ
-            md_print_warn(cr, fplog,
-                          "NOTE: There is no SIMD implementation of the group scheme kernels on\n"
-                          "      BlueGene/Q. You will observe better performance from using the\n"
-                          "      Verlet cut-off scheme.\n");
-#endif
+            tryUsePhysicalGpu = false;
         }
     }
+    bool nonbondedOnGpu = (tryUsePhysicalGpu || forceUsePhysicalGpu) && compatibleGpusFound(hwinfo->gpu_info);
 
     /* Check and update the hardware options for internal consistency */
-    check_and_update_hw_opt_1(hw_opt, cr, npme);
+    check_and_update_hw_opt_1(&hw_opt, cr, domdecOptions.numPmeRanks);
 
     /* Early check for externally set process affinity. */
     gmx_check_thread_affinity_set(mdlog, cr,
-                                  hw_opt, hwinfo->nthreads_hw_avail, FALSE);
+                                  &hw_opt, hwinfo->nthreads_hw_avail, FALSE);
 
 #if GMX_THREAD_MPI
     if (SIMMASTER(cr))
     {
-        if (npme > 0 && hw_opt->nthreads_tmpi <= 0)
+        if (domdecOptions.numPmeRanks > 0 && hw_opt.nthreads_tmpi <= 0)
         {
             gmx_fatal(FARGS, "You need to explicitly specify the number of MPI threads (-ntmpi) when using separate PME ranks");
         }
@@ -857,35 +577,28 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
          * This is done later for normal MPI and also once more with tMPI
          * for all tMPI ranks.
          */
-        check_and_update_hw_opt_2(hw_opt, inputrec->cutoff_scheme);
+        check_and_update_hw_opt_2(&hw_opt, inputrec->cutoff_scheme);
 
-        /* NOW the threads will be started: */
-        hw_opt->nthreads_tmpi = get_nthreads_mpi(hwinfo,
-                                                 hw_opt,
-                                                 inputrec, mtop,
-                                                 mdlog, bUseGPU,
-                                                 doMembed);
+        /* Determine how many thread-MPI ranks to start.
+         *
+         * TODO Over-writing the user-supplied value here does
+         * prevent any possible subsequent checks from working
+         * correctly. */
+        hw_opt.nthreads_tmpi = get_nthreads_mpi(hwinfo,
+                                                &hw_opt,
+                                                domdecOptions.numPmeRanks,
+                                                nonbondedOnGpu,
+                                                inputrec, mtop,
+                                                mdlog,
+                                                doMembed);
 
-        if (hw_opt->nthreads_tmpi > 1)
-        {
-            t_commrec *cr_old       = cr;
-            /* now start the threads. */
-            cr = mdrunner_start_threads(hw_opt, fplog, cr_old, nfile, fnm,
-                                        oenv, bVerbose, nstglobalcomm,
-                                        ddxyz, dd_rank_order, npme, rdd, rconstr,
-                                        dddlb_opt, dlb_scale, ddcsx, ddcsy, ddcsz,
-                                        nbpu_opt, nstlist_cmdline,
-                                        nsteps_cmdline, nstepout, resetstep, nmultisim,
-                                        repl_ex_nst, repl_ex_nex, repl_ex_seed, pforce,
-                                        cpt_period, max_hours,
-                                        Flags);
-            /* the main thread continues here with a new cr. We don't deallocate
-               the old cr because other threads may still be reading it. */
-            if (cr == nullptr)
-            {
-                gmx_comm("Failed to spawn threads");
-            }
-        }
+        // Now start the threads for thread MPI.
+        cr = spawnThreads(hw_opt.nthreads_tmpi);
+        /* The main thread continues here with a new cr. We don't deallocate
+           the old cr because other threads may still be reading it. */
+        // TODO Both master and spawned threads call dup_tfn and
+        // reinitialize_commrec_for_this_thread. Find a way to express
+        // this better.
     }
 #endif
     /* END OF CAUTION: cr is now reliable */
@@ -895,10 +608,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         /* now broadcast everything to the non-master nodes/threads: */
         init_parallel(cr, inputrec, mtop);
 
-        /* The master rank decided on the use of GPUs,
-         * broadcast this information to all ranks.
-         */
-        gmx_bcast_sim(sizeof(bUseGPU), &bUseGPU, cr);
+        gmx_bcast_sim(sizeof(nonbondedOnGpu), &nonbondedOnGpu, cr);
     }
     // TODO: Error handling
     mdModules.assignOptionsToModules(*inputrec->params, nullptr);
@@ -909,13 +619,30 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fprintf(fplog, "\n");
     }
 
-    /* now make sure the state is initialized and propagated */
-    set_state_entries(state, inputrec);
+    if (SIMMASTER(cr))
+    {
+        /* now make sure the state is initialized and propagated */
+        set_state_entries(globalState.get(), inputrec);
+    }
+
+    /* NM and TPI parallelize over force/energy calculations, not atoms,
+     * so we need to initialize and broadcast the global state.
+     */
+    if (inputrec->eI == eiNM || inputrec->eI == eiTPI)
+    {
+        if (!MASTER(cr))
+        {
+            globalState = std::unique_ptr<t_state>(new t_state);
+        }
+        broadcastStateWithoutDynamics(cr, globalState.get());
+    }
 
     /* A parallel command line option consistency check that we can
        only do after any threads have started. */
-    if (!PAR(cr) &&
-        (ddxyz[XX] > 1 || ddxyz[YY] > 1 || ddxyz[ZZ] > 1 || npme > 0))
+    if (!PAR(cr) && (domdecOptions.numCells[XX] > 1 ||
+                     domdecOptions.numCells[YY] > 1 ||
+                     domdecOptions.numCells[ZZ] > 1 ||
+                     domdecOptions.numPmeRanks > 0))
     {
         gmx_fatal(FARGS,
                   "The -dd or -npme option request a parallel simulation, "
@@ -932,7 +659,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                   );
     }
 
-    if (bRerunMD &&
+    if (doRerun &&
         (EI_ENERGY_MINIMIZATION(inputrec->eI) || eiNM == inputrec->eI))
     {
         gmx_fatal(FARGS, "The .mdp file specified an energy mininization or normal mode algorithm, and these are not compatible with mdrun -rerun");
@@ -945,22 +672,22 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
     if (!(EEL_PME(inputrec->coulombtype) || EVDW_PME(inputrec->vdwtype)))
     {
-        if (npme > 0)
+        if (domdecOptions.numPmeRanks > 0)
         {
             gmx_fatal_collective(FARGS, cr->mpi_comm_mysim, MASTER(cr),
                                  "PME-only ranks are requested, but the system does not use PME for electrostatics or LJ");
         }
 
-        npme = 0;
+        domdecOptions.numPmeRanks = 0;
     }
 
-    if (bUseGPU && npme < 0)
+    if (nonbondedOnGpu && domdecOptions.numPmeRanks < 0)
     {
         /* With GPUs we don't automatically use PME-only ranks. PME ranks can
          * improve performance with many threads per GPU, since our OpenMP
          * scaling is bad, but it's difficult to automate the setup.
          */
-        npme = 0;
+        domdecOptions.numPmeRanks = 0;
     }
 
 #ifdef GMX_FAHCORE
@@ -980,17 +707,16 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     snew(fcd, 1);
 
     /* This needs to be called before read_checkpoint to extend the state */
-    init_disres(fplog, mtop, inputrec, cr, fcd, state, repl_ex_nst > 0);
+    init_disres(fplog, mtop, inputrec, cr, fcd, globalState.get(), replExParams.exchangeInterval > 0);
 
-    init_orires(fplog, mtop, as_rvec_array(state->x.data()), inputrec, cr, &(fcd->orires),
-                state);
+    init_orires(fplog, mtop, inputrec, cr, globalState.get(), &(fcd->orires));
 
     if (inputrecDeform(inputrec))
     {
         /* Store the deform reference box before reading the checkpoint */
         if (SIMMASTER(cr))
         {
-            copy_mat(state->box, box);
+            copy_mat(globalState->box, box);
         }
         if (PAR(cr))
         {
@@ -1008,9 +734,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         tMPI_Thread_mutex_unlock(&deform_init_box_mutex);
     }
 
-    ObservablesHistory observablesHistory = {};
+    ObservablesHistory   observablesHistory = {};
 
-    if (Flags & MD_STARTFROMCPT)
+    ContinuationOptions &continuationOptions = mdrunOptions.continuationOptions;
+
+    if (continuationOptions.startedFromCheckpoint)
     {
         /* Check if checkpoint file exists before doing continuation.
          * This way we can use identical input options for the first and subsequent runs...
@@ -1018,32 +746,33 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         gmx_bool bReadEkin;
 
         load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
-                        cr, ddxyz, &npme,
-                        inputrec, state, &bReadEkin, &observablesHistory,
-                        (Flags & MD_APPENDFILES),
-                        (Flags & MD_APPENDFILESSET),
-                        (Flags & MD_REPRODUCIBLE));
+                        cr, domdecOptions.numCells,
+                        inputrec, globalState.get(),
+                        &bReadEkin, &observablesHistory,
+                        continuationOptions.appendFiles,
+                        continuationOptions.appendFilesOptionSet,
+                        mdrunOptions.reproducible);
 
         if (bReadEkin)
         {
-            Flags |= MD_READ_EKIN;
+            continuationOptions.haveReadEkin = true;
         }
     }
 
-    if (SIMMASTER(cr) && (Flags & MD_APPENDFILES))
+    if (SIMMASTER(cr) && continuationOptions.appendFiles)
     {
         gmx_log_open(ftp2fn(efLOG, nfile, fnm), cr,
-                     Flags, &fplog);
+                     continuationOptions.appendFiles, &fplog);
         logOwner = buildLogger(fplog, nullptr);
         mdlog    = logOwner.logger();
     }
 
-    /* override nsteps with value from cmdline */
-    override_nsteps_cmdline(mdlog, nsteps_cmdline, inputrec);
+    /* override nsteps with value set on the commamdline */
+    override_nsteps_cmdline(mdlog, mdrunOptions.numStepsCommandline, inputrec);
 
     if (SIMMASTER(cr))
     {
-        copy_mat(state->box, box);
+        copy_mat(globalState->box, box);
     }
 
     if (PAR(cr))
@@ -1051,27 +780,23 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         gmx_bcast(sizeof(box), box, cr);
     }
 
-    // TODO This should move to do_md(), because it only makes sense
-    // with dynamical integrators, but there is no test coverage and
-    // it interacts with constraints, somehow.
-    /* Essential dynamics */
-    if (opt2bSet("-ei", nfile, fnm))
+    /* Update rlist and nstlist. */
+    if (inputrec->cutoff_scheme == ecutsVERLET)
     {
-        /* Open input and output files, allocate space for ED data structure */
-        ed = ed_open(mtop->natoms, &observablesHistory, nfile, fnm, Flags, oenv, cr);
+        prepare_verlet_scheme(fplog, cr, inputrec, nstlist_cmdline, mtop, box,
+                              nonbondedOnGpu || (emulateGpuNonbonded == EmulateGpuNonbonded::Yes), *hwinfo->cpuInfo);
     }
 
     if (PAR(cr) && !(EI_TPI(inputrec->eI) ||
                      inputrec->eI == eiNM))
     {
-        cr->dd = init_domain_decomposition(fplog, cr, Flags, ddxyz, npme,
-                                           dd_rank_order,
-                                           rdd, rconstr,
-                                           dddlb_opt, dlb_scale,
-                                           ddcsx, ddcsy, ddcsz,
+        const rvec *xOnMaster = (SIMMASTER(cr) ? as_rvec_array(globalState->x.data()) : nullptr);
+
+        cr->dd = init_domain_decomposition(fplog, cr, domdecOptions, mdrunOptions,
                                            mtop, inputrec,
-                                           box, as_rvec_array(state->x.data()),
+                                           box, xOnMaster,
                                            &ddbox, &npme_major, &npme_minor);
+        // Note that local state still does not exist yet.
     }
     else
     {
@@ -1120,15 +845,15 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 #endif
 
     /* Check and update hw_opt for the cut-off scheme */
-    check_and_update_hw_opt_2(hw_opt, inputrec->cutoff_scheme);
+    check_and_update_hw_opt_2(&hw_opt, inputrec->cutoff_scheme);
 
     /* Check and update hw_opt for the number of MPI ranks */
-    check_and_update_hw_opt_3(hw_opt);
+    check_and_update_hw_opt_3(&hw_opt);
 
     gmx_omp_nthreads_init(mdlog, cr,
                           hwinfo->nthreads_hw_avail,
-                          hw_opt->nthreads_omp,
-                          hw_opt->nthreads_omp_pme,
+                          hw_opt.nthreads_omp,
+                          hw_opt.nthreads_omp_pme,
                           (cr->duty & DUTY_PP) == 0,
                           inputrec->cutoff_scheme == ecutsVERLET);
 
@@ -1140,30 +865,65 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     }
 #endif
 
-    if (bUseGPU)
+    // Contains the ID of the GPU used by each PP rank on this node,
+    // indexed by that rank. Empty if no GPUs are selected for use on
+    // this node.
+    std::vector<int> gpuTaskAssignment;
+    if (nonbondedOnGpu)
     {
-        /* Select GPU id's to use */
-        gmx_select_rank_gpu_ids(mdlog, cr, &hwinfo->gpu_info, bForceUseGPU,
-                                &hw_opt->gpu_opt);
-    }
-    else
-    {
-        /* Ignore (potentially) manually selected GPUs */
-        hw_opt->gpu_opt.n_dev_use = 0;
+        /* Currently the DD code assigns duty to ranks that can
+         * include PP work that currently can be executed on a single
+         * GPU, if present and compatible.  This has to be coordinated
+         * across PP ranks on a node, with possible multiple devices
+         * or sharing devices on a node, either from the user
+         * selection, or automatically. */
+        bool rankCanUseGpu = cr->duty & DUTY_PP;
+        gpuTaskAssignment = mapPpRanksToGpus(rankCanUseGpu, cr, hwinfo->gpu_info, hw_opt);
     }
 
-    /* check consistency across ranks of things like SIMD
-     * support and number of GPUs selected */
-    gmx_check_hw_runconf_consistency(mdlog, hwinfo, cr, hw_opt, bUseGPU);
+    reportGpuUsage(mdlog, hwinfo->gpu_info, !hw_opt.gpuIdTaskAssignment.empty(),
+                   gpuTaskAssignment, cr->nrank_pp_intranode, cr->nnodes > 1);
+
+    if (!gpuTaskAssignment.empty())
+    {
+        GMX_RELEASE_ASSERT(cr->nrank_pp_intranode == static_cast<int>(gpuTaskAssignment.size()),
+                           "The number of PP ranks on each node must equal the number of GPU tasks used on each node");
+    }
+
+    /* Prevent other ranks from continuing after an issue was found
+     * and reported as a fatal error.
+     *
+     * TODO This function implements a barrier so that MPI runtimes
+     * can organize an orderly shutdown if one of the ranks has had to
+     * issue a fatal error in various code already run. When we have
+     * MPI-aware error handling and reporting, this should be
+     * improved. */
+#if GMX_MPI
+    if (PAR(cr))
+    {
+        MPI_Barrier(cr->mpi_comm_mysim);
+    }
+#endif
 
     /* Now that we know the setup is consistent, check for efficiency */
-    check_resource_division_efficiency(hwinfo, hw_opt, Flags & MD_NTOMPSET,
+    check_resource_division_efficiency(hwinfo, hw_opt.nthreads_tot, !gpuTaskAssignment.empty(), mdrunOptions.ntompOptionIsSet,
                                        cr, mdlog);
+
+    gmx_device_info_t *shortRangedDeviceInfo = nullptr;
+    int                shortRangedDeviceId   = -1;
+    if (cr->duty & DUTY_PP)
+    {
+        if (!gpuTaskAssignment.empty())
+        {
+            shortRangedDeviceId   = gpuTaskAssignment[cr->rank_pp_intranode];
+            shortRangedDeviceInfo = getDeviceInfo(hwinfo->gpu_info, shortRangedDeviceId);
+        }
+    }
 
     if (DOMAINDECOMP(cr))
     {
         /* When we share GPUs over ranks, we need to know this for the DLB */
-        dd_setup_dlb_resource_sharing(cr, hwinfo, hw_opt);
+        dd_setup_dlb_resource_sharing(cr, shortRangedDeviceId);
     }
 
     /* getting number of PP/PME threads
@@ -1172,7 +932,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
      */
     nthreads_pme = gmx_omp_nthreads_get(emntPME);
 
-    wcycle = wallcycle_init(fplog, resetstep, cr);
+    wcycle = wallcycle_init(fplog, mdrunOptions.timingOptions.resetStep, cr);
 
     if (PAR(cr))
     {
@@ -1193,24 +953,22 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         /* Note that membed cannot work in parallel because mtop is
          * changed here. Fix this if we ever want to make it run with
          * multiple ranks. */
-        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, state, cr, &cpt_period);
+        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, globalState.get(), cr, &mdrunOptions.checkpointOptions.period);
     }
 
     snew(nrnb, 1);
     if (cr->duty & DUTY_PP)
     {
-        bcast_state(cr, state);
-
         /* Initiate forcerecord */
-        fr          = mk_forcerec();
-        fr->hwinfo  = hwinfo;
-        fr->gpu_opt = &hw_opt->gpu_opt;
-        init_forcerec(fplog, mdlog, fr, fcd, mdModules.forceProvider(),
+        fr                 = mk_forcerec();
+        fr->forceProviders = mdModules.initForceProviders();
+        init_forcerec(fplog, mdlog, fr, fcd,
                       inputrec, mtop, cr, box,
                       opt2fn("-table", nfile, fnm),
                       opt2fn("-tablep", nfile, fnm),
                       getFilenm("-tableb", nfile, fnm),
                       nbpu_opt,
+                      shortRangedDeviceInfo,
                       FALSE,
                       pforce);
 
@@ -1237,10 +995,12 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         if (!inputrec->bContinuation && MASTER(cr) &&
             !(inputrec->ePBC != epbcNONE && inputrec->bPeriodicMols))
         {
+            rvec *xGlobal = as_rvec_array(globalState->x.data());
+
             /* Make molecules whole at start of run */
             if (fr->ePBC != epbcNONE)
             {
-                do_pbc_first_mtop(fplog, inputrec->ePBC, box, mtop, as_rvec_array(state->x.data()));
+                do_pbc_first_mtop(fplog, inputrec->ePBC, box, mtop, xGlobal);
             }
             if (vsite)
             {
@@ -1248,14 +1008,14 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                  * for the initial distribution in the domain decomposition
                  * and for the initial shell prediction.
                  */
-                construct_vsites_mtop(vsite, mtop, as_rvec_array(state->x.data()));
+                construct_vsites_mtop(vsite, mtop, xGlobal);
             }
         }
 
-        if (EEL_PME(fr->eeltype) || EVDW_PME(fr->vdwtype))
+        if (EEL_PME(fr->ic->eeltype) || EVDW_PME(fr->ic->vdwtype))
         {
-            ewaldcoeff_q  = fr->ewaldcoeff_q;
-            ewaldcoeff_lj = fr->ewaldcoeff_lj;
+            ewaldcoeff_q  = fr->ic->ewaldcoeff_q;
+            ewaldcoeff_lj = fr->ic->ewaldcoeff_lj;
             pmedata       = &fr->pmedata;
         }
         else
@@ -1267,23 +1027,21 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     {
         /* This is a PME only node */
 
-        /* We don't need the state */
-        stateInstance.reset();
-        state         = nullptr;
+        GMX_ASSERT(globalState == nullptr, "We don't need the state on a PME only rank and expect it to be unitialized");
 
         ewaldcoeff_q  = calc_ewaldcoeff_q(inputrec->rcoulomb, inputrec->ewald_rtol);
         ewaldcoeff_lj = calc_ewaldcoeff_lj(inputrec->rvdw, inputrec->ewald_rtol_lj);
         snew(pmedata, 1);
     }
 
-    if (hw_opt->thread_affinity != threadaffOFF)
+    if (hw_opt.thread_affinity != threadaffOFF)
     {
         /* Before setting affinity, check whether the affinity has changed
          * - which indicates that probably the OpenMP library has changed it
          * since we first checked).
          */
         gmx_check_thread_affinity_set(mdlog, cr,
-                                      hw_opt, hwinfo->nthreads_hw_avail, TRUE);
+                                      &hw_opt, hwinfo->nthreads_hw_avail, TRUE);
 
         int nthread_local;
         /* threads on this MPI process or TMPI thread */
@@ -1297,7 +1055,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         }
 
         /* Set the CPU affinity */
-        gmx_set_thread_affinity(mdlog, cr, hw_opt, *hwinfo->hardwareTopology,
+        gmx_set_thread_affinity(mdlog, cr, &hw_opt, *hwinfo->hardwareTopology,
                                 nthread_local, nullptr);
     }
 
@@ -1326,7 +1084,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
             {
                 status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
                                       mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
-                                      (Flags & MD_REPRODUCIBLE),
+                                      mdrunOptions.reproducible,
                                       ewaldcoeff_q, ewaldcoeff_lj,
                                       nthreads_pme);
             }
@@ -1360,16 +1118,15 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
             inputrec->pull_work =
                 init_pull(fplog, inputrec->pull, inputrec, nfile, fnm,
                           mtop, cr, oenv, inputrec->fepvals->init_lambda,
-                          EI_DYNAMICS(inputrec->eI) && MASTER(cr), Flags);
+                          EI_DYNAMICS(inputrec->eI) && MASTER(cr),
+                          continuationOptions);
         }
 
         if (inputrec->bRot)
         {
             /* Initialize enforced rotation code */
-            init_rot(fplog, inputrec, nfile, fnm, cr, as_rvec_array(state->x.data()), state->box, mtop, oenv,
-                     bVerbose, Flags);
+            init_rot(fplog, inputrec, nfile, fnm, cr, globalState.get(), mtop, oenv, mdrunOptions);
         }
-
         /* set up external potentials on particle-particle nodes */
         if (inputrec->bExternalPotential)
         {
@@ -1390,20 +1147,25 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
             }
 
             manager->init_groups(external_potential->inputrec_data, bParallelExtPot);
-            manager->init_whole_molecule_groups(external_potential->inputrec_data, mtop, inputrec->ePBC, state->box, state->x);
+            manager->init_whole_molecule_groups(external_potential->inputrec_data, mtop, inputrec->ePBC, globalState.get()->box, globalState.get()->x);
 
             if (bParallelExtPot)
             {
                 manager->broadcast_internal();
             }
 
-            manager->initialize(state->box, state->x);
+            manager->initialize(globalState.get()->box, globalState.get()->x);
 
             external_potential->manager = manager;
 
         }
 
-        constr = init_constraints(fplog, mtop, inputrec, ed, observablesHistory.edsamHistory.get(), state, cr);
+        /* Let init_constraints know whether we have essential dynamics constraints.
+         * TODO: inputrec should tell us whether we use an algorithm, not a file option or the checkpoint
+         */
+        bool doEdsam = (opt2fn_null("-ei", nfile, fnm) != nullptr || observablesHistory.edsamHistory);
+
+        constr = init_constraints(fplog, mtop, inputrec, doEdsam, cr);
 
         if (DOMAINDECOMP(cr))
         {
@@ -1412,23 +1174,23 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
              * because fr->cginfo_mb is set later.
              */
             dd_init_bondeds(fplog, cr->dd, mtop, vsite, inputrec,
-                            Flags & MD_DDBONDCHECK, fr->cginfo_mb);
+                            domdecOptions.checkBondedInteractions,
+                            fr->cginfo_mb);
         }
 
         /* Now do whatever the user wants us to do (how flexible...) */
         my_integrator(inputrec->eI) (fplog, cr, mdlog, nfile, fnm,
-                                     oenv, bVerbose,
-                                     nstglobalcomm,
+                                     oenv,
+                                     mdrunOptions,
                                      vsite, constr,
-                                     nstepout, mdModules.outputProvider(),
+                                     mdModules.outputProvider(),
                                      inputrec, mtop,
-                                     fcd, state, &observablesHistory,
-                                     mdatoms, nrnb, wcycle, ed, fr,
-                                     repl_ex_nst, repl_ex_nex, repl_ex_seed,
+                                     fcd,
+                                     globalState.get(),
+                                     &observablesHistory,
+                                     mdatoms, nrnb, wcycle, fr,
+                                     replExParams,
                                      membed,
-                                     cpt_period, max_hours,
-                                     imdport,
-                                     Flags,
                                      walltime_accounting);
 
         if (inputrec->bRot)
@@ -1473,7 +1235,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     }
 
     /* Free GPU memory and context */
-    free_gpu_resources(fr, cr, &hwinfo->gpu_info, fr ? fr->gpu_opt : nullptr);
+    free_gpu_resources(fr, cr, shortRangedDeviceInfo);
 
     if (doMembed)
     {
@@ -1487,14 +1249,12 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     walltime_accounting_destroy(walltime_accounting);
 
     /* Close logfile already here if we were appending to it */
-    if (MASTER(cr) && (Flags & MD_APPENDFILES))
+    if (MASTER(cr) && continuationOptions.appendFiles)
     {
         gmx_log_close(fplog);
     }
 
     rc = (int)gmx_get_stop_condition();
-
-    done_ed(&ed);
 
 #if GMX_THREAD_MPI
     /* we need to join all threads. The sub-threads join when they

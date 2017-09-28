@@ -86,7 +86,7 @@
    Kernel launch parameters:
     - #blocks   = #pair lists, blockId = pair list Id
     - #threads  = c_clSize^2
-    - shmem     = see nbnxn_cuda.cu:calc_shmem_required()
+    - shmem     = see nbnxn_cuda.cu:calc_shmem_required_nonbonded()
 
     Each thread calculates an i force-component taking one pair of i-j atoms.
  */
@@ -153,7 +153,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
     float beta3                 = nbparam.ewald_beta*nbparam.ewald_beta*nbparam.ewald_beta;
 #endif
 #ifdef PRUNE_NBL
-    float rlist_sq              = nbparam.rlist_sq;
+    float rlist_sq              = nbparam.rlistOuter_sq;
 #endif
 
 #ifdef CALC_ENERGIES
@@ -206,13 +206,27 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
     /*! i-cluster interaction mask for a super-cluster with all c_numClPerSupercl=8 bits set */
     const unsigned superClInteractionMask = ((1U << c_numClPerSupercl) - 1U);
 
+    /*********************************************************************
+     * Set up shared memory pointers.
+     * sm_nextSlotPtr should always be updated to point to the "next slot",
+     * that is past the last point where data has been stored.
+     */
+    extern __shared__  char sm_dynamicShmem[];
+    char                   *sm_nextSlotPtr = sm_dynamicShmem;
+    static_assert(sizeof(char) == 1, "The shared memory offset calculation assumes that char is 1 byte");
+
     /* shmem buffer for i x+q pre-loading */
-    extern __shared__  float4 xqib[];
+    float4 *xqib    = (float4 *)sm_nextSlotPtr;
+    sm_nextSlotPtr += (c_numClPerSupercl * c_clSize * sizeof(*xqib));
 
     /* shmem buffer for cj, for each warp separately */
-    int   *cjs   = ((int *)(xqib + c_numClPerSupercl * c_clSize));
+    int *cjs        = (int *)(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
+
     /* shmem j force buffer */
-    float *f_buf = (float *)(cjs + c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize);
+    float *f_buf    = (float *)(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_clSize * c_clSize * 3*sizeof(*f_buf));
+    /*********************************************************************/
 
     nb_sci      = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
     sci         = nb_sci.sci;           /* super-cluster */
@@ -258,7 +272,11 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
 
 #ifdef LJ_EWALD
+    #if DISABLE_CUDA_TEXTURES
+            E_lj += LDG(&nbparam.nbfp[atom_types[(sci*c_numClPerSupercl + i)*c_clSize + tidxi]*(ntypes + 1)*2]);
+    #else
             E_lj += tex1Dfetch(nbfp_texref, atom_types[(sci*c_numClPerSupercl + i)*c_clSize + tidxi]*(ntypes + 1)*2);
+    #endif
 #endif
         }
 

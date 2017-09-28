@@ -47,12 +47,12 @@
 #include "gromacs/gpu_utils/cudautils.cuh"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/gpu_utils/pmalloc_cuda.h"
-#include "gromacs/hardware/detecthardware.h"
 #include "gromacs/hardware/gpu_hw_info.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
+#include "gromacs/mdlib/nbnxn_gpu_common.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -64,6 +64,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
+#include "nbnxn_cuda.h"
 #include "nbnxn_cuda_types.h"
 
 static bool bUseCudaEventBlockingSync = false; /* makes the CPU thread block */
@@ -78,31 +79,12 @@ static bool bUseCudaEventBlockingSync = false; /* makes the CPU thread block */
  */
 static unsigned int gpu_min_ci_balanced_factor = 44;
 
-/* Functions from nbnxn_cuda.cu */
-extern void nbnxn_cuda_set_cacheconfig(gmx_device_info_t *devinfo);
-extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_nbfp_texref();
-extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_nbfp_comb_texref();
-extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_coulomb_tab_texref();
-
-
 /* Fw. decl. */
 static void nbnxn_cuda_clear_e_fshift(gmx_nbnxn_cuda_t *nb);
 
 /* Fw. decl, */
 static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
                                           const gmx_device_info_t *dev_info);
-
-
-/*! \brief Return whether texture objects are used on this device.
- *
- * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
- * \return      true if texture objects are used on this device
- */
-static bool use_texobj(const gmx_device_info_t *dev_info)
-{
-    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-    return (dev_info->prop.major >= 3);
-}
 
 /*! \brief Return whether combination rules are used.
  *
@@ -115,58 +97,6 @@ static inline bool useLjCombRule(const cu_nbparam_t  *nbparam)
             nbparam->vdwtype == evdwCuCUTCOMBLB);
 }
 
-/*! \brief Set up float texture object.
- *
- * Set up texture object for float data and bind it to the device memory
- * \p devPtr points to.
- *
- * \param[out] texObj   texture object to initialize
- * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
- * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
- */
-static void setup1DFloatTexture(cudaTextureObject_t &texObj,
-                                void                *devPtr,
-                                size_t               sizeInBytes)
-{
-    cudaError_t      stat;
-    cudaResourceDesc rd;
-    cudaTextureDesc  td;
-
-    memset(&rd, 0, sizeof(rd));
-    rd.resType                  = cudaResourceTypeLinear;
-    rd.res.linear.devPtr        = devPtr;
-    rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
-    rd.res.linear.desc.x        = 32;
-    rd.res.linear.sizeInBytes   = sizeInBytes;
-
-    memset(&td, 0, sizeof(td));
-    td.readMode                 = cudaReadModeElementType;
-    stat = cudaCreateTextureObject(&texObj, &rd, &td, NULL);
-    CU_RET_ERR(stat, "cudaCreateTextureObject failed");
-}
-
-/*! \brief Set up float texture reference.
- *
- * Set up texture object for float data and bind it to the device memory
- * \p devPtr points to.
- *
- * \param[out] texObj   texture reference to initialize
- * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
- * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
- */
-static void setup1DFloatTexture(const struct texture<float, 1, cudaReadModeElementType> *texRef,
-                                const void                                              *devPtr,
-                                size_t                                                   sizeInBytes)
-{
-    cudaError_t           stat;
-    cudaChannelFormatDesc cd;
-
-    cd   = cudaCreateChannelDesc<float>();
-    stat = cudaBindTexture(NULL, texRef, devPtr, &cd, sizeInBytes);
-    CU_RET_ERR(stat, "cudaBindTexture failed");
-}
-
-
 /*! \brief Initialized the Ewald Coulomb correction GPU table.
 
     Tabulates the Ewald Coulomb force and initializes the size/scale
@@ -177,33 +107,15 @@ static void init_ewald_coulomb_force_table(const interaction_const_t *ic,
                                            cu_nbparam_t              *nbp,
                                            const gmx_device_info_t   *dev_info)
 {
-    float       *coul_tab;
-    cudaError_t  stat;
-
     if (nbp->coulomb_tab != NULL)
     {
         nbnxn_cuda_free_nbparam_table(nbp, dev_info);
     }
 
-    /* initialize table data in nbp and crete/copy into in global mem */
-    stat = cudaMalloc((void **)&coul_tab, ic->tabq_size*sizeof(*coul_tab));
-    CU_RET_ERR(stat, "cudaMalloc failed on coulumb_tab");
-    cu_copy_H2D(coul_tab, ic->tabq_coul_F, ic->tabq_size*sizeof(*coul_tab));
-
-    nbp->coulomb_tab       = coul_tab;
-    nbp->coulomb_tab_size  = ic->tabq_size;
     nbp->coulomb_tab_scale = ic->tabq_scale;
-
-    if (use_texobj(dev_info))
-    {
-        setup1DFloatTexture(nbp->coulomb_tab_texobj, nbp->coulomb_tab,
-                            nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
-    }
-    else
-    {
-        setup1DFloatTexture(&nbnxn_cuda_get_coulomb_tab_texref(), nbp->coulomb_tab,
-                            nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
-    }
+    initParamLookupTable(nbp->coulomb_tab, nbp->coulomb_tab_texobj,
+                         &nbnxn_cuda_get_coulomb_tab_texref(),
+                         ic->tabq_coul_F, ic->tabq_size, dev_info);
 }
 
 
@@ -291,67 +203,33 @@ static int pick_ewald_kernel_type(bool                     bTwinCut,
 
 /*! Copies all parameters related to the cut-off from ic to nbp */
 static void set_cutoff_parameters(cu_nbparam_t              *nbp,
-                                  const interaction_const_t *ic)
+                                  const interaction_const_t *ic,
+                                  const NbnxnListParameters *listParams)
 {
-    nbp->ewald_beta       = ic->ewaldcoeff_q;
-    nbp->sh_ewald         = ic->sh_ewald;
-    nbp->epsfac           = ic->epsfac;
-    nbp->two_k_rf         = 2.0 * ic->k_rf;
-    nbp->c_rf             = ic->c_rf;
-    nbp->rvdw_sq          = ic->rvdw * ic->rvdw;
-    nbp->rcoulomb_sq      = ic->rcoulomb * ic->rcoulomb;
-    nbp->rlist_sq         = ic->rlist * ic->rlist;
+    nbp->ewald_beta        = ic->ewaldcoeff_q;
+    nbp->sh_ewald          = ic->sh_ewald;
+    nbp->epsfac            = ic->epsfac;
+    nbp->two_k_rf          = 2.0 * ic->k_rf;
+    nbp->c_rf              = ic->c_rf;
+    nbp->rvdw_sq           = ic->rvdw * ic->rvdw;
+    nbp->rcoulomb_sq       = ic->rcoulomb * ic->rcoulomb;
+    nbp->rlistOuter_sq     = listParams->rlistOuter * listParams->rlistOuter;
+    nbp->rlistInner_sq     = listParams->rlistInner * listParams->rlistInner;
+    nbp->useDynamicPruning = listParams->useDynamicPruning;
 
-    nbp->sh_lj_ewald      = ic->sh_lj_ewald;
-    nbp->ewaldcoeff_lj    = ic->ewaldcoeff_lj;
+    nbp->sh_lj_ewald       = ic->sh_lj_ewald;
+    nbp->ewaldcoeff_lj     = ic->ewaldcoeff_lj;
 
-    nbp->rvdw_switch      = ic->rvdw_switch;
-    nbp->dispersion_shift = ic->dispersion_shift;
-    nbp->repulsion_shift  = ic->repulsion_shift;
-    nbp->vdw_switch       = ic->vdw_switch;
-}
-
-/*! \brief Initialize LJ parameter lookup table.
- *
- * Initializes device memory and copies data from host an binds
- * a texture to allocated device memory to be used for LJ parameter
- * lookup.
- *
- * \param[out] devPtr    device pointer to the memory to be allocated
- * \param[out] texObj    texture object to be initialized
- * \param[out] texRef    texture reference to be initialized
- * \param[in]  hostPtr   pointer to the host memory to be uploaded to the device
- * \param[in]  numElem   number of elements in the hostPtr
- * \param[in]  devInfo   pointer to the info struct of the device in use
- */
-static void initParamLookupTable(float                    * &devPtr,
-                                 cudaTextureObject_t       &texObj,
-                                 const struct texture<float, 1, cudaReadModeElementType> *texRef,
-                                 const float               *hostPtr,
-                                 int                        numElem,
-                                 const gmx_device_info_t   *devInfo)
-{
-    cudaError_t stat;
-
-    size_t      sizeInBytes = numElem*sizeof(*devPtr);
-
-    stat  = cudaMalloc((void **)&devPtr, sizeInBytes);
-    CU_RET_ERR(stat, "cudaMalloc failed in initParamLookupTable");
-    cu_copy_H2D(devPtr, (void *)hostPtr, sizeInBytes);
-
-    if (use_texobj(devInfo))
-    {
-        setup1DFloatTexture(texObj, devPtr, sizeInBytes);
-    }
-    else
-    {
-        setup1DFloatTexture(texRef, devPtr, sizeInBytes);
-    }
+    nbp->rvdw_switch       = ic->rvdw_switch;
+    nbp->dispersion_shift  = ic->dispersion_shift;
+    nbp->repulsion_shift   = ic->repulsion_shift;
+    nbp->vdw_switch        = ic->vdw_switch;
 }
 
 /*! Initializes the nonbonded parameter data structure. */
 static void init_nbparam(cu_nbparam_t              *nbp,
                          const interaction_const_t *ic,
+                         const NbnxnListParameters *listParams,
                          const nbnxn_atomdata_t    *nbat,
                          const gmx_device_info_t   *dev_info)
 {
@@ -359,7 +237,7 @@ static void init_nbparam(cu_nbparam_t              *nbp,
 
     ntypes  = nbat->ntype;
 
-    set_cutoff_parameters(nbp, ic);
+    set_cutoff_parameters(nbp, ic, listParams);
 
     /* The kernel code supports LJ combination rules (geometric and LB) for
      * all kernel types, but we only generate useful combination rule kernels.
@@ -467,7 +345,8 @@ static void init_nbparam(cu_nbparam_t              *nbp,
 /*! Re-generate the GPU Ewald force table, resets rlist, and update the
  *  electrostatic type switching to twin cut-off (or back) if needed. */
 void nbnxn_gpu_pme_loadbal_update_param(const nonbonded_verlet_t    *nbv,
-                                        const interaction_const_t   *ic)
+                                        const interaction_const_t   *ic,
+                                        const NbnxnListParameters   *listParams)
 {
     if (!nbv || nbv->grp[0].kernel_type != nbnxnk8x8x8_GPU)
     {
@@ -476,7 +355,7 @@ void nbnxn_gpu_pme_loadbal_update_param(const nonbonded_verlet_t    *nbv,
     gmx_nbnxn_cuda_t *nb    = nbv->gpu_nbv;
     cu_nbparam_t     *nbp   = nb->nbparam;
 
-    set_cutoff_parameters(nbp, ic);
+    set_cutoff_parameters(nbp, ic, listParams);
 
     nbp->eeltype        = pick_ewald_kernel_type(ic->rcoulomb != ic->rvdw,
                                                  nb->dev_info);
@@ -489,19 +368,22 @@ static void init_plist(cu_plist_t *pl)
 {
     /* initialize to NULL pointers to data that is not allocated here and will
        need reallocation in nbnxn_gpu_init_pairlist */
-    pl->sci     = NULL;
-    pl->cj4     = NULL;
-    pl->excl    = NULL;
+    pl->sci      = NULL;
+    pl->cj4      = NULL;
+    pl->imask    = NULL;
+    pl->excl     = NULL;
 
     /* size -1 indicates that the respective array hasn't been initialized yet */
-    pl->na_c        = -1;
-    pl->nsci        = -1;
-    pl->sci_nalloc  = -1;
-    pl->ncj4        = -1;
-    pl->cj4_nalloc  = -1;
-    pl->nexcl       = -1;
-    pl->excl_nalloc = -1;
-    pl->bDoPrune    = false;
+    pl->na_c           = -1;
+    pl->nsci           = -1;
+    pl->sci_nalloc     = -1;
+    pl->ncj4           = -1;
+    pl->cj4_nalloc     = -1;
+    pl->nimask         = -1;
+    pl->imask_nalloc   = -1;
+    pl->nexcl          = -1;
+    pl->excl_nalloc    = -1;
+    pl->haveFreshList  = false;
 }
 
 /*! Initializes the timer data structure. */
@@ -523,6 +405,15 @@ static void init_timers(cu_timers_t *t, bool bUseTwoStreams)
         stat = cudaEventCreateWithFlags(&(t->stop_nb_k[i]), eventflags);
         CU_RET_ERR(stat, "cudaEventCreate on stop_nb_k failed");
 
+        stat = cudaEventCreateWithFlags(&(t->start_prune_k[i]), eventflags);
+        CU_RET_ERR(stat, "cudaEventCreate on start_prune_k failed");
+        stat = cudaEventCreateWithFlags(&(t->stop_prune_k[i]), eventflags);
+        CU_RET_ERR(stat, "cudaEventCreate on stop_prune_k failed");
+
+        stat = cudaEventCreateWithFlags(&(t->start_rollingPrune_k[i]), eventflags);
+        CU_RET_ERR(stat, "cudaEventCreate on start_rollingPrune_k failed");
+        stat = cudaEventCreateWithFlags(&(t->stop_rollingPrune_k[i]), eventflags);
+        CU_RET_ERR(stat, "cudaEventCreate on stop_rollingPrune_k failed");
 
         stat = cudaEventCreateWithFlags(&(t->start_pl_h2d[i]), eventflags);
         CU_RET_ERR(stat, "cudaEventCreate on start_pl_h2d failed");
@@ -538,6 +429,10 @@ static void init_timers(cu_timers_t *t, bool bUseTwoStreams)
         CU_RET_ERR(stat, "cudaEventCreate on start_nb_d2h failed");
         stat = cudaEventCreateWithFlags(&(t->stop_nb_d2h[i]), eventflags);
         CU_RET_ERR(stat, "cudaEventCreate on stop_nb_d2h failed");
+
+        t->didPairlistH2D[i]  = false;
+        t->didPrune[i]        = false;
+        t->didRollingPrune[i] = false;
     }
 }
 
@@ -559,33 +454,35 @@ static void init_timings(gmx_wallclock_gpu_t *t)
             t->ktime[i][j].c = 0;
         }
     }
+    t->pruneTime.c        = 0;
+    t->pruneTime.t        = 0.0;
+    t->dynamicPruneTime.c = 0;
+    t->dynamicPruneTime.t = 0.0;
 }
 
 /*! Initializes simulation constant data. */
 static void nbnxn_cuda_init_const(gmx_nbnxn_cuda_t               *nb,
                                   const interaction_const_t      *ic,
+                                  const NbnxnListParameters      *listParams,
                                   const nonbonded_verlet_group_t *nbv_group)
 {
     init_atomdata_first(nb->atdat, nbv_group[0].nbat->ntype);
-    init_nbparam(nb->nbparam, ic, nbv_group[0].nbat, nb->dev_info);
+    init_nbparam(nb->nbparam, ic, listParams, nbv_group[0].nbat, nb->dev_info);
 
     /* clear energy and shift force outputs */
     nbnxn_cuda_clear_e_fshift(nb);
 }
 
 void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
-                    const gmx_gpu_info_t      *gpu_info,
-                    const gmx_gpu_opt_t       *gpu_opt,
+                    const gmx_device_info_t   *deviceInfo,
                     const interaction_const_t *ic,
+                    const NbnxnListParameters *listParams,
                     nonbonded_verlet_group_t  *nbv_grp,
-                    int                        my_gpu_index,
                     int                        /*rank*/,
                     gmx_bool                   bLocalAndNonlocal)
 {
     cudaError_t       stat;
     gmx_nbnxn_cuda_t *nb;
-
-    assert(gpu_info);
 
     if (p_nb == NULL)
     {
@@ -614,7 +511,7 @@ void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
     init_plist(nb->plist[eintLocal]);
 
     /* set device info, just point it to the right GPU among the detected ones */
-    nb->dev_info = &gpu_info->gpu_dev[get_gpu_device_id(gpu_info, gpu_opt, my_gpu_index)];
+    nb->dev_info = deviceInfo;
 
     /* local/non-local GPU streams */
     stat = cudaStreamCreate(&nb->stream[eintLocal]);
@@ -661,7 +558,7 @@ void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
     /* pick L1 cache configuration */
     nbnxn_cuda_set_cacheconfig(nb->dev_info);
 
-    nbnxn_cuda_init_const(nb, ic, nbv_grp);
+    nbnxn_cuda_init_const(nb, ic, listParams, nbv_grp);
 
     *p_nb = nb;
 
@@ -675,6 +572,11 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
                              const nbnxn_pairlist_t *h_plist,
                              int                     iloc)
 {
+    if (canSkipWork(nb, iloc))
+    {
+        return;
+    }
+
     char          sbuf[STRLEN];
     cudaError_t   stat;
     bool          bDoTime    = nb->bDoTime;
@@ -699,6 +601,7 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
     {
         stat = cudaEventRecord(nb->timers->start_pl_h2d[iloc], stream);
         CU_RET_ERR(stat, "cudaEventRecord failed");
+        nb->timers->didPairlistH2D[iloc] = true;
     }
 
     cu_realloc_buffered((void **)&d_plist->sci, h_plist->sci, sizeof(*d_plist->sci),
@@ -709,6 +612,12 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
     cu_realloc_buffered((void **)&d_plist->cj4, h_plist->cj4, sizeof(*d_plist->cj4),
                         &d_plist->ncj4, &d_plist->cj4_nalloc,
                         h_plist->ncj4,
+                        stream, true);
+
+    /* this call only allocates space on the device (no data is transferred) */
+    cu_realloc_buffered((void **)&d_plist->imask, NULL, sizeof(*d_plist->imask),
+                        &d_plist->nimask, &d_plist->imask_nalloc,
+                        h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
                         stream, true);
 
     cu_realloc_buffered((void **)&d_plist->excl, h_plist->excl, sizeof(*d_plist->excl),
@@ -722,8 +631,8 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
         CU_RET_ERR(stat, "cudaEventRecord failed");
     }
 
-    /* need to prune the pair list during the next step */
-    d_plist->bDoPrune = true;
+    /* the next use of thist list we be the first one, so we need to prune */
+    d_plist->haveFreshList = true;
 }
 
 void nbnxn_gpu_upload_shiftvec(gmx_nbnxn_cuda_t       *nb,
@@ -867,19 +776,22 @@ static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
 
     if (nbparam->eeltype == eelCuEWALD_TAB || nbparam->eeltype == eelCuEWALD_TAB_TWIN)
     {
-        /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-        if (use_texobj(dev_info))
+        if (!c_disableCudaTextures)
         {
-            stat = cudaDestroyTextureObject(nbparam->coulomb_tab_texobj);
-            CU_RET_ERR(stat, "cudaDestroyTextureObject on coulomb_tab_texobj failed");
+            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
+            if (use_texobj(dev_info))
+            {
+                stat = cudaDestroyTextureObject(nbparam->coulomb_tab_texobj);
+                CU_RET_ERR(stat, "cudaDestroyTextureObject on coulomb_tab_texobj failed");
+            }
+            else
+            {
+                GMX_UNUSED_VALUE(dev_info);
+                stat = cudaUnbindTexture(nbnxn_cuda_get_coulomb_tab_texref());
+                CU_RET_ERR(stat, "cudaUnbindTexture on coulomb_tab_texref failed");
+            }
         }
-        else
-        {
-            GMX_UNUSED_VALUE(dev_info);
-            stat = cudaUnbindTexture(nbnxn_cuda_get_coulomb_tab_texref());
-            CU_RET_ERR(stat, "cudaUnbindTexture on coulomb_tab_texref failed");
-        }
-        cu_free_buffered(nbparam->coulomb_tab, &nbparam->coulomb_tab_size);
+        cu_free_buffered(nbparam->coulomb_tab);
     }
 }
 
@@ -924,6 +836,16 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
             stat = cudaEventDestroy(timers->stop_nb_k[i]);
             CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_nb_k");
 
+            stat = cudaEventDestroy(timers->start_prune_k[i]);
+            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_prune_k");
+            stat = cudaEventDestroy(timers->stop_prune_k[i]);
+            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_prune_k");
+
+            stat = cudaEventDestroy(timers->start_rollingPrune_k[i]);
+            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_rollingPrune_k");
+            stat = cudaEventDestroy(timers->stop_rollingPrune_k[i]);
+            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_rollingPrune_k");
+
             stat = cudaEventDestroy(timers->start_pl_h2d[i]);
             CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_pl_h2d");
             stat = cudaEventDestroy(timers->stop_pl_h2d[i]);
@@ -946,32 +868,38 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
 
     if (!useLjCombRule(nb->nbparam))
     {
-        /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-        if (use_texobj(nb->dev_info))
+        if (!c_disableCudaTextures)
         {
-            stat = cudaDestroyTextureObject(nbparam->nbfp_texobj);
-            CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_texobj failed");
-        }
-        else
-        {
-            stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_texref());
-            CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_texref failed");
+            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
+            if (use_texobj(nb->dev_info))
+            {
+                stat = cudaDestroyTextureObject(nbparam->nbfp_texobj);
+                CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_texobj failed");
+            }
+            else
+            {
+                stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_texref());
+                CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_texref failed");
+            }
         }
         cu_free_buffered(nbparam->nbfp);
     }
 
     if (nbparam->vdwtype == evdwCuEWALDGEOM || nbparam->vdwtype == evdwCuEWALDLB)
     {
-        /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-        if (use_texobj(nb->dev_info))
+        if (!c_disableCudaTextures)
         {
-            stat = cudaDestroyTextureObject(nbparam->nbfp_comb_texobj);
-            CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_comb_texobj failed");
-        }
-        else
-        {
-            stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_comb_texref());
-            CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_comb_texref failed");
+            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
+            if (use_texobj(nb->dev_info))
+            {
+                stat = cudaDestroyTextureObject(nbparam->nbfp_comb_texobj);
+                CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_comb_texobj failed");
+            }
+            else
+            {
+                stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_comb_texref());
+                CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_comb_texref failed");
+            }
         }
         cu_free_buffered(nbparam->nbfp_comb);
     }
@@ -993,11 +921,13 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
 
     cu_free_buffered(plist->sci, &plist->nsci, &plist->sci_nalloc);
     cu_free_buffered(plist->cj4, &plist->ncj4, &plist->cj4_nalloc);
+    cu_free_buffered(plist->imask, &plist->nimask, &plist->imask_nalloc);
     cu_free_buffered(plist->excl, &plist->nexcl, &plist->excl_nalloc);
     if (nb->bUseTwoStreams)
     {
         cu_free_buffered(plist_nl->sci, &plist_nl->nsci, &plist_nl->sci_nalloc);
         cu_free_buffered(plist_nl->cj4, &plist_nl->ncj4, &plist_nl->cj4_nalloc);
+        cu_free_buffered(plist_nl->imask, &plist_nl->nimask, &plist_nl->imask_nalloc);
         cu_free_buffered(plist_nl->excl, &plist_nl->nexcl, &plist->excl_nalloc);
     }
 

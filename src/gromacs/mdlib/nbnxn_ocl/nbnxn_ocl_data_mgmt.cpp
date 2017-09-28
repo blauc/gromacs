@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,13 +51,13 @@
 
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/gpu_utils/oclutils.h"
-#include "gromacs/hardware/detecthardware.h"
 #include "gromacs/hardware/gpu_hw_info.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu.h"
+#include "gromacs/mdlib/nbnxn_gpu_common.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
 #include "gromacs/mdlib/nbnxn_gpu_jit_support.h"
 #include "gromacs/mdtypes/interaction_const.h"
@@ -97,7 +97,7 @@ bool useLjCombRule(int vdwType)
  *
  * If the pointers to the size variables are NULL no resetting happens.
  */
-void ocl_free_buffered(cl_mem d_ptr, int *n, int *nalloc)
+static void ocl_free_buffered(cl_mem d_ptr, int *n, int *nalloc)
 {
     cl_int gmx_unused cl_error;
 
@@ -132,14 +132,14 @@ void ocl_free_buffered(cl_mem d_ptr, int *n, int *nalloc)
  *  for this operation or to query profiling information.
  *  OpenCL equivalent of cu_realloc_buffered.
  */
-void ocl_realloc_buffered(cl_mem *d_dest, void *h_src,
-                          size_t type_size,
-                          int *curr_size, int *curr_alloc_size,
-                          int req_size,
-                          cl_context context,
-                          cl_command_queue s,
-                          bool bAsync = true,
-                          cl_event *copy_event = NULL)
+static void ocl_realloc_buffered(cl_mem *d_dest, void *h_src,
+                                 size_t type_size,
+                                 int *curr_size, int *curr_alloc_size,
+                                 int req_size,
+                                 cl_context context,
+                                 cl_command_queue s,
+                                 bool bAsync = true,
+                                 cl_event *copy_event = NULL)
 {
     if (d_dest == NULL || req_size < 0)
     {
@@ -233,7 +233,6 @@ static void init_ewald_coulomb_force_table(const interaction_const_t       *ic,
     // TODO: handle errors, check clCreateBuffer flags
 
     nbp->coulomb_tab_climg2d  = coul_tab;
-    nbp->coulomb_tab_size     = ic->tabq_size;
     nbp->coulomb_tab_scale    = ic->tabq_scale;
 }
 
@@ -285,24 +284,27 @@ static void init_atomdata_first(cl_atomdata_t *ad, int ntypes, gmx_device_runtim
 /*! \brief Copies all parameters related to the cut-off from ic to nbp
  */
 static void set_cutoff_parameters(cl_nbparam_t              *nbp,
-                                  const interaction_const_t *ic)
+                                  const interaction_const_t *ic,
+                                  const NbnxnListParameters *listParams)
 {
-    nbp->ewald_beta       = ic->ewaldcoeff_q;
-    nbp->sh_ewald         = ic->sh_ewald;
-    nbp->epsfac           = ic->epsfac;
-    nbp->two_k_rf         = 2.0 * ic->k_rf;
-    nbp->c_rf             = ic->c_rf;
-    nbp->rvdw_sq          = ic->rvdw * ic->rvdw;
-    nbp->rcoulomb_sq      = ic->rcoulomb * ic->rcoulomb;
-    nbp->rlist_sq         = ic->rlist * ic->rlist;
+    nbp->ewald_beta        = ic->ewaldcoeff_q;
+    nbp->sh_ewald          = ic->sh_ewald;
+    nbp->epsfac            = ic->epsfac;
+    nbp->two_k_rf          = 2.0 * ic->k_rf;
+    nbp->c_rf              = ic->c_rf;
+    nbp->rvdw_sq           = ic->rvdw * ic->rvdw;
+    nbp->rcoulomb_sq       = ic->rcoulomb * ic->rcoulomb;
+    nbp->rlistOuter_sq     = listParams->rlistOuter * listParams->rlistOuter;
+    nbp->rlistInner_sq     = listParams->rlistInner * listParams->rlistInner;
+    nbp->useDynamicPruning = listParams->useDynamicPruning;
 
-    nbp->sh_lj_ewald      = ic->sh_lj_ewald;
-    nbp->ewaldcoeff_lj    = ic->ewaldcoeff_lj;
+    nbp->sh_lj_ewald       = ic->sh_lj_ewald;
+    nbp->ewaldcoeff_lj     = ic->ewaldcoeff_lj;
 
-    nbp->rvdw_switch      = ic->rvdw_switch;
-    nbp->dispersion_shift = ic->dispersion_shift;
-    nbp->repulsion_shift  = ic->repulsion_shift;
-    nbp->vdw_switch       = ic->vdw_switch;
+    nbp->rvdw_switch       = ic->rvdw_switch;
+    nbp->dispersion_shift  = ic->dispersion_shift;
+    nbp->repulsion_shift   = ic->repulsion_shift;
+    nbp->vdw_switch        = ic->vdw_switch;
 }
 
 /*! \brief Returns the kinds of electrostatics and Vdw OpenCL
@@ -389,6 +391,7 @@ map_interaction_types_to_gpu_kernel_flavors(const interaction_const_t *ic,
  */
 static void init_nbparam(cl_nbparam_t                    *nbp,
                          const interaction_const_t       *ic,
+                         const NbnxnListParameters       *listParams,
                          const nbnxn_atomdata_t          *nbat,
                          const gmx_device_runtime_data_t *runData)
 {
@@ -398,7 +401,7 @@ static void init_nbparam(cl_nbparam_t                    *nbp,
 
     ntypes = nbat->ntype;
 
-    set_cutoff_parameters(nbp, ic);
+    set_cutoff_parameters(nbp, ic, listParams);
 
     map_interaction_types_to_gpu_kernel_flavors(ic,
                                                 nbat->comb_rule,
@@ -495,7 +498,8 @@ static void init_nbparam(cl_nbparam_t                    *nbp,
 
 //! This function is documented in the header file
 void nbnxn_gpu_pme_loadbal_update_param(const nonbonded_verlet_t    *nbv,
-                                        const interaction_const_t   *ic)
+                                        const interaction_const_t   *ic,
+                                        const NbnxnListParameters   *listParams)
 {
     if (!nbv || nbv->grp[0].kernel_type != nbnxnk8x8x8_GPU)
     {
@@ -504,7 +508,7 @@ void nbnxn_gpu_pme_loadbal_update_param(const nonbonded_verlet_t    *nbv,
     gmx_nbnxn_ocl_t    *nb  = nbv->gpu_nbv;
     cl_nbparam_t       *nbp = nb->nbparam;
 
-    set_cutoff_parameters(nbp, ic);
+    set_cutoff_parameters(nbp, ic, listParams);
 
     nbp->eeltype = nbnxn_gpu_pick_ewald_kernel_type(ic->rcoulomb != ic->rvdw);
 
@@ -519,24 +523,33 @@ static void init_plist(cl_plist_t *pl)
        need reallocation in nbnxn_gpu_init_pairlist */
     pl->sci     = NULL;
     pl->cj4     = NULL;
+    pl->imask   = NULL;
     pl->excl    = NULL;
 
     /* size -1 indicates that the respective array hasn't been initialized yet */
-    pl->na_c        = -1;
-    pl->nsci        = -1;
-    pl->sci_nalloc  = -1;
-    pl->ncj4        = -1;
-    pl->cj4_nalloc  = -1;
-    pl->nexcl       = -1;
-    pl->excl_nalloc = -1;
-    pl->bDoPrune    = false;
+    pl->na_c           = -1;
+    pl->nsci           = -1;
+    pl->sci_nalloc     = -1;
+    pl->ncj4           = -1;
+    pl->cj4_nalloc     = -1;
+    pl->nimask         = -1;
+    pl->imask_nalloc   = -1;
+    pl->nexcl          = -1;
+    pl->excl_nalloc    = -1;
+    pl->haveFreshList  = false;
 }
 
 /*! \brief Initializes the timer data structure.
  */
-static void init_timers(cl_timers_t gmx_unused *t, bool gmx_unused bUseTwoStreams)
+static void init_timers(cl_timers_t *t,
+                        bool         bUseTwoStreams)
 {
-    /* Nothing to initialize for OpenCL */
+    for (int i = 0; i <= (bUseTwoStreams ? 1 : 0); i++)
+    {
+        t->didPairlistH2D[i]  = false;
+        t->didPrune[i]        = false;
+        t->didRollingPrune[i] = false;
+    }
 }
 
 /*! \brief Initializes the timings data structure.
@@ -558,6 +571,11 @@ static void init_timings(gmx_wallclock_gpu_t *t)
             t->ktime[i][j].c = 0;
         }
     }
+
+    t->pruneTime.c        = 0;
+    t->pruneTime.t        = 0.0;
+    t->dynamicPruneTime.c = 0;
+    t->dynamicPruneTime.t = 0.0;
 }
 
 /*! \brief Creates context for OpenCL GPU given by \p mygpu
@@ -660,10 +678,20 @@ static void nbnxn_gpu_init_kernels(gmx_nbnxn_ocl_t *nb)
 {
     /* Init to 0 main kernel arrays */
     /* They will be later on initialized in select_nbnxn_kernel */
+    // TODO: consider always creating all variants of the kernels here so that there is no
+    // need for late call to clCreateKernel -- if that gives any advantage?
     memset(nb->kernel_ener_noprune_ptr, 0, sizeof(nb->kernel_ener_noprune_ptr));
     memset(nb->kernel_ener_prune_ptr, 0, sizeof(nb->kernel_ener_prune_ptr));
     memset(nb->kernel_noener_noprune_ptr, 0, sizeof(nb->kernel_noener_noprune_ptr));
     memset(nb->kernel_noener_prune_ptr, 0, sizeof(nb->kernel_noener_prune_ptr));
+
+    /* Init pruning kernels
+     *
+     * TODO: we could avoid creating kernels if dynamic pruning is turned off,
+     * but ATM that depends on force flags not passed into the initialization.
+     */
+    nb->kernel_pruneonly[epruneFirst]   = nbnxn_gpu_create_kernel(nb, "nbnxn_kernel_prune_opencl");
+    nb->kernel_pruneonly[epruneRolling] = nbnxn_gpu_create_kernel(nb, "nbnxn_kernel_prune_rolling_opencl");
 
     /* Init auxiliary kernels */
     nb->kernel_memset_f      = nbnxn_gpu_create_kernel(nb, "memset_f");
@@ -679,20 +707,20 @@ static void nbnxn_gpu_init_kernels(gmx_nbnxn_ocl_t *nb)
  */
 static void nbnxn_ocl_init_const(gmx_nbnxn_ocl_t                *nb,
                                  const interaction_const_t      *ic,
+                                 const NbnxnListParameters      *listParams,
                                  const nonbonded_verlet_group_t *nbv_group)
 {
     init_atomdata_first(nb->atdat, nbv_group[0].nbat->ntype, nb->dev_rundata);
-    init_nbparam(nb->nbparam, ic, nbv_group[0].nbat, nb->dev_rundata);
+    init_nbparam(nb->nbparam, ic, listParams, nbv_group[0].nbat, nb->dev_rundata);
 }
 
 
 //! This function is documented in the header file
 void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
-                    const gmx_gpu_info_t      *gpu_info,
-                    const gmx_gpu_opt_t       *gpu_opt,
+                    const gmx_device_info_t   *deviceInfo,
                     const interaction_const_t *ic,
+                    const NbnxnListParameters *listParams,
                     nonbonded_verlet_group_t  *nbv_grp,
-                    int                        my_gpu_index,
                     int                        rank,
                     gmx_bool                   bLocalAndNonlocal)
 {
@@ -700,8 +728,6 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
     cl_int                      cl_error;
     cl_command_queue_properties queue_properties;
 
-    assert(gpu_info);
-    assert(gpu_opt);
     assert(ic);
 
     if (p_nb == NULL)
@@ -724,7 +750,7 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
     snew(nb->timings, 1);
 
     /* set device info, just point it to the right GPU among the detected ones */
-    nb->dev_info = gpu_info->gpu_dev + gpu_opt->dev_use[my_gpu_index];
+    nb->dev_info = deviceInfo;
     snew(nb->dev_rundata, 1);
 
     /* init to NULL the debug buffer */
@@ -786,7 +812,7 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
         init_timings(nb->timings);
     }
 
-    nbnxn_ocl_init_const(nb, ic, nbv_grp);
+    nbnxn_ocl_init_const(nb, ic, listParams, nbv_grp);
 
     /* Enable LJ param manual prefetch for AMD or if we request through env. var.
      * TODO: decide about NVIDIA
@@ -875,6 +901,11 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
                              const nbnxn_pairlist_t *h_plist,
                              int                     iloc)
 {
+    if (canSkipWork(nb, iloc))
+    {
+        return;
+    }
+
     char             sbuf[STRLEN];
     cl_command_queue stream     = nb->stream[iloc];
     cl_plist_t      *d_plist    = nb->plist[iloc];
@@ -893,6 +924,11 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
         }
     }
 
+    if (nb->bDoTime)
+    {
+        nb->timers->didPairlistH2D[iloc] = true;
+    }
+
     ocl_realloc_buffered(&d_plist->sci, h_plist->sci, sizeof(nbnxn_sci_t),
                          &d_plist->nsci, &d_plist->sci_nalloc,
                          h_plist->nsci,
@@ -905,6 +941,13 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
                          nb->dev_rundata->context,
                          stream, true, &(nb->timers->pl_h2d_cj4[iloc]));
 
+    /* this call only allocates space on the device (no data is transferred) */
+    ocl_realloc_buffered(&d_plist->imask, NULL, sizeof(unsigned int),
+                         &d_plist->nimask, &d_plist->imask_nalloc,
+                         h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
+                         nb->dev_rundata->context,
+                         stream, true, &(nb->timers->pl_h2d_imask[iloc]));
+
     ocl_realloc_buffered(&d_plist->excl, h_plist->excl, sizeof(nbnxn_excl_t),
                          &d_plist->nexcl, &d_plist->excl_nalloc,
                          h_plist->nexcl,
@@ -912,7 +955,7 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
                          stream, true, &(nb->timers->pl_h2d_excl[iloc]));
 
     /* need to prune the pair list during the next step */
-    d_plist->bDoPrune = true;
+    d_plist->haveFreshList = true;
 }
 
 //! This function is documented in the header file
@@ -1018,7 +1061,7 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_ocl_t               *nb,
 }
 
 /*! \brief Releases an OpenCL kernel pointer */
-void free_kernel(cl_kernel *kernel_ptr)
+static void free_kernel(cl_kernel *kernel_ptr)
 {
     cl_int gmx_unused cl_error;
 
@@ -1034,7 +1077,7 @@ void free_kernel(cl_kernel *kernel_ptr)
 }
 
 /*! \brief Releases a list of OpenCL kernel pointers */
-void free_kernels(cl_kernel *kernels, int count)
+static void free_kernels(cl_kernel *kernels, int count)
 {
     int i;
 
@@ -1119,12 +1162,14 @@ void nbnxn_gpu_free(gmx_nbnxn_ocl_t *nb)
     /* Free plist */
     free_ocl_buffer(&(nb->plist[eintLocal]->sci));
     free_ocl_buffer(&(nb->plist[eintLocal]->cj4));
+    free_ocl_buffer(&(nb->plist[eintLocal]->imask));
     free_ocl_buffer(&(nb->plist[eintLocal]->excl));
     sfree(nb->plist[eintLocal]);
     if (nb->bUseTwoStreams)
     {
         free_ocl_buffer(&(nb->plist[eintNonlocal]->sci));
         free_ocl_buffer(&(nb->plist[eintNonlocal]->cj4));
+        free_ocl_buffer(&(nb->plist[eintNonlocal]->imask));
         free_ocl_buffer(&(nb->plist[eintNonlocal]->excl));
         sfree(nb->plist[eintNonlocal]);
     }

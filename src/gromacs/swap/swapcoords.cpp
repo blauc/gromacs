@@ -62,6 +62,7 @@
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/observableshistory.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/mdtypes/swaphistory.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
@@ -466,7 +467,7 @@ static void add_to_list(
 static void get_compartment_boundaries(
         int c,
         t_swap *s,
-        matrix box,
+        const matrix box,
         real *left, real *right)
 {
     real pos0, pos1;
@@ -666,7 +667,7 @@ static void sortMoleculesIntoCompartments(
         t_swapgrp      *g,
         t_commrec      *cr,
         t_swapcoords   *sc,
-        matrix          box,
+        const matrix    box,
         gmx_int64_t     step,
         FILE           *fpout,
         gmx_bool        bRerun,
@@ -766,8 +767,8 @@ static void sortMoleculesIntoCompartments(
 /*! \brief Find out how many group atoms are in the compartments initially */
 static void get_initial_ioncounts(
         t_inputrec       *ir,
-        rvec              x[],   /* the initial positions */
-        matrix            box,
+        const rvec        x[],   /* the initial positions */
+        const matrix      box,
         t_commrec        *cr,
         gmx_bool          bRerun)
 {
@@ -1197,7 +1198,7 @@ static void detect_flux_per_channel_init(
  * If this is not correct, the ion counts per channel will be very likely
  * wrong.
  */
-static void outputStartStructureIfWanted(gmx_mtop_t *mtop, rvec *x, int ePBC, matrix box)
+static void outputStartStructureIfWanted(gmx_mtop_t *mtop, rvec *x, int ePBC, const matrix box)
 {
     char *env = getenv("GMX_COMPELDUMP");
 
@@ -1226,8 +1227,8 @@ static void init_swapstate(
         swaphistory_t    *swapstate,
         t_swapcoords     *sc,
         gmx_mtop_t       *mtop,
-        rvec              x[],      /* the initial positions */
-        matrix            box,
+        const rvec       *x,      /* the initial positions */
+        const matrix      box,
         t_inputrec       *ir)
 {
     rvec      *x_pbc  = nullptr; /* positions of the whole MD system with molecules made whole */
@@ -1336,7 +1337,7 @@ static real getRequestedChargeImbalance(t_swap *s)
  * This routine should be called for the 'anions' and 'cations' group,
  * of which the indices were lumped together in the older version of the code.
  */
-void copyIndicesToGroup(
+static void copyIndicesToGroup(
         int         *indIons,
         int          nIons,
         t_swapGroup *g,
@@ -1380,7 +1381,7 @@ void copyIndicesToGroup(
  * #4 cations        - empty before conversion
  *
  */
-void convertOldToNewGroupFormat(
+static void convertOldToNewGroupFormat(
         t_swapcoords *sc,
         gmx_mtop_t   *mtop,
         gmx_bool      bVerbose,
@@ -1437,7 +1438,7 @@ void convertOldToNewGroupFormat(
 /*! \brief Returns TRUE if we started from an old .tpr
  *
  * Then we need to re-sort anions and cations into separate groups */
-gmx_bool bConvertFromOldTpr(t_swapcoords *sc)
+static gmx_bool bConvertFromOldTpr(t_swapcoords *sc)
 {
     // If the last group has no atoms it means we need to convert!
     if ( (sc->ngrp >= 5) && (0 == sc->grp[4].nat) )
@@ -1450,40 +1451,35 @@ gmx_bool bConvertFromOldTpr(t_swapcoords *sc)
 
 void init_swapcoords(
         FILE                   *fplog,
-        gmx_bool                bVerbose,
         t_inputrec             *ir,
         const char             *fn,
         gmx_mtop_t             *mtop,
-        rvec                    x[],
-        matrix                  box,
+        const t_state          *globalState,
         ObservablesHistory     *oh,
         t_commrec              *cr,
         const gmx_output_env_t *oenv,
-        unsigned long           Flags)
+        const MdrunOptions     &mdrunOptions)
 {
     t_swapcoords          *sc;
     t_swap                *s;
     t_swapgrp             *g;
     swapstateIons_t       *gs;
-    gmx_bool               bAppend, bStartFromCpt, bRerun;
-    matrix                 boxCopy;
+    gmx_bool               bAppend, bStartFromCpt;
     swaphistory_t         *swapstate = nullptr;
-
 
     if ( (PAR(cr)) && !DOMAINDECOMP(cr) )
     {
         gmx_fatal(FARGS, "Position swapping is only implemented for domain decomposition!");
     }
 
-    bAppend       = Flags & MD_APPENDFILES;
-    bStartFromCpt = Flags & MD_STARTFROMCPT;
-    bRerun        = Flags & MD_RERUN;
+    bAppend       = mdrunOptions.continuationOptions.appendFiles;
+    bStartFromCpt = mdrunOptions.continuationOptions.startedFromCheckpoint;
 
     sc = ir->swap;
     snew(sc->si_priv, 1);
     s = sc->si_priv;
 
-    if (bRerun)
+    if (mdrunOptions.rerun)
     {
         if (PAR(cr))
         {
@@ -1516,6 +1512,8 @@ void init_swapcoords(
             s->swapdim = -1;
             break;
     }
+
+    const gmx_bool bVerbose = mdrunOptions.verbose;
 
     // For compatibility with old .tpr files
     if (bConvertFromOldTpr(sc) )
@@ -1564,7 +1562,7 @@ void init_swapcoords(
         }
         swapstate = oh->swapHistory.get();
 
-        init_swapstate(swapstate, sc, mtop, x, box, ir);
+        init_swapstate(swapstate, sc, mtop, as_rvec_array(globalState->x.data()), globalState->box, ir);
     }
 
     /* After init_swapstate we have a set of (old) whole positions for our
@@ -1622,14 +1620,6 @@ void init_swapcoords(
     /* Make a t_pbc struct on all nodes so that the molecules
      * chosen for an exchange can be made whole. */
     snew(s->pbc, 1);
-    /* Every node needs to call set_pbc() and therefore every node needs
-     * to know the box dimensions */
-    copy_mat(box, boxCopy);
-    if (PAR(cr))
-    {
-        gmx_bcast(sizeof(boxCopy), boxCopy, cr);
-    }
-    set_pbc(s->pbc, -1, boxCopy);
 
     if (MASTER(cr))
     {
@@ -1666,7 +1656,7 @@ void init_swapcoords(
             g = &(s->group[j]);
             for (int i = 0; i < g->nat; i++)
             {
-                copy_rvec(x[sc->grp[j].ind[i]], g->xc[i]);
+                copy_rvec(globalState->x[sc->grp[j].ind[i]], g->xc[i]);
             }
             /* xc has the correct PBC representation for the two channels, so we do
              * not need to correct for that */
@@ -1697,7 +1687,7 @@ void init_swapcoords(
                     sc->cyl1r, sc->cyl1u, sc->cyl1l);
 
             fprintf(s->fpout, "#\n");
-            if (!bRerun)
+            if (!mdrunOptions.rerun)
             {
                 fprintf(s->fpout, "# Coupling constant (number of swap attempt steps to average over): %d  (translates to %f ps).\n",
                         sc->nAverage, sc->nAverage*sc->nstswap*ir->delta_t);
@@ -1758,7 +1748,7 @@ void init_swapcoords(
         else
         {
             fprintf(stderr, "%s Determining initial numbers of ions per compartment.\n", SwS);
-            get_initial_ioncounts(ir, x, box, cr, bRerun);
+            get_initial_ioncounts(ir, as_rvec_array(globalState->x.data()), globalState->box, cr, mdrunOptions.rerun);
         }
 
         /* Prepare (further) checkpoint writes ... */
@@ -2010,6 +2000,7 @@ gmx_bool do_swapcoords(
     sc  = ir->swap;
     s   = sc->si_priv;
 
+    set_pbc(s->pbc, ir->ePBC, box);
 
     /* Assemble the positions of the split groups, i.e. the channels.
      * Here we also pass a shifts array to communicate_group_positions(), so that it can make

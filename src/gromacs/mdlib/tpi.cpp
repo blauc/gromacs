@@ -129,10 +129,9 @@ namespace gmx
 /*! \brief Do test particle insertion.
     \copydoc integrator_t (FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                            int nfile, const t_filenm fnm[],
-                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
-                           int nstglobalcomm,
+                           const gmx_output_env_t *oenv,
+                           const MdrunOptions &mdrunOptions,
                            gmx_vsite_t *vsite, gmx_constr_t constr,
-                           int stepout,
                            gmx::IMDOutputProvider *outputProvider,
                            t_inputrec *inputrec,
                            gmx_mtop_t *top_global, t_fcdata *fcd,
@@ -141,18 +140,15 @@ namespace gmx
                            t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                            gmx_edsam_t ed,
                            t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
-                           real cpt_period, real max_hours,
-                           int imdport,
-                           unsigned long Flags,
+                           const ReplicaExchangeParameters &replExParams,
+                           gmx_membed_t gmx_unused *membed,
                            gmx_walltime_accounting_t walltime_accounting)
  */
 double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
               int nfile, const t_filenm fnm[],
-              const gmx_output_env_t *oenv, gmx_bool bVerbose,
-              int gmx_unused nstglobalcomm,
+              const gmx_output_env_t *oenv,
+              const MdrunOptions &mdrunOptions,
               gmx_vsite_t gmx_unused *vsite, gmx_constr_t gmx_unused constr,
-              int gmx_unused stepout,
               gmx::IMDOutputProvider *outputProvider,
               t_inputrec *inputrec,
               gmx_mtop_t *top_global, t_fcdata *fcd,
@@ -160,13 +156,9 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
               ObservablesHistory gmx_unused *observablesHistory,
               t_mdatoms *mdatoms,
               t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-              gmx_edsam_t gmx_unused ed,
               t_forcerec *fr,
-              int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+              const ReplicaExchangeParameters gmx_unused &replExParams,
               gmx_membed_t gmx_unused *membed,
-              real gmx_unused cpt_period, real gmx_unused max_hours,
-              int gmx_unused imdport,
-              unsigned long gmx_unused Flags,
               gmx_walltime_accounting_t walltime_accounting)
 {
     gmx_localtop_t  *top;
@@ -328,7 +320,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
         bCharge |= (mdatoms->chargeA[i] != 0 ||
                     (mdatoms->chargeB && mdatoms->chargeB[i] != 0));
     }
-    bRFExcl = (bCharge && EEL_RF(fr->eeltype));
+    bRFExcl = (bCharge && EEL_RF(fr->ic->eeltype));
 
     calc_cgcm(fplog, cg_tp, cg_tp+1, &(top->cgs), as_rvec_array(state_global->x.data()), fr->cg_cm);
     if (bCavity)
@@ -393,7 +385,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
         {
             nener += 1;
         }
-        if (EEL_FULL(fr->eeltype))
+        if (EEL_FULL(fr->ic->eeltype))
         {
             nener += 1;
         }
@@ -448,7 +440,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                 sprintf(str, "f. <U\\sRF excl\\Ne\\S-\\betaU\\N>");
                 leg[e++] = gmx_strdup(str);
             }
-            if (EEL_FULL(fr->eeltype))
+            if (EEL_FULL(fr->ic->eeltype))
             {
                 sprintf(str, "f. <U\\sCoul recip\\Ne\\S-\\betaU\\N>");
                 leg[e++] = gmx_strdup(str);
@@ -674,7 +666,9 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                      nullptr, fr, nullptr, mu_tot, t, nullptr, FALSE,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY |
                      (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS : 0) |
-                     (bStateChanged ? GMX_FORCE_STATECHANGED : 0));
+                     (bStateChanged ? GMX_FORCE_STATECHANGED : 0),
+                     DdOpenBalanceRegionBeforeForceComputation::no,
+                     DdCloseBalanceRegionAfterForceComputation::no);
             cr->nnodes    = nnodes;
             bStateChanged = FALSE;
             bNS           = FALSE;
@@ -754,7 +748,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                     {
                         sum_UgembU[e++] += enerd->term[F_RF_EXCL]*embU;
                     }
-                    if (EEL_FULL(fr->eeltype))
+                    if (EEL_FULL(fr->ic->eeltype))
                     {
                         sum_UgembU[e++] += enerd->term[F_COUL_RECIP]*embU;
                     }
@@ -816,7 +810,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
 
         if (fp_tpi)
         {
-            if (bVerbose || frame%10 == 0 || frame < 10)
+            if (mdrunOptions.verbose || frame%10 == 0 || frame < 10)
             {
                 fprintf(stderr, "mu %10.3e <mu> %10.3e\n",
                         -log(sum_embU/nsteps)/beta, -log(VembU_all/V_all)/beta);

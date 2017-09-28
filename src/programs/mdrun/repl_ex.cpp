@@ -149,11 +149,12 @@ static gmx_bool repl_quantity(const gmx_multisim_t *ms,
     return bDiff;
 }
 
-gmx_repl_ex_t init_replica_exchange(FILE *fplog,
-                                    const gmx_multisim_t *ms,
-                                    const t_state *state,
-                                    const t_inputrec *ir,
-                                    int nst, int nex, int init_seed)
+gmx_repl_ex_t
+init_replica_exchange(FILE                            *fplog,
+                      const gmx_multisim_t            *ms,
+                      int                              numAtomsInSystem,
+                      const t_inputrec                *ir,
+                      const ReplicaExchangeParameters &replExParams)
 {
     real                pres;
     int                 i, j, k;
@@ -189,9 +190,14 @@ gmx_repl_ex_t init_replica_exchange(FILE *fplog,
 
     fprintf(fplog, "Repl  There are %d replicas:\n", re->nrepl);
 
-    check_multi_int(fplog, ms, state->natoms, "the number of atoms", FALSE);
+    /* We only check that the number of atoms in the systms match.
+     * This, of course, do not guarantee that the systems are the same,
+     * but it does guarantee that we can perform replica exchange.
+     */
+    check_multi_int(fplog, ms, numAtomsInSystem, "the number of atoms", FALSE);
     check_multi_int(fplog, ms, ir->eI, "the integrator", FALSE);
     check_multi_int64(fplog, ms, ir->init_step+ir->nsteps, "init_step+nsteps", FALSE);
+    const int nst = replExParams.exchangeInterval;
     check_multi_int64(fplog, ms, (ir->init_step+nst-1)/nst,
                       "first exchange step: init_step/-replex", FALSE);
     check_multi_int(fplog, ms, ir->etc, "the temperature coupling", FALSE);
@@ -372,7 +378,7 @@ gmx_repl_ex_t init_replica_exchange(FILE *fplog,
         }
     }
     re->nst = nst;
-    if (init_seed == -1)
+    if (replExParams.randomSeed == -1)
     {
         if (MASTERSIM(ms))
         {
@@ -386,7 +392,7 @@ gmx_repl_ex_t init_replica_exchange(FILE *fplog,
     }
     else
     {
-        re->seed = init_seed;
+        re->seed = replExParams.randomSeed;
     }
     fprintf(fplog, "\nReplica exchange interval: %d\n", re->nst);
     fprintf(fplog, "\nReplica random seed: %d\n", re->seed);
@@ -428,7 +434,7 @@ gmx_repl_ex_t init_replica_exchange(FILE *fplog,
     {
         snew(re->de[i], re->nrepl);
     }
-    re->nex = nex;
+    re->nex = replExParams.numExchanges;
     return re;
 }
 
@@ -800,7 +806,7 @@ static void
 test_for_replica_exchange(FILE                 *fplog,
                           const gmx_multisim_t *ms,
                           struct gmx_repl_ex   *re,
-                          gmx_enerdata_t       *enerd,
+                          const gmx_enerdata_t *enerd,
                           real                  vol,
                           gmx_int64_t           step,
                           real                  time)
@@ -1220,7 +1226,7 @@ prepare_to_do_exchange(struct gmx_repl_ex *re,
 }
 
 gmx_bool replica_exchange(FILE *fplog, const t_commrec *cr, struct gmx_repl_ex *re,
-                          t_state *state, gmx_enerdata_t *enerd,
+                          t_state *state, const gmx_enerdata_t *enerd,
                           t_state *state_local, gmx_int64_t step, real time)
 {
     int j;

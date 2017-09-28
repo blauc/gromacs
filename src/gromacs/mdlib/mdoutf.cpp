@@ -82,7 +82,8 @@ struct gmx_mdoutf {
 
 
 gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
-                         int mdrun_flags, const t_commrec *cr,
+                         const MdrunOptions &mdrunOptions,
+                         const t_commrec *cr,
                          gmx::IMDOutputProvider *outputProvider,
                          const t_inputrec *ir, gmx_mtop_t *top_global,
                          const gmx_output_env_t *oenv, gmx_wallcycle_t wcycle)
@@ -112,9 +113,9 @@ gmx_mdoutf_t init_mdoutf(FILE *fplog, int nfile, const t_filenm fnm[],
 
     if (MASTER(cr))
     {
-        bAppendFiles = (mdrun_flags & MD_APPENDFILES);
+        bAppendFiles = mdrunOptions.continuationOptions.appendFiles;
 
-        of->bKeepAndNumCPT = (mdrun_flags & MD_KEEPANDNUMCPT);
+        of->bKeepAndNumCPT = mdrunOptions.checkpointOptions.keepAndNumberCheckpointFiles;
 
         filemode = bAppendFiles ? appendMode : writeMode;
 
@@ -265,12 +266,12 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
             if (mdof_flags & (MDOF_X | MDOF_X_COMPRESSED))
             {
                 dd_collect_vec(cr->dd, state_local, &state_local->x,
-                               &state_global->x);
+                               MASTER(cr) ? &state_global->x : nullptr);
             }
             if (mdof_flags & MDOF_V)
             {
                 dd_collect_vec(cr->dd, state_local, &state_local->v,
-                               &state_global->v);
+                               MASTER(cr) ? &state_global->v : nullptr);
             }
         }
         f_global = of->f_global;

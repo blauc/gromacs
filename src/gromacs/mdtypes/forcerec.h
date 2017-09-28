@@ -47,7 +47,7 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-struct IForceProvider;
+struct ForceProviders;
 
 /* Abstract type for PME that is defined only in the routine that use them. */
 struct gmx_genborn_t;
@@ -59,8 +59,6 @@ struct t_forcetable;
 struct t_nblist;
 struct t_nblists;
 struct t_QMMMrec;
-struct gmx_hw_info_t;
-struct gmx_gpu_opt_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -174,8 +172,6 @@ struct t_forcerec {
     rvec                        posres_com;
     rvec                        posres_comB;
 
-    const struct gmx_hw_info_t *hwinfo;
-    const struct gmx_gpu_opt_t *gpu_opt;
     gmx_bool                    use_simd_kernels;
 
     /* Interaction for calculated in kernels. In many cases this is similar to
@@ -203,12 +199,8 @@ struct t_forcerec {
      */
     real rlist;
 
-    /* Dielectric constant resp. multiplication factor for charges */
+    /* Parameters for generalized reaction field */
     real zsquare, temp;
-    real epsilon_r, epsilon_rf, epsfac;
-
-    /* Constants for reaction fields */
-    real kappa, k_rf, c_rf;
 
     /* Charge sum and dipole for topology A/B ([0]/[1]) for Ewald corrections */
     double qsum[2];
@@ -247,17 +239,6 @@ struct t_forcerec {
 
     struct t_forcetable *pairsTable; /* for 1-4 interactions, [pairs] and [pairs_nb] */
 
-    /* PPPM & Shifting stuff */
-    int   coulomb_modifier;
-    real  rcoulomb_switch, rcoulomb;
-    real *phi;
-
-    /* VdW stuff */
-    int    vdw_modifier;
-    double reppow;
-    real   rvdw_switch, rvdw;
-    real   bham_b_max;
-
     /* Free energy */
     int      efep;
     real     sc_alphavdw;
@@ -268,8 +249,6 @@ struct t_forcerec {
     real     sc_sigma6_min;
 
     /* NS Stuff */
-    int  eeltype;
-    int  vdwtype;
     int  cg0, hcg;
     /* solvent_opt contains the enum for the most common solvent
      * in the system, which will be optimized.
@@ -334,9 +313,6 @@ struct t_forcerec {
     tensor            vir_lj_recip;
 
     /* PME/Ewald stuff */
-    gmx_bool                bEwald;
-    real                    ewaldcoeff_q;
-    real                    ewaldcoeff_lj;
     struct gmx_ewald_tab_t *ewald_table;
 
     /* Virial Stuff */
@@ -438,7 +414,7 @@ struct t_forcerec {
     int                         nthread_ewc;
     struct ewald_corr_thread_t *ewc_t;
 
-    struct IForceProvider      *efield;
+    struct ForceProviders      *forceProviders;
 };
 
 /* Important: Starting with Gromacs-4.6, the values of c6 and c12 in the nbfp array have

@@ -88,6 +88,7 @@ add_subdirectory(options)
 add_subdirectory(pbcutil)
 add_subdirectory(random)
 add_subdirectory(tables)
+add_subdirectory(taskassignment)
 add_subdirectory(timing)
 add_subdirectory(topology)
 add_subdirectory(trajectory)
@@ -165,9 +166,9 @@ endif()
 # we do it in the compilation command (after testing that the compiler
 # supports the suppressions).
 include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag(-Wno-unused-parameter HAS_NO_UNUSED_PARAMETER)
-if (HAS_NO_UNUSED_PARAMETER)
-    set(_scanner_cpp_compiler_flags "${_scanner_cpp_compiler_flags} -Wno-unused-parameter")
+check_cxx_compiler_flag(-Wno-unused HAS_NO_UNUSED)
+if (HAS_NO_UNUSED)
+    set(_scanner_cpp_compiler_flags "${_scanner_cpp_compiler_flags} -Wno-unused-parameter -Wno-unused-function")
 endif()
 set_source_files_properties(selection/scanner.cpp PROPERTIES COMPILE_FLAGS "${_scanner_cpp_compiler_flags}")
 
@@ -232,4 +233,8 @@ if(GMX_USE_OPENCL)
 
     install(FILES ${OPENCL_KERNELS} DESTINATION
         ${OCL_INSTALL_DIR} COMPONENT libraries)
+endif()
+
+if (BUILD_TESTING)
+    add_subdirectory(compat/tests)
 endif()
