@@ -32,6 +32,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \file
+ * \brief
+ *  Cryo-EM scattering cross section factors.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \inpublicapi
+ */
 #ifndef _EM_SCATTERING_FACTORS_H
 #define _EM_SCATTERING_FACTORS_H
 
@@ -41,10 +48,11 @@
 namespace gmx
 {
 
-namespace externalpotential
-{
+/*! \brief
+ *  Use relative cryo-EM scattering cross section from
+ *  Earl J Kirkland. Advanced computing in electron microscopy. Springer, 2010
+ */
 real atomicNumber2EmScatteringFactor (const int atomicNumber);
-}
 }
 
 #endif /* end of include guard: _EM_SCATTERING_FACTORS_H */

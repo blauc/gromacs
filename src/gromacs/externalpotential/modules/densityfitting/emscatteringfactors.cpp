@@ -40,14 +40,12 @@
 namespace gmx
 {
 
-namespace externalpotential
-{
-
 real atomicNumber2EmScatteringFactor (const int atomicNumber)
 {
     static std::map < int, real > atomicNumber2Factor {{
                                                            0, 1.0
-                                                       }, {
+                                                       },
+                                                       {
                                                            1, 0.0444872
                                                        }, {
                                                            2, 0.0277892
@@ -67,7 +65,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            9, 0.5166
                                                        }, {
                                                            10, 0.433072
-                                                       }, {
+                                                       },
+                                                       {
                                                            11, 3.61627
                                                        }, {
                                                            12, 4.29754
@@ -87,7 +86,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            19, 12.6911
                                                        }, {
                                                            20, 15.5702
-                                                       }, {
+                                                       },
+                                                       {
                                                            21, 13.6654
                                                        }, {
                                                            22, 12.1117
@@ -107,7 +107,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            29, 4.93804
                                                        }, {
                                                            30, 5.84716
-                                                       }, {
+                                                       },
+                                                       {
                                                            31, 8.00058
                                                        }, {
                                                            32, 8.64189
@@ -127,7 +128,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            39, 25.4741
                                                        }, {
                                                            40, 23.5588
-                                                       }, {
+                                                       },
+                                                       {
                                                            41, 18.2075
                                                        }, {
                                                            42, 16.7869
@@ -147,7 +149,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            49, 17.235
                                                        }, {
                                                            50, 18.7
-                                                       }, {
+                                                       },
+                                                       {
                                                            51, 19.157
                                                        }, {
                                                            52, 19.16
@@ -167,7 +170,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            59, 45.5389
                                                        }, {
                                                            60, 43.1338
-                                                       }, {
+                                                       },
+                                                       {
                                                            61, 41.5183
                                                        }, {
                                                            62, 39.7828
@@ -187,7 +191,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            69, 30.0192
                                                        }, {
                                                            70, 28.2632
-                                                       }, {
+                                                       },
+                                                       {
                                                            71, 28.0326
                                                        }, {
                                                            72, 26.9922
@@ -207,7 +212,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            79, 17.6589
                                                        }, {
                                                            80, 18.9234
-                                                       }, {
+                                                       },
+                                                       {
                                                            81, 25.6889
                                                        }, {
                                                            82, 26.9626
@@ -227,7 +233,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            89, 66.5727
                                                        }, {
                                                            90, 64.8004
-                                                       }, {
+                                                       },
+                                                       {
                                                            91, 60.5933
                                                        }, {
                                                            92, 57.8371
@@ -247,7 +254,8 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
                                                            99, 42.4524
                                                        }, {
                                                            100, 40.7625
-                                                       }, {
+                                                       },
+                                                       {
                                                            101, 39.2219
                                                        }, {
                                                            102, 37.6153
@@ -257,6 +265,4 @@ real atomicNumber2EmScatteringFactor (const int atomicNumber)
     return atomicNumber2Factor.at(atomicNumber);
 }
 
-
-} /* externalpotential */
 } /* gmx */

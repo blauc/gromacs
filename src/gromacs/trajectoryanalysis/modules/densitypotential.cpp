@@ -52,6 +52,8 @@
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/volumedataio.h"
+#include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/exceptions.h"
 
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
@@ -175,7 +177,7 @@ void DensityPotential::initAnalysis(
         get_pdb_atomnumber(&(top.topology()->atoms), atomprop);
         for (int i_atom = 0; i_atom < top.topology()->atoms.nr; i_atom++)
         {
-            weight_.push_back(externalpotential::atomicNumber2EmScatteringFactor(
+            weight_.push_back(atomicNumber2EmScatteringFactor(
                                       top.topology()->atoms.atom[i_atom].atomnumber));
         }
         gmx_atomprop_destroy(atomprop);
@@ -204,10 +206,15 @@ void DensityPotential::optionsFinished(
         fseek(optionsFile, 0, SEEK_END);
         auto  length = ftell(optionsFile);
         fseek(optionsFile, 0, SEEK_SET);
-        char *buffer = (char *)malloc(length + 1);
+        char *buffer;
+        smalloc(buffer, length + 1);
         if (buffer)
         {
-            fread(buffer, 1, length, optionsFile);
+            auto read_length = fread(buffer, 1, length, optionsFile);
+            if (read_length != (size_t) length)
+            {
+                GMX_THROW(FileIOError(std::string("Something went wrong reading ")+fnoptions_));
+            }
         }
         buffer[length] = '\0';
         optionsstring_ = buffer;
@@ -262,7 +269,7 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
     }
 }
 
-void DensityPotential::frameToForceDensity_(const t_trxframe &fr)
+void DensityPotential::frameToForceDensity_(const t_trxframe & /*fr*/)
 {
     //     const std::vector<RVec> coordinates(fr.x, fr.x+fr.natoms);
     //

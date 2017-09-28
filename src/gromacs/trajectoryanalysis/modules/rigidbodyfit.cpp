@@ -167,7 +167,7 @@ void RigidBodyFit::initAnalysis(
         get_pdb_atomnumber(&(top.topology()->atoms), atomprop);
         for (int i_atom = 0; i_atom < top.topology()->atoms.nr; i_atom++)
         {
-            weight_.push_back(externalpotential::atomicNumber2EmScatteringFactor(
+            weight_.push_back(atomicNumber2EmScatteringFactor(
                                       top.topology()->atoms.atom[i_atom].atomnumber));
         }
         gmx_atomprop_destroy(atomprop);
@@ -220,7 +220,7 @@ void RigidBodyFit::initAfterFirstFrame(
                 rVecCoordinates, weight_, inputdensity_, optionsstring_);
 }
 
-void RigidBodyFit::analyzeFrame(int frnr, const t_trxframe &fr,
+void RigidBodyFit::analyzeFrame(int /*frnr*/, const t_trxframe &fr,
                                 t_pbc * /*pbc*/,
                                 TrajectoryAnalysisModuleData * /*pdata*/)
 {
