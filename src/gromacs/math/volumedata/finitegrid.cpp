@@ -24,8 +24,8 @@ class FiniteGrid::Impl
         ~Impl();
 
         matrix cell_;          //!< r' = cell_ . (r-translate_)
-        matrix unit_cell_;     //!< cell_/extend_
-        matrix unit_cell_inv_; //!< cell_/extend_
+        matrix unit_cell_;     //!< cell_/getExtend_
+        matrix unit_cell_inv_; //!< cell_/getExtend_
         RVec   translate_;     //!< r' = cell_ . (r-translate_)
 
         /*! \brief
@@ -108,9 +108,9 @@ bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other, real tolerance)
 }
 void FiniteGrid::set_unit_cell()
 {
-    svmul(1. / extend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
-    svmul(1. / extend()[YY], impl_->cell_[YY], impl_->unit_cell_[YY]);
-    svmul(1. / extend()[ZZ], impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
+    svmul(1. / getExtend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
+    svmul(1. / getExtend()[YY], impl_->cell_[YY], impl_->unit_cell_[YY]);
+    svmul(1. / getExtend()[ZZ], impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
     invertMatrix(impl_->unit_cell_, impl_->unit_cell_inv_);
 }
 
@@ -124,9 +124,9 @@ void FiniteGrid::scaleCell(RVec scale)
 
 void FiniteGrid::resetCell()
 {
-    svmul(extend()[XX], impl_->unit_cell_[XX], impl_->cell_[XX]);
-    svmul(extend()[YY], impl_->unit_cell_[YY], impl_->cell_[YY]);
-    svmul(extend()[ZZ], impl_->unit_cell_[ZZ], impl_->cell_[ZZ]);
+    svmul(getExtend()[XX], impl_->unit_cell_[XX], impl_->cell_[XX]);
+    svmul(getExtend()[YY], impl_->unit_cell_[YY], impl_->cell_[YY]);
+    svmul(getExtend()[ZZ], impl_->unit_cell_[ZZ], impl_->cell_[ZZ]);
 };
 
 FiniteGrid::Impl::Impl()
@@ -186,7 +186,7 @@ FiniteGrid::FiniteGrid(FiniteGrid &other) :
 
 FiniteGrid &FiniteGrid::operator= (const FiniteGrid &other)
 {
-    set_extend(other.extend());
+    setExtend(other.getExtend());
     copy_mat(other.impl_->cell_, impl_->cell_);
     copy_mat(other.impl_->unit_cell_, impl_->unit_cell_);
     copy_mat(other.impl_->unit_cell_inv_, impl_->unit_cell_inv_);
@@ -207,7 +207,7 @@ void FiniteGrid::convertToReciprocalSpace()
 
 real FiniteGrid::grid_cell_volume() const
 {
-    return det(impl_->cell_) / (real)num_gridpoints();
+    return det(impl_->cell_) / (real)getNumLatticePoints();
 }
 
 void FiniteGrid::set_translation(RVec translate)
@@ -259,7 +259,7 @@ void FiniteGrid::set_cell(RVec length, RVec angle)
     impl_->cell_[ZZ][YY] *= length[ZZ];
     impl_->cell_[ZZ][ZZ] *= length[ZZ];
 
-    if ((extend()[XX] > 0) && (extend()[YY] > 0) && (extend()[ZZ] > 0))
+    if ((getExtend()[XX] > 0) && (getExtend()[YY] > 0) && (getExtend()[ZZ] > 0))
     {
         set_unit_cell();
     }
@@ -342,9 +342,9 @@ RVec FiniteGrid::gridpoint_coordinate(IVec i) const
     return result;
 };
 
-RVec FiniteGrid::gridpoint_coordinate(int i) const
+RVec FiniteGrid::gridpoint_coordinate(int linearIndex) const
 {
-    return gridpoint_coordinate(ndx1d_to_ndx3d(i));
+    return gridpoint_coordinate(getLatticeIndexFromLinearIndex(linearIndex));
 }
 
 void FiniteGrid::rotation(matrix Q)
@@ -356,7 +356,7 @@ void FiniteGrid::rotation(matrix Q)
 void FiniteGrid::copy_grid(const FiniteGrid &grid)
 {
     copy_mat(grid.impl_->cell_, this->impl_->cell_);
-    Finite3DLatticeIndices::set_extend(grid.extend());
+    Finite3DLatticeIndices::setExtend(grid.getExtend());
     set_translation(grid.translation());
     set_unit_cell();
 }
@@ -377,10 +377,10 @@ void FiniteGrid::makeGridUniform()
 std::string FiniteGrid::print() const
 {
     std::string result("\n  ------- finite grid -------\n");
-    result += "    extend       : " + std::to_string(extend()[0]) + " " +
-        std::to_string(extend()[1]) + " " + std::to_string(extend()[2]) +
+    result += "    getExtend       : " + std::to_string(getExtend()[0]) + " " +
+        std::to_string(getExtend()[1]) + " " + std::to_string(getExtend()[2]) +
         "\n";
-    result += "    ngridpoints  : " + std::to_string(num_gridpoints()) + "\n";
+    result += "    ngridpoints  : " + std::to_string(getNumLatticePoints()) + "\n";
     result += "    translation  : " + std::to_string(translation()[0]) + " " +
         std::to_string(translation()[1]) + " " +
         std::to_string(translation()[2]) + "\n";

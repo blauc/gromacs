@@ -52,7 +52,7 @@ namespace gmx
 GaussConvolution::GaussConvolution(const Field<real> &input)
     : input_(input), padded_input_ {nullptr}
 {
-    extendBeforePadding_ = input_.extend();
+    extendBeforePadding_ = input_.getExtend();
 };
 
 GaussConvolution &GaussConvolution::pad(RVec paddingFactor)

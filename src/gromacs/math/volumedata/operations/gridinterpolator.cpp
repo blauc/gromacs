@@ -59,11 +59,11 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
     ;
     auto interpolatedGridAccess = interpolatedGrid_->access();
 
-    for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
+    for (int i_z = 0; i_z < interpolatedGrid_->getExtend()[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < interpolatedGrid_->extend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < interpolatedGrid_->getExtend()[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < interpolatedGrid_->getExtend()[XX]; ++i_x)
             {
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
                 interpolatedGridAccess.at({i_x, i_y, i_z}) = getLinearInterpolationAt(other, r);
@@ -83,11 +83,11 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 
     auto interpolatedGridAccess = interpolatedGrid_->access();
 
-    for (int i_z = 0; i_z < interpolatedGrid_->extend()[ZZ]; ++i_z)
+    for (int i_z = 0; i_z < interpolatedGrid_->getExtend()[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < interpolatedGrid_->extend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < interpolatedGrid_->getExtend()[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < interpolatedGrid_->extend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < interpolatedGrid_->getExtend()[XX]; ++i_x)
             {
 
                 auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
@@ -124,7 +124,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
                 cube_index[XX] += ii_x;
                 cube_index[YY] += ii_y;
                 cube_index[ZZ] += ii_z;
-                if (field.inGrid(cube_index))
+                if (field.inLattice(cube_index))
                 {
                     cube[ii_x][ii_y][ii_z] = data.at(cube_index);
                 }

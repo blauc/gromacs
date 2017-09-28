@@ -416,7 +416,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(to_crs_order(grid_data.extend()));
+        write_int32_ivec_(to_crs_order(grid_data.getExtend()));
     }
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -459,7 +459,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(grid_data.extend());
+        write_int32_ivec_(grid_data.getExtend());
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -844,20 +844,20 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
     if (bRead)
     {
-        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(grid_data.num_gridpoints()*sizeof(float)) )
+        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(grid_data.getNumLatticePoints()*sizeof(float)) )
         {
             GMX_THROW(gmx::FileIOError("Density format file is smaller than indicated in its header."));
         }
         else
         {
-            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(grid_data.num_gridpoints()*sizeof(float)) )
+            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(grid_data.getNumLatticePoints()*sizeof(float)) )
             {
-                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, grid_data.num_gridpoints()*sizeof(float));
+                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, grid_data.getNumLatticePoints()*sizeof(float));
             }
         }
     }
 
-    IVec num_crs = to_crs_order(grid_data.extend());
+    IVec num_crs = to_crs_order(grid_data.getExtend());
     if (bRead)
     {
         auto gridDataAccess = grid_data.access();
@@ -1113,13 +1113,13 @@ Df3File::write(std::string filename, const gmx::Field<real> &grid_data)
 {
     auto    file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t xExtendShort {
-        int16_t(grid_data.extend()[XX])
+        int16_t(grid_data.getExtend()[XX])
     };
     int16_t yExtendShort {
-        int16_t(grid_data.extend()[YY])
+        int16_t(grid_data.getExtend()[YY])
     };
     int16_t zExtendShort {
-        int16_t(grid_data.extend()[ZZ])
+        int16_t(grid_data.getExtend()[ZZ])
     };
     fputc(xExtendShort >> 8, file_);
     fputc(xExtendShort & 0xff, file_);

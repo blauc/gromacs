@@ -230,7 +230,7 @@ void DensityMorph::evaluateFlow_(const Field<real> &differential, std::array<Fie
     {
         densityflow[dimension] =
             *DensityPadding(paddedDensityFlow[dimension])
-                .unpad(differential.extend());
+                .unpad(differential.getExtend());
     }
 
     // find the scale for the flow
@@ -293,7 +293,7 @@ void DensityMorph::applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, GridDataAccess<
 
                 // NOTE: checking boundaries here,
                 // but not for the flow away from voxels violates flow conversation
-                if (d_new.indices().inGrid(receivingVoxel))
+                if (d_new.indices().inLattice(receivingVoxel))
                 {
                     RVec share;
                     for (size_t dimension = 0; dimension < DIM; dimension++)
@@ -363,7 +363,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
             auto d_new = newMorph.access();
             auto d_old = oldMorph.access();
 
-            auto extend = common_grid.extend();
+            auto extend = common_grid.getExtend();
 
             std::array<GridDataAccess<real>, 3> flow {
                 densityflow[XX].access(), densityflow[YY].access(), densityflow[ZZ].access()

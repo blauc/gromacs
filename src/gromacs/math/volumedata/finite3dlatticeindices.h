@@ -6,48 +6,46 @@
 namespace gmx
 {
 
-
 typedef BasicVector<int> IVec; //!< RVec equivalent for int
 
 class Finite3DLatticeIndices
 {
     public:
-        Finite3DLatticeIndices();
-        Finite3DLatticeIndices(IVec extend);
+        Finite3DLatticeIndices() = default;
+        Finite3DLatticeIndices(const IVec &extend);
         Finite3DLatticeIndices(const Finite3DLatticeIndices &other);
-        int num_gridpoints() const;  //!< returns pre-evaluated extend[0]*extend[1]*extend[2]
-        int numGridPointsXY() const; //!< returns pre-evaluated extend[0]*extend[1]
-        IVec extend() const;         //!< return the extend of the grid
-                                     /*! \brief
-                                      * The extend of the grid.
-                                      *
-                                      * Grid indices will alwasy run from (0,0,0) to extend =
-                                      * (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
-                                      */
-        void set_extend(IVec extend);
+        int getNumLatticePoints() const;   //!< returns extend[0]*extend[1]*extend[2]
+        int getNumLatticePointsXY() const; //!< returns pre-evaluated extend[0]*extend[1]
+        IVec getExtend() const;            //!< return the extend of the lattice
 
         /*! \brief
-         * multiply grid extend by factor */
+         * The extend of the lattice.
+         *
+         * Lattice indices will alwasy run from (0,0,0) to extend =
+         * (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
+         */
+        void setExtend(const IVec extend);
+
+        /*! \brief
+         * multiply lattice extend by factor */
         void multiplyExtend(const RVec factor);
 
         /*! \brief
-         * Unique one-dimensional grid index  = x + extend[XX] * y + extend[XX] *
+         * Unique one-dimensional lattice index  = x + extend[XX] * y + extend[XX] *
          * extend[YY] * z.
          */
-        int ndx3d_to_ndx1d(IVec i_xyz) const;
+        int getLinearIndexFromLatticeIndex(const IVec &latticeIndex) const;
 
         /*! \brief
          * Inverse for ndx3d_to_ndx1d ;
          */
-        IVec ndx1d_to_ndx3d(int i) const;
+        IVec getLatticeIndexFromLinearIndex(int linearIndex) const;
 
-        bool inGrid(IVec gridIndex) const;
-        bool inGrid(int gridIndex, int dimension) const;
+        bool inLattice(const IVec &latticeIndex) const;
+        bool inLattice(int latticeIndex, int dimension) const;
 
     private:
         IVec   extend_;
-        int    numGridPointsXY_;
-        int    numGridPoints_;
 };
 
 } //gmx

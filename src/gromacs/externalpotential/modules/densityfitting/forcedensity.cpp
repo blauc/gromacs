@@ -69,7 +69,7 @@ void ForceDensity::generateFourierTransformGrids_(
         const FiniteGrid &grid)
 {
     auto fourierExtend =
-        fourierTransformGridExtendfromRealExtend(grid.extend());
+        fourierTransformGridExtendfromRealExtend(grid.getExtend());
     for (auto &fourierGrid : forcesFT_)
     {
         fourierGrid.set_extend(fourierExtend);

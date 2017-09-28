@@ -95,12 +95,12 @@ class Field : public FiniteGrid
 
         GridDataAccess<T> access() const
         {
-            return GridDataAccess<T>(extend(), data_);
+            return GridDataAccess<T>(getExtend(), data_);
         };
 
         GridDataAccess<T> access()
         {
-            return GridDataAccess<T>(extend(), data_);
+            return GridDataAccess<T>(getExtend(), data_);
         };
         /*! \brief
          * Copy the properties from another grid to this one.
@@ -110,7 +110,7 @@ class Field : public FiniteGrid
         void copy_grid(const FiniteGrid &grid)
         {
             FiniteGrid::copy_grid(grid);
-            data_.resize(num_gridpoints());
+            data_.resize(getNumLatticePoints());
         };
 
         void swapData(Field<T> &other)
@@ -121,13 +121,13 @@ class Field : public FiniteGrid
         void multiplyGridPointNumber(const RVec factor)
         {
             FiniteGrid::multiplyGridPointNumber(factor);
-            data_.resize(num_gridpoints());
+            data_.resize(getNumLatticePoints());
         };
 
         void set_extend(IVec extend)
         {
-            FiniteGrid::set_extend(extend);
-            data_.resize(num_gridpoints());
+            FiniteGrid::setExtend(extend);
+            data_.resize(getNumLatticePoints());
         };
 
     private:

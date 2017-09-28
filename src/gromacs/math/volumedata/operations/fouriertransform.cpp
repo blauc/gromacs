@@ -112,7 +112,7 @@ FourierTransformRealToComplex3D::createComplexTransformedFieldFromInput_() const
     complexTransformedField->copy_grid(realInputField_);
     complexTransformedField->convertToReciprocalSpace();
     complexTransformedField->set_extend(
-            fourierTransformGridExtendfromRealExtend(realInputField_.extend()));
+            fourierTransformGridExtendfromRealExtend(realInputField_.getExtend()));
     complexTransformedField->resetCell();
     return complexTransformedField;
 };
@@ -137,7 +137,7 @@ void FourierTransformRealToComplex3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_r2c(
-                    3, columnMajorExtendToRowMajorExtend(realInputField_.extend()),
+                    3, columnMajorExtendToRowMajorExtend(realInputField_.getExtend()),
                     (float *)realInputField_.access().data().data(),
                     (fftwf_complex *)complexTransformedField.access().data().data(),
                     FFTW_ESTIMATE);
@@ -147,7 +147,7 @@ void FourierTransformRealToComplex3D::result(
             (fftwf_complex *)complexTransformedField.access().data().data());
     if (bNormalize)
     {
-        auto orthoscale = 1.0 / sqrt(complexTransformedField.num_gridpoints());
+        auto orthoscale = 1.0 / sqrt(complexTransformedField.getNumLatticePoints());
 
         auto normalizeComplexTransform = [orthoscale](t_complex &value) {
                 value.re *= orthoscale;
@@ -165,7 +165,7 @@ FourierTransformComplexToReal3D::createRealTransformedFieldFromInput_() const {
     auto realTransformedField_ = std::unique_ptr < Field < real>>(new Field<real>());
     realTransformedField_->copy_grid(complexInputField_);
     realTransformedField_->set_extend(
-            realGridExtendFromFourierTransfrom(complexInputField_.extend()));
+            realGridExtendFromFourierTransfrom(complexInputField_.getExtend()));
     realTransformedField_->resetCell();
     realTransformedField_->convertToReciprocalSpace();
     return realTransformedField_;
@@ -190,7 +190,7 @@ FourierTransformComplexToReal3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_c2r(
-                    3, columnMajorExtendToRowMajorExtend(realTransformedField.extend()),
+                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getExtend()),
                     (fftwf_complex *)complexInputField_.access().data().data(),
                     (float *)realTransformedField.access().data().data(), FFTW_ESTIMATE);
     }
@@ -200,7 +200,7 @@ FourierTransformComplexToReal3D::result(
 
     if (bNormalize)
     {
-        auto orthoscale         = 1 / sqrt(realTransformedField.num_gridpoints());
+        auto orthoscale         = 1 / sqrt(realTransformedField.getNumLatticePoints());
         auto normalizeTransform = [orthoscale](real &value) {
                 value *= orthoscale;
             };
@@ -229,7 +229,7 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
      * we don't have to calculate the grid index.
      */
 
-    auto extend       = field_.extend();
+    auto extend       = field_.getExtend();
     auto itSectionEnd = field_.access().sectionBegin(extend[ZZ]);
 
     auto k             = RVec {

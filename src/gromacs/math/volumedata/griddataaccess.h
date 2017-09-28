@@ -39,21 +39,21 @@ template <class T> class GridDataAccess
          */
         t_iterator zy_column_begin(int z, int y) const
         {
-            return std::begin(data_) + latticeIndices3d_.numGridPointsXY() * z +
-                   latticeIndices3d_.extend()[XX] * y;
+            return std::begin(data_) + latticeIndices3d_.getNumLatticePointsXY() * z +
+                   latticeIndices3d_.getExtend()[XX] * y;
         };
 
         t_iterator next_column(t_iterator x) const
         {
-            return x + latticeIndices3d_.extend()[XX];
+            return x + latticeIndices3d_.getExtend()[XX];
         }
         t_iterator next_slice(t_iterator x) const
         {
-            return x + latticeIndices3d_.numGridPointsXY();
+            return x + latticeIndices3d_.getNumLatticePointsXY();
         };
         t_iterator previousSection(t_iterator x) const
         {
-            return x - latticeIndices3d_.numGridPointsXY();
+            return x - latticeIndices3d_.getNumLatticePointsXY();
         };
 
         /*! \brief
@@ -62,12 +62,12 @@ template <class T> class GridDataAccess
          */
         T &at(const IVec index)
         {
-            return data_.at(latticeIndices3d_.ndx3d_to_ndx1d(index));
+            return data_.at(latticeIndices3d_.getLinearIndexFromLatticeIndex(index));
         };
 
         const T &get(const IVec index) const
         {
-            return data_.at(latticeIndices3d_.ndx3d_to_ndx1d(index));
+            return data_.at(latticeIndices3d_.getLinearIndexFromLatticeIndex(index));
         };
 
         const Finite3DLatticeIndices &indices()

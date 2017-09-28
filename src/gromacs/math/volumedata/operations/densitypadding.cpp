@@ -42,11 +42,11 @@ namespace gmx
 
 std::unique_ptr < Field < real>>
 DensityPadding::padPower2() {
-    real factorXX = pow(2, ceil(log(toPad_.extend()[XX])/log(2)));
-    real factorYY = pow(2, ceil(log(toPad_.extend()[YY])/log(2)));
-    real factorZZ = pow(2, ceil(log(toPad_.extend()[ZZ])/log(2)));
+    real factorXX = pow(2, ceil(log(toPad_.getExtend()[XX])/log(2)));
+    real factorYY = pow(2, ceil(log(toPad_.getExtend()[YY])/log(2)));
+    real factorZZ = pow(2, ceil(log(toPad_.getExtend()[ZZ])/log(2)));
 
-    return pad({factorXX/real(toPad_.extend()[XX]), factorYY/real(toPad_.extend()[YY]), factorZZ/real(toPad_.extend()[ZZ])} );
+    return pad({factorXX/real(toPad_.getExtend()[XX]), factorYY/real(toPad_.getExtend()[YY]), factorZZ/real(toPad_.getExtend()[ZZ])} );
 }
 
 std::unique_ptr < Field < real>>
@@ -57,7 +57,7 @@ DensityPadding::pad(RVec paddingFactor) {
     padded->scaleCell(paddingFactor);
     std::fill(std::begin(padded->access().data()),
               std::end(padded->access().data()), 0.);
-    IVec extend = toPad_.extend();
+    IVec extend = toPad_.getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)

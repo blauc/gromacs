@@ -59,7 +59,7 @@ real RealFieldMeasure::max() const
 /*! \brief The mean grid data value. */
 real RealFieldMeasure::mean() const
 {
-    return sum() / static_cast<float>(realfield_.num_gridpoints());
+    return sum() / static_cast<float>(realfield_.getNumLatticePoints());
 };
 /*! \brief
  * The size of the griddata in bytes.
@@ -93,7 +93,7 @@ real RealFieldMeasure::norm() const { return sqrt(normSquared()); }
  */
 real RealFieldMeasure::var() const
 {
-    return sumOfSquareDeviation() / realfield_.num_gridpoints();
+    return sumOfSquareDeviation() / realfield_.getNumLatticePoints();
 }
 /*! \brief The root mean square deviation of grid data values. */
 real RealFieldMeasure::rms() const { return sqrt(var()); };
@@ -102,7 +102,7 @@ RVec RealFieldMeasure::center_of_mass() const
 {
     rvec weighted_grid_coordinate;
     RVec com = {0, 0, 0};
-    for (int i = 0; i < realfield_.num_gridpoints(); i++)
+    for (int i = 0; i < realfield_.getNumLatticePoints(); i++)
     {
         svmul(realfield_.access().data()[i], realfield_.gridpoint_coordinate(i),
               weighted_grid_coordinate);
@@ -128,7 +128,7 @@ std::string RealFieldMeasure::to_string() const
 real RealFieldMeasure::entropy() const
 {
     auto p    = realfield_.cbegin();
-    int  size = realfield_.num_gridpoints();
+    int  size = realfield_.getNumLatticePoints();
     real sum  = 0;
 #pragma omp parallel for num_threads(std::max( \
     1, gmx_omp_get_max_threads())) reduction(+ : sum) schedule( \
