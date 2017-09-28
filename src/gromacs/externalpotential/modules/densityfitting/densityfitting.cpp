@@ -245,9 +245,12 @@ void DensityFitting::read_input()
     fseek(inputfile, 0, SEEK_END);
     long fsize = ftell(inputfile);
     fseek(inputfile, 0, SEEK_SET);  //same as rewind(f);
-    auto line = (char*) malloc(fsize + 1);;
-    fread(line, fsize, 1, inputfile);
-
+    auto line      = (char*) malloc(fsize + 1);;
+    auto read_size = fread(line, fsize, 1, inputfile);
+    if (read_size != 1)
+    {
+        GMX_THROW(FileIOError("Cannot read inputfile for densityfitting"));
+    }
     // TODO: implement JSON scheme for checking input consistency
     options_ = std::string(line);
     json::Object parsed_json {

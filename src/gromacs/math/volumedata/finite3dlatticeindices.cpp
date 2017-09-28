@@ -1,7 +1,7 @@
 #include "finite3dlatticeindices.h"
 
 #include <cmath>
-
+#include "gromacs/utility/exceptions.h"
 namespace gmx
 {
 
@@ -17,10 +17,14 @@ Finite3DLatticeIndices::Finite3DLatticeIndices(const IVec &extend)
 
 void Finite3DLatticeIndices::setExtend(const IVec extend)
 {
+    if (!allNonNegative(extend))
+    {
+        GMX_THROW(RangeError("Lattice extend must be larger or equal zero in all dimensions but is "+std::to_string(extend[XX]) + " , " + std::to_string(extend[YY])+ " , " + std::to_string(extend[ZZ]) + " ."));
+    }
     extend_          = extend;
 }
 
-IVec Finite3DLatticeIndices::getExtend() const { return extend_; }
+const IVec Finite3DLatticeIndices::getExtend() const { return extend_; }
 
 void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
 {
@@ -39,7 +43,6 @@ IVec Finite3DLatticeIndices::getLatticeIndexFromLinearIndex(int linearIndex) con
     return result;
 }
 
-
 int Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const IVec &latticeIndex) const
 {
     auto result = latticeIndex[XX] > -1 ? latticeIndex[XX] : extend_[XX] + latticeIndex[XX];
@@ -50,7 +53,6 @@ int Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const IVec &latticeIn
     return result;
 }
 
-
 int Finite3DLatticeIndices::getNumLatticePointsXY() const
 {
     return extend_[XX] *extend_[YY];
@@ -60,12 +62,17 @@ int Finite3DLatticeIndices::getNumLatticePoints() const { return extend_[XX] *ex
 
 bool Finite3DLatticeIndices::inLattice(int latticeIndex, int dimension) const
 {
+    if ((dimension < 0) || (dimension > ZZ))
+    {
+        GMX_THROW(RangeError("Lattice dimension must be between "+std::to_string(XX) + " and " + std::to_string(YY)+ " , but is " + std::to_string(dimension) + " instead ."));
+    }
+
     return ((latticeIndex >= 0) && (latticeIndex < extend_[dimension]));
-}
+};
 
 bool Finite3DLatticeIndices::inLattice(const IVec &latticeIndex) const
 {
-    if ((latticeIndex[XX] < 0) || (latticeIndex[YY] < 0) || (latticeIndex[ZZ] < 0))
+    if (!allNonNegative(latticeIndex))
     {
         return false;
     }
@@ -75,6 +82,11 @@ bool Finite3DLatticeIndices::inLattice(const IVec &latticeIndex) const
         return false;
     }
     return true;
+}
+
+bool Finite3DLatticeIndices::allNonNegative(const IVec &latticeIndex) const
+{
+    return (latticeIndex[XX] >= 0) && (latticeIndex[YY] >= 0) && (latticeIndex[ZZ] >= 0);
 }
 
 }

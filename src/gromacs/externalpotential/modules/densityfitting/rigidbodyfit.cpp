@@ -69,7 +69,7 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
 
     real improvement       = 0;
     int  step              = 0;
-    real translation_scale = 0.1;
+    // real translation_scale = 0.1;
     real potential {
         0
     };
