@@ -53,4 +53,5 @@ add_subdirectory(volumedata)
 
 if (BUILD_TESTING)
     add_subdirectory(tests)
+    add_subdirectory(volumedata/tests)
 endif()

@@ -34,14 +34,6 @@
 
 file(GLOB MATH_SOURCES *.cpp operations/*.cpp)
 
-gmx_add_unit_test(VolumeDataUnitTests volumedata
-                  finite3dlatticeindices.cpp
-                  )
-
 gmx_install_headers(
     volumedata.h
     )
-
-if (BUILD_TESTING)
-    add_subdirectory(tests)
-endif()

@@ -63,6 +63,7 @@ namespace internal
 
 namespace
 {
+w
 
 
 TEST(Finite3DLatticeIndicesTest, canConstructObject)
@@ -70,6 +71,7 @@ TEST(Finite3DLatticeIndicesTest, canConstructObject)
 
     // EXPECT_THROW_GMX();
     Finite3DLatticeIndices({1, 1, 1});
+    Finite3DLatticeIndices({1, 1, 1}).getLatticeIndexFromLinearIndex(-1);
 
 }
 
