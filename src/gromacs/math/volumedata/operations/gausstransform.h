@@ -99,7 +99,7 @@ class FastGaussianGridding : public GaussTransform
         std::unique_ptr < Field < real>> finish_and_return_grid();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
-        IVec grid_index_of_spread_atom_;
+        std::vector<int>                 grid_index_of_spread_atom_;
         int                              m_spread_;
         std::array<std::vector<real>, 3> spread_1d_;
         std::vector < std::vector < real>> spread_2d_;

@@ -95,10 +95,10 @@ class MrcFile::Impl
         void set_metadata_mrc_default();
         void set_num_bytes_extened_header(int n);
 
-        IVec xyz_to_crs(IVec order);
-        IVec to_xyz_order(IVec i_crs);
-        IVec to_crs_order(IVec xyz_order);
-        void set_crs_to_xyz(IVec order);
+        IVec xyz_to_crs(const IVec order);
+        IVec to_xyz_order(const IVec i_crs);
+        IVec to_crs_order(const IVec xyz_order);
+        void set_crs_to_xyz(const IVec order);
 
         /*! \brief Guess, whether endianess differs between input file and reading architecture .
          *
@@ -192,13 +192,13 @@ IVec MrcFile::Impl::xyz_to_crs(IVec order)
     return result;
 }
 
-void MrcFile::Impl::set_crs_to_xyz(IVec order)
+void MrcFile::Impl::set_crs_to_xyz(const IVec order)
 {
     meta_.crs_to_xyz = order;
     meta_.xyz_to_crs = xyz_to_crs(order);
 }
 
-IVec MrcFile::Impl::to_xyz_order(IVec i_crs)
+IVec MrcFile::Impl::to_xyz_order(const IVec i_crs)
 {
     IVec i_xyz;
 
@@ -416,8 +416,8 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(to_crs_order(grid_data.getExtend()));
-    }
+        write_int32_ivec_(to_crs_order(IVec {grid_data.getExtend().data()}));
+    } \
 
     /* 4   | MODE | signed int | 0,1,2,3,4
      * voxel datatype
@@ -455,11 +455,12 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     if (bRead)
     {
         meta_.extend = read_int32_ivec_();
-        grid_data.set_extend(meta_.extend);
+        std::vector<int> extend = {meta_.extend[XX], meta_.extend[YY], meta_.extend[ZZ]};
+        grid_data.set_extend(extend);
     }
     else
     {
-        write_int32_ivec_(grid_data.getExtend());
+        write_int32_ivec_(IVec {grid_data.getExtend().data()});
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -501,7 +502,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
      * emdb convention: 1, 2, 3 */
     if (bRead)
     {
-        IVec crs_to_xyz = read_int32_ivec_();
+        auto crs_to_xyz = read_int32_ivec_();
 
         crs_to_xyz[XX] -= 1;
         crs_to_xyz[YY] -= 1;
@@ -518,7 +519,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
             set_crs_to_xyz(crs_to_xyz);
         }
         grid_data.set_translation(grid_data.gridpoint_coordinate(
-                                          IVec {
+                                          {
                                               meta_.crs_start[meta_.xyz_to_crs[XX]],
                                               meta_.crs_start[meta_.xyz_to_crs[YY]],
                                               meta_.crs_start[meta_.xyz_to_crs[ZZ]]
@@ -857,7 +858,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
         }
     }
 
-    IVec num_crs = to_crs_order(grid_data.getExtend());
+    auto num_crs = to_crs_order(IVec {grid_data.getExtend().data()});
     if (bRead)
     {
         auto gridDataAccess = grid_data.access();
@@ -867,7 +868,9 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    gridDataAccess.at(to_xyz_order({column, row, section})) = read_float32_();
+                    IVec             xyz_IVec = to_xyz_order({column, row, section});
+                    std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
+                    gridDataAccess.at(xyz) = read_float32_();
                 }
             }
         }
@@ -882,7 +885,9 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    write_float32_(gridDataAccess.at(to_xyz_order({column, row, section})));
+                    IVec             xyz_IVec = to_xyz_order({column, row, section});
+                    std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
+                    write_float32_(gridDataAccess.at(xyz));
                 }
             }
         }
@@ -1026,7 +1031,7 @@ MrcFile::Impl::~Impl()
 void MrcFile::Impl::set_meta(const Field<real> &grid_data)
 {
     set_grid_stats(grid_data);
-    IVec index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
+    auto index_of_origin = grid_data.coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
     meta_.crs_start = {-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]};
 }
 

@@ -4,6 +4,8 @@
 #include "gromacs/math/invertmatrix.h"
 #include <string>
 
+#include <vector>
+
 namespace gmx
 {
 
@@ -292,7 +294,7 @@ bool FiniteGrid::spacing_is_same_xyz()
                      norm2(impl_->unit_cell_[ZZ])) < 1e-5);
 };
 
-IVec FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
+std::vector<int> FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
 {
     RVec result = coordinateToRealGridIndex(x);
     return {
@@ -301,7 +303,7 @@ IVec FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
     };
 }
 
-IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
+std::vector<int> FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
 {
     RVec result = coordinateToRealGridIndex(x);
     return {
@@ -309,7 +311,7 @@ IVec FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
     };
 }
 
-IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
+std::vector<int> FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
 {
     RVec result = coordinateToRealGridIndex(x);
     return {
@@ -334,7 +336,7 @@ real FiniteGrid::avg_spacing()
            3;
 }
 
-RVec FiniteGrid::gridpoint_coordinate(IVec i) const
+RVec FiniteGrid::gridpoint_coordinate(std::vector<int> i) const
 {
     RVec result;
     mvmul(impl_->unit_cell_, RVec(i[XX], i[YY], i[ZZ]), result);

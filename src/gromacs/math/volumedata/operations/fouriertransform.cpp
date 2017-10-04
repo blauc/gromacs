@@ -55,7 +55,7 @@
 namespace gmx
 {
 
-IVec FourierTransform3D::columnMajorExtendToRowMajorExtend(IVec extend) const
+IVec FourierTransform3D::columnMajorExtendToRowMajorExtend(const std::vector<int> &extend) const
 {
     return {
                extend[ZZ], extend[YY], extend[XX]
@@ -84,14 +84,14 @@ FourierTransformComplexToReal3D::normalize()
 
 FourierTransform3D::~FourierTransform3D() { fftwf_destroy_plan(plan_); }
 
-IVec fourierTransformGridExtendfromRealExtend(IVec extend)
+std::vector<int> fourierTransformGridExtendfromRealExtend(const std::vector<int> &extend)
 {
     return {
                extend[XX] / 2 + 1, extend[YY], extend[ZZ]
     };
 };
 
-IVec realGridExtendFromFourierTransfrom(IVec extend)
+std::vector<int> realGridExtendFromFourierTransfrom(const std::vector<int> &extend)
 {
     return {
                (extend[XX] - 1) * 2, extend[YY], extend[ZZ]

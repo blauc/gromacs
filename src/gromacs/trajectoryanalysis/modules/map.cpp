@@ -267,9 +267,9 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    gmx::IVec extend({(int)ceil(box[XX][XX] / spacing_),
-                      (int)ceil(box[YY][YY] / spacing_),
-                      (int)ceil(box[ZZ][ZZ] / spacing_)});
+    std::vector<int> extend({(int)ceil(box[XX][XX] / spacing_),
+                             (int)ceil(box[YY][YY] / spacing_),
+                             (int)ceil(box[ZZ][ZZ] / spacing_)});
     outputdensity_.set_extend(extend);
     outputDensityBuffer_.set_extend(extend);
     outputdensity_.set_cell(

@@ -3,20 +3,22 @@
 
 #include "gromacs/math/vectypes.h"
 
+#include <vector>
+
 namespace gmx
 {
 
-typedef BasicVector<int> IVec; //!< RVec equivalent for int
+// typedef std::vector<int> std::vector<int>; //!< RVec equivalent for int
 
 class Finite3DLatticeIndices
 {
     public:
         Finite3DLatticeIndices() = default;
-        Finite3DLatticeIndices(const IVec &extend);
+        Finite3DLatticeIndices(const std::vector<int> &extend);
         Finite3DLatticeIndices(const Finite3DLatticeIndices &other);
-        int getNumLatticePoints() const;   //!< returns extend[0]*extend[1]*extend[2]
-        int getNumLatticePointsXY() const; //!< returns pre-evaluated extend[0]*extend[1]
-        const IVec getExtend() const;      //!< return the extend of the lattice
+        int getNumLatticePoints() const;           //!< returns extend[0]*extend[1]*extend[2]
+        int getNumLatticePointsXY() const;         //!< returns pre-evaluated extend[0]*extend[1]
+        const std::vector<int> &getExtend() const; //!< return the extend of the lattice
 
         /*! \brief
          * The extend of the lattice.
@@ -24,7 +26,7 @@ class Finite3DLatticeIndices
          * Lattice indices will alwasy run from (0,0,0) to
          * (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
          */
-        void setExtend(const IVec extend);
+        void setExtend(const std::vector<int> &extend);
 
         /*! \brief
          * multiply lattice extend by rational factor in all dimensions */
@@ -35,17 +37,17 @@ class Finite3DLatticeIndices
          *
          * x + extend_x * y + extend_x * extend_y * z.
          */
-        int getLinearIndexFromLatticeIndex(const IVec &latticeIndex) const;
+        int getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const;
 
         /*! \brief
          * Inverse of getLinearIndexFromLatticeIndex
          */
-        IVec getLatticeIndexFromLinearIndex(int linearIndex) const;
+        std::vector<int> getLatticeIndexFromLinearIndex(int linearIndex) const;
 
         /*! \brief
          * True if latticeIndex is in Lattice
          */
-        bool inLattice(const IVec &latticeIndex) const;
+        bool inLattice(const std::vector<int> &latticeIndex) const;
 
         /*! \brief
          * True if latticeIndex is in index along given dimension
@@ -54,9 +56,9 @@ class Finite3DLatticeIndices
         /*! \brief
          * Is true if all
          */
-        bool allNonNegative(const IVec &extend) const;
+        bool allNonNegative(const std::vector<int> &extend) const;
     private:
-        IVec   extend_;
+        std::vector<int>  extend_;
 };
 
 } //gmx

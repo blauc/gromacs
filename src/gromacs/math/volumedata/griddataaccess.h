@@ -8,11 +8,11 @@ template <class T> class GridDataAccess
 {
     public:
         typedef typename std::vector<T>::iterator t_iterator;
-        GridDataAccess(const IVec extend, const std::vector<T> &data)
+        GridDataAccess(const std::vector<int> &extend, const std::vector<T> &data)
             : data_ {const_cast<std::vector<T> &>(data)},
         latticeIndices3d_ {extend} {}; // TODO: this is very dirty. Think of
                                        // proper const implementation
-        GridDataAccess(IVec extend, std::vector<T> &data)
+        GridDataAccess(const std::vector<int> &extend, std::vector<T> &data)
             : data_ {data}, latticeIndices3d_ {extend} {};
         /*! \brief
          * Return the raw 1d grid data
@@ -60,12 +60,12 @@ template <class T> class GridDataAccess
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        T &at(const IVec index)
+        T &at(const std::vector<int> &index)
         {
             return data_.at(latticeIndices3d_.getLinearIndexFromLatticeIndex(index));
         };
 
-        const T &get(const IVec index) const
+        const T &get(const std::vector<int> &index) const
         {
             return data_.at(latticeIndices3d_.getLinearIndexFromLatticeIndex(index));
         };

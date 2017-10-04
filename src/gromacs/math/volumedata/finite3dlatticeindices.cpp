@@ -1,6 +1,7 @@
 #include "finite3dlatticeindices.h"
 
 #include <cmath>
+#include <string>
 #include "gromacs/utility/exceptions.h"
 namespace gmx
 {
@@ -10,12 +11,12 @@ Finite3DLatticeIndices::Finite3DLatticeIndices(const Finite3DLatticeIndices &oth
     extend_          = other.extend_;
 };
 
-Finite3DLatticeIndices::Finite3DLatticeIndices(const IVec &extend)
+Finite3DLatticeIndices::Finite3DLatticeIndices(const std::vector<int> &extend)
 {
     setExtend(extend);
 }
 
-void Finite3DLatticeIndices::setExtend(const IVec extend)
+void Finite3DLatticeIndices::setExtend(const std::vector<int> &extend)
 {
     if (!allNonNegative(extend))
     {
@@ -24,7 +25,7 @@ void Finite3DLatticeIndices::setExtend(const IVec extend)
     extend_          = extend;
 }
 
-const IVec Finite3DLatticeIndices::getExtend() const { return extend_; }
+const std::vector<int> &Finite3DLatticeIndices::getExtend() const { return extend_; }
 
 void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
 {
@@ -34,16 +35,16 @@ void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
     }
 }
 
-IVec Finite3DLatticeIndices::getLatticeIndexFromLinearIndex(int linearIndex) const
+std::vector<int> Finite3DLatticeIndices::getLatticeIndexFromLinearIndex(int linearIndex) const
 {
-    IVec result;
+    std::vector<int> result;
     result[XX] = (linearIndex % extend_[XX]) % extend_[YY];
     result[YY] = (linearIndex / extend_[XX]) % extend_[YY];
     result[ZZ] = (linearIndex / extend_[XX]) / extend_[YY];
     return result;
 }
 
-int Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const IVec &latticeIndex) const
+int Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const
 {
     auto result = latticeIndex[XX] > -1 ? latticeIndex[XX] : extend_[XX] + latticeIndex[XX];
     result += latticeIndex[YY] > -1 ? extend_[XX] * latticeIndex[YY]
@@ -70,7 +71,7 @@ bool Finite3DLatticeIndices::inLattice(int latticeIndex, int dimension) const
     return ((latticeIndex >= 0) && (latticeIndex < extend_[dimension]));
 };
 
-bool Finite3DLatticeIndices::inLattice(const IVec &latticeIndex) const
+bool Finite3DLatticeIndices::inLattice(const std::vector<int> &latticeIndex) const
 {
     if (!allNonNegative(latticeIndex))
     {
@@ -84,7 +85,7 @@ bool Finite3DLatticeIndices::inLattice(const IVec &latticeIndex) const
     return true;
 }
 
-bool Finite3DLatticeIndices::allNonNegative(const IVec &latticeIndex) const
+bool Finite3DLatticeIndices::allNonNegative(const std::vector<int> &latticeIndex) const
 {
     return (latticeIndex[XX] >= 0) && (latticeIndex[YY] >= 0) && (latticeIndex[ZZ] >= 0);
 }

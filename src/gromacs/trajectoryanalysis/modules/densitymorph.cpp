@@ -99,7 +99,7 @@ class DensityMorph : public TrajectoryAnalysisModule
 
         void evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential);
         void evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow);
-        void applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old);
+        void applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old);
         void scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale);
         std::string             fnmobile_       = "from.ccp4";
         std::string             fntarget_       = "to.ccp4";
@@ -254,7 +254,7 @@ void DensityMorph::scaleFlow_(std::array<Field<real>, DIM> &densityflow, real sc
     }
 }
 
-void DensityMorph::applyFlowOnVoxel_(RVec f_vec, IVec gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old)
+void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old)
 {
     auto f = norm(f_vec);
 
@@ -365,9 +365,9 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
 
             auto extend = common_grid.getExtend();
 
-            std::array<GridDataAccess<real>, 3> flow {
-                densityflow[XX].access(), densityflow[YY].access(), densityflow[ZZ].access()
-            };
+            std::array<GridDataAccess<real>, 3> flow {{
+                                                          densityflow[XX].access(), densityflow[YY].access(), densityflow[ZZ].access()
+                                                      }};
             // MrcFile().write("flowxx.ccp4", densityflow[XX]);
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);
             // MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
@@ -387,7 +387,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     for (int ix = 0; ix < extend[XX]; ix++)
                     {
 
-                        IVec gridIndex {
+                        std::vector<int> gridIndex {
                             ix, iy, iz
                         };
                         RVec f_vec {

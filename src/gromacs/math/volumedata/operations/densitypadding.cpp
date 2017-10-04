@@ -57,7 +57,7 @@ DensityPadding::pad(RVec paddingFactor) {
     padded->scaleCell(paddingFactor);
     std::fill(std::begin(padded->access().data()),
               std::end(padded->access().data()), 0.);
-    IVec extend = toPad_.getExtend();
+    auto extend = toPad_.getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)
@@ -75,7 +75,7 @@ DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
 {}
 
 std::unique_ptr < Field < real>>
-DensityPadding::unpad(IVec unPadExtend) {
+DensityPadding::unpad(const std::vector<int>&unPadExtend) {
     std::unique_ptr < Field < real>> unpadded(new Field<real>);
     unpadded->copy_grid(toPad_);
     unpadded->set_extend(unPadExtend);

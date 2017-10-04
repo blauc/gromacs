@@ -48,19 +48,20 @@
 #include "gromacs/utility/real.h"
 #include <fftw3.h>
 #include <memory>
+#include <vector>
 #include <functional>
 
 namespace gmx
 {
 
-IVec realGridExtendFromFourierTransfrom(IVec extend);
-IVec fourierTransformGridExtendfromRealExtend(IVec extend);
+std::vector<int> realGridExtendFromFourierTransfrom(const std::vector<int> &extend);
+std::vector<int> fourierTransformGridExtendfromRealExtend(const std::vector<int> &extend);
 
 class FourierTransform3D
 {
     public:
         ~FourierTransform3D();
-        IVec columnMajorExtendToRowMajorExtend(IVec extend) const;
+        IVec columnMajorExtendToRowMajorExtend(const std::vector<int> &extend) const;
         void execute();
 
     protected:

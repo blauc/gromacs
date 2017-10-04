@@ -82,10 +82,10 @@ class FiniteGrid : public Finite3DLatticeIndices
         RVec gridpoint_coordinate(int i) const;
         RVec coordinateToRealGridIndex(const rvec x) const;
 
-        IVec coordinate_to_gridindex_ceil_ivec(const rvec x);
-        IVec coordinate_to_gridindex_round_ivec(const rvec x);
-        IVec coordinate_to_gridindex_floor_ivec(const rvec x) const;
-        RVec gridpoint_coordinate(IVec i) const;
+        std::vector<int> coordinate_to_gridindex_ceil_ivec(const rvec x);
+        std::vector<int> coordinate_to_gridindex_round_ivec(const rvec x);
+        std::vector<int> coordinate_to_gridindex_floor_ivec(const rvec x) const;
+        RVec gridpoint_coordinate(std::vector<int> i) const;
 
         RVec unit_cell_XX() const;
         RVec unit_cell_YY() const;

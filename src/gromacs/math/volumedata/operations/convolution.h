@@ -56,8 +56,8 @@ class GaussConvolution
         GaussConvolution &pad(RVec paddingFactor);
 
     private:
-        IVec               extendBeforePadding_;
-        const Field<real> &input_;
+        const std::vector<int> &extendBeforePadding_;
+        const Field<real>      &input_;
         std::unique_ptr < Field < real>> padded_input_;
         std::unique_ptr < Field < t_complex>> fourierTransform_;
 };

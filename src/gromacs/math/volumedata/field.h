@@ -55,7 +55,6 @@ class Field : public FiniteGrid
 {
     public:
         Field()  = default;
-        ~Field() = default;
         Field(Field<T> &other) : FiniteGrid {other}
         {
             copy_grid(other);
@@ -124,7 +123,7 @@ class Field : public FiniteGrid
             data_.resize(getNumLatticePoints());
         };
 
-        void set_extend(IVec extend)
+        void set_extend(const std::vector<int> &extend)
         {
             FiniteGrid::setExtend(extend);
             data_.resize(getNumLatticePoints());

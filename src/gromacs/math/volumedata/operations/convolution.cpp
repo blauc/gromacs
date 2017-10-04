@@ -50,11 +50,10 @@ namespace gmx
 {
 
 GaussConvolution::GaussConvolution(const Field<real> &input)
-    : input_(input), padded_input_ {nullptr}
-{
-    extendBeforePadding_ = input_.getExtend();
-};
-
+    :  extendBeforePadding_ {input.getExtend()}, input_(input), padded_input_ {
+    nullptr
+}
+{}
 GaussConvolution &GaussConvolution::pad(RVec paddingFactor)
 {
     padded_input_ = DensityPadding(input_).pad(paddingFactor);
