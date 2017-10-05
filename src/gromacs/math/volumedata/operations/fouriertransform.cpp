@@ -138,13 +138,13 @@ void FourierTransformRealToComplex3D::result(
     {
         plan_ = fftwf_plan_dft_r2c(
                     3, columnMajorExtendToRowMajorExtend(realInputField_.getExtend()),
-                    (float *)realInputField_.access().data().data(),
-                    (fftwf_complex *)complexTransformedField.access().data().data(),
+                    (float *)realInputField_.data(),
+                    (fftwf_complex *)complexTransformedField.data(),
                     FFTW_ESTIMATE);
     }
     fftwf_execute_dft_r2c(
-            plan_, (float *)realInputField_.access().data().data(),
-            (fftwf_complex *)complexTransformedField.access().data().data());
+            plan_, (float *)realInputField_.data(),
+            (fftwf_complex *)complexTransformedField.data());
     if (bNormalize)
     {
         auto orthoscale = 1.0 / sqrt(complexTransformedField.getNumLatticePoints());
@@ -154,8 +154,8 @@ void FourierTransformRealToComplex3D::result(
                 value.im *= orthoscale;
             };
 
-        std::for_each(complexTransformedField.access().begin(),
-                      complexTransformedField.access().end(),
+        std::for_each(complexTransformedField.begin(),
+                      complexTransformedField.end(),
                       normalizeComplexTransform);
     }
 }
@@ -185,18 +185,18 @@ FourierTransformComplexToReal3D::result() {
 
 void
 FourierTransformComplexToReal3D::result(
-        const Field<real> &realTransformedField)
+        Field<real> &realTransformedField)
 {
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_c2r(
                     3, columnMajorExtendToRowMajorExtend(realTransformedField.getExtend()),
-                    (fftwf_complex *)complexInputField_.access().data().data(),
-                    (float *)realTransformedField.access().data().data(), FFTW_ESTIMATE);
+                    (fftwf_complex *)complexInputField_.data(),
+                    (float *)realTransformedField.data(), FFTW_ESTIMATE);
     }
     fftwf_execute_dft_c2r(
-            plan_, (fftwf_complex *)complexInputField_.access().data().data(),
-            (float *)realTransformedField.access().data().data());
+            plan_, (fftwf_complex *)complexInputField_.data(),
+            (float *)realTransformedField.data());
 
     if (bNormalize)
     {
@@ -204,8 +204,8 @@ FourierTransformComplexToReal3D::result(
         auto normalizeTransform = [orthoscale](real &value) {
                 value *= orthoscale;
             };
-        std::for_each(realTransformedField.access().begin(),
-                      realTransformedField.access().end(), normalizeTransform);
+        std::for_each(realTransformedField.begin(),
+                      realTransformedField.end(), normalizeTransform);
     }
 };
 

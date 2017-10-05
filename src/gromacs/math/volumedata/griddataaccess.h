@@ -1,4 +1,6 @@
 #include <vector>
+#include <array>
+
 #include "finite3dlatticeindices.h"
 
 namespace gmx
@@ -18,10 +20,6 @@ template <class T> class GridDataAccess
          * Return the raw 1d grid data
          *
          */
-        std::vector<T> &data() { return data_; };
-        const std::vector<T> &data() const { return data_; };
-        t_iterator begin(){ return data_.begin(); };
-        t_iterator end(){return data_.end(); };
         /*! \brief
          * Access a section of the volume density data via start and end iterator.
          */

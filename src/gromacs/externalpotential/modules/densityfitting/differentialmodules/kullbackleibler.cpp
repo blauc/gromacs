@@ -57,8 +57,8 @@ void KullbackLeiblerForce::setDensityDifferential(
                    : 0;
         };
 
-    std::transform(reference.access().begin(), reference.access().end(),
-                   comparant.access().begin(), differential_->access().begin(),
+    std::transform(reference.begin(), reference.end(),
+                   comparant.begin(), differential_->begin(),
                    densityGradientFunction);
 }
 real KullbackLeiblerPotential::densityDensityPotential(

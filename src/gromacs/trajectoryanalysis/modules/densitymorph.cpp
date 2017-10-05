@@ -45,6 +45,7 @@
 #include "densitymorph.h"
 
 #include <string>
+#include <array>
 
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
@@ -213,8 +214,8 @@ void DensityMorph::evaluateDensityDifferential_(const Field<real> &morph, Field<
         };
 
     // evaluate density derivative
-    std::transform(morph.access().begin(), morph.access().end(),
-                   target_.access().begin(), differential.access().begin(),
+    std::transform(morph.begin(), morph.end(),
+                   target_.begin(), differential.begin(),
                    densityGradientFunction);
 
 }
@@ -408,7 +409,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
         {
             morphstepscale_ *= 4.0;
         }
-        newMorph.swapData(oldMorph);
+        newMorph.swap(oldMorph);
         if (iMorphIterations % every_ == 0)
         {
             std::string s {

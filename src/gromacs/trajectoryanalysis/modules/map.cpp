@@ -323,9 +323,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
 
     if (nFr_ == 1)
     {
-        std::copy(std::begin(outputdensity_.access().data()),
-                  std::end(outputdensity_.access().data()),
-                  std::begin(outputDensityBuffer_.access().data()));
+        std::copy(std::begin(outputdensity_), std::end(outputdensity_), std::begin(outputDensityBuffer_));
     }
     else
     {
@@ -336,11 +334,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
                                            const real &average) {
                 return expAverage_ * current + (1 - expAverage_) * average;
             };
-        std::transform(std::begin(outputdensity_.access().data()),
-                       std::end(outputdensity_.access().data()),
-                       std::begin(outputdensity_.access().data()),
-                       std::begin(outputDensityBuffer_.access().data()),
-                       exponentialAveraging);
+        std::transform(std::begin(outputdensity_), std::end(outputdensity_), std::begin(outputdensity_), std::begin(outputDensityBuffer_), exponentialAveraging);
     }
 }
 

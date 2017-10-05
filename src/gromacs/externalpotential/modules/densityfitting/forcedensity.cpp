@@ -113,10 +113,10 @@ ForceDensity::getForce()
                 };
             };
 
-        std::transform(densityGradientFT_.access().begin(),
-                       densityGradientFT_.access().end(),
-                       convolutionDensity_[dimension].access().begin(),
-                       forcesFT_[dimension].access().begin(), iWGaussianK);
+        std::transform(densityGradientFT_.begin(),
+                       densityGradientFT_.end(),
+                       convolutionDensity_[dimension].begin(),
+                       forcesFT_[dimension].begin(), iWGaussianK);
         complexToRealFTarray_[dimension].result(forces_[dimension]);
 
     }

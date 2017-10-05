@@ -53,7 +53,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
 {
     if (other.sameGridInAbsTolerance(*interpolatedGrid_))
     {
-        std::copy(other.access().begin(), other.access().end(), interpolatedGrid_->access().begin());
+        std::copy(std::begin(other), std::end(other), std::begin(*interpolatedGrid_));
         return std::move(interpolatedGrid_);
     }
     ;

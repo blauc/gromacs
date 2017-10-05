@@ -72,8 +72,8 @@ real CompareFields::correlate(real threshold) const
     std::vector<real> referenceAboveThreshold;
     std::vector<real> otherWhereReferenceAboveThreshold;
 
-    auto              otherDatum = other_.access().begin();
-    for (auto &referenceDatum : reference_.access())
+    auto              otherDatum = other_.begin();
+    for (auto &referenceDatum : reference_)
     {
         if (referenceDatum > threshold)
         {
@@ -97,18 +97,16 @@ real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 
 real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
 {
-    auto P = reference_.access().data();
-    auto Q = other_.access().data();
     // for numerical stability use a reference density
-    if (P.size() != Q.size())
+    if (reference_.size() != other_.size())
     {
         GMX_THROW(APIError(
                           "KL-Divergence calculation requires euqally sized input vectors."));
     }
-    auto p           = P.begin();
-    auto q           = Q.begin();
+    auto p           = reference_.begin();
+    auto q           = other_.begin();
     auto q_reference = other_reference.begin();
-    int  size        = Q.size();
+    int  size        = other_.size();
     real sum         = 0;
 #pragma omp parallel for num_threads(std::max( \
     1, gmx_omp_nthreads_get(emntDefault))) reduction(+ : sum) schedule( \
@@ -125,15 +123,13 @@ real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &othe
 
 real CompareFields::getKLSameGrid() const
 {
-    auto P = reference_.access().data();
-    auto Q = other_.access().data();
-    if (P.size() != Q.size())
+    if (reference_.size() != other_.size())
     {
         GMX_THROW(APIError("KL-CrossTerm calculation requires euqally sized input vectors."));
     }
-    auto p    = P.begin();
-    auto q    = Q.begin();
-    int  size = Q.size();
+    auto p    = reference_.begin();
+    auto q    = other_.begin();
+    int  size = other_.size();
     real sum  = 0;
 #pragma omp parallel for num_threads(std::max( \
     1, gmx_omp_nthreads_get(emntDefault))) reduction(+ : sum) schedule( \
@@ -157,16 +153,14 @@ real CompareFields::getKLSameGrid() const
 
 real CompareFields::getKLCrossTermSameGrid() const
 {
-    auto P = reference_.access().data();
-    auto Q = other_.access().data();
-    if (P.size() != Q.size())
+    if (reference_.size() != other_.size())
     {
         GMX_THROW(APIError(
                           "KL-CrossTerm calculation requires euqally sized input vectors."));
     }
-    auto p    = P.begin();
-    auto q    = Q.begin();
-    int  size = Q.size();
+    auto p    = reference_.begin();
+    auto q    = other_.begin();
+    int  size = other_.size();
     real sum  = 0;
 #pragma omp parallel for num_threads(std::max( \
     1, gmx_omp_nthreads_get(emntDefault))) reduction(+ : sum) schedule( \

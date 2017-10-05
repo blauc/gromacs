@@ -182,9 +182,7 @@ void RigidBodyFit::optionsFinished(
     ccp4inputfile.read(fnmapinput_, inputdensity_);
 
     // set negative values to zero
-    std::for_each(std::begin(inputdensity_.access().data()),
-                  std::end(inputdensity_.access().data()),
-                  [](real &value) { value = std::max(value, (real)0.); });
+    std::for_each(std::begin(inputdensity_), std::end(inputdensity_), [](real &value) { value = std::max(value, (real)0.); });
     // potentialProvider_ = PotentialLibrary().create(potentialType_)();
     // fprintf(potentialFile_, "time        %s", potentialType_.c_str());
     //

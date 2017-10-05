@@ -55,8 +55,7 @@ DensityPadding::pad(RVec paddingFactor) {
     padded->copy_grid(toPad_);
     padded->multiplyGridPointNumber(paddingFactor);
     padded->scaleCell(paddingFactor);
-    std::fill(std::begin(padded->access().data()),
-              std::end(padded->access().data()), 0.);
+    std::fill(std::begin(*padded), std::end(*padded), 0.);
     auto extend = toPad_.getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {

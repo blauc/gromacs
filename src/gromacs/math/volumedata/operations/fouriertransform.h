@@ -88,7 +88,7 @@ class FourierTransformComplexToReal3D : public FourierTransform3D
     public:
         FourierTransformComplexToReal3D(const Field<t_complex> &complexInputField);
         std::unique_ptr < Field < real>> result();
-        void result(const Field < real> &realTransformedField);
+        void result(Field < real> &realTransformedField);
         FourierTransformComplexToReal3D &normalize();
 
     private:

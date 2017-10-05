@@ -92,7 +92,6 @@ FourierShellCorrelation::BinShells_
     public:
         BinShells_(fourierShell &shell) : shell_ {shell}
         {};
-        ~BinShells_() = default;
         void operator() (const t_complex &value, RVec k)
         {
             auto currentBin = shell_.lower_bound(norm(k));

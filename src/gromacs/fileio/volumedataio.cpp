@@ -1135,7 +1135,7 @@ Df3File::write(std::string filename, const gmx::Field<real> &grid_data)
     auto measure = RealFieldMeasure(grid_data);
     auto gridMax = measure.max();
     auto gridMin = measure.min();
-    for (auto voxel : grid_data.access().data())
+    for (auto voxel : grid_data)
     {
         auto scaledValue = float(voxel - gridMin)/float(gridMax-gridMin);
         char datum       = static_cast<char>(255*scaledValue);

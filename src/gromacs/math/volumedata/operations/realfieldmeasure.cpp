@@ -66,7 +66,7 @@ real RealFieldMeasure::mean() const
  */
 size_t RealFieldMeasure::data_size() const
 {
-    return realfield_.access().data().size();
+    return realfield_.size();
 };
 
 real RealFieldMeasure::sumOfSquareDeviation() const
@@ -104,7 +104,7 @@ RVec RealFieldMeasure::center_of_mass() const
     RVec com = {0, 0, 0};
     for (int i = 0; i < realfield_.getNumLatticePoints(); i++)
     {
-        svmul(realfield_.access().data()[i], realfield_.gridpoint_coordinate(i),
+        svmul(realfield_[i], realfield_.gridpoint_coordinate(i),
               weighted_grid_coordinate);
         rvec_inc(com, weighted_grid_coordinate);
     }

@@ -47,23 +47,23 @@
 #include "finitegrid.h"
 #include "griddataaccess.h"
 
+#include <vector>
+
 namespace gmx
 {
 
 template <typename T>
-class Field : public FiniteGrid
+class Field : public FiniteGrid, public std::vector<T>
 {
     public:
         Field()  = default;
         Field(Field<T> &other) : FiniteGrid {other}
         {
             copy_grid(other);
-            data_ = other.data_;
         }
         Field(const Field<T> &other) : FiniteGrid {other}
         {
             copy_grid(other);
-            data_ = other.data_;
         };
 
         Field(const FiniteGrid &other)
@@ -71,35 +71,14 @@ class Field : public FiniteGrid
             copy_grid(other);
         };
 
-        typename std::vector<T>::iterator begin()
-        {
-            return std::begin(data_);
-        }
-
-        typename std::vector<T>::iterator end()
-        {
-            return std::end(data_);
-        }
-
-        typename std::vector<T>::const_iterator cbegin() const
-        {
-            return data_.cbegin();
-        }
-
-        typename std::vector<T>::const_iterator cend() const
-        {
-            return data_.cend();
-        }
-
-
         GridDataAccess<T> access() const
         {
-            return GridDataAccess<T>(getExtend(), data_);
+            return GridDataAccess<T>(getExtend(), *this);
         };
 
         GridDataAccess<T> access()
         {
-            return GridDataAccess<T>(getExtend(), data_);
+            return GridDataAccess<T>(getExtend(), *this);
         };
         /*! \brief
          * Copy the properties from another grid to this one.
@@ -109,28 +88,21 @@ class Field : public FiniteGrid
         void copy_grid(const FiniteGrid &grid)
         {
             FiniteGrid::copy_grid(grid);
-            data_.resize(getNumLatticePoints());
+            this->resize(getNumLatticePoints());
         };
-
-        void swapData(Field<T> &other)
-        {
-            data_.swap(other.data_);
-        }
 
         void multiplyGridPointNumber(const RVec factor)
         {
             FiniteGrid::multiplyGridPointNumber(factor);
-            data_.resize(getNumLatticePoints());
+            this->resize(getNumLatticePoints());
         };
 
         void set_extend(const std::vector<int> &extend)
         {
             FiniteGrid::setExtend(extend);
-            data_.resize(getNumLatticePoints());
+            this->resize(getNumLatticePoints());
         };
 
-    private:
-        std::vector<T> data_;
 };
 
 template <class T, class F> void ApplyToField(Field<T> &field, F function)
