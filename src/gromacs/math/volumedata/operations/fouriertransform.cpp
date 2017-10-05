@@ -227,19 +227,19 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
 
     auto fieldGrid    = field_.getGrid();
     auto extend       = fieldGrid.getExtend();
-    auto itSectionEnd = field_.access().sectionBegin(extend[ZZ]);
+    auto itSectionEnd = field_.iteratorAtMultiIndex({0, 0, extend[ZZ]});
 
     auto k             = RVec {
         0., 0., 0.
     };
     auto deltakSection = fieldGrid.unit_cell_ZZ();
-    auto itMidSection  = field_.access().sectionBegin(extend[ZZ] / 2 + 1);
-    for (auto itValue = field_.access().sectionBegin(0); itValue != itMidSection;
-         itValue = field_.access().next_slice(itValue))
+    auto itMidSection  = field_.iteratorAtMultiIndex({0, 0, extend[ZZ] / 2 + 1});
+    for (std::vector<t_complex>::iterator itValue = field_.iteratorAtMultiIndex({0, 0, 0}); itValue != itMidSection;
+         itValue += extend[XX]*extend[YY])
     {
         applyToAllColumnsWithinSection_(
                 k, extend[XX], extend[YY], fieldGrid.unit_cell_XX(), fieldGrid.unit_cell_YY(),
-                itValue, field_.access().next_slice(itValue), appliedFunction);
+                itValue, itValue + extend[XX]*extend[YY], appliedFunction);
         rvec_inc(k, deltakSection);
     }
 
@@ -247,11 +247,11 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
     rvec_dec(k, deltakSection);
 
     for (auto itValue = itSectionEnd; itValue != itMidSection;
-         itValue = field_.access().previousSection(itValue))
+         itValue -= extend[XX]*extend[YY])
     {
         applyToAllColumnsWithinSection_(
                 k, extend[XX], extend[YY], fieldGrid.unit_cell_XX(), fieldGrid.unit_cell_YY(),
-                field_.access().previousSection(itValue), itValue, appliedFunction);
+                itValue-extend[XX]*extend[YY], itValue, appliedFunction);
         rvec_dec(k, deltakSection);
     }
     return *this;

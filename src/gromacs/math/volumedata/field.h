@@ -45,7 +45,6 @@
 
 #include "volumedata.h"
 #include "finitegrid.h"
-#include "griddataaccess.h"
 
 #include <vector>
 
@@ -57,24 +56,38 @@ class Field : public std::vector<T>
 {
     public:
         Field()  = default;
-        Field<T> &operator=(Field<T> other) {std::swap(other, *this); return *this; };
+
         Field(Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
         Field(const Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
         Field(const FiniteGrid &other) : grid_ {other}
         { this->resize(grid_.getNumLatticePoints()); };
 
         FiniteGrid getGrid() const {return grid_; }
-        void setGrid(const FiniteGrid &other) { grid_ = other; }
+        void setGrid(const FiniteGrid &other) { grid_ = other; this->resize(grid_.getNumLatticePoints()); }
 
-        GridDataAccess<T> access() const
+        /*! \brief
+         * Directly access an index element.
+         * \throws std::out_of_range if element is out of array bounds
+         */
+        T &atMultiIndex(const std::vector<int> &index)
         {
-            return GridDataAccess<T>(grid_.getExtend(), *this);
+            return this->at(grid_.getLinearIndexFromLatticeIndex(index));
         };
 
-        GridDataAccess<T> access()
+        /*! \brief
+         * Directly access an index element.
+         * \throws std::out_of_range if element is out of array bounds
+         */
+        const T &atMultiIndex(const std::vector<int> &index) const
         {
-            return GridDataAccess<T>(grid_.getExtend(), *this);
+            return this->at(grid_.getLinearIndexFromLatticeIndex(index));
         };
+
+        typename std::vector<T>::iterator iteratorAtMultiIndex(const std::vector<int> &index)
+        {
+            return this->begin() + grid_.getLinearIndexFromLatticeIndex(index);
+        }
+
     private:
         FiniteGrid grid_;
 

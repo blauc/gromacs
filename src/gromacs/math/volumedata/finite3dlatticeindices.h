@@ -37,7 +37,7 @@ class Finite3DLatticeIndices
          *
          * x + extend_x * y + extend_x * extend_y * z.
          */
-        int getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const;
+        std::size_t getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const;
 
         /*! \brief
          * Inverse of getLinearIndexFromLatticeIndex

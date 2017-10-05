@@ -867,7 +867,6 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
     auto num_crs = to_crs_order(IVec {grid.getExtend().data()});
     if (bRead)
     {
-        auto gridDataAccess = grid_data.access();
         for (int section = 0; section  < num_crs[ZZ]; section++)
         {
             for (int row  = 0; row  < num_crs[YY]; row++)
@@ -876,7 +875,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
                 {
                     IVec             xyz_IVec = to_xyz_order({column, row, section});
                     std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
-                    gridDataAccess.at(xyz) = read_float32_();
+                    grid_data.atMultiIndex(xyz) = read_float32_();
                 }
             }
         }
@@ -884,7 +883,6 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        auto gridDataAccess = grid_data.access();
         for (int section = 0; section  < num_crs[ZZ]; section++)
         {
             for (int row  = 0; row  < num_crs[YY]; row++)
@@ -893,7 +891,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
                 {
                     IVec             xyz_IVec = to_xyz_order({column, row, section});
                     std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
-                    write_float32_(gridDataAccess.at(xyz));
+                    write_float32_(grid_data.atMultiIndex(xyz));
                 }
             }
         }

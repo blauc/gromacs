@@ -120,7 +120,6 @@ const Field<real> &
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
-    std::vector<real>::iterator              simulatedDensityVoxelIterator;
 
     IVec gridStart;
     IVec gridEnd;
@@ -135,13 +134,12 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     // add together all thread-local grids, using only density values, where there is
     // actual spread density
     int  nGridPointsXX        = gridEnd[XX]-gridStart[XX];
-    auto simulatedDensityData = simulated_density_->access();
 
     // store the data accessors for threadlocal grid data in a vector
-    std::vector<GridDataAccess<real> > simulatedDensityThreadGridData;
+    std::vector<Field<real> > simulatedDensityThreadGridData;
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->getGrid().getExtend(), *((*simulated_density_buffer_)[thread]));
+        simulatedDensityThreadGridData.emplace_back(*(*simulated_density_buffer_)[thread]);
     }
 
     //
@@ -155,10 +153,10 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
             {
                 if ((minimumUsedGridIndex[thread][ZZ] <= gridIndexZZ) && ( gridIndexZZ <= maximumUsedGridIndex[thread][ZZ] ) && (minimumUsedGridIndex[thread][YY] <= gridIndexYY) && (gridIndexYY <= maximumUsedGridIndex[thread][YY]))
                 {
-                    contributingThreadLocalVoxelIterators.push_back(simulatedDensityThreadGridData[thread].zy_column_begin(gridIndexZZ, gridIndexYY)+gridStart[XX]);
+                    contributingThreadLocalVoxelIterators.push_back(simulatedDensityThreadGridData[thread].iteratorAtMultiIndex({gridStart[XX], gridIndexYY, gridIndexZZ}));
                 }
             }
-            simulatedDensityVoxelIterator = simulatedDensityData.zy_column_begin(gridIndexZZ, gridIndexYY) + gridStart[XX];
+            std::vector<real>::iterator simulatedDensityVoxelIterator = simulated_density_->iteratorAtMultiIndex({gridStart[XX], gridIndexYY, gridIndexZZ});
             // step though grid row by row
             for (int gridIndexXX = 0; gridIndexXX < nGridPointsXX; ++gridIndexXX)
             {

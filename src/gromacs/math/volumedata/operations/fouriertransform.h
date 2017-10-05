@@ -116,7 +116,7 @@ class ApplyToUnshiftedFourierTransform
                                          std::vector<t_complex>::iterator itRowStart,
                                          std::vector<t_complex>::iterator itRowEnd,
                                          FunctionOnComplexField appliedFunction);
-        const Field<t_complex> &field_;
+        Field<t_complex> &field_;
 };
 }
 #endif /* end of include guard: GMX_MATH_FOURIERTRANSFORM_H */

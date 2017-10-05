@@ -66,8 +66,7 @@ DensityPadding::pad(RVec paddingFactor) {
         {
             for (int iXX = 0; iXX < extend[XX]; ++iXX)
             {
-                padded->access().at({iXX, iYY, iZZ}) =
-                    toPad_.access().at({iXX, iYY, iZZ});
+                padded->atMultiIndex({iXX, iYY, iZZ}) = toPad_.atMultiIndex({iXX, iYY, iZZ});
             }
         }
     }
@@ -90,8 +89,7 @@ DensityPadding::unpad(const std::vector<int>&unPadExtend) {
         {
             for (int iXX = 0; iXX < unPadExtend[XX]; ++iXX)
             {
-                unpadded->access().at({iXX, iYY, iZZ}) =
-                    toPad_.access().at({iXX, iYY, iZZ});
+                unpadded->atMultiIndex({iXX, iYY, iZZ}) = toPad_.atMultiIndex({iXX, iYY, iZZ});
             }
         }
     }

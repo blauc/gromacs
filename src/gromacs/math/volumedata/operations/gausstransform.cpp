@@ -169,7 +169,6 @@ FastGaussianGridding::tensor_product_()
             ceilSqrtLUT[d_z][d_y] = (int)std::ceil(sqrt(m_spread_*m_spread_ - d_z*d_z- d_y*d_y));
         }
     }
-    auto gridData = grid_->access();
     #pragma omp simd
     for (int globalGridIndexZZ = minimumGlobalGridIndex[ZZ]; globalGridIndexZZ <= maximumGlobalGridIndex[ZZ]; ++globalGridIndexZZ)
     {
@@ -188,8 +187,7 @@ FastGaussianGridding::tensor_product_()
             int globalGridIndexXXEnd   = std::min(maximumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] + ceilSqrtLUT[std::abs(d_z)][std::abs(d_y)]);
             int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
             int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
-            voxel        = gridData.zy_column_begin(globalGridIndexZZ, globalGridIndexYY)+globalGridIndexXXStart;
-
+            voxel        = grid_->iteratorAtMultiIndex({globalGridIndexXXStart, globalGridIndexYY, globalGridIndexZZ});
             spread_1d_XX = &(spread_1d_[XX][localGridIndexXXStart]);
 
             for (int l_x = 0; l_x <= numberSpreadVoxelsXX; ++l_x)

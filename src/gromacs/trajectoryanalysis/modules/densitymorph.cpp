@@ -100,7 +100,7 @@ class DensityMorph : public TrajectoryAnalysisModule
 
         void evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential);
         void evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow);
-        void applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old);
+        void applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, Field<real> &d_new, const Field<real> &d_old);
         void scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale);
         std::string             fnmobile_       = "from.ccp4";
         std::string             fntarget_       = "to.ccp4";
@@ -255,7 +255,7 @@ void DensityMorph::scaleFlow_(std::array<Field<real>, DIM> &densityflow, real sc
     }
 }
 
-void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, GridDataAccess<real> &d_new, const GridDataAccess<real> &d_old)
+void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, Field<real> &d_new, const Field<real> &d_old)
 {
     auto f = norm(f_vec);
 
@@ -294,23 +294,23 @@ void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridInd
 
                 // NOTE: checking boundaries here,
                 // but not for the flow away from voxels violates flow conversation
-                if (d_new.indices().inLattice(receivingVoxel))
+                if (d_new.getGrid().inLattice(receivingVoxel))
                 {
                     RVec share;
                     for (size_t dimension = 0; dimension < DIM; dimension++)
                     {
                         share[dimension] = df[dimension] == 0 ? (1-fabs(f_vec[dimension])) : fabs(f_vec[dimension]);
                     }
-                    auto voxel_voxel_flow =  share[XX]*share[YY]* share[ZZ] * fabs(f) * d_old.get(gridIndex);
-                    flow_sum                 += voxel_voxel_flow;
-                    d_new.at(receivingVoxel) += voxel_voxel_flow;
+                    auto voxel_voxel_flow =  share[XX]*share[YY]* share[ZZ] * fabs(f) * d_old.atMultiIndex(gridIndex);
+                    flow_sum                           += voxel_voxel_flow;
+                    d_new.atMultiIndex(receivingVoxel) += voxel_voxel_flow;
                 }
             }
         }
     }
 
     // flow away from voxels
-    d_new.at(gridIndex) += d_old.get(gridIndex) - flow_sum;
+    d_new.atMultiIndex(gridIndex) += d_old.atMultiIndex(gridIndex) - flow_sum;
 
 }
 
@@ -361,14 +361,8 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
              */
             // go through grid and use densityflow to shift density
 
-            auto d_new = newMorph.access();
-            auto d_old = oldMorph.access();
-
             auto extend = common_grid.getExtend();
 
-            std::array<GridDataAccess<real>, 3> flow {{
-                                                          densityflow[XX].access(), densityflow[YY].access(), densityflow[ZZ].access()
-                                                      }};
             // MrcFile().write("flowxx.ccp4", densityflow[XX]);
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);
             // MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
@@ -392,10 +386,10 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                             ix, iy, iz
                         };
                         RVec f_vec {
-                            flow[XX].at(gridIndex), flow[YY].at(gridIndex),
-                            flow[ZZ].at(gridIndex)
+                            densityflow[XX].atMultiIndex(gridIndex), densityflow[YY].atMultiIndex(gridIndex),
+                            densityflow[ZZ].atMultiIndex(gridIndex)
                         };
-                        applyFlowOnVoxel_(f_vec, gridIndex, d_new, d_old);
+                        applyFlowOnVoxel_(f_vec, gridIndex, newMorph, oldMorph);
 
                     }
                 }

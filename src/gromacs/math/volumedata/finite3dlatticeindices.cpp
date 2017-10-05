@@ -44,7 +44,7 @@ std::vector<int> Finite3DLatticeIndices::getLatticeIndexFromLinearIndex(int line
     return result;
 }
 
-int Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const
+std::size_t Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const std::vector<int> &latticeIndex) const
 {
     auto result = latticeIndex[XX] > -1 ? latticeIndex[XX] : extend_[XX] + latticeIndex[XX];
     result += latticeIndex[YY] > -1 ? extend_[XX] * latticeIndex[YY]
