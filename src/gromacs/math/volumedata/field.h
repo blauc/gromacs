@@ -53,55 +53,30 @@ namespace gmx
 {
 
 template <typename T>
-class Field : public FiniteGrid, public std::vector<T>
+class Field : public std::vector<T>
 {
     public:
         Field()  = default;
-        Field(Field<T> &other) : FiniteGrid {other}
-        {
-            copy_grid(other);
-        }
-        Field(const Field<T> &other) : FiniteGrid {other}
-        {
-            copy_grid(other);
-        };
+        Field<T> &operator=(Field<T> other) {std::swap(other, *this); return *this; };
+        Field(Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
+        Field(const Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
+        Field(const FiniteGrid &other) : grid_ {other}
+        { this->resize(grid_.getNumLatticePoints()); };
 
-        Field(const FiniteGrid &other)
-        {
-            copy_grid(other);
-        };
+        FiniteGrid getGrid() const {return grid_; }
+        void setGrid(const FiniteGrid &other) { grid_ = other; }
 
         GridDataAccess<T> access() const
         {
-            return GridDataAccess<T>(getExtend(), *this);
+            return GridDataAccess<T>(grid_.getExtend(), *this);
         };
 
         GridDataAccess<T> access()
         {
-            return GridDataAccess<T>(getExtend(), *this);
+            return GridDataAccess<T>(grid_.getExtend(), *this);
         };
-        /*! \brief
-         * Copy the properties from another grid to this one.
-         *  \param[in] grid Pointer to the grid from which the proterties will be
-         * copied
-         */
-        void copy_grid(const FiniteGrid &grid)
-        {
-            FiniteGrid::copy_grid(grid);
-            this->resize(getNumLatticePoints());
-        };
-
-        void multiplyGridPointNumber(const RVec factor)
-        {
-            FiniteGrid::multiplyGridPointNumber(factor);
-            this->resize(getNumLatticePoints());
-        };
-
-        void set_extend(const std::vector<int> &extend)
-        {
-            FiniteGrid::setExtend(extend);
-            this->resize(getNumLatticePoints());
-        };
+    private:
+        FiniteGrid grid_;
 
 };
 

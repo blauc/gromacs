@@ -124,9 +124,9 @@ void densityBasedForce::force(std::vector<RVec> &force,
         auto r = orientation.shiftedAndOriented(coordinates[i], centerOfRotation,
                                                 translation);
         auto f = RVec {
-            GridInterpolator(forceGrid[XX]).getLinearInterpolationAt(forceGrid[XX], r),
-            GridInterpolator(forceGrid[YY]).getLinearInterpolationAt(forceGrid[YY], r),
-            GridInterpolator(forceGrid[ZZ]).getLinearInterpolationAt(forceGrid[ZZ], r)
+            GridInterpolator(forceGrid[XX].getGrid()).getLinearInterpolationAt(forceGrid[XX], r),
+            GridInterpolator(forceGrid[YY].getGrid()).getLinearInterpolationAt(forceGrid[YY], r),
+            GridInterpolator(forceGrid[ZZ].getGrid()).getLinearInterpolationAt(forceGrid[ZZ], r)
         };
         svmul(weights[i], f, force[i]);
         orientation.rotate_backwards(force[i]);

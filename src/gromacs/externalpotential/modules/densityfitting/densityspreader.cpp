@@ -141,7 +141,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     std::vector<GridDataAccess<real> > simulatedDensityThreadGridData;
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->getExtend(), *((*simulated_density_buffer_)[thread]));
+        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->getGrid().getExtend(), *((*simulated_density_buffer_)[thread]));
     }
 
     //

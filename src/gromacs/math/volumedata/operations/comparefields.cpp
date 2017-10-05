@@ -91,7 +91,7 @@ real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
     auto ref = this->reference_;
     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
                            [ref] (const real sum, const RVec r){
-                               return sum + GridInterpolator(ref).getLinearInterpolationAt(ref, r);
+                               return sum + GridInterpolator(ref.getGrid()).getLinearInterpolationAt(ref, r);
                            });
 };
 
@@ -118,7 +118,7 @@ real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &othe
             sum += p[i] * log(q[i] / (q_reference[i]));
         }
     }
-    return -1 * reference_.grid_cell_volume() *sum;
+    return -1 * reference_.getGrid().grid_cell_volume() *sum;
 }
 
 real CompareFields::getKLSameGrid() const
@@ -148,7 +148,7 @@ real CompareFields::getKLSameGrid() const
 
     }
 
-    return -1 * reference_.grid_cell_volume() * sum;
+    return -1 * reference_.getGrid().grid_cell_volume() * sum;
 };
 
 real CompareFields::getKLCrossTermSameGrid() const
@@ -172,7 +172,7 @@ real CompareFields::getKLCrossTermSameGrid() const
             sum += p[i] * log(q[i]);
         }
     }
-    return -1 * reference_.grid_cell_volume() *sum;
+    return -1 * reference_.getGrid().grid_cell_volume() *sum;
 };
 
 

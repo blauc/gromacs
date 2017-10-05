@@ -59,7 +59,7 @@ real RealFieldMeasure::max() const
 /*! \brief The mean grid data value. */
 real RealFieldMeasure::mean() const
 {
-    return sum() / static_cast<float>(realfield_.getNumLatticePoints());
+    return sum() / static_cast<float>(realfield_.size());
 };
 /*! \brief
  * The size of the griddata in bytes.
@@ -93,7 +93,7 @@ real RealFieldMeasure::norm() const { return sqrt(normSquared()); }
  */
 real RealFieldMeasure::var() const
 {
-    return sumOfSquareDeviation() / realfield_.getNumLatticePoints();
+    return sumOfSquareDeviation() / realfield_.size();
 }
 /*! \brief The root mean square deviation of grid data values. */
 real RealFieldMeasure::rms() const { return sqrt(var()); };
@@ -102,9 +102,9 @@ RVec RealFieldMeasure::center_of_mass() const
 {
     rvec weighted_grid_coordinate;
     RVec com = {0, 0, 0};
-    for (int i = 0; i < realfield_.getNumLatticePoints(); i++)
+    for (size_t i = 0; i < realfield_.size(); i++)
     {
-        svmul(realfield_[i], realfield_.gridpoint_coordinate(i),
+        svmul(realfield_[i], realfield_.getGrid().gridpoint_coordinate(i),
               weighted_grid_coordinate);
         rvec_inc(com, weighted_grid_coordinate);
     }
@@ -116,7 +116,7 @@ std::string RealFieldMeasure::to_string() const
 {
     std::string result;
     result += "------- real number grid -------\n";
-    result += realfield_.print();
+    result += realfield_.getGrid().print();
     result += "  min  :" + std::to_string(min()) + "\n";
     result += "  max  :" + std::to_string(max()) + "\n";
     result += "  mean :" + std::to_string(mean()) + "\n";
@@ -128,7 +128,7 @@ std::string RealFieldMeasure::to_string() const
 real RealFieldMeasure::entropy() const
 {
     auto p    = realfield_.cbegin();
-    int  size = realfield_.getNumLatticePoints();
+    int  size = realfield_.size();
     real sum  = 0;
 #pragma omp parallel for num_threads(std::max( \
     1, gmx_omp_get_max_threads())) reduction(+ : sum) schedule( \
@@ -140,7 +140,7 @@ real RealFieldMeasure::entropy() const
             sum += p[i] * log(p[i]);
         }
     }
-    return -1 * realfield_.grid_cell_volume() * sum;
+    return -1 * realfield_.getGrid().grid_cell_volume() * sum;
 };
 
 } // namespace gmx

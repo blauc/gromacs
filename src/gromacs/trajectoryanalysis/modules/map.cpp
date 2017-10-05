@@ -267,26 +267,21 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
+    FiniteGrid       outputdensitygrid;
     std::vector<int> extend({(int)ceil(box[XX][XX] / spacing_),
                              (int)ceil(box[YY][YY] / spacing_),
                              (int)ceil(box[ZZ][ZZ] / spacing_)});
-    outputdensity_.set_extend(extend);
-    outputDensityBuffer_.set_extend(extend);
-    outputdensity_.set_cell(
-            {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
-            {90, 90, 90});
-    outputDensityBuffer_.set_cell(
-            {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_},
-            {90, 90, 90});
-    outputDensityBuffer_.makeGridUniform();
-    outputdensity_.set_translation(
+    outputdensitygrid.setExtend(extend);
+    outputdensitygrid.set_cell( {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}, {90, 90, 90});
+
+    outputdensitygrid.makeGridUniform();
+    outputdensitygrid.set_translation(
             {roundf(translation[XX] / spacing_) * spacing_,
              roundf(translation[YY] / spacing_) * spacing_,
              roundf(translation[ZZ] / spacing_) * spacing_});
-    outputDensityBuffer_.set_translation(
-            {roundf(translation[XX] / spacing_) * spacing_,
-             roundf(translation[YY] / spacing_) * spacing_,
-             roundf(translation[ZZ] / spacing_) * spacing_});
+
+    outputdensity_.setGrid(outputdensitygrid);
+    outputDensityBuffer_.setGrid(outputdensitygrid);
 }
 
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
@@ -306,12 +301,12 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         {
             // If a reference input density is given, copy the grid properties from
             // here
-            outputdensity_.copy_grid(inputdensity_);
-            outputDensityBuffer_.copy_grid(inputdensity_);
+            outputdensity_.setGrid(inputdensity_.getGrid());
+            outputDensityBuffer_.setGrid(inputdensity_.getGrid());
         }
 
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(outputdensity_, 1, n_sigma_, sigma_));
+                    new DensitySpreader(outputdensity_.getGrid(), 1, n_sigma_, sigma_));
 
 
         ModifyGridData(outputDensityBuffer_).zero();

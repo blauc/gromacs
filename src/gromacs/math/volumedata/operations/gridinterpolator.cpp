@@ -40,7 +40,7 @@ namespace gmx
 GridInterpolator::GridInterpolator(const FiniteGrid &basis)
     : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>)}
 {
-    interpolatedGrid_->copy_grid(basis);
+    interpolatedGrid_->setGrid(basis);
 };
 
 /*
@@ -51,21 +51,22 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
 std::unique_ptr < Field < real>>
 GridInterpolator::interpolateLinearly(const Field<real> &other)
 {
-    if (other.sameGridInAbsTolerance(*interpolatedGrid_))
+    if (other.getGrid().sameGridInAbsTolerance(interpolatedGrid_->getGrid()))
     {
-        std::copy(std::begin(other), std::end(other), std::begin(*interpolatedGrid_));
+        *interpolatedGrid_ = other;
         return std::move(interpolatedGrid_);
     }
-    ;
-    auto interpolatedGridAccess = interpolatedGrid_->access();
 
-    for (int i_z = 0; i_z < interpolatedGrid_->getExtend()[ZZ]; ++i_z)
+    auto interpolatedGridAccess = interpolatedGrid_->access();
+    auto grid                   = interpolatedGrid_->getGrid();
+
+    for (int i_z = 0; i_z < grid.getExtend()[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < interpolatedGrid_->getExtend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < grid.getExtend()[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < interpolatedGrid_->getExtend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < grid.getExtend()[XX]; ++i_x)
             {
-                auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
+                auto r                 = grid.gridpoint_coordinate({i_x, i_y, i_z});
                 interpolatedGridAccess.at({i_x, i_y, i_z}) = getLinearInterpolationAt(other, r);
             }
         }
@@ -82,15 +83,16 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
     }
 
     auto interpolatedGridAccess = interpolatedGrid_->access();
+    auto grid                   = interpolatedGrid_->getGrid();
 
-    for (int i_z = 0; i_z < interpolatedGrid_->getExtend()[ZZ]; ++i_z)
+    for (int i_z = 0; i_z < grid.getExtend()[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < interpolatedGrid_->getExtend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < grid.getExtend()[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < interpolatedGrid_->getExtend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < grid.getExtend()[XX]; ++i_x)
             {
 
-                auto r                 = interpolatedGrid_->gridpoint_coordinate({i_x, i_y, i_z});
+                auto r                 = grid.gridpoint_coordinate({i_x, i_y, i_z});
                 interpolatedGridAccess.at({i_x, i_y, i_z}) = getLinearInterpolationAt(other, orientation.shiftedAndOriented(r, centerOfMass, translation));
 
             }
@@ -100,12 +102,12 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 }
 
 
-void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
+// void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
 
 real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const RVec &r) const
 {
-    auto rIndexInGrid = field.coordinateToRealGridIndex(r);
-    auto iIndexInGrid = field.coordinate_to_gridindex_floor_ivec(r);
+    auto rIndexInGrid = field.getGrid().coordinateToRealGridIndex(r);
+    auto iIndexInGrid = field.getGrid().coordinate_to_gridindex_floor_ivec(r);
 
     auto w_x = rIndexInGrid[XX] - (real)iIndexInGrid[XX];
     auto w_y = rIndexInGrid[YY] - (real)iIndexInGrid[YY];
@@ -124,7 +126,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
                 cube_index[XX] += ii_x;
                 cube_index[YY] += ii_y;
                 cube_index[ZZ] += ii_z;
-                if (field.inLattice(cube_index))
+                if (field.getGrid().inLattice(cube_index))
                 {
                     cube[ii_x][ii_y][ii_z] = data.at(cube_index);
                 }

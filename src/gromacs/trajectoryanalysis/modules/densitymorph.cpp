@@ -231,7 +231,7 @@ void DensityMorph::evaluateFlow_(const Field<real> &differential, std::array<Fie
     {
         densityflow[dimension] =
             *DensityPadding(paddedDensityFlow[dimension])
-                .unpad(differential.getExtend());
+                .unpad(differential.getGrid().getExtend());
     }
 
     // find the scale for the flow
@@ -330,7 +330,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
 
     Field<real>                              oldMorph(mobile_);
 
-    auto                                     common_grid = (FiniteGrid)mobile_;
+    auto                                     common_grid = mobile_.getGrid();
     Field<real>                              differential(common_grid);
     Field<real>                              newMorph(common_grid);
     std::array<Field<real>, DIM>             densityflow;

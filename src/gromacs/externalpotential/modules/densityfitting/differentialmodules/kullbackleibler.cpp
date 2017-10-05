@@ -47,7 +47,7 @@ namespace gmx
 void KullbackLeiblerForce::setDensityDifferential(
         const Field<real> &comparant, const Field<real> &reference) const
 {
-    differential_->copy_grid(reference);
+    differential_->setGrid(reference.getGrid());
     auto sumSimulatedDensity     = RealFieldMeasure(comparant).sum();
     auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
                                                          real densitySimulation) {
@@ -105,7 +105,7 @@ ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
     if (spreader_ == nullptr)
     {
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+                    new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
         force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
                     new KullbackLeiblerForce(*spreader_, sigma_, n_threads_, true));
     }
@@ -127,7 +127,7 @@ PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
     if (spreader_ == nullptr)
     {
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(reference, n_threads_, n_sigma_, sigma_));
+                    new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
         potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
                     new KullbackLeiblerPotential(*spreader_, true));
     }

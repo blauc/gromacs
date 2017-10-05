@@ -42,21 +42,24 @@ namespace gmx
 
 std::unique_ptr < Field < real>>
 DensityPadding::padPower2() {
-    real factorXX = pow(2, ceil(log(toPad_.getExtend()[XX])/log(2)));
-    real factorYY = pow(2, ceil(log(toPad_.getExtend()[YY])/log(2)));
-    real factorZZ = pow(2, ceil(log(toPad_.getExtend()[ZZ])/log(2)));
+    const auto &extend   = toPad_.getGrid().getExtend();
+    real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
+    real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
+    real        factorZZ = pow(2, ceil(log(extend[ZZ])/log(2)));
 
-    return pad({factorXX/real(toPad_.getExtend()[XX]), factorYY/real(toPad_.getExtend()[YY]), factorZZ/real(toPad_.getExtend()[ZZ])} );
+    return pad({factorXX/real(extend[XX]), factorYY/real(extend[YY]), factorZZ/real(extend[ZZ])} );
 }
 
 std::unique_ptr < Field < real>>
 DensityPadding::pad(RVec paddingFactor) {
-    std::unique_ptr < Field < real>> padded(new Field<real>);
-    padded->copy_grid(toPad_);
-    padded->multiplyGridPointNumber(paddingFactor);
-    padded->scaleCell(paddingFactor);
+
+    auto toPadGrid = FiniteGrid(toPad_.getGrid());
+    toPadGrid.multiplyGridPointNumber(paddingFactor);
+    toPadGrid.scaleCell(paddingFactor);
+    std::unique_ptr < Field < real>> padded(new Field<real>(toPadGrid));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
-    auto extend = toPad_.getExtend();
+
+    auto extend = toPad_.getGrid().getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)
@@ -75,10 +78,12 @@ DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
 
 std::unique_ptr < Field < real>>
 DensityPadding::unpad(const std::vector<int>&unPadExtend) {
-    std::unique_ptr < Field < real>> unpadded(new Field<real>);
-    unpadded->copy_grid(toPad_);
-    unpadded->set_extend(unPadExtend);
-    unpadded->resetCell();
+
+    auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
+    unpaddedGrid.setExtend(unPadExtend);
+    unpaddedGrid.resetCell();
+    std::unique_ptr < Field < real>> unpadded(new Field<real>(unpaddedGrid));
+
     for (int iZZ = 0; iZZ < unPadExtend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < unPadExtend[YY]; ++iYY)

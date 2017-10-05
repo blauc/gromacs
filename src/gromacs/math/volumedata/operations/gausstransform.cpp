@@ -80,7 +80,7 @@ GaussTransform::getMaximumUsedGridIndex()
 void
 FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
 {
-    if (grid->rectangular())
+    if (grid->getGrid().rectangular())
     {
         GaussTransform::set_grid(std::move(grid));
     }
@@ -88,9 +88,9 @@ FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be rectangular to use the current implementation of fast gaussian gridding."));
     }
-    if (grid_->spacing_is_same_xyz())
+    if (grid_->getGrid().spacing_is_same_xyz())
     {
-        nu_       = grid_->avg_spacing()/sigma_;
+        nu_       = grid_->getGrid().avg_spacing()/sigma_;
         m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
         E3_.resize(2*m_spread_+1);
 
@@ -153,7 +153,7 @@ FastGaussianGridding::tensor_product_()
     {
         minimumGlobalGridIndex[i] = std::max(0, grid_index_of_spread_atom_[i]-m_spread_);
         minimumUsedGridIndex_[i]  = std::min(minimumGlobalGridIndex[i], minimumUsedGridIndex_[i]);
-        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getExtend()[i]-1);
+        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getGrid().getExtend()[i]-1);
         maximumUsedGridIndex_[i]  = std::max(maximumGlobalGridIndex[i], maximumUsedGridIndex_[i]);
     }
 
@@ -204,11 +204,11 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    grid_index_of_spread_atom_ = grid_->coordinate_to_gridindex_floor_ivec(x);
+    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(x);
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        dx[i]  = (x[i]-grid_->gridpoint_coordinate(grid_index_of_spread_atom_)[i])/sigma_;
+        dx[i]  = (x[i]-grid_->getGrid().gridpoint_coordinate(grid_index_of_spread_atom_)[i])/sigma_;
     }
     spread_1d(weight, m_spread_, dx, nu_, E3_, XX);
     spread_1d(1, m_spread_, dx, nu_, E3_, YY);
