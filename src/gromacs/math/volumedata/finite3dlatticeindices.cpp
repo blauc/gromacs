@@ -6,10 +6,6 @@
 namespace gmx
 {
 
-Finite3DLatticeIndices::Finite3DLatticeIndices(const Finite3DLatticeIndices &other)
-{
-    extend_          = other.extend_;
-};
 
 Finite3DLatticeIndices::Finite3DLatticeIndices(const std::vector<int> &extend)
 {

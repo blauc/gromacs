@@ -56,7 +56,7 @@ namespace gmx
 
 ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
-                                   grid, grid, grid
+                                   grid.getGrid(), grid.getGrid(), grid.getGrid()
                                }}, realToComplexFT_ {
     FourierTransformRealToComplex3D(grid)
 } {

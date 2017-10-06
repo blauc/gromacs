@@ -272,7 +272,7 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
                              (int)ceil(box[YY][YY] / spacing_),
                              (int)ceil(box[ZZ][ZZ] / spacing_)});
     outputdensitygrid.setLattice(extend);
-    outputdensitygrid.set_cell( {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}, {90, 90, 90});
+    outputdensitygrid.setCell( {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}, {90, 90, 90});
 
     outputdensitygrid.makeGridUniform();
     outputdensitygrid.set_translation(

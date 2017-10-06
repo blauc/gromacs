@@ -86,7 +86,7 @@ class MrcFile::Impl
 
         void do_mrc(const Field<real> &grid_data, bool bRead);
         void do_mrc_data_(Field<real> &grid_data, bool bRead);
-        void do_mrc_header_(Field<real> &grid_data, bool bRead);
+        FiniteGrid do_mrc_header_(const FiniteGrid &grid_data, bool bRead);
 
         void set_mrc_data_mode(int mode);
 
@@ -388,7 +388,7 @@ bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
     return valid_crs_set == crs_set;
 };
 
-void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
+FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead)
 {
     auto newGrid = FiniteGrid();
     if (bRead)
@@ -416,7 +416,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(to_crs_order(IVec {grid_data.getGrid().getLattice().getExtend().data()}));
+        write_int32_ivec_(to_crs_order(IVec {grid_data.getLattice().getExtend().data()}));
     } \
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -460,7 +460,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(IVec {grid_data.getGrid().getLattice().getExtend().data()});
+        write_int32_ivec_(IVec {grid_data.getLattice().getExtend().data()});
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -487,14 +487,14 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
         {
             cell_angle = {90, 90, 90};
         }
-        newGrid.set_cell(cell_length, cell_angle);
+        newGrid.setCell(cell_length, cell_angle);
     }
     else
     {
         RVec cell_length_AA;
-        svmul(NM2A, grid_data.getGrid().cell_lengths(), cell_length_AA);
+        svmul(NM2A, grid_data.getCell().cell_lengths(), cell_length_AA);
         write_float32_rvec_(cell_length_AA);
-        write_float32_rvec_(grid_data.getGrid().cell_angles());
+        write_float32_rvec_(grid_data.getCell().cell_angles());
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -754,10 +754,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
         write_extended_header();
     }
 
-    if (bRead)
-    {
-        grid_data.setGrid(newGrid);
-    }
+    return newGrid;
 
 };
 
@@ -933,7 +930,11 @@ void MrcFile::Impl::check_swap_bytes()
 void MrcFile::Impl::do_mrc(const Field<real> &grid_data, bool bRead)
 {
     //TODO: avoid const cast
-    do_mrc_header_(*(const_cast<Field<real>*>(&grid_data)), bRead);
+    auto grid = do_mrc_header_(grid_data.getGrid(), bRead);
+    if (bRead)
+    {
+        *(const_cast<Field<real>*>(&grid_data)) = Field<real>(grid);
+    }
     do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
 }
 
@@ -1095,7 +1096,7 @@ void MrcFile::write(std::string filename, const Field<real> &grid_data)
 
 void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
 {
-    Field<real> griddata;
+    FiniteGrid  griddata;
     bool        bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(griddata, bRead);
@@ -1158,7 +1159,7 @@ void Df3File::SuccessfulDf3Write::writePovray()
 {
     const auto &grid         = gridData_.getGrid();
     auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
-    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.cell_lengths()[XX]) + "," + std::to_string(NM2A *grid.cell_lengths()[YY]) + "," + std::to_string(NM2A *grid.cell_lengths()[ZZ]) + ">;\n";
+    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.getCell().cell_lengths()[XX]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[YY]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[ZZ]) + ">;\n";
     povRayString += std::string("#declare theinterior = interior {\n")
         +"\tmedia {\n"
         +"\t\temission <1,1,1> / 10\n"

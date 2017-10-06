@@ -13,7 +13,6 @@ class Finite3DLatticeIndices
     public:
         Finite3DLatticeIndices() = default;
         Finite3DLatticeIndices(const std::vector<int> &extend);
-        Finite3DLatticeIndices(const Finite3DLatticeIndices &other);
         int getNumLatticePoints() const;           //!< returns extend[0]*extend[1]*extend[2]
         const std::vector<int> &getExtend() const; //!< return the extend of the lattice
 

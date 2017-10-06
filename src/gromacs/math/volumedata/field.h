@@ -55,10 +55,7 @@ template <typename T>
 class Field : public std::vector<T>
 {
     public:
-        Field()  = default;
-
-        Field(Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
-        Field(const Field<T> &other) : std::vector<T>{other}, grid_ {other.grid_} {};
+        Field() = default;
         Field(const FiniteGrid &other) : grid_ {other}
         { this->resize(grid_.getLattice().getNumLatticePoints()); };
 

@@ -3,6 +3,7 @@
 
 #include "gromacs/math/vectypes.h"
 #include "finite3dlatticeindices.h"
+#include "gridcell.h"
 #include <memory>
 
 namespace gmx
@@ -21,20 +22,6 @@ namespace gmx
 class FiniteGrid
 {
     public:
-        FiniteGrid();
-        // FiniteGrid(const Finite3DLatticeIndices & lattice);
-        FiniteGrid(const FiniteGrid &other);
-        FiniteGrid(FiniteGrid &other);
-        FiniteGrid &operator= (const FiniteGrid &other);
-
-        /*! \brief
-         * Compare grid spanning vectors and translation to other.
-         */
-
-        bool sameGridInAbsTolerance(const FiniteGrid &other, real tolerance = 1e-10) const;
-
-        ~FiniteGrid();
-
         /*! \brief
          * Convert Lattice to its corresponding lattice in reciprocal space by
          * Cell inversion.
@@ -42,41 +29,10 @@ class FiniteGrid
         void convertToReciprocalSpace();
 
         /*! \brief
-         * Copy the properties from another grid to this one.
-         *  \param[in] grid Pointer to the grid from which the proterties will be
-         * copied
+         * Compare grid spanning vectors and translation to other.
          */
-        void copy_grid(const FiniteGrid &grid);
 
-        /*! \brief
-         *
-         * Set unit-cell parameters from unit-cell length and angle [deg], aligning
-         * the first unit-cell vecor along x-axis, placing second vector in the
-         * xy-plane.
-         */
-        void set_cell(RVec length, RVec angle);
-
-        /*! \brief
-         *
-         * Set the real-space coordinate of gridpoint (0,0,0).
-         */
-        void set_translation(RVec translate);
-
-        /*! \brief
-         * Add a vector to the translation of the map.
-         */
-        RVec
-        translation() const;       //!< return real-space coordinate of gridpoint (0,0,0).
-        RVec cell_lengths() const; //!< return cell lengths
-        RVec cell_angles() const;  //!< return cell angles
-
-        /*! \brief
-         * Yields rotation matrix Q that will rotate grid towards canonical
-         * representation with first unit-cell vector aligned along x-axis, and second
-         * unit-cell vector aligned in xy-plane.
-         * \param[in,out] Q rotation matrix
-         */
-        void rotation(matrix Q) const;
+        bool sameGridInAbsTolerance(const FiniteGrid &other, real tolerance = 1e-10) const;
 
         // void multiplyGridPointNumber(const RVec factor);
 
@@ -88,19 +44,8 @@ class FiniteGrid
         std::vector<int> coordinate_to_gridindex_floor_ivec(const rvec x) const;
         RVec gridpoint_coordinate(std::vector<int> i) const;
 
-        RVec unit_cell_XX() const;
-        RVec unit_cell_YY() const;
-        RVec unit_cell_ZZ() const;
-
         real grid_cell_volume() const;
 
-        /*! \brief Check if all cell vectors are rectangular by calling cell_angles();
-         */
-        bool rectangular() const;
-
-        /*! \brief Check, if spacing is same in x,y,z -direction.
-         */
-        bool spacing_is_same_xyz() const;
 
         void makeGridUniform();
 
@@ -124,13 +69,27 @@ class FiniteGrid
          */
         void resetCell();
 
+        void setCell(RVec length, RVec angle);
+
         const Finite3DLatticeIndices getLattice() const;
 
         void setLattice(const Finite3DLatticeIndices &lattice);
+        /*! \brief
+         *
+         * Set the real-space coordinate of gridpoint (0,0,0).
+         */
+        void set_translation(RVec translate);
+        RVec translation() const; //!< return real-space coordinate of gridpoint (0,0,0).
+
+        GridCell getCell() const;
+
+        GridCell getUnitCell() const;
 
     private:
-        class Impl;
-        std::unique_ptr<FiniteGrid::Impl> impl_;
+        GridCell                          cell_;
+        GridCell                          unit_cell_;
+        GridCell                          unit_cell_inv_;
+        RVec                              translation_;
         Finite3DLatticeIndices            lattice_;
 };
 

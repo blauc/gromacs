@@ -38,9 +38,8 @@
 namespace gmx
 {
 GridInterpolator::GridInterpolator(const FiniteGrid &basis)
-    : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>)}
+    : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>(basis))}
 {
-    interpolatedGrid_->setGrid(basis);
 };
 
 /*

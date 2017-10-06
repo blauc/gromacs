@@ -54,10 +54,11 @@ namespace gmx
 
 FourierShellCorrelation::FourierShellCorrelation(const FiniteGrid &realGrid)
 {
-    FiniteGrid reciprocalGrid = realGrid;
+    FiniteGrid  reciprocalGrid = realGrid;
     reciprocalGrid.convertToReciprocalSpace();
-    auto       spacing  = 2*std::max({norm(reciprocalGrid.unit_cell_XX()), norm(reciprocalGrid.unit_cell_YY()), norm(reciprocalGrid.unit_cell_ZZ())});
-    auto       highestK = sqrt(norm(realGrid.cell_lengths()));
+    const auto &unitcell =  reciprocalGrid.getUnitCell();
+    auto        spacing  = 2*std::max({norm(unitcell[XX]), norm(unitcell[YY]), norm(unitcell[ZZ])});
+    auto        highestK = sqrt(norm(realGrid.getCell().cell_lengths()));
     for (real binEdge = 0; binEdge < highestK +  spacing; binEdge += spacing)
     {
         binEdges_.insert(binEdge);
