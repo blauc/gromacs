@@ -27,14 +27,6 @@ void Finite3DLatticeIndices::setExtend(const std::vector<int> &extend)
 
 const std::vector<int> &Finite3DLatticeIndices::getExtend() const { return extend_; }
 
-void Finite3DLatticeIndices::multiplyExtend(const RVec factor)
-{
-    for (int i = XX; i <= ZZ; i++)
-    {
-        extend_[i] = std::ceil(extend_[i] * factor[i]);
-    }
-}
-
 std::vector<int> Finite3DLatticeIndices::getLatticeIndexFromLinearIndex(int linearIndex) const
 {
     std::vector<int> result;

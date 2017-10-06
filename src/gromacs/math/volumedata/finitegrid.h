@@ -18,10 +18,11 @@ namespace gmx
  * and translation:
  * i = cell^{-1} . (r - translate); r = cell . i + translate
  */
-class FiniteGrid : public Finite3DLatticeIndices
+class FiniteGrid
 {
     public:
         FiniteGrid();
+        // FiniteGrid(const Finite3DLatticeIndices & lattice);
         FiniteGrid(const FiniteGrid &other);
         FiniteGrid(FiniteGrid &other);
         FiniteGrid &operator= (const FiniteGrid &other);
@@ -75,9 +76,9 @@ class FiniteGrid : public Finite3DLatticeIndices
          * unit-cell vector aligned in xy-plane.
          * \param[in,out] Q rotation matrix
          */
-        void rotation(matrix Q);
+        void rotation(matrix Q) const;
 
-        void multiplyGridPointNumber(const RVec factor);
+        // void multiplyGridPointNumber(const RVec factor);
 
         RVec gridpoint_coordinate(int i) const;
         RVec coordinateToRealGridIndex(const rvec x) const;
@@ -95,17 +96,17 @@ class FiniteGrid : public Finite3DLatticeIndices
 
         /*! \brief Check if all cell vectors are rectangular by calling cell_angles();
          */
-        bool rectangular();
+        bool rectangular() const;
 
         /*! \brief Check, if spacing is same in x,y,z -direction.
          */
-        bool spacing_is_same_xyz();
+        bool spacing_is_same_xyz() const;
 
         void makeGridUniform();
 
         /*! \brief The average grid spacing.
          */
-        real avg_spacing();
+        real avg_spacing() const;
 
         /*! \brief Writes all information about the grid of reals in human readable
          * form to a string.
@@ -123,9 +124,14 @@ class FiniteGrid : public Finite3DLatticeIndices
          */
         void resetCell();
 
+        const Finite3DLatticeIndices getLattice() const;
+
+        void setLattice(const Finite3DLatticeIndices &lattice);
+
     private:
         class Impl;
         std::unique_ptr<FiniteGrid::Impl> impl_;
+        Finite3DLatticeIndices            lattice_;
 };
 
 }

@@ -271,7 +271,7 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
     std::vector<int> extend({(int)ceil(box[XX][XX] / spacing_),
                              (int)ceil(box[YY][YY] / spacing_),
                              (int)ceil(box[ZZ][ZZ] / spacing_)});
-    outputdensitygrid.setExtend(extend);
+    outputdensitygrid.setLattice(extend);
     outputdensitygrid.set_cell( {extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}, {90, 90, 90});
 
     outputdensitygrid.makeGridUniform();

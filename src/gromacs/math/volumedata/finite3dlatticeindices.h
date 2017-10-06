@@ -8,8 +8,6 @@
 namespace gmx
 {
 
-// typedef std::vector<int> std::vector<int>; //!< RVec equivalent for int
-
 class Finite3DLatticeIndices
 {
     public:
@@ -26,10 +24,6 @@ class Finite3DLatticeIndices
          * (extend[XX]-1,extend[YY]-1,extend[ZZ]-1)
          */
         void setExtend(const std::vector<int> &extend);
-
-        /*! \brief
-         * multiply lattice extend by rational factor in all dimensions */
-        void multiplyExtend(const RVec factor);
 
         /*! \brief
          * Unique one-dimensional lattice index.

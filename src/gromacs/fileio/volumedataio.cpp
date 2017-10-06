@@ -390,7 +390,7 @@ bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
 
 void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
 {
-    auto grid = grid_data.getGrid();
+    auto newGrid = FiniteGrid();
     if (bRead)
     {
         check_swap_bytes();
@@ -416,7 +416,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     }
     else
     {
-        write_int32_ivec_(to_crs_order(IVec {grid.getExtend().data()}));
+        write_int32_ivec_(to_crs_order(IVec {grid_data.getGrid().getLattice().getExtend().data()}));
     } \
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -456,11 +456,11 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
     {
         meta_.extend = read_int32_ivec_();
         std::vector<int> extend = {meta_.extend[XX], meta_.extend[YY], meta_.extend[ZZ]};
-        grid.setExtend(extend);
+        newGrid.setLattice(extend);
     }
     else
     {
-        write_int32_ivec_(IVec {grid.getExtend().data()});
+        write_int32_ivec_(IVec {grid_data.getGrid().getLattice().getExtend().data()});
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -487,14 +487,14 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
         {
             cell_angle = {90, 90, 90};
         }
-        grid.set_cell(cell_length, cell_angle);
+        newGrid.set_cell(cell_length, cell_angle);
     }
     else
     {
         RVec cell_length_AA;
-        svmul(NM2A, grid.cell_lengths(), cell_length_AA);
+        svmul(NM2A, grid_data.getGrid().cell_lengths(), cell_length_AA);
         write_float32_rvec_(cell_length_AA);
-        write_float32_rvec_(grid.cell_angles());
+        write_float32_rvec_(grid_data.getGrid().cell_angles());
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -518,12 +518,12 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
             crs_to_xyz[ZZ] = 2;
             set_crs_to_xyz(crs_to_xyz);
         }
-        grid.set_translation(grid.gridpoint_coordinate(
-                                     {
-                                         meta_.crs_start[meta_.xyz_to_crs[XX]],
-                                         meta_.crs_start[meta_.xyz_to_crs[YY]],
-                                         meta_.crs_start[meta_.xyz_to_crs[ZZ]]
-                                     }));
+        newGrid.set_translation(newGrid.gridpoint_coordinate(
+                                        {
+                                            meta_.crs_start[meta_.xyz_to_crs[XX]],
+                                            meta_.crs_start[meta_.xyz_to_crs[YY]],
+                                            meta_.crs_start[meta_.xyz_to_crs[ZZ]]
+                                        }));
     }
     else
     {
@@ -674,7 +674,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
          */
         if (meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
         {
-            grid.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
+            newGrid.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
         }
     }
 
@@ -756,7 +756,7 @@ void MrcFile::Impl::do_mrc_header_(Field<real> &grid_data, bool bRead)
 
     if (bRead)
     {
-        grid_data.setGrid(grid);
+        grid_data.setGrid(newGrid);
     }
 
 };
@@ -848,23 +848,23 @@ void MrcFile::Impl::write_float32_(real data)
 
 void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
-    const auto &grid = grid_data.getGrid();
+    const auto &lattice = grid_data.getGrid().getLattice();
     if (bRead)
     {
-        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(grid.getNumLatticePoints()*sizeof(float)) )
+        if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(lattice.getNumLatticePoints()*sizeof(float)) )
         {
             GMX_THROW(gmx::FileIOError("Density format file is smaller than indicated in its header."));
         }
         else
         {
-            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(grid.getNumLatticePoints()*sizeof(float)) )
+            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(lattice.getNumLatticePoints()*sizeof(float)) )
             {
-                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, grid.getNumLatticePoints()*sizeof(float));
+                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, lattice.getNumLatticePoints()*sizeof(float));
             }
         }
     }
 
-    auto num_crs = to_crs_order(IVec {grid.getExtend().data()});
+    auto num_crs = to_crs_order(IVec {lattice.getExtend().data()});
     if (bRead)
     {
         for (int section = 0; section  < num_crs[ZZ]; section++)
@@ -1123,13 +1123,13 @@ Df3File::write(std::string filename, const gmx::Field<real> &grid_data)
     const auto &grid  = grid_data.getGrid();
     auto        file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t     xExtendShort {
-        int16_t(grid.getExtend()[XX])
+        int16_t(grid.getLattice().getExtend()[XX])
     };
     int16_t yExtendShort {
-        int16_t(grid.getExtend()[YY])
+        int16_t(grid.getLattice().getExtend()[YY])
     };
     int16_t zExtendShort {
-        int16_t(grid.getExtend()[ZZ])
+        int16_t(grid.getLattice().getExtend()[ZZ])
     };
     fputc(xExtendShort >> 8, file_);
     fputc(xExtendShort & 0xff, file_);

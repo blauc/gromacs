@@ -231,7 +231,7 @@ void DensityMorph::evaluateFlow_(const Field<real> &differential, std::array<Fie
     {
         densityflow[dimension] =
             *DensityPadding(paddedDensityFlow[dimension])
-                .unpad(differential.getGrid().getExtend());
+                .unpad(differential.getGrid().getLattice().getExtend());
     }
 
     // find the scale for the flow
@@ -294,7 +294,7 @@ void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridInd
 
                 // NOTE: checking boundaries here,
                 // but not for the flow away from voxels violates flow conversation
-                if (d_new.getGrid().inLattice(receivingVoxel))
+                if (d_new.getGrid().getLattice().inLattice(receivingVoxel))
                 {
                     RVec share;
                     for (size_t dimension = 0; dimension < DIM; dimension++)
@@ -361,7 +361,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
              */
             // go through grid and use densityflow to shift density
 
-            auto extend = common_grid.getExtend();
+            auto extend = common_grid.getLattice().getExtend();
 
             // MrcFile().write("flowxx.ccp4", densityflow[XX]);
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);

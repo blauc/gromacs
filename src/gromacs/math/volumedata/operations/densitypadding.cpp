@@ -36,13 +36,15 @@
 #include "densitypadding.h"
 #include "../field.h"
 #include <cmath>
+#include <array>
+#include "gromacs/utility/exceptions.h"
 
 namespace gmx
 {
 
 std::unique_ptr < Field < real>>
 DensityPadding::padPower2() {
-    const auto &extend   = toPad_.getGrid().getExtend();
+    const auto &extend   = toPad_.getGrid().getLattice().getExtend();
     real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
     real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
     real        factorZZ = pow(2, ceil(log(extend[ZZ])/log(2)));
@@ -52,14 +54,27 @@ DensityPadding::padPower2() {
 
 std::unique_ptr < Field < real>>
 DensityPadding::pad(RVec paddingFactor) {
+    std::vector<int> paddedExtend;
+    for (size_t dimension = 0; dimension < DIM; dimension++)
+    {
+        if (paddingFactor[dimension] > 1)
+        {
+            paddedExtend.push_back(std::ceil(paddingFactor[dimension] * toPad_.getGrid().getLattice().getExtend()[dimension]));
+        }
+        else
+        {
+            GMX_THROW(RangeError("Density padding only viable with padding factor >1 , here : "+ std::to_string(paddingFactor[dimension])+ " ."));
+        }
 
-    auto toPadGrid = FiniteGrid(toPad_.getGrid());
-    toPadGrid.multiplyGridPointNumber(paddingFactor);
-    toPadGrid.scaleCell(paddingFactor);
-    std::unique_ptr < Field < real>> padded(new Field<real>(toPadGrid));
+    }
+    auto paddedGrid = FiniteGrid(toPad_.getGrid());
+
+    paddedGrid.setLattice(paddedExtend);
+    paddedGrid.scaleCell(paddingFactor);
+    std::unique_ptr < Field < real>> padded(new Field<real>(paddedGrid));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
-    auto extend = toPad_.getGrid().getExtend();
+    auto extend = toPad_.getGrid().getLattice().getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)
@@ -79,7 +94,7 @@ std::unique_ptr < Field < real>>
 DensityPadding::unpad(const std::vector<int>&unPadExtend) {
 
     auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
-    unpaddedGrid.setExtend(unPadExtend);
+    unpaddedGrid.setLattice(unPadExtend);
     unpaddedGrid.resetCell();
     std::unique_ptr < Field < real>> unpadded(new Field<real>(unpaddedGrid));
 

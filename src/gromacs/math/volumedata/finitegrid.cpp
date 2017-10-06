@@ -82,11 +82,11 @@ void FiniteGrid::Impl::QRDecomposition(const matrix A, matrix Q, matrix R)
     tmmul(A, Q, R);
 }
 
-void FiniteGrid::multiplyGridPointNumber(const RVec factor)
-{
-    Finite3DLatticeIndices::multiplyExtend(factor);
-    set_unit_cell();
-};
+// void FiniteGrid::multiplyGridPointNumber(const RVec factor)
+// {
+// Finite3DLatticeIndices::multiplyExtend(factor);
+// set_unit_cell();
+// };
 
 bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other, real tolerance) const
 {
@@ -110,9 +110,9 @@ bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other, real tolerance)
 }
 void FiniteGrid::set_unit_cell()
 {
-    svmul(1. / getExtend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
-    svmul(1. / getExtend()[YY], impl_->cell_[YY], impl_->unit_cell_[YY]);
-    svmul(1. / getExtend()[ZZ], impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
+    svmul(1. / lattice_.getExtend()[XX], impl_->cell_[XX], impl_->unit_cell_[XX]);
+    svmul(1. / lattice_.getExtend()[YY], impl_->cell_[YY], impl_->unit_cell_[YY]);
+    svmul(1. / lattice_.getExtend()[ZZ], impl_->cell_[ZZ], impl_->unit_cell_[ZZ]);
     invertMatrix(impl_->unit_cell_, impl_->unit_cell_inv_);
 }
 
@@ -126,9 +126,9 @@ void FiniteGrid::scaleCell(RVec scale)
 
 void FiniteGrid::resetCell()
 {
-    svmul(getExtend()[XX], impl_->unit_cell_[XX], impl_->cell_[XX]);
-    svmul(getExtend()[YY], impl_->unit_cell_[YY], impl_->cell_[YY]);
-    svmul(getExtend()[ZZ], impl_->unit_cell_[ZZ], impl_->cell_[ZZ]);
+    svmul(lattice_.getExtend()[XX], impl_->unit_cell_[XX], impl_->cell_[XX]);
+    svmul(lattice_.getExtend()[YY], impl_->unit_cell_[YY], impl_->cell_[YY]);
+    svmul(lattice_.getExtend()[ZZ], impl_->unit_cell_[ZZ], impl_->cell_[ZZ]);
 };
 
 FiniteGrid::Impl::Impl()
@@ -177,18 +177,18 @@ FiniteGrid::Impl::Impl(const Impl &other)
  * FiniteGrid
  */
 FiniteGrid::FiniteGrid() : impl_(new FiniteGrid::Impl()){};
-FiniteGrid::FiniteGrid(const FiniteGrid &other) :  Finite3DLatticeIndices(other), impl_(new FiniteGrid::Impl(*(other.impl_)))
+FiniteGrid::FiniteGrid(const FiniteGrid &other) :  impl_(new FiniteGrid::Impl(*(other.impl_))), lattice_ {other.getLattice()}
 {
 };
 
 FiniteGrid::FiniteGrid(FiniteGrid &other) :
-    Finite3DLatticeIndices(other), impl_(new FiniteGrid::Impl(*(other.impl_)))
+    impl_(new FiniteGrid::Impl(*(other.impl_))), lattice_ {other.getLattice()}
 {
 };
 
 FiniteGrid &FiniteGrid::operator= (const FiniteGrid &other)
 {
-    setExtend(other.getExtend());
+    lattice_ = Finite3DLatticeIndices(other.getLattice().getExtend());
     copy_mat(other.impl_->cell_, impl_->cell_);
     copy_mat(other.impl_->unit_cell_, impl_->unit_cell_);
     copy_mat(other.impl_->unit_cell_inv_, impl_->unit_cell_inv_);
@@ -209,7 +209,7 @@ void FiniteGrid::convertToReciprocalSpace()
 
 real FiniteGrid::grid_cell_volume() const
 {
-    return det(impl_->cell_) / (real)getNumLatticePoints();
+    return det(impl_->cell_) / (real)lattice_.getNumLatticePoints();
 }
 
 void FiniteGrid::set_translation(RVec translate)
@@ -261,13 +261,13 @@ void FiniteGrid::set_cell(RVec length, RVec angle)
     impl_->cell_[ZZ][YY] *= length[ZZ];
     impl_->cell_[ZZ][ZZ] *= length[ZZ];
 
-    if ((getExtend()[XX] > 0) && (getExtend()[YY] > 0) && (getExtend()[ZZ] > 0))
+    if ((lattice_.getExtend()[XX] > 0) && (lattice_.getExtend()[YY] > 0) && (lattice_.getExtend()[ZZ] > 0))
     {
         set_unit_cell();
     }
 };
 
-bool FiniteGrid::rectangular()
+bool FiniteGrid::rectangular() const
 {
     RVec angles = cell_angles();
     for (int i = XX; i <= ZZ; ++i)
@@ -286,7 +286,7 @@ RVec FiniteGrid::unit_cell_YY() const { return impl_->unit_cell_[YY]; }
 
 RVec FiniteGrid::unit_cell_ZZ() const { return impl_->unit_cell_[ZZ]; }
 
-bool FiniteGrid::spacing_is_same_xyz()
+bool FiniteGrid::spacing_is_same_xyz() const
 {
     return (std::abs(norm2(impl_->unit_cell_[XX]) -
                      norm2(impl_->unit_cell_[YY])) < 1e-5) &&
@@ -329,7 +329,7 @@ RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
     return result;
 }
 
-real FiniteGrid::avg_spacing()
+real FiniteGrid::avg_spacing() const
 {
     return (impl_->unit_cell_[XX][XX] + impl_->unit_cell_[YY][YY] +
             impl_->unit_cell_[ZZ][ZZ]) /
@@ -346,10 +346,10 @@ RVec FiniteGrid::gridpoint_coordinate(std::vector<int> i) const
 
 RVec FiniteGrid::gridpoint_coordinate(int linearIndex) const
 {
-    return gridpoint_coordinate(getLatticeIndexFromLinearIndex(linearIndex));
+    return gridpoint_coordinate(lattice_.getLatticeIndexFromLinearIndex(linearIndex));
 }
 
-void FiniteGrid::rotation(matrix Q)
+void FiniteGrid::rotation(matrix Q) const
 {
     matrix R;
     impl_->QRDecomposition(impl_->cell_, Q, R);
@@ -358,7 +358,7 @@ void FiniteGrid::rotation(matrix Q)
 void FiniteGrid::copy_grid(const FiniteGrid &grid)
 {
     copy_mat(grid.impl_->cell_, this->impl_->cell_);
-    Finite3DLatticeIndices::setExtend(grid.getExtend());
+    lattice_ = Finite3DLatticeIndices(grid.getLattice().getExtend());
     set_translation(grid.translation());
     set_unit_cell();
 }
@@ -376,13 +376,23 @@ void FiniteGrid::makeGridUniform()
     }
 }
 
+const Finite3DLatticeIndices FiniteGrid::getLattice() const
+{
+    return lattice_;
+}
+
+void FiniteGrid::setLattice(const Finite3DLatticeIndices &lattice)
+{
+    lattice_ = lattice;
+}
+
 std::string FiniteGrid::print() const
 {
     std::string result("\n  ------- finite grid -------\n");
-    result += "    getExtend       : " + std::to_string(getExtend()[0]) + " " +
-        std::to_string(getExtend()[1]) + " " + std::to_string(getExtend()[2]) +
+    result += "    getExtend       : " + std::to_string(lattice_.getExtend()[0]) + " " +
+        std::to_string(lattice_.getExtend()[1]) + " " + std::to_string(lattice_.getExtend()[2]) +
         "\n";
-    result += "    ngridpoints  : " + std::to_string(getNumLatticePoints()) + "\n";
+    result += "    ngridpoints  : " + std::to_string(lattice_.getNumLatticePoints()) + "\n";
     result += "    translation  : " + std::to_string(translation()[0]) + " " +
         std::to_string(translation()[1]) + " " +
         std::to_string(translation()[2]) + "\n";

@@ -109,8 +109,8 @@ FourierTransformRealToComplex3D::createComplexTransformedFieldFromInput_() const
      */
     auto complexTransformedGrid = FiniteGrid(realInputField_.getGrid());
     complexTransformedGrid.convertToReciprocalSpace();
-    complexTransformedGrid.setExtend(
-            fourierTransformGridExtendfromRealExtend(realInputField_.getGrid().getExtend()));
+    complexTransformedGrid.setLattice(
+            fourierTransformGridExtendfromRealExtend(realInputField_.getGrid().getLattice().getExtend()));
     complexTransformedGrid.resetCell();
     return std::unique_ptr < Field < t_complex>>(new Field<t_complex>(complexTransformedGrid));
 };
@@ -135,7 +135,7 @@ void FourierTransformRealToComplex3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_r2c(
-                    3, columnMajorExtendToRowMajorExtend(realInputField_.getGrid().getExtend()),
+                    3, columnMajorExtendToRowMajorExtend(realInputField_.getGrid().getLattice().getExtend()),
                     (float *)realInputField_.data(),
                     (fftwf_complex *)complexTransformedField.data(),
                     FFTW_ESTIMATE);
@@ -161,7 +161,7 @@ void FourierTransformRealToComplex3D::result(
 std::unique_ptr < Field < real>>
 FourierTransformComplexToReal3D::createRealTransformedFieldFromInput_() const {
     auto realGrid = FiniteGrid(complexInputField_.getGrid());
-    realGrid.setExtend(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().getExtend()));
+    realGrid.setLattice(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().getLattice().getExtend()));
     realGrid.resetCell();
     realGrid.convertToReciprocalSpace();
     return std::unique_ptr < Field < real>>(new Field<real>(realGrid));
@@ -186,7 +186,7 @@ FourierTransformComplexToReal3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_c2r(
-                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getGrid().getExtend()),
+                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getGrid().getLattice().getExtend()),
                     (fftwf_complex *)complexInputField_.data(),
                     (float *)realTransformedField.data(), FFTW_ESTIMATE);
     }
@@ -226,7 +226,7 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
      */
 
     auto fieldGrid    = field_.getGrid();
-    auto extend       = fieldGrid.getExtend();
+    auto extend       = fieldGrid.getLattice().getExtend();
     auto itSectionEnd = field_.iteratorAtMultiIndex({0, 0, extend[ZZ]});
 
     auto k             = RVec {

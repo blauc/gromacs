@@ -57,12 +57,13 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
         return std::move(interpolatedGrid_);
     }
 
-    auto grid = interpolatedGrid_->getGrid();
-    for (int i_z = 0; i_z < grid.getExtend()[ZZ]; ++i_z)
+    auto        grid   = interpolatedGrid_->getGrid();
+    const auto &extend = grid.getLattice().getExtend();
+    for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
-        for (int i_y = 0; i_y < grid.getExtend()[YY]; ++i_y)
+        for (int i_y = 0; i_y < extend[YY]; ++i_y)
         {
-            for (int i_x = 0; i_x < grid.getExtend()[XX]; ++i_x)
+            for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
                 auto r                 = grid.gridpoint_coordinate({i_x, i_y, i_z});
                 interpolatedGrid_->atMultiIndex({i_x, i_y, i_z}) = getLinearInterpolationAt(other, r);
@@ -81,7 +82,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
     }
 
     auto        grid           = interpolatedGrid_->getGrid();
-    const auto &extend         = grid.getExtend();
+    const auto &extend         = grid.getLattice().getExtend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -111,7 +112,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
     auto w_z = rIndexInGrid[ZZ] - (real)iIndexInGrid[ZZ];
 
     std::array<std::array<std::array<real, 2>, 2>, 2> cube;
-
+    const auto &lattice = field.getGrid().getLattice();
     for (int ii_z = 0; ii_z <= 1; ++ii_z)
     {
         for (int ii_y = 0; ii_y <= 1; ++ii_y)
@@ -122,7 +123,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
                 cube_index[XX] += ii_x;
                 cube_index[YY] += ii_y;
                 cube_index[ZZ] += ii_z;
-                if (field.getGrid().inLattice(cube_index))
+                if (lattice.inLattice(cube_index))
                 {
                     cube[ii_x][ii_y][ii_z] = field.atMultiIndex(cube_index);
                 }
