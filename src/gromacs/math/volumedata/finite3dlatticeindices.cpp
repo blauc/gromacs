@@ -54,11 +54,6 @@ std::size_t Finite3DLatticeIndices::getLinearIndexFromLatticeIndex(const std::ve
     return result;
 }
 
-int Finite3DLatticeIndices::getNumLatticePointsXY() const
-{
-    return extend_[XX] *extend_[YY];
-}
-
 int Finite3DLatticeIndices::getNumLatticePoints() const { return extend_[XX] *extend_[YY] * extend_[ZZ]; }
 
 bool Finite3DLatticeIndices::inLattice(int latticeIndex, int dimension) const
