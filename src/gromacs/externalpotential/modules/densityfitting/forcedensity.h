@@ -44,8 +44,8 @@
 
 #include "gmxpre.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/operations/fouriertransform.h"
+#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/operations/fouriertransform.h"
 #include "gromacs/utility/real.h"
 
 #include <array>

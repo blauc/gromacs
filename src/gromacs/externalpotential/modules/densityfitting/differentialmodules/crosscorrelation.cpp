@@ -41,9 +41,9 @@
 //
 // #include "../densityspreader.h"
 // #include "gromacs/fileio/json.h"
-// #include "gromacs/math/volumedata/field.h"
-// #include "gromacs/math/volumedata/gridinterpolator.h"
-// #include "gromacs/math/volumedata/gridmeasures.h"
+// #include "gromacs/math/griddata/field.h"
+// #include "gromacs/math/griddata/gridinterpolator.h"
+// #include "gromacs/math/griddata/gridmeasures.h"
 //
 // #include "gromacs/utility/gmxomp.h"
 // #include "gromacs/utility/real.h"

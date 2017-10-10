@@ -59,7 +59,7 @@ gmx_install_headers(
     xdr_datatype.h
     xtcio.h
     xvgr.h
-    volumedataio.h
+    griddataio.h
     )
 
 if (BUILD_TESTING)

@@ -51,7 +51,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/fileio/pdbio.h"
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
@@ -135,7 +135,7 @@ void RigidBodyFit::initOptions(IOptionsContainer          *options,
 
     options->addOption(FileNameOption("fo").filetype(eftTrajectory).outputFile().store(&fntrajoutput_).description("The trajectory fitted to the input density."));
     options->addOption(FileNameOption("mi")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .inputFile()
                            .store(&fnmapinput_)
                            .defaultBasename("ccp4in")

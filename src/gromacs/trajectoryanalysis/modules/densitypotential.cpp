@@ -51,7 +51,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/fileio/pdbio.h"
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/exceptions.h"
 
@@ -135,7 +135,7 @@ void DensityPotential::initOptions(IOptionsContainer          *options,
     settings->setFlag(TrajectoryAnalysisSettings::efUseTopX, true);
 
     options->addOption(FileNameOption("mi")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .inputFile()
                            .store(&fnmapinput_)
                            .defaultBasename("ccp4in")
@@ -156,7 +156,7 @@ void DensityPotential::initOptions(IOptionsContainer          *options,
                            .store(&bRigidBodyFit_)
                            .description("Use rigid body fitting in all steps."));
     options->addOption(FileNameOption("forcedensity")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .outputFile()
                            .store(&forcedensity_)
                            .description("Force density."));

@@ -38,7 +38,7 @@
 // #include "gmxpre.h"
 //
 // #include "gromacs/math/quaternion.h"
-// #include "gromacs/math/volumedata/field.h"
+// #include "gromacs/math/griddata/field.h"
 // #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 // #include <string>
 // namespace gmx

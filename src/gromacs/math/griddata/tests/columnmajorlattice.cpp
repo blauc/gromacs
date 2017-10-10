@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,38 +32,68 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \defgroup module_volumedata Data On Regular 3D Grids (volumedata)
- * \ingroup group_utilitymodules
+/*! \internal \file
  * \brief
- * Provides functionality for data representation and manipulation on three-dimensional regular grids with arbitrary data.
+ * Tests matrix inversion routines
  *
- * One-dimensional data is placed on a three-dimensional grid following this hierarchy:
- *
- *
- * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
- *
- * \ref gmx::FiniteGrid places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
- *
- * \ref gmx::Field binds one-dimensional data array to a \ref gmx::FiniteGrid.
- *
- * \ref gmx::Field<real> provides functionality for real valued data on the grid.
- *
- * \ref gmx::GridDataAccess provides convinience functionality for accessing slabs, slices and columns of densities.
- *
+ * \todo Test error conditions when they throw exceptions
  *
  * \author Christian Blau <cblau@gwdg.de>
+ * \ingroup module_math
  */
-/*! \file
- * \brief
- * Public API convenience header for volume data handling.
- *
- * \author Christian Blau <cblau@gwdg.de>
- * \inpublicapi
- * \ingroup module_volumedata
- */
+#include "gmxpre.h"
 
-#ifndef GMX_MATH_VOLUMEDATA_H_
-#define GMX_MATH_VOLUMEDATA_H_
+#include "gromacs/math/griddata/columnmajorlattice.h"
+
+#include <array>
+#include <string>
+
+#include <gtest/gtest.h>
+
+#include "testutils/testasserts.h"
+
+namespace gmx
+{
 
 
-#endif // GMX_MATH_VOLUMEDATA_H_
+namespace test
+{
+
+namespace internal
+{
+
+namespace
+{
+
+
+
+TEST(ColumnMajorLatticeTest, canConstructObject)
+{
+    ColumnMajorLattice<2>indexer {
+        ColumnMajorLattice<2>::MultiIndex {{
+                                               4, 2
+                                           }}
+    };
+}
+
+TEST(ColumnMajorLatticeTest, roundTrip)
+{
+
+    ColumnMajorLattice<3> indexer {{{
+                                        2, 3, 4
+                                    }}};
+
+    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(2));
+    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(5));
+    // EXPECT_THROW_GMX();
+}
+
+
+
+} // namespace
+
+} // internal
+
+} // test
+
+} // gmx

@@ -35,5 +35,5 @@
 file(GLOB MATH_SOURCES *.cpp operations/*.cpp)
 
 gmx_install_headers(
-    volumedata.h
+    griddata.h
     )

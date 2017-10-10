@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,66 +32,35 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \internal \file
+/*! \defgroup module_griddata Data On Regular Grids
+ * \ingroup group_utilitymodules
  * \brief
- * Tests matrix inversion routines
+ * Provides functionality for data representation and manipulation on three-dimensional regular grids with arbitrary data.
  *
- * \todo Test error conditions when they throw exceptions
+ * One-dimensional data is placed on a three-dimensional grid following this hierarchy:
+ *
+ *
+ * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
+ *
+ * \ref gmx::FiniteGrid places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
+ *
+ * \ref gmx::Field binds one-dimensional data array to a \ref gmx::FiniteGrid.
+ *
+ * \ref gmx::Field<real> provides functionality for real valued data on the grid.
  *
  * \author Christian Blau <cblau@gwdg.de>
- * \ingroup module_math
  */
-#include "gmxpre.h"
+/*! \file
+ * \brief
+ * Public API convenience header for volume data handling.
+ *
+ * \author Christian Blau <cblau@gwdg.de>
+ * \inpublicapi
+ * \ingroup module_griddata
+ */
 
-#include "gromacs/math/volumedata/columnmajorlattice.h"
-
-#include <array>
-#include <string>
-
-#include <gtest/gtest.h>
-
-#include "testutils/testasserts.h"
-
-namespace gmx
-{
+#ifndef GMX_MATH_GRIDDATA_H_
+#define GMX_MATH_GRIDDATA_H_
 
 
-namespace test
-{
-
-namespace internal
-{
-
-namespace
-{
-
-
-
-TEST(ColumnMajorLatticeTest, canConstructObject)
-{
-    ColumnMajorLattice<2>indexer {{ {
-                                        4, 2
-                                    } }};
-}
-
-TEST(ColumnMajorLatticeTest, roundTrip)
-{
-
-    ColumnMajorLattice<3> indexer {{{
-                                        2, 3, 4
-                                    }}};
-
-    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(2));
-    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(5));
-    // EXPECT_THROW_GMX();
-}
-
-
-
-} // namespace
-
-} // internal
-
-} // test
-
-} // gmx
+#endif // GMX_MATH_GRIDDATA_H_

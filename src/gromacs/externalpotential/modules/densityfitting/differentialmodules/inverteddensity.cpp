@@ -38,7 +38,7 @@
 // #include "gromacs/fileio/json.h"
 // #include <memory>
 // #include <string>
-// #include "gromacs/math/volumedata/gridmeasures.h"
+// #include "gromacs/math/griddata/gridmeasures.h"
 //
 // #include "gromacs/utility/gmxomp.h"
 //

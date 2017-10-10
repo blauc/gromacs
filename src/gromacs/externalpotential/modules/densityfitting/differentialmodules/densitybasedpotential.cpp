@@ -44,9 +44,9 @@
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
 
-#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/griddata/field.h"
 
-#include "gromacs/math/volumedata/operations/gridinterpolator.h"
+#include "gromacs/math/griddata/operations/gridinterpolator.h"
 
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/real.h"

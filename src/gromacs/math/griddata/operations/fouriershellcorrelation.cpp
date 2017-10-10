@@ -42,7 +42,7 @@
 #include "fouriertransform.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/griddata/field.h"
 
 #include <set>
 #include <functional>

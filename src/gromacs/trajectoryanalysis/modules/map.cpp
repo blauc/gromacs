@@ -48,11 +48,11 @@
 #include "gromacs/externalpotential/modules/densityfitting/densityspreader.h"
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/fileio/pdbio.h"
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/math/volumedata/operations/modifygriddata.h"
-#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
+#include "gromacs/math/griddata/operations/modifygriddata.h"
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/ioptionscontainer.h"
@@ -146,20 +146,20 @@ void Map::initOptions(IOptionsContainer          *options,
     settings->setFlag(TrajectoryAnalysisSettings::efUseTopX, true);
 
     options->addOption(FileNameOption("mi")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .inputFile()
                            .store(&fnmapinput_)
                            .defaultBasename("ccp4in")
                            .description("CCP4 density map input file"));
     options->addOption(FileNameOption("mo")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .outputFile()
                            .store(&fnmapoutput_)
                            .defaultBasename("ccp4out")
                            .description("CCP4 density map output file"));
     options->addOption(
             FileNameOption("mofr")
-                .filetype(eftVolumeData)
+                .filetype(eftgriddata)
                 .outputFile()
                 .store(&fnfrmapoutput_)
                 .defaultBasename("ccp4out")

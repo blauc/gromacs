@@ -36,8 +36,8 @@
 #include "rigidbodyfit.h"
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
+#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/selection/centerofmass.h"
 #include "gromacs/math/vec.h"
 

@@ -38,10 +38,11 @@
  *
  * \author Christian Blau <cblau@gwdg.de>
  * \ingroup module_fileio
+ * \ingroup module_griddata
  */
 #include "gmxpre.h"
 
-#include "volumedataio.h"
+#include "griddataio.h"
 
 #include "config.h"
 
@@ -57,7 +58,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/math/units.h"
-#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
 
 namespace gmx
 {

@@ -41,13 +41,13 @@
  * \ingroup module_fileio
  */
 
-#ifndef GMX_FILEIO_VOLUMEDATAIO_H_
-#define GMX_FILEIO_VOLUMEDATAIO_H_
+#ifndef GMX_FILEIO_GRIDDATAIO_H_
+#define GMX_FILEIO_GRIDDATAIO_H_
 #include <array>
 #include <memory>
 #include <string>
 
-#include "gromacs/math/volumedata/field.h"
+#include "gromacs/math/griddata/field.h"
 
 namespace gmx
 {
@@ -99,7 +99,7 @@ struct MrcMetaData{
  * However, other ccp4, mrc, imod and map formats might be compatible.
  *
  * Future implementations for reading crystallographic data or image stacks might
- * want to split MrcFile into an abstract volumedata base class and respective
+ * want to split MrcFile into an abstract griddata base class and respective
  * child implementatons, if demand exists.
  */
 class MrcFile
@@ -175,4 +175,4 @@ class Df3File
 };
 
 }      // namespace gmx
-#endif /* end of include guard: GMX_FILEIO_VOLUMEDATAIO_H_ */
+#endif /* end of include guard: GMX_FILEIO_GRIDDATAIO_H_ */

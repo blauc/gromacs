@@ -39,7 +39,7 @@
 //
 // #include "common.h"
 // #include "../densityspreader.h"
-// #include "gromacs/math/volumedata/field.h"
+// #include "gromacs/math/griddata/field.h"
 // #include "gromacs/math/quaternion.h"
 // #include <string>
 // namespace gmx

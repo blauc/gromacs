@@ -35,9 +35,9 @@
 
 #include "kullbackleibler.h"
 #include "gromacs/fileio/json.h"
-#include "gromacs/math/volumedata/operations/gridinterpolator.h"
-#include "gromacs/math/volumedata/operations/comparefields.h"
-#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
+#include "gromacs/math/griddata/operations/gridinterpolator.h"
+#include "gromacs/math/griddata/operations/comparefields.h"
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/utility/gmxomp.h"
 #include <memory>
 #include <string>

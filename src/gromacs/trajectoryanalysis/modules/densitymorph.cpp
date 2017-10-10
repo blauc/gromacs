@@ -52,12 +52,12 @@
 
 #include "gromacs/externalpotential/modules/densityfitting/forcedensity.h"
 
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 
-#include "gromacs/math/volumedata/operations/densitypadding.h"
-#include "gromacs/math/volumedata/operations/comparefields.h"
-#include "gromacs/math/volumedata/operations/realfieldmeasure.h"
-#include "gromacs/math/volumedata/operations/modifygriddata.h"
+#include "gromacs/math/griddata/operations/densitypadding.h"
+#include "gromacs/math/griddata/operations/comparefields.h"
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
+#include "gromacs/math/griddata/operations/modifygriddata.h"
 
 #include "gromacs/utility/exceptions.h"
 
@@ -137,7 +137,7 @@ void DensityMorph::initOptions(IOptionsContainer          *options,
     settings->setHelpText(desc);
 
     options->addOption(FileNameOption("from")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .inputFile()
                            .store(&fnmobile_)
                            .defaultBasename("mobile")
@@ -158,21 +158,21 @@ void DensityMorph::initOptions(IOptionsContainer          *options,
                                "Feature size for morph."));
 
     options->addOption(FileNameOption("to")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .inputFile()
                            .defaultBasename("mobile")
                            .store(&fntarget_)
                            .description("CCP4 density map to oldMorph into."));
 
     options->addOption(FileNameOption("forces")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .outputFile()
                            .defaultBasename("forces")
                            .store(&fnforcedensity_)
                            .description("CCP4 density maps with forces."));
 
     options->addOption(FileNameOption("morph")
-                           .filetype(eftVolumeData)
+                           .filetype(eftgriddata)
                            .outputFile()
                            .store(&fnmorphtraj_)
                            .description("CCP4 density maps during morphing."));

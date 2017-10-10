@@ -44,7 +44,7 @@
 #include "densitypadding.h"
 #include "../field.h"
 #include "gromacs/fft/parallel_3dfft.h"
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/real.h"

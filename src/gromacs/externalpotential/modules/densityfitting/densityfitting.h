@@ -43,7 +43,7 @@
 #include "gromacs/externalpotential/externalpotential.h"
 #include "gromacs/externalpotential/modules.h"
 #include "gromacs/mdtypes/commrec.h"
-#include "gromacs/fileio/volumedataio.h"
+#include "gromacs/fileio/griddataio.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/math/quaternion.h"
 

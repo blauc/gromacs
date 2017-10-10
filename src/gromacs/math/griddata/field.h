@@ -40,10 +40,10 @@
  * \inpublicapi
  */
 
-#ifndef GMX_MATH_VOLUMEDATA_FIELD_H
-#define GMX_MATH_VOLUMEDATA_FIELD_H
+#ifndef GMX_MATH_griddata_FIELD_H
+#define GMX_MATH_griddata_FIELD_H
 
-#include "volumedata.h"
+#include "griddata.h"
 #include "finitegrid.h"
 
 #include <vector>
@@ -135,4 +135,4 @@ template <class T, class F> void ApplyToField(Field<T> &field, F function)
 
 }      // namespace gmx
 
-#endif /* end of include guard: GMX_MATH_VOLUMEDATA_FIELD_H */
+#endif /* end of include guard: GMX_MATH_griddata_FIELD_H */

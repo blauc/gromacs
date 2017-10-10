@@ -34,10 +34,10 @@
  */
 #include "densityspreader.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
-#include "gromacs/math/volumedata/field.h"
-#include "gromacs/math/volumedata/operations/modifygriddata.h"
+#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/operations/modifygriddata.h"
 #include "gromacs/utility/gmxomp.h"
-#include "gromacs/math/volumedata/operations/gausstransform.h"
+#include "gromacs/math/griddata/operations/gausstransform.h"
 #include "gromacs/math/quaternion.h"
 
 #include <algorithm>

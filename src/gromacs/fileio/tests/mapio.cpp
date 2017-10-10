@@ -47,8 +47,8 @@
 #include <gtest/gtest.h>
 
 #include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/volumedataio.h"
-#include "gromacs/math/volumedata/volumedata.h"
+#include "gromacs/fileio/griddataio.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/utility/path.h"
 
 #include "testutils/testfilemanager.h"
