@@ -1156,6 +1156,7 @@ void Df3File::SuccessfulDf3Write::writePovray()
 {
     const auto &grid         = gridData_.getGrid();
     auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
+    auto        translation  = grid.getCell().coordinateTransformFromCellSpace({0., 0., 0.});
     std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.getCell().cell_lengths()[XX]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[YY]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[ZZ]) + ">;\n";
     povRayString += std::string("#declare theinterior = interior {\n")
         +"\tmedia {\n"
@@ -1179,7 +1180,7 @@ void Df3File::SuccessfulDf3Write::writePovray()
         +"\t\tinterior { theinterior }\n"
         +"\t\thollow\n"
         +"\t\tscale DD\n"
-        +"\t\ttranslate <" + std::to_string(NM2A *grid.translation()[XX]) + ","+std::to_string(NM2A *grid.translation()[YY])+ "," + std::to_string(NM2A *grid.translation()[ZZ]) + ">\n"
+        +"\t\ttranslate <" + std::to_string(NM2A *translation[XX]) + ","+std::to_string(NM2A *translation[YY])+ "," + std::to_string(NM2A *translation[ZZ]) + ">\n"
         +"\t}\n";
     fprintf(file, "%s", povRayString.c_str());
     gmx_fio_fclose(file);

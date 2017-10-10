@@ -50,10 +50,6 @@ class FiniteGrid
          */
         std::string print() const;
 
-        /*! \brief
-         * set unit cell; divide cell matrix by extend in respective direction
-         */
-        void set_unit_cell();
 
         void scaleCell(RVec scale);
         /*! \brief
@@ -71,16 +67,18 @@ class FiniteGrid
          * Set the real-space coordinate of gridpoint (0,0,0).
          */
         void set_translation(RVec translate);
-        RVec translation() const; //!< return real-space coordinate of gridpoint (0,0,0).
 
         GridCell getCell() const;
 
         GridCell getUnitCell() const;
 
     private:
-        GridCell                          cell_;
-        GridCell                          unit_cell_;
-        GridCell                          unit_cell_inv_;
+        /*! \brief
+         * set unit cell; divide cell matrix by extend in respective direction
+         */
+        void setUnitCell_();
+        GridCell                          cell_ {{1., 1., 1.}, {90, 90, 90}};
+        GridCell                          unit_cell_ {{1., 1., 1.}, {90, 90, 90}};
         RVec                              translation_;
         ColumnMajorLattice<DIM>           lattice_ {{{1, 1, 1}}};
 };

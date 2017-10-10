@@ -1,5 +1,4 @@
-#ifndef GMX_MATH_GRIDCELL
-#define GMX_MATH_GRIDCELL
+
 
 #include "gridcell.h"
 
@@ -8,72 +7,23 @@
 namespace gmx
 {
 
-namespace
+GridCell::GridCell(matrix cell)
 {
-
-
-/*! \brief
- * Projects vector a onto vector b, stores this projection in c. Conveninence
- * function for Gram-Schmidt method.
- */
-void project(const rvec a, const rvec b, rvec c)
-{
-    svmul(iprod(a, b) / iprod(a, a), a, c);
-}
-
-
-/*! \brief
- * Gram-Schmidt orthonormalisation.
- *
- * The numerical shortcommings of Gram-Schmidt
- * should not matter for three dimensions and cell matrices.
- */
-void QRDecomposition(const matrix A, matrix Q, matrix R)
-{
-    rvec u;
-    copy_rvec(A[XX], Q[XX]);
-
-    copy_rvec(A[YY], Q[YY]);
-    project(Q[YY], Q[XX], u);
-    rvec_dec(Q[YY], u);
-
-    copy_rvec(A[ZZ], Q[ZZ]);
-    project(Q[ZZ], Q[XX], u);
-    rvec_dec(Q[ZZ], u);
-    project(Q[ZZ], Q[YY], u);
-    rvec_dec(Q[ZZ], u);
-
-    unitv(Q[XX], Q[XX]);
-    unitv(Q[YY], Q[YY]);
-    unitv(Q[ZZ], Q[ZZ]);
-
-    tmmul(A, Q, R);
-}
-
-}
+    copy_mat(cell, cell_);
+    invertMatrix(cell_, cellInverse_);
+};
 
 GridCell GridCell::scale(const RVec scale) const
 {
-    GridCell result;
+    matrix result;
     for (int i = 0; i < DIM; i++)
     {
         for (int j = 0; j < DIM; j++)
         {
-            result.cell_[i][j] = scale[i] * cell_[i][j];
+            result[i][j] = scale[i] * cell_[i][j];
         }
     }
-    return result;
-}
-
-const matrix &GridCell::getMatrix() const
-{
-    return cell_;
-}
-
-void GridCell::rotation(matrix Q) const
-{
-    matrix R;
-    QRDecomposition(cell_, Q, R);
+    return GridCell(result);
 }
 
 bool GridCell::spacing_is_same_xyz() const
@@ -105,6 +55,20 @@ RVec GridCell::cell_lengths() const
     };
 }
 
+RVec GridCell::coordinateTransformToCellSpace(RVec x) const
+{
+    RVec result;
+    mvmul(cellInverse_, x, result);
+    return result;
+}
+
+RVec GridCell::coordinateTransformFromCellSpace(RVec x)  const
+{
+    RVec result;
+    mvmul(cell_, x, result);
+    return result;
+}
+
 RVec GridCell::cell_angles() const
 {
     return {
@@ -134,22 +98,14 @@ const rvec &GridCell::operator[](int i) const
 }
 
 
-GridCell GridCell::inverse()
+GridCell GridCell::inverse() const
 {
     matrix   inv;
     invertMatrix(cell_, inv);
-    GridCell result;
-    for (int i = 0; i < DIM; i++)
-    {
-        for (int j = 0; j < DIM; j++)
-        {
-            result.cell_[i][j] = inv[i][j];
-        }
-    }
-    return result;
+    return GridCell(inv);
 };
 
-void GridCell::set_cell(RVec length, RVec angle)
+GridCell::GridCell(RVec length, RVec angle)
 {
 
     real cos_beta  = cos(M_PI * angle[YY] / 180.);
@@ -179,5 +135,3 @@ void GridCell::set_cell(RVec length, RVec angle)
 
 
 }
-
-#endif
