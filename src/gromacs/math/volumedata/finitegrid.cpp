@@ -72,31 +72,28 @@ void FiniteGrid::set_translation(RVec translate)
 }
 
 RVec FiniteGrid::translation() const { return translation_; }
+//
+// std::array<int,3> FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
+// {
+//     RVec result = coordinateToRealGridIndex(x);
+//     return {
+//                (int)round(result[XX]), (int)round(result[YY]),
+//                (int)round(result[ZZ])
+//     };
+// }
+//
+// std::vector<int> FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
+// {
+//     RVec result = coordinateToRealGridIndex(x);
+//     return {
+//                (int)ceil(result[XX]), (int)ceil(result[YY]), (int)ceil(result[ZZ])
+//     };
+// }
 
-std::vector<int> FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
+IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
 {
     RVec result = coordinateToRealGridIndex(x);
-    return {
-               (int)round(result[XX]), (int)round(result[YY]),
-               (int)round(result[ZZ])
-    };
-}
-
-std::vector<int> FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
-{
-    RVec result = coordinateToRealGridIndex(x);
-    return {
-               (int)ceil(result[XX]), (int)ceil(result[YY]), (int)ceil(result[ZZ])
-    };
-}
-
-std::vector<int> FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
-{
-    RVec result = coordinateToRealGridIndex(x);
-    return {
-               (int)floor(result[XX]), (int)floor(result[YY]),
-               (int)floor(result[ZZ])
-    };
+    return { static_cast<int>(floor(result[XX])), static_cast<int>(floor(result[YY])), static_cast<int>(floor(result[ZZ])) };
 }
 
 RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
@@ -115,7 +112,7 @@ real FiniteGrid::avg_spacing() const
            3;
 }
 
-RVec FiniteGrid::gridpoint_coordinate(std::vector<int> i) const
+RVec FiniteGrid::gridpoint_coordinate(std::array<int, 3> i) const
 {
     RVec result;
     mvmul(unit_cell_.getMatrix(), RVec(i[XX], i[YY], i[ZZ]), result);
@@ -150,12 +147,12 @@ void FiniteGrid::setCell(RVec length, RVec angle)
 }
 
 
-const Finite3DLatticeIndices FiniteGrid::getLattice() const
+const Finite3DLatticeIndices<3> FiniteGrid::getLattice() const
 {
     return lattice_;
 }
 
-void FiniteGrid::setLattice(const Finite3DLatticeIndices &lattice)
+void FiniteGrid::setLattice(const Finite3DLatticeIndices<3> &lattice)
 {
     lattice_ = lattice;
 }

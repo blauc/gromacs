@@ -54,14 +54,14 @@
 namespace gmx
 {
 
-std::vector<int> realGridExtendFromFourierTransfrom(const std::vector<int> &extend);
-std::vector<int> fourierTransformGridExtendfromRealExtend(const std::vector<int> &extend);
+std::array<int, 3> realGridExtendFromFourierTransfrom(const std::array<int, 3> &extend);
+std::array<int, 3> fourierTransformGridExtendfromRealExtend(const std::array<int, 3> &extend);
 
 class FourierTransform3D
 {
     public:
         ~FourierTransform3D();
-        IVec columnMajorExtendToRowMajorExtend(const std::vector<int> &extend) const;
+        std::array<int, 3> columnMajorExtendToRowMajorExtend(const std::array<int, 3> &extend) const;
         void execute();
 
     protected:

@@ -70,8 +70,8 @@ struct MrcMetaData{
 
     IVec                       crs_to_xyz;               //!< Axis order
     IVec                       xyz_to_crs;               //!< reversed Axis order
-    IVec                       num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
-    IVec                       extend;                   //!< the grid extend, check against num_crs
+    std::array<int, 3>         num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
+    std::array<int, 3>         extend;                   //!< the grid extend, check against num_crs
     IVec                       crs_start;                //!< Start of values in grid, typically 0,0,0
 
     float                      min_value;                //!< minimum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)

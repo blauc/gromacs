@@ -187,7 +187,7 @@ FastGaussianGridding::tensor_product_()
             int globalGridIndexXXEnd   = std::min(maximumGlobalGridIndex[XX], grid_index_of_spread_atom_[XX] + ceilSqrtLUT[std::abs(d_z)][std::abs(d_y)]);
             int localGridIndexXXStart  = globalGridIndexXXStart - grid_index_of_spread_atom_[XX]+m_spread_;
             int numberSpreadVoxelsXX   = globalGridIndexXXEnd-globalGridIndexXXStart;
-            voxel        = grid_->iteratorAtMultiIndex({globalGridIndexXXStart, globalGridIndexYY, globalGridIndexZZ});
+            voxel        = grid_->iteratorAtMultiIndex({{globalGridIndexXXStart, globalGridIndexYY, globalGridIndexZZ}});
             spread_1d_XX = &(spread_1d_[XX][localGridIndexXXStart]);
 
             for (int l_x = 0; l_x <= numberSpreadVoxelsXX; ++l_x)
@@ -202,7 +202,7 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(x);
+    grid_index_of_spread_atom_ = {{*grid_->getGrid().coordinate_to_gridindex_floor_ivec(x)}};
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {

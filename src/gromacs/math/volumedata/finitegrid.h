@@ -39,10 +39,10 @@ class FiniteGrid
         RVec gridpoint_coordinate(int i) const;
         RVec coordinateToRealGridIndex(const rvec x) const;
 
-        std::vector<int> coordinate_to_gridindex_ceil_ivec(const rvec x);
-        std::vector<int> coordinate_to_gridindex_round_ivec(const rvec x);
-        std::vector<int> coordinate_to_gridindex_floor_ivec(const rvec x) const;
-        RVec gridpoint_coordinate(std::vector<int> i) const;
+        // std::vector<int> coordinate_to_gridindex_ceil_ivec(const rvec x);
+        // std::vector<int> coordinate_to_gridindex_round_ivec(const rvec x);
+        IVec coordinate_to_gridindex_floor_ivec(const rvec x) const;
+        RVec gridpoint_coordinate(std::array<int, 3> i) const;
 
         real grid_cell_volume() const;
 
@@ -71,9 +71,9 @@ class FiniteGrid
 
         void setCell(RVec length, RVec angle);
 
-        const Finite3DLatticeIndices getLattice() const;
+        const Finite3DLatticeIndices<DIM> getLattice() const;
 
-        void setLattice(const Finite3DLatticeIndices &lattice);
+        void setLattice(const Finite3DLatticeIndices<DIM> &lattice);
         /*! \brief
          *
          * Set the real-space coordinate of gridpoint (0,0,0).
@@ -90,7 +90,7 @@ class FiniteGrid
         GridCell                          unit_cell_;
         GridCell                          unit_cell_inv_;
         RVec                              translation_;
-        Finite3DLatticeIndices            lattice_;
+        Finite3DLatticeIndices<DIM>       lattice_;
 };
 
 }

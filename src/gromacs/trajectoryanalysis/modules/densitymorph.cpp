@@ -100,7 +100,7 @@ class DensityMorph : public TrajectoryAnalysisModule
 
         void evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential);
         void evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow);
-        void applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, Field<real> &d_new, const Field<real> &d_old);
+        void applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, Field<real> &d_new, const Field<real> &d_old);
         void scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale);
         std::string             fnmobile_       = "from.ccp4";
         std::string             fntarget_       = "to.ccp4";
@@ -255,7 +255,7 @@ void DensityMorph::scaleFlow_(std::array<Field<real>, DIM> &densityflow, real sc
     }
 }
 
-void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::vector<int> &gridIndex, Field<real> &d_new, const Field<real> &d_old)
+void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, Field<real> &d_new, const Field<real> &d_old)
 {
     auto f = norm(f_vec);
 
@@ -382,9 +382,9 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     for (int ix = 0; ix < extend[XX]; ix++)
                     {
 
-                        std::vector<int> gridIndex {
-                            ix, iy, iz
-                        };
+                        std::array<int, 3> gridIndex { {
+                                                           ix, iy, iz
+                                                       } };
                         RVec f_vec {
                             densityflow[XX].atMultiIndex(gridIndex), densityflow[YY].atMultiIndex(gridIndex),
                             densityflow[ZZ].atMultiIndex(gridIndex)

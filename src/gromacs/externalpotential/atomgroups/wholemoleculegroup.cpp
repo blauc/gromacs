@@ -116,7 +116,7 @@ void
 WholeMoleculeGroup::reSort_(std::vector<int> &to_sort, const std::vector<int> &sortIndex)
 {
     std::vector<int> sorted(sortIndex.size());
-    for (std::size_t i  = 0; i < to_sort.size(); ++i)
+    for (int i  = 0; i < to_sort.size(); ++i)
     {
         sorted[i] = to_sort[sortIndex[i]];
     }
@@ -127,11 +127,11 @@ void
 WholeMoleculeGroup::reSortrVec_(rvec * to_sort, const std::vector<int> &sortIndex)
 {
     std::vector<RVec> new_to_sort(sortIndex.size());
-    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    for (int i  = 0; i < sortIndex.size(); ++i)
     {
         new_to_sort[i] = to_sort[sortIndex[i]];
     }
-    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    for (int i  = 0; i < sortIndex.size(); ++i)
     {
         copy_rvec(new_to_sort[i], to_sort[i]);
     }
@@ -141,11 +141,11 @@ void
 WholeMoleculeGroup::reSortReal_(std::vector<real> &to_sort, const std::vector<int> &sortIndex)
 {
     std::vector<real> sorted(sortIndex.size());
-    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    for (int i  = 0; i < sortIndex.size(); ++i)
     {
         sorted[i] = to_sort[sortIndex[i]];
     }
-    for (std::size_t i  = 0; i < sortIndex.size(); ++i)
+    for (int i  = 0; i < sortIndex.size(); ++i)
     {
         to_sort[i] = sorted[i];
     }

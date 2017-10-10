@@ -97,7 +97,7 @@ class MrcFile::Impl
 
         IVec xyz_to_crs(const IVec order);
         IVec to_xyz_order(const IVec i_crs);
-        IVec to_crs_order(const IVec xyz_order);
+        std::array<int, 3> to_crs_order(const std::array<int, 3> xyz_order);
         void set_crs_to_xyz(const IVec order);
 
         /*! \brief Guess, whether endianess differs between input file and reading architecture .
@@ -361,9 +361,9 @@ void MrcFile::Impl::read_format_identifier()
 
 }
 
-IVec MrcFile::Impl::to_crs_order(IVec xyz_order)
+std::array<int, 3> MrcFile::Impl::to_crs_order(std::array<int, 3> xyz_order)
 {
-    IVec result;
+    std::array<int, 3> result;
     result[meta_.xyz_to_crs[XX]] = xyz_order[XX];
     result[meta_.xyz_to_crs[YY]] = xyz_order[YY];
     result[meta_.xyz_to_crs[ZZ]] = xyz_order[ZZ];
@@ -412,12 +412,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention: NC=NR=NS                     */
     if (bRead)
     {
-        meta_.num_crs = read_int32_ivec_();
     }
     else
     {
-        write_int32_ivec_(to_crs_order(IVec {grid_data.getLattice().getExtend().data()}));
-    } \
+        write_int32_ivec_({to_crs_order(grid_data.getLattice().getExtend()).data()});
+    }
 
     /* 4   | MODE | signed int | 0,1,2,3,4
      * voxel datatype
@@ -454,13 +453,13 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
 
     if (bRead)
     {
-        meta_.extend = read_int32_ivec_();
-        std::vector<int> extend = {meta_.extend[XX], meta_.extend[YY], meta_.extend[ZZ]};
-        newGrid.setLattice(extend);
+        auto ivecExtend = read_int32_ivec_();
+        meta_.extend = {{ivecExtend[XX], ivecExtend[YY], ivecExtend[ZZ]}};
+        newGrid.setLattice(meta_.extend);
     }
     else
     {
-        write_int32_ivec_(IVec {grid_data.getLattice().getExtend().data()});
+        write_int32_ivec_({grid_data.getLattice().getExtend().data()});
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -519,11 +518,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
             set_crs_to_xyz(crs_to_xyz);
         }
         newGrid.set_translation(newGrid.gridpoint_coordinate(
-                                        {
-                                            meta_.crs_start[meta_.xyz_to_crs[XX]],
-                                            meta_.crs_start[meta_.xyz_to_crs[YY]],
-                                            meta_.crs_start[meta_.xyz_to_crs[ZZ]]
-                                        }));
+                                        {{
+                                             meta_.crs_start[meta_.xyz_to_crs[XX]],
+                                             meta_.crs_start[meta_.xyz_to_crs[YY]],
+                                             meta_.crs_start[meta_.xyz_to_crs[ZZ]]
+                                         }}));
     }
     else
     {
@@ -861,7 +860,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
         }
     }
 
-    auto num_crs = to_crs_order(IVec {lattice.getExtend().data()});
+    auto num_crs = to_crs_order(lattice.getExtend());
     if (bRead)
     {
         for (int section = 0; section  < num_crs[ZZ]; section++)
@@ -870,9 +869,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    IVec             xyz_IVec = to_xyz_order({column, row, section});
-                    std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
-                    grid_data.atMultiIndex(xyz) = read_float32_();
+                    grid_data.atMultiIndex({{*to_xyz_order({column, row, section})}}) = read_float32_();
                 }
             }
         }
@@ -886,9 +883,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    IVec             xyz_IVec = to_xyz_order({column, row, section});
-                    std::vector<int> xyz      = {xyz_IVec[XX], xyz_IVec[YY], xyz_IVec[ZZ]};
-                    write_float32_(grid_data.atMultiIndex(xyz));
+                    write_float32_(grid_data.atMultiIndex({{*to_xyz_order({column, row, section})}}));
                 }
             }
         }

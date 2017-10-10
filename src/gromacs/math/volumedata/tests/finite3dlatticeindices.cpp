@@ -45,7 +45,7 @@
 
 #include "gromacs/math/volumedata/finite3dlatticeindices.h"
 
-#include <vector>
+#include <array>
 
 #include <gtest/gtest.h>
 
@@ -63,17 +63,39 @@ namespace internal
 
 namespace
 {
-w
+
 
 
 TEST(Finite3DLatticeIndicesTest, canConstructObject)
 {
+    Finite3DLatticeIndices<3> indexer {{{
+                                            2, 2, 2
+                                        }}};
+    fprintf(stderr, "\n");
+    for (int j = 0; j < 8; ++j)
+    {
 
-    // EXPECT_THROW_GMX();
-    Finite3DLatticeIndices({1, 1, 1});
-    Finite3DLatticeIndices({1, 1, 1}).getLatticeIndexFromLinearIndex(-1);
-
+        auto result = indexer.getLatticeIndexFromLinearIndex(j);
+        for (auto i : result)
+        {
+            fprintf(stderr, "%s", (std::to_string(i)+" ").c_str());
+        }
+        fprintf(stderr, "\n");
+    }
 }
+
+TEST(Finite3DLatticeIndicesTest, roundTrip)
+{
+
+    Finite3DLatticeIndices<3> indexer {{{
+                                            2, 3, 4
+                                        }}};
+
+    indexer.getLinearIndexFromLatticeIndex(indexer.getLatticeIndexFromLinearIndex(2));
+    indexer.getLinearIndexFromLatticeIndex(indexer.getLatticeIndexFromLinearIndex(5));
+    // EXPECT_THROW_GMX();
+}
+
 
 
 } // namespace

@@ -55,11 +55,11 @@
 namespace gmx
 {
 
-IVec FourierTransform3D::columnMajorExtendToRowMajorExtend(const std::vector<int> &extend) const
+std::array<int, 3> FourierTransform3D::columnMajorExtendToRowMajorExtend(const std::array<int, 3> &extend) const
 {
-    return {
-               extend[ZZ], extend[YY], extend[XX]
-    };
+    return { {
+                 extend[ZZ], extend[YY], extend[XX]
+             } };
 }
 
 void
@@ -84,17 +84,21 @@ FourierTransformComplexToReal3D::normalize()
 
 FourierTransform3D::~FourierTransform3D() { fftwf_destroy_plan(plan_); }
 
-std::vector<int> fourierTransformGridExtendfromRealExtend(const std::vector<int> &extend)
+std::array<int, 3> fourierTransformGridExtendfromRealExtend(const std::array<int, 3> &extend)
 {
     return {
-               extend[XX] / 2 + 1, extend[YY], extend[ZZ]
+               {
+                   extend[XX] / 2 + 1, extend[YY], extend[ZZ]
+               }
     };
 };
 
-std::vector<int> realGridExtendFromFourierTransfrom(const std::vector<int> &extend)
+std::array<int, 3> realGridExtendFromFourierTransfrom(const std::array<int, 3> &extend)
 {
     return {
-               (extend[XX] - 1) * 2, extend[YY], extend[ZZ]
+               {
+                   (extend[XX] - 1) * 2, extend[YY], extend[ZZ]
+               }
     };
 };
 
@@ -135,7 +139,7 @@ void FourierTransformRealToComplex3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_r2c(
-                    3, columnMajorExtendToRowMajorExtend(realInputField_.getGrid().getLattice().getExtend()),
+                    3, columnMajorExtendToRowMajorExtend(realInputField_.getGrid().getLattice().getExtend()).data(),
                     (float *)realInputField_.data(),
                     (fftwf_complex *)complexTransformedField.data(),
                     FFTW_ESTIMATE);
@@ -186,7 +190,7 @@ FourierTransformComplexToReal3D::result(
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_c2r(
-                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getGrid().getLattice().getExtend()),
+                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getGrid().getLattice().getExtend()).data(),
                     (fftwf_complex *)complexInputField_.data(),
                     (float *)realTransformedField.data(), FFTW_ESTIMATE);
     }
@@ -227,14 +231,14 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
 
     auto fieldGrid    = field_.getGrid();
     auto extend       = fieldGrid.getLattice().getExtend();
-    auto itSectionEnd = field_.iteratorAtMultiIndex({0, 0, extend[ZZ]});
+    auto itSectionEnd = field_.iteratorAtMultiIndex({{0, 0, extend[ZZ]}});
 
     auto k             = RVec {
         0., 0., 0.
     };
     auto deltakSection = fieldGrid.getUnitCell()[ZZ];
-    auto itMidSection  = field_.iteratorAtMultiIndex({0, 0, extend[ZZ] / 2 + 1});
-    for (std::vector<t_complex>::iterator itValue = field_.iteratorAtMultiIndex({0, 0, 0}); itValue != itMidSection;
+    auto itMidSection  = field_.iteratorAtMultiIndex({{0, 0, extend[ZZ] / 2 + 1}});
+    for (std::vector<t_complex>::iterator itValue = field_.iteratorAtMultiIndex({{0, 0, 0}}); itValue != itMidSection;
          itValue += extend[XX]*extend[YY])
     {
         applyToAllColumnsWithinSection_(

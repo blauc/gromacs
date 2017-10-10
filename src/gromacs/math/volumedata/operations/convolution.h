@@ -44,6 +44,7 @@
 
 #include "../field.h"
 #include "gromacs/math/gmxcomplex.h"
+#include <array>
 
 namespace gmx
 {
@@ -56,8 +57,8 @@ class GaussConvolution
         GaussConvolution &pad(RVec paddingFactor);
 
     private:
-        const std::vector<int> &extendBeforePadding_;
-        const Field<real>      &input_;
+        const std::array<int, 3> &extendBeforePadding_;
+        const Field<real>        &input_;
         std::unique_ptr < Field < real>> padded_input_;
         std::unique_ptr < Field < t_complex>> fourierTransform_;
 };

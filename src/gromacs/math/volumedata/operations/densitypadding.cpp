@@ -54,12 +54,12 @@ DensityPadding::padPower2() {
 
 std::unique_ptr < Field < real>>
 DensityPadding::pad(RVec paddingFactor) {
-    std::vector<int> paddedExtend;
-    for (size_t dimension = 0; dimension < DIM; dimension++)
+    std::array<int, 3> paddedExtend;
+    for (int dimension = 0; dimension < DIM; dimension++)
     {
         if (paddingFactor[dimension] > 1)
         {
-            paddedExtend.push_back(std::ceil(paddingFactor[dimension] * toPad_.getGrid().getLattice().getExtend()[dimension]));
+            paddedExtend[dimension] = std::ceil(paddingFactor[dimension] * toPad_.getGrid().getLattice().getExtend()[dimension]);
         }
         else
         {
@@ -81,7 +81,7 @@ DensityPadding::pad(RVec paddingFactor) {
         {
             for (int iXX = 0; iXX < extend[XX]; ++iXX)
             {
-                padded->atMultiIndex({iXX, iYY, iZZ}) = toPad_.atMultiIndex({iXX, iYY, iZZ});
+                padded->atMultiIndex({{iXX, iYY, iZZ}}) = toPad_.atMultiIndex({{iXX, iYY, iZZ}});
             }
         }
     }
@@ -91,7 +91,7 @@ DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
 {}
 
 std::unique_ptr < Field < real>>
-DensityPadding::unpad(const std::vector<int>&unPadExtend) {
+DensityPadding::unpad(const  std::array<int, 3> &unPadExtend) {
 
     auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
     unpaddedGrid.setLattice(unPadExtend);
@@ -104,7 +104,7 @@ DensityPadding::unpad(const std::vector<int>&unPadExtend) {
         {
             for (int iXX = 0; iXX < unPadExtend[XX]; ++iXX)
             {
-                unpadded->atMultiIndex({iXX, iYY, iZZ}) = toPad_.atMultiIndex({iXX, iYY, iZZ});
+                unpadded->atMultiIndex({{iXX, iYY, iZZ}}) = toPad_.atMultiIndex({{iXX, iYY, iZZ}});
             }
         }
     }

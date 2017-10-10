@@ -64,8 +64,8 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
         {
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
-                auto r                 = grid.gridpoint_coordinate({i_x, i_y, i_z});
-                interpolatedGrid_->atMultiIndex({i_x, i_y, i_z}) = getLinearInterpolationAt(other, r);
+                auto r                 = grid.gridpoint_coordinate({{i_x, i_y, i_z}});
+                interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, r);
             }
         }
     }
@@ -89,8 +89,8 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
 
-                auto r                 = grid.gridpoint_coordinate({i_x, i_y, i_z});
-                interpolatedGrid_->atMultiIndex({i_x, i_y, i_z}) = getLinearInterpolationAt(other, orientation.shiftedAndOriented(r, centerOfMass, translation));
+                auto r                 = grid.gridpoint_coordinate({{i_x, i_y, i_z}});
+                interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, orientation.shiftedAndOriented(r, centerOfMass, translation));
 
             }
         }
@@ -118,10 +118,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
         {
             for (int ii_x = 0; ii_x <= 1; ++ii_x)
             {
-                auto cube_index = iIndexInGrid;
-                cube_index[XX] += ii_x;
-                cube_index[YY] += ii_y;
-                cube_index[ZZ] += ii_z;
+                std::array<int, 3> cube_index = {{iIndexInGrid[XX]+ii_x, iIndexInGrid[YY]+ii_y, iIndexInGrid[ZZ]+ii_z}};
                 if (lattice.inLattice(cube_index))
                 {
                     cube[ii_x][ii_y][ii_z] = field.atMultiIndex(cube_index);

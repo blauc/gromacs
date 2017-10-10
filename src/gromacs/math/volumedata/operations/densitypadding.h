@@ -37,7 +37,7 @@
 #define GMX_MATH_DENSITYPADDING_H
 
 #include <memory>
-#include <vector>
+#include <array>
 #include "gromacs/math/vectypes.h"
 
 namespace gmx
@@ -51,7 +51,7 @@ class DensityPadding
         std::unique_ptr < Field < real>> pad(RVec paddingFactor);
 
         std::unique_ptr < Field < real>> padPower2();
-        std::unique_ptr < Field < real>> unpad(const std::vector<int> &extend);
+        std::unique_ptr < Field < real>> unpad(const std::array<int, 3> &extend);
 
     private:
         const Field<real> &toPad_;

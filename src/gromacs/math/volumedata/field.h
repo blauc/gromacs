@@ -66,7 +66,7 @@ class Field : public std::vector<T>
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        T &atMultiIndex(const std::vector<int> &index)
+        T &atMultiIndex(const std::array<int, 3> &index)
         {
             return this->at(grid_.getLattice().getLinearIndexFromLatticeIndex(index));
         };
@@ -75,12 +75,12 @@ class Field : public std::vector<T>
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        const T &atMultiIndex(const std::vector<int> &index) const
+        const T &atMultiIndex(const  std::array<int, 3> &index) const
         {
             return this->at(grid_.getLattice().getLinearIndexFromLatticeIndex(index));
         };
 
-        typename std::vector<T>::iterator iteratorAtMultiIndex(const std::vector<int> &index)
+        typename std::vector<T>::iterator iteratorAtMultiIndex(const std::array<int, 3> &index)
         {
             return this->begin() + grid_.getLattice().getLinearIndexFromLatticeIndex(index);
         }
