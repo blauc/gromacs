@@ -10,17 +10,17 @@
 namespace gmx
 {
 
-template <int N> class Finite3DLatticeIndices
+template <int N> class ColumnMajorLattice
 {
     public:
-        Finite3DLatticeIndices() = default;
+        ColumnMajorLattice() = default;
 
         /*! \brief
          * Set the extend of the lattice.
          *
          * Indices span (0,...,0) to (extend[0]-1,...,extend[N]-1)
          */
-        Finite3DLatticeIndices(std::array<int, N> extend)
+        ColumnMajorLattice(std::array<int, N> extend)
         {
             if (!(std::all_of(std::begin(extend), std::end(extend), [](int i){return i > 0; })))
             {
@@ -48,7 +48,7 @@ template <int N> class Finite3DLatticeIndices
          *
          * x + extend_x * y + extend_x * extend_y * z.
          */
-        int getLinearIndexFromLatticeIndex(const std::array<int, N> &latticeIndex) const
+        int lineariseVectorIndex(const std::array<int, N> &latticeIndex) const
         {
             if (!inLattice(latticeIndex))
             {
@@ -69,9 +69,9 @@ template <int N> class Finite3DLatticeIndices
         }
 
         /*! \brief
-         * Inverse of getLinearIndexFromLatticeIndex
+         * Inverse of lineariseVectorIndex
          */
-        std::array<int, N> getLatticeIndexFromLinearIndex(int linearIndex) const
+        std::array<int, N> vectoriseLinearIndex(int linearIndex) const
         {
             std::array<int, N> result {{0, 0, 0}};
             auto               currentLatticeIndex = result.rbegin();
@@ -94,7 +94,7 @@ template <int N> class Finite3DLatticeIndices
             auto extendInDimension = extend_.begin();
             for (const auto &indexInDimension : latticeIndex)
             {
-                if (indexInDimension >= *extendInDimension)
+                if (indexInDimension < 0 || indexInDimension >= *extendInDimension)
                 {
                     return false;
                 }

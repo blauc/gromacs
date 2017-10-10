@@ -122,7 +122,7 @@ RVec FiniteGrid::gridpoint_coordinate(std::array<int, 3> i) const
 
 RVec FiniteGrid::gridpoint_coordinate(int linearIndex) const
 {
-    return gridpoint_coordinate(lattice_.getLatticeIndexFromLinearIndex(linearIndex));
+    return gridpoint_coordinate(lattice_.vectoriseLinearIndex(linearIndex));
 }
 
 void FiniteGrid::makeGridUniform()
@@ -147,12 +147,12 @@ void FiniteGrid::setCell(RVec length, RVec angle)
 }
 
 
-const Finite3DLatticeIndices<3> FiniteGrid::getLattice() const
+const ColumnMajorLattice<3> FiniteGrid::getLattice() const
 {
     return lattice_;
 }
 
-void FiniteGrid::setLattice(const Finite3DLatticeIndices<3> &lattice)
+void FiniteGrid::setLattice(const ColumnMajorLattice<3> &lattice)
 {
     lattice_ = lattice;
 }

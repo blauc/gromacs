@@ -66,16 +66,16 @@ namespace
 
 
 
-TEST(Finite3DLatticeIndicesTest, canConstructObject)
+TEST(ColumnMajorLatticeTest, canConstructObject)
 {
-    Finite3DLatticeIndices<3> indexer {{{
-                                            2, 2, 2
-                                        }}};
+    ColumnMajorLattice<3> indexer {{{
+                                        2, 2, 2
+                                    }}};
     fprintf(stderr, "\n");
     for (int j = 0; j < 8; ++j)
     {
 
-        auto result = indexer.getLatticeIndexFromLinearIndex(j);
+        auto result = indexer.vectoriseLinearIndex(j);
         for (auto i : result)
         {
             fprintf(stderr, "%s", (std::to_string(i)+" ").c_str());
@@ -84,15 +84,15 @@ TEST(Finite3DLatticeIndicesTest, canConstructObject)
     }
 }
 
-TEST(Finite3DLatticeIndicesTest, roundTrip)
+TEST(ColumnMajorLatticeTest, roundTrip)
 {
 
-    Finite3DLatticeIndices<3> indexer {{{
-                                            2, 3, 4
-                                        }}};
+    ColumnMajorLattice<3> indexer {{{
+                                        2, 3, 4
+                                    }}};
 
-    indexer.getLinearIndexFromLatticeIndex(indexer.getLatticeIndexFromLinearIndex(2));
-    indexer.getLinearIndexFromLatticeIndex(indexer.getLatticeIndexFromLinearIndex(5));
+    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(2));
+    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(5));
     // EXPECT_THROW_GMX();
 }
 

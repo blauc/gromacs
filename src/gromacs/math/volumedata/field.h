@@ -68,7 +68,7 @@ class Field : public std::vector<T>
          */
         T &atMultiIndex(const std::array<int, 3> &index)
         {
-            return this->at(grid_.getLattice().getLinearIndexFromLatticeIndex(index));
+            return this->at(grid_.getLattice().lineariseVectorIndex(index));
         };
 
         /*! \brief
@@ -77,12 +77,12 @@ class Field : public std::vector<T>
          */
         const T &atMultiIndex(const  std::array<int, 3> &index) const
         {
-            return this->at(grid_.getLattice().getLinearIndexFromLatticeIndex(index));
+            return this->at(grid_.getLattice().lineariseVectorIndex(index));
         };
 
         typename std::vector<T>::iterator iteratorAtMultiIndex(const std::array<int, 3> &index)
         {
-            return this->begin() + grid_.getLattice().getLinearIndexFromLatticeIndex(index);
+            return this->begin() + grid_.getLattice().lineariseVectorIndex(index);
         }
 
     private:

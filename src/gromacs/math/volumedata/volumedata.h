@@ -40,9 +40,9 @@
  * One-dimensional data is placed on a three-dimensional grid following this hierarchy:
  *
  *
- * \ref gmx::Finite3DLatticeIndices translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
+ * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
  *
- * \ref gmx::FiniteGrid places gmx::Finite3DLatticeIndices in space with a unit cell and translation vector.
+ * \ref gmx::FiniteGrid places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
  *
  * \ref gmx::Field binds one-dimensional data array to a \ref gmx::FiniteGrid.
  *

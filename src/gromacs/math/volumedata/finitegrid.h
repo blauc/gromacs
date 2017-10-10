@@ -71,9 +71,9 @@ class FiniteGrid
 
         void setCell(RVec length, RVec angle);
 
-        const Finite3DLatticeIndices<DIM> getLattice() const;
+        const ColumnMajorLattice<DIM> getLattice() const;
 
-        void setLattice(const Finite3DLatticeIndices<DIM> &lattice);
+        void setLattice(const ColumnMajorLattice<DIM> &lattice);
         /*! \brief
          *
          * Set the real-space coordinate of gridpoint (0,0,0).
@@ -90,7 +90,7 @@ class FiniteGrid
         GridCell                          unit_cell_;
         GridCell                          unit_cell_inv_;
         RVec                              translation_;
-        Finite3DLatticeIndices<DIM>       lattice_;
+        ColumnMajorLattice<DIM>           lattice_;
 };
 
 }
