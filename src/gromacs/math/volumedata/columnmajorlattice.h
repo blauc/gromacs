@@ -34,7 +34,7 @@
  */
 /*! \file
  * \brief
- * Implements gmx::ColumnMajorLattice template class.
+ * Declares gmx::ColumnMajorLattice template class.
  *
  * \author Christian Blau <cblau@gwdg.de>
  * \inpublicapi
@@ -45,82 +45,105 @@
 
 #include "gromacs/utility/exceptions.h"
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <numeric>
 
 namespace gmx
 {
 
+/*! \brief
+ * An N-dimensional lattice with column major indexing.
+ *
+ * \tparam int Number of lattice dimensions.
+ * The first dimension varies quickest and is most contigiuous.
+ * \throws gmx::RangeError if indices are out of lattice bounds.
+ */
 template <int N> class ColumnMajorLattice
 {
     public:
+        /*!\brief
+         * N-dimensional integer index.
+         */
+        typedef std::array<int, N> MultiIndex;
+
         /*! \brief
-         * Set the extend of the lattice.
+         * Constructs Lattice by setting its extend and checking extend validity.
          *
          * Indices span (0,...,0) to (extend[0]-1,...,extend[N]-1)
+         * \throws gmx::RangeError if any extend is not larger than zero.
          */
-        ColumnMajorLattice(std::array<int, N> extend)
+        ColumnMajorLattice(const MultiIndex &extend) : extend_ {extend}
         {
-            if (!(std::all_of(std::begin(extend), std::end(extend), [](int i){return i > 0; })))
+            if (!(std::all_of(std::begin(extend), std::end(extend),
+                              [](int i) { return i > 0; })))
             {
-                GMX_THROW(RangeError("Lattice extend must be larger zero in all dimensions."));
+                GMX_THROW(
+                        RangeError("Lattice extend must be larger zero in all dimensions."));
             }
-            extend_ = extend;
         };
 
         /*! \brief
-         * Get handle to lattice extend.
+         * The lattice extend as N-dimensional index.
          */
-        const std::array<int, N> &getExtend() const
-        {
-            return extend_;
-        };
+        const MultiIndex &getExtend() const { return extend_; };
 
+        /*! \brief
+         * The number of points in the lattice.
+         */
         int getNumLatticePoints() const
         {
-            return std::accumulate(std::begin(extend_), std::end(extend_), 1, [](int lhs, int rhs){ return lhs * rhs; });
+            return std::accumulate(std::begin(extend_), std::end(extend_), 1,
+                                   [](int lhs, int rhs) { return lhs * rhs; });
         };
 
-
         /*! \brief
-         * Unique one-dimensional lattice index.
+         * Returns one-dimensional lattice index from N-dimensional multiindex.
          *
-         * x + extend_x * y + extend_x * extend_y * z.
+         * i_0 + extend_0 * (i_1 + extend_1 * (i_2 + extend_2 * ( ... ))).
+         * \throws gmx::RangeError if latticeIndex is not within the lattice.
          */
-        int lineariseVectorIndex(const std::array<int, N> &latticeIndex) const
+        int lineariseVectorIndex(const MultiIndex &latticeIndex) const
         {
             if (!inLattice(latticeIndex))
             {
-                GMX_THROW(RangeError("Lattice index must be in lattice - greater zero and smaller than extend along all dimensions."));
+                GMX_THROW(RangeError("Lattice index must be in lattice: nonnegative "
+                                     "and smaller than extend along all dimensions."));
             }
 
-            int         result                 = 0;
-            auto        currentDimensionExtend = extend_.begin();
-            auto        pre_factor             = 1;
-            for (auto ndx : latticeIndex)
+            auto linearIndex            = *latticeIndex.rbegin();
+            auto currentDimensionExtend = extend_.rbegin();
+            for (auto currentDimensionIndex = ++latticeIndex.rbegin();
+                 currentDimensionIndex != latticeIndex.rend();
+                 ++currentDimensionIndex)
             {
-                result     += pre_factor * ndx;
-                pre_factor *= *currentDimensionExtend;
                 ++currentDimensionExtend;
+                linearIndex = *currentDimensionIndex + *currentDimensionExtend * linearIndex;
             }
 
-            return result;
+            return linearIndex;
         }
 
         /*! \brief
-         * Inverse of lineariseVectorIndex
+         * Inverse of lineariseVectorIndex.
+         *
+         * \throws gmx::RangeError if linearIndex exceeds the number of lattice points.
          */
-        std::array<int, N> vectoriseLinearIndex(int linearIndex) const
+        MultiIndex vectoriseLinearIndex(int linearIndex) const
         {
-            std::array<int, N> result {{0, 0, 0}};
-            auto               currentLatticeIndex = result.rbegin();
-            int                stride              = getNumLatticePoints() / extend_.back();
-            for (auto currentDimensionExtend = extend_.begin(); currentDimensionExtend != extend_.end(); ++currentDimensionExtend)
+            MultiIndex result;
+            auto       stride = getNumLatticePoints();
+            if (linearIndex >= stride)
             {
-                *currentLatticeIndex  = linearIndex / stride;
-                linearIndex          -= *currentLatticeIndex * stride;
-                stride               /= *currentDimensionExtend;
+                GMX_THROW(RangeError("Linear index larger than number of lattice points."));
+            }
+            auto currentLatticeIndex = result.rbegin();
+            for (auto currentDimensionExtend = extend_.rbegin();
+                 currentDimensionExtend != extend_.rend(); ++currentDimensionExtend)
+            {
+                stride              /= *currentDimensionExtend;
+                *currentLatticeIndex = linearIndex / stride;
+                linearIndex         -= *currentLatticeIndex * stride;
                 ++currentLatticeIndex;
             }
             return result;
@@ -129,12 +152,13 @@ template <int N> class ColumnMajorLattice
         /*! \brief
          * True if latticeIndex is in Lattice
          */
-        bool inLattice(const std::array<int, N> &latticeIndex) const
+        bool inLattice(const MultiIndex &latticeIndex) const
         {
             auto extendInCurrentDimension = extend_.begin();
             for (const auto &indexInCurrentDimension : latticeIndex)
             {
-                if ((indexInCurrentDimension < 0 ) || (indexInCurrentDimension >= *extendInCurrentDimension))
+                if ((indexInCurrentDimension < 0) ||
+                    (indexInCurrentDimension >= *extendInCurrentDimension))
                 {
                     return false;
                 }
@@ -144,9 +168,10 @@ template <int N> class ColumnMajorLattice
         }
 
     private:
-        std::array<int, N>  extend_;
+        //! \brief the extend of the lattice
+        std::array<int, N> extend_;
 };
 
-} //gmx
+} // gmx
 
 #endif
