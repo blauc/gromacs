@@ -46,6 +46,7 @@
 #include "gromacs/math/volumedata/finite3dlatticeindices.h"
 
 #include <array>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -68,20 +69,9 @@ namespace
 
 TEST(ColumnMajorLatticeTest, canConstructObject)
 {
-    ColumnMajorLattice<3> indexer {{{
-                                        2, 2, 2
-                                    }}};
-    fprintf(stderr, "\n");
-    for (int j = 0; j < 8; ++j)
-    {
-
-        auto result = indexer.vectoriseLinearIndex(j);
-        for (auto i : result)
-        {
-            fprintf(stderr, "%s", (std::to_string(i)+" ").c_str());
-        }
-        fprintf(stderr, "\n");
-    }
+    ColumnMajorLattice<2>indexer {{ {
+                                        4, 2
+                                    } }};
 }
 
 TEST(ColumnMajorLatticeTest, roundTrip)

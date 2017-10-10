@@ -231,7 +231,6 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
 
     auto fieldGrid    = field_.getGrid();
     auto extend       = fieldGrid.getLattice().getExtend();
-    auto itSectionEnd = field_.iteratorAtMultiIndex({{0, 0, extend[ZZ]}});
 
     auto k             = RVec {
         0., 0., 0.
@@ -250,7 +249,7 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
     k = {0., 0., 0.};
     rvec_dec(k, deltakSection);
 
-    for (auto itValue = itSectionEnd; itValue != itMidSection;
+    for (auto itValue = field_.end(); itValue != itMidSection;
          itValue -= extend[XX]*extend[YY])
     {
         applyToAllColumnsWithinSection_(

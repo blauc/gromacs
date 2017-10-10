@@ -151,6 +151,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
             // access rows in thread local grids if they contribute to the density
             for (int thread = 0; thread < number_of_threads_; ++thread)
             {
+                if ((minimumUsedGridIndex[thread][ZZ] <= gridIndexZZ) && ( gridIndexZZ <= maximumUsedGridIndex[thread][ZZ] ) && (minimumUsedGridIndex[thread][YY] <= gridIndexYY) && (gridIndexYY <= maximumUsedGridIndex[thread][YY]))
                 {
                     contributingThreadLocalVoxelIterators.push_back(simulatedDensityThreadGridData[thread].iteratorAtMultiIndex({{gridStart[XX], gridIndexYY, gridIndexZZ}}));
                 }

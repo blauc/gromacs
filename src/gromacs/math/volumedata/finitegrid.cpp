@@ -90,10 +90,12 @@ RVec FiniteGrid::translation() const { return translation_; }
 //     };
 // }
 
-IVec FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
+std::array<int, 3> FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
 {
     RVec result = coordinateToRealGridIndex(x);
-    return { static_cast<int>(floor(result[XX])), static_cast<int>(floor(result[YY])), static_cast<int>(floor(result[ZZ])) };
+    return { {
+                 static_cast<int>(floor(result[XX])), static_cast<int>(floor(result[YY])), static_cast<int>(floor(result[ZZ]))
+             } };
 }
 
 RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
@@ -107,9 +109,7 @@ RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
 
 real FiniteGrid::avg_spacing() const
 {
-    return (unit_cell_[XX][XX] + unit_cell_[YY][YY] +
-            unit_cell_[ZZ][ZZ]) /
-           3;
+    return (unit_cell_[XX][XX] + unit_cell_[YY][YY] + unit_cell_[ZZ][ZZ]) / 3;
 }
 
 RVec FiniteGrid::gridpoint_coordinate(std::array<int, 3> i) const

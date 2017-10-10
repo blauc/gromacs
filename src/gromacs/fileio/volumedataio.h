@@ -59,35 +59,35 @@ namespace gmx
  * "EMDB Map Distribution Format Description Version 1.01 (c) emdatabank.org 2014"
  */
 struct MrcMetaData{
-    bool                       swap_bytes;               //!< swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture)
-    int                        space_group;              //!< space group as defined by IUCr conventions (Table 12.3.4.1 Standard space-group symbols”, pages 824-831, International Tables for Crystallography, Volume A, fifth edition)
-    int                        mrc_data_mode;            //!< data mode, currently only mode 2 is supported (32-bit float real values)
-    int                        machine_stamp;            //!< endianess of map writing architecture (big endian; 0x44410000 , little endian: 0x11110000)
-    std::string                format_identifier;        //!< for all density formats: four 1-byte chars reading "MAP " (a little pointless, I know)
+    bool                                     swap_bytes;               //!< swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture)
+    int                                      space_group;              //!< space group as defined by IUCr conventions (Table 12.3.4.1 Standard space-group symbols”, pages 824-831, International Tables for Crystallography, Volume A, fifth edition)
+    int                                      mrc_data_mode;            //!< data mode, currently only mode 2 is supported (32-bit float real values)
+    int                                      machine_stamp;            //!< endianess of map writing architecture (big endian; 0x44410000 , little endian: 0x11110000)
+    std::string                              format_identifier;        //!< for all density formats: four 1-byte chars reading "MAP " (a little pointless, I know)
 
-    int                        num_labels;               //!< number of used crystallographic labels, 0 for imagestacks, 1 for emdb data
-    std::vector < std::string> labels;                   //!< crystallographic labels or \:\:\:\:EMDataBank.org\:\:\:\:EMD-1234\:\:\:\: for EMDB entries
+    int                                      num_labels;               //!< number of used crystallographic labels, 0 for imagestacks, 1 for emdb data
+    std::vector < std::string>               labels;                   //!< crystallographic labels or \:\:\:\:EMDataBank.org\:\:\:\:EMD-1234\:\:\:\: for EMDB entries
 
-    IVec                       crs_to_xyz;               //!< Axis order
-    IVec                       xyz_to_crs;               //!< reversed Axis order
-    std::array<int, 3>         num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
-    std::array<int, 3>         extend;                   //!< the grid extend, check against num_crs
-    IVec                       crs_start;                //!< Start of values in grid, typically 0,0,0
+    std::array<int, 3>                       crs_to_xyz;               //!< Axis order
+    std::array<int, 3>                       xyz_to_crs;               //!< reversed Axis order
+    std::array<int, 3>                       num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
+    std::array<int, 3>                       extend;                   //!< the grid extend, check against num_crs
+    std::array<int, 3>                       crs_start;                //!< Start of values in grid, typically 0,0,0
 
-    float                      min_value;                //!< minimum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
-    float                      max_value;                //!< maximum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
-    float                      mean_value;               //!< mean voxel value   (not always reported,as evident from density)
-    float                      rms_value;                //!< rms of the density (not always reported,as evident from density)
+    float                                    min_value;                //!< minimum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
+    float                                    max_value;                //!< maximum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
+    float                                    mean_value;               //!< mean voxel value   (not always reported,as evident from density)
+    float                                    rms_value;                //!< rms of the density (not always reported,as evident from density)
 
-    bool                       is_crystallographic;      //!< true if crystallographic data is to be read
-    bool                       has_skew_matrix;          //!< only crystallographic data: true if skew matrix is stored
-    std::array<float, 9>       skew_matrix;              //!< only crystallographic data: skew matrix or, if skew flag is zero, data in place of skew matrix
-    RVec                       skew_translation;         //!< only crystallographic data: skew translatation or, if skew flag is zero, data in place of skew translation
-    int                        num_bytes_extened_header; //!< only crystallographic data: the size of the symbol table in bytes
-    std::vector<char>          extended_header;          //!< only crystallographic data: extended header, usually symbol tables
+    bool                                     is_crystallographic;      //!< true if crystallographic data is to be read
+    bool                                     has_skew_matrix;          //!< only crystallographic data: true if skew matrix is stored
+    std::array<float, 9>                     skew_matrix;              //!< only crystallographic data: skew matrix or, if skew flag is zero, data in place of skew matrix
+    RVec                                     skew_translation;         //!< only crystallographic data: skew translatation or, if skew flag is zero, data in place of skew translation
+    int                                      num_bytes_extened_header; //!< only crystallographic data: the size of the symbol table in bytes
+    std::vector<char>                        extended_header;          //!< only crystallographic data: extended header, usually symbol tables
 
-    std::array<float, 13>      extraskew;                //!< fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)
-    std::array<float, 15>      extra;                    //!< extra data in header, currently unused
+    std::array<float, 13>                    extraskew;                //!< fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)
+    std::array<float, 15>                    extra;                    //!< extra data in header, currently unused
 };
 
 /*! \brief

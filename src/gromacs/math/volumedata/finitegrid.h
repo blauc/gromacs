@@ -41,7 +41,7 @@ class FiniteGrid
 
         // std::vector<int> coordinate_to_gridindex_ceil_ivec(const rvec x);
         // std::vector<int> coordinate_to_gridindex_round_ivec(const rvec x);
-        IVec coordinate_to_gridindex_floor_ivec(const rvec x) const;
+        std::array<int, 3> coordinate_to_gridindex_floor_ivec(const rvec x) const;
         RVec gridpoint_coordinate(std::array<int, 3> i) const;
 
         real grid_cell_volume() const;
@@ -90,7 +90,7 @@ class FiniteGrid
         GridCell                          unit_cell_;
         GridCell                          unit_cell_inv_;
         RVec                              translation_;
-        ColumnMajorLattice<DIM>           lattice_;
+        ColumnMajorLattice<DIM>           lattice_ {{{1, 1, 1}}};
 };
 
 }

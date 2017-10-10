@@ -80,7 +80,7 @@ GaussTransform::getMaximumUsedGridIndex()
 void
 FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
 {
-    if (grid->getGrid().getCell().rectangular())
+    if (grid->getGrid().getUnitCell().rectangular())
     {
         GaussTransform::set_grid(std::move(grid));
     }
@@ -88,7 +88,7 @@ FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be rectangular to use the current implementation of fast gaussian gridding."));
     }
-    if (grid_->getGrid().getCell().spacing_is_same_xyz())
+    if (grid_->getGrid().getUnitCell().spacing_is_same_xyz())
     {
         nu_       = grid_->getGrid().avg_spacing()/sigma_;
         m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
@@ -202,7 +202,7 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    grid_index_of_spread_atom_ = {{*grid_->getGrid().coordinate_to_gridindex_floor_ivec(x)}};
+    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(x);
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {

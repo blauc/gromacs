@@ -95,10 +95,10 @@ class MrcFile::Impl
         void set_metadata_mrc_default();
         void set_num_bytes_extened_header(int n);
 
-        IVec xyz_to_crs(const IVec order);
-        IVec to_xyz_order(const IVec i_crs);
-        std::array<int, 3> to_crs_order(const std::array<int, 3> xyz_order);
-        void set_crs_to_xyz(const IVec order);
+        std::array<int, 3> xyz_to_crs(const std::array<int, 3> &order);
+        std::array<int, 3> to_xyz_order(const std::array<int, 3> &i_crs);
+        std::array<int, 3> to_crs_order(const std::array<int, 3> &xyz_order);
+        void set_crs_to_xyz(const std::array<int, 3> &order);
 
         /*! \brief Guess, whether endianess differs between input file and reading architecture .
          *
@@ -120,9 +120,9 @@ class MrcFile::Impl
         gmx_int32_t read_int32_();
         float read_float32_();
         RVec read_float32_rvec_();
-        IVec read_int32_ivec_();
+        std::array<int, 3> read_int32_ivec_();
         void write_int32_(int data);
-        void write_int32_ivec_(const IVec &i);
+        void write_int32_ivec_(const std::array<int, 3> &i);
         void write_float32_(real data);
         void write_float32_rvec_(const RVec &i);
 
@@ -130,7 +130,7 @@ class MrcFile::Impl
         void set_grid_stats(const Field<real> &grid_data);
 
 
-        bool colummn_row_section_order_valid_(IVec crs_to_xyz);
+        bool colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz);
 
         void swap_int32_(gmx_int32_t &result);
         void swap_float32_(float &result);
@@ -183,24 +183,24 @@ std::string MrcFile::Impl::print_to_string()
     return result;
 }
 
-IVec MrcFile::Impl::xyz_to_crs(IVec order)
+std::array<int, 3> MrcFile::Impl::xyz_to_crs(const std::array<int, 3> &order)
 {
-    IVec result;
+    std::array<int, 3> result;
     result[order[XX]]  = XX;
     result[order[YY]]  = YY;
     result[order[ZZ]]  = ZZ;
     return result;
 }
 
-void MrcFile::Impl::set_crs_to_xyz(const IVec order)
+void MrcFile::Impl::set_crs_to_xyz(const std::array<int, 3> &order)
 {
-    meta_.crs_to_xyz = order;
+    std::copy(std::begin(order), std::end(order), std::begin(meta_.crs_to_xyz));
     meta_.xyz_to_crs = xyz_to_crs(order);
 }
 
-IVec MrcFile::Impl::to_xyz_order(const IVec i_crs)
+std::array<int, 3> MrcFile::Impl::to_xyz_order(const std::array<int, 3> &i_crs)
 {
-    IVec i_xyz;
+    std::array<int, 3> i_xyz;
 
     i_xyz[meta_.crs_to_xyz[XX]] = i_crs[XX];
     i_xyz[meta_.crs_to_xyz[YY]] = i_crs[YY];
@@ -210,9 +210,9 @@ IVec MrcFile::Impl::to_xyz_order(const IVec i_crs)
 }
 
 
-IVec MrcFile::Impl::read_int32_ivec_()
+std::array<int, 3> MrcFile::Impl::read_int32_ivec_()
 {
-    IVec result;
+    std::array<int, 3> result;
     result[0] = read_int32_();
     result[1] = read_int32_();
     result[2] = read_int32_();
@@ -361,7 +361,7 @@ void MrcFile::Impl::read_format_identifier()
 
 }
 
-std::array<int, 3> MrcFile::Impl::to_crs_order(std::array<int, 3> xyz_order)
+std::array<int, 3> MrcFile::Impl::to_crs_order(const std::array<int, 3> &xyz_order)
 {
     std::array<int, 3> result;
     result[meta_.xyz_to_crs[XX]] = xyz_order[XX];
@@ -370,14 +370,14 @@ std::array<int, 3> MrcFile::Impl::to_crs_order(std::array<int, 3> xyz_order)
     return result;
 }
 
-void MrcFile::Impl::write_int32_ivec_(const IVec &i)
+void MrcFile::Impl::write_int32_ivec_(const std::array<int, 3> &i)
 {
     write_int32_(i[XX]);
     write_int32_(i[YY]);
     write_int32_(i[ZZ]);
 }
 
-bool MrcFile::Impl::colummn_row_section_order_valid_(IVec crs_to_xyz)
+bool MrcFile::Impl::colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz)
 {
     const std::set<int> valid_crs_set {
         0, 1, 2
@@ -412,10 +412,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention: NC=NR=NS                     */
     if (bRead)
     {
+        meta_.num_crs = read_int32_ivec_();
     }
     else
     {
-        write_int32_ivec_({to_crs_order(grid_data.getLattice().getExtend()).data()});
+        write_int32_ivec_(to_crs_order(grid_data.getLattice().getExtend()));
     }
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -459,7 +460,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     }
     else
     {
-        write_int32_ivec_({grid_data.getLattice().getExtend().data()});
+        write_int32_ivec_(grid_data.getLattice().getExtend());
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -526,7 +527,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     }
     else
     {
-        write_int32_ivec_({meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1});
+        write_int32_ivec_({{meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1}});
     }
 
 
@@ -869,7 +870,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    grid_data.atMultiIndex({{*to_xyz_order({column, row, section})}}) = read_float32_();
+                    grid_data.atMultiIndex(to_xyz_order({{column, row, section}})) = read_float32_();
                 }
             }
         }
@@ -883,7 +884,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    write_float32_(grid_data.atMultiIndex({{*to_xyz_order({column, row, section})}}));
+                    write_float32_(grid_data.atMultiIndex(to_xyz_order({{column, row, section}})));
                 }
             }
         }
@@ -974,9 +975,9 @@ void MrcFile::Impl::set_metadata_mrc_default()
     meta_.mrc_data_mode            = 2;
     meta_.num_bytes_extened_header = 0;
     meta_.has_skew_matrix          = false;
-    meta_.crs_start                = {0, 0, 0};
-    meta_.crs_to_xyz               = {0, 1, 2};
-    meta_.xyz_to_crs               = {0, 1, 2};
+    meta_.crs_start                = {{0, 0, 0}};
+    meta_.crs_to_xyz               = {{0, 1, 2}};
+    meta_.xyz_to_crs               = {{0, 1, 2}};
     meta_.skew_matrix              = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
     meta_.skew_translation         = {0, 0, 0};
     meta_.is_crystallographic      = false;
@@ -1032,7 +1033,7 @@ void MrcFile::Impl::set_meta(const Field<real> &grid_data)
 {
     set_grid_stats(grid_data);
     auto index_of_origin = grid_data.getGrid().coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
-    meta_.crs_start = {-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]};
+    meta_.crs_start = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
 }
 
 void
