@@ -140,7 +140,7 @@ real RealFieldMeasure::entropy() const
             sum += p[i] * log(p[i]);
         }
     }
-    return -1 * realfield_.getGrid().grid_cell_volume() * sum;
+    return -1 * realfield_.getGrid().getUnitCell().volume() * sum;
 };
 
 } // namespace gmx

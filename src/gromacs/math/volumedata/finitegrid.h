@@ -31,21 +31,13 @@ class FiniteGrid
         /*! \brief
          * Compare grid spanning vectors and translation to other.
          */
-
         bool sameGridInAbsTolerance(const FiniteGrid &other, real tolerance = 1e-10) const;
-
-        // void multiplyGridPointNumber(const RVec factor);
 
         RVec gridpoint_coordinate(int i) const;
         RVec coordinateToRealGridIndex(const rvec x) const;
 
-        // std::vector<int> coordinate_to_gridindex_ceil_ivec(const rvec x);
-        // std::vector<int> coordinate_to_gridindex_round_ivec(const rvec x);
         std::array<int, 3> coordinate_to_gridindex_floor_ivec(const rvec x) const;
         RVec gridpoint_coordinate(std::array<int, 3> i) const;
-
-        real grid_cell_volume() const;
-
 
         void makeGridUniform();
 

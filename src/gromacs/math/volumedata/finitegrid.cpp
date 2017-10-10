@@ -60,35 +60,12 @@ void FiniteGrid::convertToReciprocalSpace()
     resetCell();
 }
 
-
-real FiniteGrid::grid_cell_volume() const
-{
-    return cell_.volume() / (real)lattice_.getNumLatticePoints();
-}
-
 void FiniteGrid::set_translation(RVec translate)
 {
     translation_ = translate;
 }
 
 RVec FiniteGrid::translation() const { return translation_; }
-//
-// std::array<int,3> FiniteGrid::coordinate_to_gridindex_round_ivec(const rvec x)
-// {
-//     RVec result = coordinateToRealGridIndex(x);
-//     return {
-//                (int)round(result[XX]), (int)round(result[YY]),
-//                (int)round(result[ZZ])
-//     };
-// }
-//
-// std::vector<int> FiniteGrid::coordinate_to_gridindex_ceil_ivec(const rvec x)
-// {
-//     RVec result = coordinateToRealGridIndex(x);
-//     return {
-//                (int)ceil(result[XX]), (int)ceil(result[YY]), (int)ceil(result[ZZ])
-//     };
-// }
 
 std::array<int, 3> FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
 {
@@ -184,7 +161,7 @@ std::string FiniteGrid::print() const
     result += "    cell_angles  : " + std::to_string(cell_.cell_angles()[0]) + " " +
         std::to_string(cell_.cell_angles()[1]) + " " +
         std::to_string(cell_.cell_angles()[2]) + "\n";
-    result += "    V_cell       : " + std::to_string(grid_cell_volume()) + "\n";
+    result += "    V_cell       : " + std::to_string(unit_cell_.volume()) + "\n";
     return result + "  ----- end finite grid -----\n\n";
 }
 
