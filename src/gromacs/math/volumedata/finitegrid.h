@@ -2,7 +2,7 @@
 #define GMX_MATH_FINITEGRID_H
 
 #include "gromacs/math/vectypes.h"
-#include "finite3dlatticeindices.h"
+#include "columnmajorlattice.h"
 #include "gridcell.h"
 #include <memory>
 

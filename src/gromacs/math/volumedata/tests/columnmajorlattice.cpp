@@ -43,7 +43,7 @@
  */
 #include "gmxpre.h"
 
-#include "gromacs/math/volumedata/finite3dlatticeindices.h"
+#include "gromacs/math/volumedata/columnmajorlattice.h"
 
 #include <array>
 #include <string>
