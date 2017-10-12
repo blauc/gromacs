@@ -235,9 +235,9 @@ const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
     auto k             = RVec {
         0., 0., 0.
     };
-    RVec deltakRow     = {fieldGrid.getUnitCell().length(XX), 0, 0};
-    RVec deltakColumn  = {0, fieldGrid.getUnitCell().length(YY), 0};
-    RVec deltakSection = {0, 0, fieldGrid.getUnitCell().length(ZZ)};
+    RVec deltakRow     = {fieldGrid.getUnitCell().basisVectorLength(XX), 0, 0};
+    RVec deltakColumn  = {0, fieldGrid.getUnitCell().basisVectorLength(YY), 0};
+    RVec deltakSection = {0, 0, fieldGrid.getUnitCell().basisVectorLength(ZZ)};
     auto itMidSection  = field_.iteratorAtMultiIndex({{0, 0, extend[ZZ] / 2 + 1}});
     for (std::vector<t_complex>::iterator itValue = field_.iteratorAtMultiIndex({{0, 0, 0}}); itValue != itMidSection;
          itValue += extend[XX]*extend[YY])

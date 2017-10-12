@@ -6,6 +6,7 @@
 #include <array>
 #include <numeric>
 #include <algorithm>
+#include <functional>
 
 namespace gmx
 {
@@ -25,20 +26,43 @@ class OrthogonalBasis
         NdVector transformIntoBasis(const NdVector &x)  const
         {
             NdVector result;
-            std::transform(std::begin(cellInverse_), std::end(cellInverse_), std::begin(x), std::begin(result), [](real c, real x){return c*x; });
+            std::transform(std::begin(cellInverse_), std::end(cellInverse_), std::begin(x), std::begin(result), std::multiplies<real>());
             return result;
         };
 
         NdVector transformFromBasis(const NdVector &x)  const
         {
             NdVector result;
-            std::transform(std::begin(cell_), std::end(cell_), std::begin(x), std::begin(result), [](real c, real x){return c*x; });
+            std::transform(std::begin(cell_), std::end(cell_), std::begin(x), std::begin(result), std::multiplies<real>());
             return result;
         };
 
         OrthogonalBasis<N> inverse() const
         {
             return OrthogonalBasis(cellInverse_);
+        };
+
+
+        OrthogonalBasis<N> scale(const NdVector &scale) const
+        {
+            NdVector scaledCell;
+            std::transform(std::begin(cell_), std::end(cell_), std::begin(scale), std::begin(scaledCell), std::multiplies<real>());
+            return OrthogonalBasis(scaledCell);
+        };
+
+        real volume() const
+        {
+            return std::accumulate(std::begin(cell_), std::end(cell_), 1.0, std::multiplies<real>());
+        }
+
+        /*! \brief
+         * True, if length is same in x,y,z -direction.
+         */
+        bool allVectorsSameLength(real ftol, real abstol) const
+        {
+            auto firstLength           = *std::begin(cell_);
+            auto firstCellVectorLength = std::begin(cell_)+1;
+            return std::all_of(firstCellVectorLength, std::end(cell_), [firstLength, ftol, abstol](real length){return equal_real(length, firstLength, ftol, abstol); });
         };
 
         bool isSameWithinTolerance(const OrthogonalBasis<N> &other, real ftol, real abstol) const
@@ -55,29 +79,7 @@ class OrthogonalBasis
             return true;
         }
 
-        OrthogonalBasis<N> scale(const NdVector &scale) const
-        {
-            NdVector scaledCell;
-            std::transform(std::begin(cell_), std::end(cell_), std::begin(scale), std::begin(scaledCell), [](real c, real s){ return c*s; });
-            return OrthogonalBasis(scaledCell);
-        };
-
-        real volume() const
-        {
-            return std::accumulate(std::begin(cell_), std::end(cell_), 1.0, [](real a, real b){return a*b; });
-        }
-
-        /*! \brief
-         * True, if length is same in x,y,z -direction.
-         */
-        bool allVectorsSameLength(real ftol, real abstol) const
-        {
-            auto firstLength           = *std::begin(cell_);
-            auto firstCellVectorLength = std::begin(cell_)+1;
-            return std::all_of(firstCellVectorLength, std::end(cell_), [firstLength, ftol, abstol](real length){return equal_real(length, firstLength, ftol, abstol); });
-        };
-
-        real length(const int &dimension) const
+        real basisVectorLength(const int &dimension) const
         {
             if (dimension >= N)
             {

@@ -57,9 +57,9 @@ FourierShellCorrelation::FourierShellCorrelation(const FiniteGrid &realGrid)
     FiniteGrid  reciprocalGrid = realGrid;
     reciprocalGrid.convertToReciprocalSpace();
     const auto &unitcell  =  reciprocalGrid.getUnitCell();
-    auto        spacing   = 2*std::max({unitcell.length(XX), unitcell.length(YY), unitcell.length(ZZ)});
+    auto        spacing   = 2*std::max({unitcell.basisVectorLength(XX), unitcell.basisVectorLength(YY), unitcell.basisVectorLength(ZZ)});
     const auto &cell      = realGrid.getCell();
-    auto        highestK  = norm(RVec {cell.length(XX), cell.length(YY), cell.length(ZZ)});
+    auto        highestK  = norm(RVec {cell.basisVectorLength(XX), cell.basisVectorLength(YY), cell.basisVectorLength(ZZ)});
     for (real binEdge = 0; binEdge < highestK +  spacing; binEdge += spacing)
     {
         binEdges_.insert(binEdge);

@@ -65,7 +65,7 @@ OrthogonalBasis<DIM>::NdVector FiniteGrid::coordinateToRealGridIndex(const Ortho
 
 real FiniteGrid::avg_spacing() const
 {
-    return (unit_cell_.length(XX) + unit_cell_.length(YY) + unit_cell_.length(ZZ)) / DIM;
+    return (unit_cell_.basisVectorLength(XX) + unit_cell_.basisVectorLength(YY) + unit_cell_.basisVectorLength(ZZ)) / DIM;
 }
 
 OrthogonalBasis<DIM>::NdVector FiniteGrid::gridpoint_coordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const
@@ -81,8 +81,8 @@ void FiniteGrid::makeGridUniform()
     {
         cell_ = cell_.scale({
                                 {1,
-                                 unit_cell_.length(XX)/unit_cell_.length(YY),
-                                 unit_cell_.length(XX)/unit_cell_.length(ZZ) }
+                                 unit_cell_.basisVectorLength(XX)/unit_cell_.basisVectorLength(YY),
+                                 unit_cell_.basisVectorLength(XX)/unit_cell_.basisVectorLength(ZZ) }
                             });
         setUnitCell_();
     }
@@ -126,9 +126,9 @@ std::string FiniteGrid::print() const
     result += "    translation  : " + std::to_string(translation_[0]) + " " +
         std::to_string(translation_[1]) + " " +
         std::to_string(translation_[2]) + "\n";
-    result += "    cell_lengths : " + std::to_string(cell_.length(0)) + " " +
-        std::to_string(cell_.length(1)) + " " +
-        std::to_string(cell_.length(2)) + "\n";
+    result += "    cell_lengths : " + std::to_string(cell_.basisVectorLength(0)) + " " +
+        std::to_string(cell_.basisVectorLength(1)) + " " +
+        std::to_string(cell_.basisVectorLength(2)) + "\n";
     result += "    V_cell       : " + std::to_string(unit_cell_.volume()) + "\n";
     return result + "  ----- end finite grid -----\n\n";
 }

@@ -495,7 +495,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
         RVec cell_length_AA;
         for (int dimension = 0; dimension <= ZZ; ++dimension)
         {
-            cell_length_AA[dimension] = NM2A * grid_data.getCell().length(dimension);
+            cell_length_AA[dimension] = NM2A * grid_data.getCell().basisVectorLength(dimension);
         }
         write_float32_rvec_(cell_length_AA);
         /* \todo take care of other possible unit cells
@@ -1159,10 +1159,10 @@ Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx:
 
 void Df3File::SuccessfulDf3Write::writePovray()
 {
-    const auto &grid         = gridData_.getGrid();
+    const auto &cell         = gridData_.getGrid().getCell();
     auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
-    auto        translation  = grid.getCell().transformFromBasis({{0., 0., 0.}});
-    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.getCell().length(XX)) + "," + std::to_string(NM2A *grid.getCell().length(YY)) + "," + std::to_string(NM2A *grid.getCell().length(ZZ)) + ">;\n";
+    auto        translation  = cell.transformFromBasis({{0., 0., 0.}});
+    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * cell.basisVectorLength(XX)) + "," + std::to_string(NM2A *cell.basisVectorLength(YY)) + "," + std::to_string(NM2A *cell.basisVectorLength(ZZ)) + ">;\n";
     povRayString += std::string("#declare theinterior = interior {\n")
         +"\tmedia {\n"
         +"\t\temission <1,1,1> / 10\n"
