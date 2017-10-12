@@ -42,7 +42,7 @@
 #ifndef GMX_MATH_CONVOLUTION_H
 #define GMX_MATH_CONVOLUTION_H
 
-#include "../field.h"
+#include "gromacs/math/griddata/field.h"
 #include "gromacs/math/gmxcomplex.h"
 #include <array>
 
@@ -54,11 +54,11 @@ class GaussConvolution
     public:
         GaussConvolution(const Field<real> &input);
         std::unique_ptr < Field < real>> convolute(real sigma);
-        GaussConvolution &pad(RVec paddingFactor);
+        GaussConvolution &pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor);
 
     private:
-        const std::array<int, 3> &extendBeforePadding_;
-        const Field<real>        &input_;
+        const ColumnMajorLattice<DIM>::MultiIndex &extendBeforePadding_;
+        const Field<real>                         &input_;
         std::unique_ptr < Field < real>> padded_input_;
         std::unique_ptr < Field < t_complex>> fourierTransform_;
 };

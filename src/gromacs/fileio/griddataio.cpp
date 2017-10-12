@@ -488,14 +488,19 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
         {
             cell_angle = {90, 90, 90};
         }
-        newGrid.setCell(cell_length, cell_angle);
+        newGrid.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
     }
     else
     {
         RVec cell_length_AA;
-        svmul(NM2A, grid_data.getCell().cell_lengths(), cell_length_AA);
+        for (int dimension = 0; dimension <= ZZ; ++dimension)
+        {
+            cell_length_AA[dimension] = NM2A * grid_data.getCell().length(dimension);
+        }
         write_float32_rvec_(cell_length_AA);
-        write_float32_rvec_(grid_data.getCell().cell_angles());
+        /* \todo take care of other possible unit cells
+         */
+        write_float32_rvec_({90, 90, 90});
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -675,7 +680,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
          */
         if (meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
         {
-            newGrid.set_translation({(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]});
+            newGrid.set_translation({{(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]}});
         }
     }
 
@@ -1033,7 +1038,7 @@ MrcFile::Impl::~Impl()
 void MrcFile::Impl::set_meta(const Field<real> &grid_data)
 {
     set_grid_stats(grid_data);
-    auto index_of_origin = grid_data.getGrid().coordinate_to_gridindex_floor_ivec(RVec {1e-6, 1e-6, 1e-6});
+    auto index_of_origin = grid_data.getGrid().coordinate_to_gridindex_floor_ivec({{1e-6, 1e-6, 1e-6}});
     meta_.crs_start = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
 }
 
@@ -1156,8 +1161,8 @@ void Df3File::SuccessfulDf3Write::writePovray()
 {
     const auto &grid         = gridData_.getGrid();
     auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
-    auto        translation  = grid.getCell().coordinateTransformFromCellSpace({0., 0., 0.});
-    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.getCell().cell_lengths()[XX]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[YY]) + "," + std::to_string(NM2A *grid.getCell().cell_lengths()[ZZ]) + ">;\n";
+    auto        translation  = grid.getCell().transformFromBasis({{0., 0., 0.}});
+    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * grid.getCell().length(XX)) + "," + std::to_string(NM2A *grid.getCell().length(YY)) + "," + std::to_string(NM2A *grid.getCell().length(ZZ)) + ">;\n";
     povRayString += std::string("#declare theinterior = interior {\n")
         +"\tmedia {\n"
         +"\t\temission <1,1,1> / 10\n"

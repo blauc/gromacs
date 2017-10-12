@@ -3,7 +3,7 @@
 
 #include "gromacs/math/vectypes.h"
 #include "columnmajorlattice.h"
-#include "gridcell.h"
+#include "orthogonalbasis.h"
 #include <memory>
 
 namespace gmx
@@ -31,13 +31,12 @@ class FiniteGrid
         /*! \brief
          * Compare grid spanning vectors and translation to other.
          */
-        bool sameGridInAbsTolerance(const FiniteGrid &other, real tolerance = 1e-10) const;
+        bool sameGridInAbsTolerance(const FiniteGrid &other) const;
 
-        RVec gridpoint_coordinate(int i) const;
-        RVec coordinateToRealGridIndex(const rvec x) const;
+        OrthogonalBasis<DIM>::NdVector coordinateToRealGridIndex(const OrthogonalBasis<DIM>::NdVector &x) const;
 
-        std::array<int, 3> coordinate_to_gridindex_floor_ivec(const rvec x) const;
-        RVec gridpoint_coordinate(std::array<int, 3> i) const;
+        ColumnMajorLattice<DIM>::MultiIndex coordinate_to_gridindex_floor_ivec(const OrthogonalBasis<DIM>::NdVector &x) const;
+        OrthogonalBasis<DIM>::NdVector gridpoint_coordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const;
 
         void makeGridUniform();
 
@@ -51,36 +50,44 @@ class FiniteGrid
         std::string print() const;
 
 
-        void scaleCell(RVec scale);
+        void scaleCell(const OrthogonalBasis<DIM>::NdVector &scale);
         /*! \brief
          * Re-evaluates cell based on unit cell and grid extend
          */
         void resetCell();
 
-        void setCell(RVec length, RVec angle);
+        void setCell(const OrthogonalBasis<DIM> &cell);
 
         const ColumnMajorLattice<DIM> getLattice() const;
+
+        OrthogonalBasis<DIM> getCell() const;
+
+        OrthogonalBasis<DIM> getUnitCell() const;
 
         void setLattice(const ColumnMajorLattice<DIM> &lattice);
         /*! \brief
          *
          * Set the real-space coordinate of gridpoint (0,0,0).
          */
-        void set_translation(RVec translate);
+        void set_translation(const OrthogonalBasis<DIM>::NdVector &translate);
 
-        GridCell getCell() const;
+        bool evenlySpaced() const
+        {
+            return unit_cell_.allVectorsSameLength(relativeTolerance_, absoluteTolerance_);
+        };
 
-        GridCell getUnitCell() const;
 
     private:
         /*! \brief
          * set unit cell; divide cell matrix by extend in respective direction
          */
         void setUnitCell_();
-        GridCell                          cell_ {{1., 1., 1.}, {90, 90, 90}};
-        GridCell                          unit_cell_ {{1., 1., 1.}, {90, 90, 90}};
-        RVec                              translation_;
-        ColumnMajorLattice<DIM>           lattice_ {{{1, 1, 1}}};
+        OrthogonalBasis<DIM>::NdVector translation_;
+        OrthogonalBasis<DIM>           cell_ {{{1., 1., 1.}}};
+        OrthogonalBasis<DIM>           unit_cell_ {{{1., 1., 1.}}};
+        ColumnMajorLattice<DIM>        lattice_ {{{1, 1, 1}}};
+        real relativeTolerance_ = 1e-6;
+        real absoluteTolerance_ = 1;
 };
 
 }

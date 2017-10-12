@@ -54,7 +54,7 @@ GaussConvolution::GaussConvolution(const Field<real> &input)
     nullptr
 }
 {}
-GaussConvolution &GaussConvolution::pad(RVec paddingFactor)
+GaussConvolution &GaussConvolution::pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor)
 {
     padded_input_ = DensityPadding(input_).pad(paddingFactor);
     return *this;

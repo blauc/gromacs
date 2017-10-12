@@ -39,6 +39,8 @@
 #include <memory>
 #include <array>
 #include "gromacs/math/vectypes.h"
+#include "gromacs/math/griddata/orthogonalbasis.h"
+#include "gromacs/math/griddata/columnmajorlattice.h"
 
 namespace gmx
 {
@@ -48,10 +50,10 @@ class DensityPadding
 {
     public:
         DensityPadding(const Field<real> &toPad);
-        std::unique_ptr < Field < real>> pad(RVec paddingFactor);
+        std::unique_ptr < Field < real>> pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor);
 
         std::unique_ptr < Field < real>> padPower2();
-        std::unique_ptr < Field < real>> unpad(const std::array<int, 3> &extend);
+        std::unique_ptr < Field < real>> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
 
     private:
         const Field<real> &toPad_;

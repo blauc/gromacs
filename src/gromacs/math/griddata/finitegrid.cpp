@@ -2,6 +2,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/invertmatrix.h"
+#include "gromacs/utility/compare.h"
 #include <string>
 
 #include <vector>
@@ -9,36 +10,23 @@
 namespace gmx
 {
 
-bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other, real tolerance) const
+bool FiniteGrid::sameGridInAbsTolerance(const FiniteGrid &other) const
 {
-    rvec translationDifference;
-    rvec_sub(translation_, other.translation_, translationDifference);
-    if (norm(translationDifference) > tolerance)
+    auto otherTranslationIterator = std::begin(other.translation_);
+    for (auto t : translation_)
     {
-        return false;
+        equal_real(*otherTranslationIterator, t, relativeTolerance_, absoluteTolerance_);
+        ++otherTranslationIterator;
     }
-    for (int dim = 0; dim <= ZZ; dim++)
-    {
-        rvec cellDifference;
-        rvec_sub(cell_[dim], other.cell_[dim], cellDifference);
-        if (norm(cellDifference) > tolerance)
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return cell_.isSameWithinTolerance(other.getCell(), relativeTolerance_, absoluteTolerance_);
 }
+
 void FiniteGrid::setUnitCell_()
 {
-
-    RVec scale {
-        real(1. / lattice_.getExtend()[XX]), real(1. / lattice_.getExtend()[YY]), real(1. / lattice_.getExtend()[ZZ])
-    };
-    unit_cell_     = cell_.scale(scale);
+    unit_cell_     = cell_.scale({{real(1. / lattice_.getExtend()[XX]), real(1. / lattice_.getExtend()[YY]), real(1. / lattice_.getExtend()[ZZ])}} );
 }
 
-void FiniteGrid::scaleCell(RVec scale)
+void FiniteGrid::scaleCell(const OrthogonalBasis<DIM>::NdVector &scale)
 {
     cell_ = cell_.scale(scale);
     setUnitCell_();
@@ -46,10 +34,7 @@ void FiniteGrid::scaleCell(RVec scale)
 
 void FiniteGrid::resetCell()
 {
-    RVec scale {
-        real(lattice_.getExtend()[XX]), real(lattice_.getExtend()[YY]), real(lattice_.getExtend()[ZZ])
-    };
-    cell_ = unit_cell_.scale(scale);
+    cell_ = unit_cell_.scale({{real(lattice_.getExtend()[XX]), real(lattice_.getExtend()[YY]), real(lattice_.getExtend()[ZZ])}});
 };
 
 void FiniteGrid::convertToReciprocalSpace()
@@ -58,82 +43,74 @@ void FiniteGrid::convertToReciprocalSpace()
     resetCell();
 }
 
-void FiniteGrid::set_translation(RVec translate)
+void FiniteGrid::set_translation(const OrthogonalBasis<DIM>::NdVector &translate)
 {
     translation_ = translate;
 }
 
-std::array<int, 3> FiniteGrid::coordinate_to_gridindex_floor_ivec(const rvec x) const
+ColumnMajorLattice<DIM>::MultiIndex FiniteGrid::coordinate_to_gridindex_floor_ivec(const OrthogonalBasis<DIM>::NdVector &x) const
 {
-    RVec result = coordinateToRealGridIndex(x);
-    return { {
-                 static_cast<int>(floor(result[XX])), static_cast<int>(floor(result[YY])), static_cast<int>(floor(result[ZZ]))
-             } };
+    auto realValuedIndex = coordinateToRealGridIndex(x);
+    ColumnMajorLattice<DIM>::MultiIndex result;
+    std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(result), [](real x){return static_cast<int>(floor(x)); });
+    return result;
 }
 
-RVec FiniteGrid::coordinateToRealGridIndex(const rvec x) const
+OrthogonalBasis<DIM>::NdVector FiniteGrid::coordinateToRealGridIndex(const OrthogonalBasis<DIM>::NdVector &x) const
 {
-    RVec x_shifted;
-    rvec_sub(x, translation_, x_shifted);
-    return unit_cell_.coordinateTransformToCellSpace(x_shifted);
+    OrthogonalBasis<DIM>::NdVector x_shifted;
+    std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_shifted), [](real x, real t){return x-t; });
+    return unit_cell_.transformIntoBasis(x_shifted);
 }
 
 real FiniteGrid::avg_spacing() const
 {
-    return (unit_cell_[XX][XX] + unit_cell_[YY][YY] + unit_cell_[ZZ][ZZ]) / 3;
+    return (unit_cell_.length(XX) + unit_cell_.length(YY) + unit_cell_.length(ZZ)) / DIM;
 }
 
-RVec FiniteGrid::gridpoint_coordinate(std::array<int, 3> i) const
+OrthogonalBasis<DIM>::NdVector FiniteGrid::gridpoint_coordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const
 {
-    RVec result;
-    result = unit_cell_.coordinateTransformFromCellSpace(RVec(i[XX], i[YY], i[ZZ]));
-    rvec_inc(result, translation_);
+    auto result = unit_cell_.transformFromBasis({{real(i[XX]), real(i[YY]), real(i[ZZ])}});
+    std::transform(std::begin(translation_), std::end(translation_), std::begin(result), std::begin(result), [](real a, real b){return a+b; } );
     return result;
 };
 
-RVec FiniteGrid::gridpoint_coordinate(int linearIndex) const
-{
-    return gridpoint_coordinate(lattice_.vectoriseLinearIndex(linearIndex));
-}
-
 void FiniteGrid::makeGridUniform()
 {
-    if (!cell_.spacing_is_same_xyz())
+    if (!cell_.allVectorsSameLength(1e-5, 1))
     {
-        RVec scale {
-            1, norm(unit_cell_[XX])/norm(unit_cell_[YY]), norm(unit_cell_[XX])/norm(unit_cell_[ZZ])
-        };
-        cell_ = cell_.scale(scale);
+        cell_ = cell_.scale({
+                                {1,
+                                 unit_cell_.length(XX)/unit_cell_.length(YY),
+                                 unit_cell_.length(XX)/unit_cell_.length(ZZ) }
+                            });
         setUnitCell_();
     }
 }
 
-void FiniteGrid::setCell(RVec length, RVec angle)
+void FiniteGrid::setCell(const OrthogonalBasis<DIM> &cell)
 {
-    cell_ = GridCell(length, angle);
-    if ((lattice_.getExtend()[XX] > 0) && (lattice_.getExtend()[YY] > 0) && (lattice_.getExtend()[ZZ] > 0))
-    {
-        setUnitCell_();
-    }
+    cell_ = cell;
+    setUnitCell_();
 }
 
 
-const ColumnMajorLattice<3> FiniteGrid::getLattice() const
+const ColumnMajorLattice<DIM> FiniteGrid::getLattice() const
 {
     return lattice_;
 }
 
-void FiniteGrid::setLattice(const ColumnMajorLattice<3> &lattice)
+void FiniteGrid::setLattice(const ColumnMajorLattice<DIM> &lattice)
 {
     lattice_ = lattice;
 }
 
-GridCell FiniteGrid::getCell() const
+OrthogonalBasis<DIM> FiniteGrid::getCell() const
 {
     return cell_;
 }
 
-GridCell FiniteGrid::getUnitCell() const
+OrthogonalBasis<DIM> FiniteGrid::getUnitCell() const
 {
     return unit_cell_;
 };
@@ -149,12 +126,9 @@ std::string FiniteGrid::print() const
     result += "    translation  : " + std::to_string(translation_[0]) + " " +
         std::to_string(translation_[1]) + " " +
         std::to_string(translation_[2]) + "\n";
-    result += "    cell_lengths : " + std::to_string(cell_.cell_lengths()[0]) + " " +
-        std::to_string(cell_.cell_lengths()[1]) + " " +
-        std::to_string(cell_.cell_lengths()[2]) + "\n";
-    result += "    cell_angles  : " + std::to_string(cell_.cell_angles()[0]) + " " +
-        std::to_string(cell_.cell_angles()[1]) + " " +
-        std::to_string(cell_.cell_angles()[2]) + "\n";
+    result += "    cell_lengths : " + std::to_string(cell_.length(0)) + " " +
+        std::to_string(cell_.length(1)) + " " +
+        std::to_string(cell_.length(2)) + "\n";
     result += "    V_cell       : " + std::to_string(unit_cell_.volume()) + "\n";
     return result + "  ----- end finite grid -----\n\n";
 }

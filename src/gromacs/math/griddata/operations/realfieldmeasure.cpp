@@ -100,13 +100,15 @@ real RealFieldMeasure::rms() const { return sqrt(var()); };
 
 RVec RealFieldMeasure::center_of_mass() const
 {
-    rvec weighted_grid_coordinate;
     RVec com = {0, 0, 0};
     for (size_t i = 0; i < realfield_.size(); i++)
     {
-        svmul(realfield_[i], realfield_.getGrid().gridpoint_coordinate(i),
-              weighted_grid_coordinate);
-        rvec_inc(com, weighted_grid_coordinate);
+        auto multiIndex     = realfield_.getGrid().getLattice().vectoriseLinearIndex(i);
+        auto gridCoordinate = realfield_.getGrid().gridpoint_coordinate(multiIndex);
+        for (int dimension = XX; dimension <= ZZ; ++dimension)
+        {
+            com[dimension] += realfield_[i]*gridCoordinate[dimension];
+        }
     }
     svmul(1. / (RealFieldMeasure(*this).sum()), com, com);
     return com;

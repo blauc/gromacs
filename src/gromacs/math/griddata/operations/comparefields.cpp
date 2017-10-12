@@ -91,7 +91,7 @@ real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
     auto ref = this->reference_;
     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
                            [ref] (const real sum, const RVec r){
-                               return sum + GridInterpolator(ref.getGrid()).getLinearInterpolationAt(ref, r);
+                               return sum + GridInterpolator(ref.getGrid()).getLinearInterpolationAt(ref, {{r[XX], r[YY], r[ZZ]}});
                            });
 };
 

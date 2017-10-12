@@ -224,7 +224,7 @@ void DensityMorph::evaluateFlow_(const Field<real> &differential, std::array<Fie
 {
     // calculate force direction on grid from density derivative
     auto paddedDifferential =
-        DensityPadding(differential).pad({2.0, 2.0, 2.0});
+        DensityPadding(differential).pad({{2.0, 2.0, 2.0}});
     auto paddedDensityFlow =
         ForceDensity(*paddedDifferential, sigma_).getForce();
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
@@ -382,9 +382,9 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     for (int ix = 0; ix < extend[XX]; ix++)
                     {
 
-                        std::array<int, 3> gridIndex { {
-                                                           ix, iy, iz
-                                                       } };
+                        ColumnMajorLattice<DIM>::MultiIndex gridIndex { {
+                                                                            ix, iy, iz
+                                                                        } };
                         RVec f_vec {
                             densityflow[XX].atMultiIndex(gridIndex), densityflow[YY].atMultiIndex(gridIndex),
                             densityflow[ZZ].atMultiIndex(gridIndex)

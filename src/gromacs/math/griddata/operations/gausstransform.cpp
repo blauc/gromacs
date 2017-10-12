@@ -47,12 +47,6 @@ namespace gmx
 {
 
 void
-GaussTransform::set_grid(std::unique_ptr < Field < real>> grid)
-{
-    grid_ = std::move((grid));
-};
-
-void
 GaussTransform::set_sigma(real sigma)
 {
     sigma_ = sigma;
@@ -80,28 +74,18 @@ GaussTransform::getMaximumUsedGridIndex()
 void
 FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
 {
-    if (grid->getGrid().getUnitCell().rectangular())
-    {
-        GaussTransform::set_grid(std::move(grid));
-    }
-    else
-    {
-        GMX_THROW(gmx::InconsistentInputError("Grid needs to be rectangular to use the current implementation of fast gaussian gridding."));
-    }
-    if (grid_->getGrid().getUnitCell().spacing_is_same_xyz())
-    {
-        nu_       = grid_->getGrid().avg_spacing()/sigma_;
-        m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
-        E3_.resize(2*m_spread_+1);
-
-        for (int i = -m_spread_; i <= m_spread_; ++i)
-        {
-            E3_[i+m_spread_] = exp( -i * i * nu_ * nu_ / 2. );
-        }
-    }
-    else
+    grid_ = std::move((grid));
+    if (!grid_->getGrid().evenlySpaced())
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
+    }
+    nu_       = grid_->getGrid().avg_spacing()/sigma_;
+    m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
+    E3_.resize(2*m_spread_+1);
+
+    for (int i = -m_spread_; i <= m_spread_; ++i)
+    {
+        E3_[i+m_spread_] = exp( -i * i * nu_ * nu_ / 2. );
     }
     minimumUsedGridIndex_ = {GMX_INT32_MAX, GMX_INT32_MAX, GMX_INT32_MAX};
     maximumUsedGridIndex_ = {0, 0, 0};
@@ -202,7 +186,10 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(x);
+    OrthogonalBasis<DIM>::NdVector y {{
+                                          x[XX], x[YY], x[ZZ]
+                                      }};
+    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(y);
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {

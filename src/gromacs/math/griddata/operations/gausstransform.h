@@ -43,6 +43,8 @@
 #define _GAUSSTRANSFORM_H
 
 #include "gromacs/math/vec.h"
+
+#include "gromacs/math/griddata/columnmajorlattice.h"
 #include <array>
 #include <vector>
 #include <memory>
@@ -99,9 +101,9 @@ class FastGaussianGridding : public GaussTransform
         std::unique_ptr < Field < real>> finish_and_return_grid();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
-        std::array<int, 3>                 grid_index_of_spread_atom_;
-        int                                m_spread_;
-        std::array<std::vector<real>, 3>   spread_1d_;
+        ColumnMajorLattice<DIM>::MultiIndex grid_index_of_spread_atom_;
+        int                                 m_spread_;
+        std::array<std::vector<real>, 3>    spread_1d_;
         std::vector < std::vector < real>> spread_2d_;
     private:
         void spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension);

@@ -49,11 +49,11 @@ DensityPadding::padPower2() {
     real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
     real        factorZZ = pow(2, ceil(log(extend[ZZ])/log(2)));
 
-    return pad({factorXX/real(extend[XX]), factorYY/real(extend[YY]), factorZZ/real(extend[ZZ])} );
+    return pad({{factorXX/real(extend[XX]), factorYY/real(extend[YY]), factorZZ/real(extend[ZZ])}} );
 }
 
 std::unique_ptr < Field < real>>
-DensityPadding::pad(RVec paddingFactor) {
+DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
     std::array<int, 3> paddedExtend;
     for (int dimension = 0; dimension < DIM; dimension++)
     {
@@ -91,7 +91,7 @@ DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
 {}
 
 std::unique_ptr < Field < real>>
-DensityPadding::unpad(const  std::array<int, 3> &unPadExtend) {
+DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend) {
 
     auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
     unpaddedGrid.setLattice(unPadExtend);
