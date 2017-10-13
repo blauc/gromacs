@@ -119,7 +119,7 @@ class MrcFile::Impl
 
         char read_char_();
         gmx_int32_t read_int32_();
-        float read_float32_();
+        void do_float32_(float * f);
         RVec read_float32_rvec_();
         std::array<int, 3> read_int32_ivec_();
         void write_int32_(int data);
@@ -223,9 +223,9 @@ std::array<int, 3> MrcFile::Impl::read_int32_ivec_()
 RVec MrcFile::Impl::read_float32_rvec_()
 {
     RVec result;
-    result[0] = read_float32_();
-    result[1] = read_float32_();
-    result[2] = read_float32_();
+    do_float32_(&(result[0]));
+    do_float32_(&(result[1]));
+    do_float32_(&(result[2]));
     return result;
 }
 
@@ -541,9 +541,9 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * Minimum, maximum, average density */
     if (bRead)
     {
-        meta_.min_value  = read_float32_();
-        meta_.max_value  = read_float32_();
-        meta_.mean_value = read_float32_();
+        do_float32_(&(meta_.min_value ));
+        do_float32_(&(meta_.max_value ));
+        do_float32_(&(meta_.mean_value));
     }
     else
     {
@@ -614,7 +614,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
             {
                 for (auto && i : meta_.skew_matrix)
                 {
-                    i = read_float32_();
+                    do_float32_(&i);
                 }
                 meta_.skew_translation = read_float32_rvec_();
             }
@@ -657,7 +657,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     {
         for (auto && i : meta_.extra)
         {
-            i = read_float32_();
+            do_float32_(&i);
         }
     }
     else
@@ -718,7 +718,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * Density root-mean-square deviation */
     if (bRead)
     {
-        meta_.rms_value = read_float32_();
+        do_float32_(&(meta_.rms_value));
     }
     else
     {
@@ -810,22 +810,29 @@ void MrcFile::Impl::swap_float32_(float &result)
 }
 
 
-float MrcFile::Impl::read_float32_()
+void MrcFile::Impl::do_float32_(float * result)
 {
-    float result;
-    if (fread(&result, sizeof(result), 1, file_) != 1)
+    if (fread(result, sizeof(float), 1, file_) != 1)
     {
         GMX_THROW(gmx::FileIOError("Cannot read float from volume data at " + std::to_string(ftell(file_)) + "."));
     }
-    ;
 
     if (meta_.swap_bytes)
     {
-        swap_float32_(result);
+        swap_float32_(*result);
     }
-    return result;
 }
 
+void MrcFile::Impl::write_float32_(real data)
+{
+    float to_write = static_cast<float> (data);
+    if (meta_.swap_bytes)
+    {
+        swap_float32_(to_write);
+    }
+
+    fwrite(&to_write, sizeof(to_write), 1, file_);
+}
 void MrcFile::Impl::write_int32_(int data)
 {
     if (meta_.swap_bytes)
@@ -838,16 +845,6 @@ void MrcFile::Impl::write_int32_(int data)
 }
 
 
-void MrcFile::Impl::write_float32_(real data)
-{
-    float to_write = static_cast<float> (data);
-    if (meta_.swap_bytes)
-    {
-        swap_float32_(to_write);
-    }
-
-    fwrite(&to_write, sizeof(to_write), 1, file_);
-}
 
 void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
@@ -876,7 +873,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             {
                 for (int column  = 0; column  < num_crs[XX]; column++)
                 {
-                    grid_data.atMultiIndex(to_xyz_order({{column, row, section}})) = read_float32_();
+                    do_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})));
                 }
             }
         }
