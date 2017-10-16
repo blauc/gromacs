@@ -68,6 +68,9 @@ struct MrcMetaData{
     int                                      num_labels;               //!< number of used crystallographic labels, 0 for imagestacks, 1 for emdb data
     std::vector < std::string>               labels;                   //!< crystallographic labels or \:\:\:\:EMDataBank.org\:\:\:\:EMD-1234\:\:\:\: for EMDB entries
 
+    RVec                                     cell_length;              //!< length of the crystallographic unit cell
+    RVec                                     cell_angles;              //!< crystallographic unit cell angles
+
     std::array<int, 3>                       crs_to_xyz;               //!< Axis order
     std::array<int, 3>                       xyz_to_crs;               //!< reversed Axis order
     std::array<int, 3>                       num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10

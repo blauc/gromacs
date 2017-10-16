@@ -85,21 +85,20 @@ class MrcFile::Impl
 
         std::string print_to_string();
 
-        void do_mrc(const Field<real> &grid_data, bool bRead);
         void do_mrc_data_(Field<real> &grid_data, bool bRead);
-        FiniteGrid do_mrc_header_(const FiniteGrid &grid_data, bool bRead);
+        void do_mrc_header_(bool bRead);
+        FiniteGrid setFiniteGridFromMrcMeta();
+        void setMrcMetaFromFiniteGrid(const FiniteGrid &grid );
 
         void checkMrcDataMode(int mode);
 
         /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
          */
         void set_metadata_mrc_default();
-        void checkNumBytesExtendedHeader(int n);
 
         std::array<int, 3> xyz_to_crs(const std::array<int, 3> &order);
         std::array<int, 3> to_xyz_order(const std::array<int, 3> &i_crs);
         std::array<int, 3> to_crs_order(const std::array<int, 3> &xyz_order);
-        void set_crs_to_xyz(const std::array<int, 3> &order);
 
         /*! \brief Guess, whether endianess differs between input file and reading architecture .
          *
@@ -112,9 +111,7 @@ class MrcFile::Impl
         void set_extended_header();
         void write_extended_header();
 
-        bool is_crystallographic();
         bool has_skew_matrix();
-        void set_has_skew_matrix(int flag);
         void set_skew_matrix(matrix skew);
 
         char read_char_();
@@ -124,10 +121,7 @@ class MrcFile::Impl
         void do_int32_ivec_(std::array<int, 3> * result, bool bRead);
         void do_int32_(int * data, bool bRead);
 
-
-        void set_meta(const Field<real> &grid_data);
         void set_grid_stats(const Field<real> &grid_data);
-
 
         bool colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz);
 
@@ -191,10 +185,49 @@ std::array<int, 3> MrcFile::Impl::xyz_to_crs(const std::array<int, 3> &order)
     return result;
 }
 
-void MrcFile::Impl::set_crs_to_xyz(const std::array<int, 3> &order)
+FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
 {
-    std::copy(std::begin(order), std::end(order), std::begin(meta_.crs_to_xyz));
-    meta_.xyz_to_crs = xyz_to_crs(order);
+    FiniteGrid result;
+    result.setLattice(meta_.extend);
+    RVec       cell_length;
+    svmul(A2NM, meta_.cell_length, cell_length);
+    result.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
+
+    result.set_translation(result.gridpoint_coordinate(
+                                   {{
+                                        meta_.crs_start[meta_.xyz_to_crs[XX]],
+                                        meta_.crs_start[meta_.xyz_to_crs[YY]],
+                                        meta_.crs_start[meta_.xyz_to_crs[ZZ]]
+                                    }}));
+    /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
+     * values read here are ignored.
+     * Convention is not clear at this point, whether the translation here should be treated as extra shift,
+     * in observed cases this was not the case.
+     *
+     * Silently ignore if the map translation due to grid-index start shift
+     * does not match the shift reported here.
+     */
+    if (!meta_.is_crystallographic && meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
+    {
+        result.set_translation({{(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]}});
+    }
+
+    return result;
+}
+
+void MrcFile::Impl::setMrcMetaFromFiniteGrid(const FiniteGrid &grid )
+{
+    auto index_of_origin = grid.coordinate_to_gridindex_floor_ivec({{1e-6, 1e-6, 1e-6}});
+    meta_.crs_start   = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
+    meta_.num_crs     = to_crs_order(grid.getLattice().getExtend());
+    meta_.extend      = grid.getLattice().getExtend();
+    meta_.cell_angles = { 90, 90, 90 };
+
+    for (int dimension = 0; dimension <= ZZ; ++dimension)
+    {
+        meta_.cell_length[dimension] = NM2A * grid.getCell().basisVectorLength(dimension);
+    }
+    meta_.num_labels = meta_.labels.size();
 }
 
 std::array<int, 3> MrcFile::Impl::to_xyz_order(const std::array<int, 3> &i_crs)
@@ -221,12 +254,6 @@ void MrcFile::Impl::do_float32_rvec_(RVec * result, bool bRead)
     do_float32_(&((*result)[XX]), bRead);
     do_float32_(&((*result)[YY]), bRead);
     do_float32_(&((*result)[ZZ]), bRead);
-}
-
-
-bool MrcFile::Impl::is_crystallographic()
-{
-    return meta_.is_crystallographic;
 }
 
 
@@ -287,35 +314,6 @@ void MrcFile::Impl::set_extended_header()
     ;
 }
 
-bool MrcFile::Impl::has_skew_matrix()
-{
-    return meta_.has_skew_matrix;
-}
-
-void MrcFile::Impl::set_has_skew_matrix(int flag)
-{
-    if (!(flag == 0 || flag == 1))
-    {
-        GMX_THROW(gmx::FileIOError("Skew matrix flag set to invalid value in mrc/cpp4/imod file. Should be 0 or 1 but is " + std::to_string(flag) + "instead."));
-    }
-    if (flag == 1)
-    {
-        meta_.has_skew_matrix = true;
-    }
-    if (flag == 0)
-    {
-        meta_.has_skew_matrix = false;
-    }
-}
-
-void MrcFile::Impl::checkNumBytesExtendedHeader(int n)
-{
-    if (n%80 != 0)
-    {
-        GMX_THROW(gmx::FileIOError("Read invalid number of bytes in symbol table from mrc/cpp4/imod file. Should be 80, but is " + std::to_string(n) + "instead."));
-    }
-};
-
 void MrcFile::Impl::checkMrcDataMode(int mode)
 {
 /* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
@@ -367,9 +365,8 @@ bool MrcFile::Impl::colummn_row_section_order_valid_(std::array<int, 3> crs_to_x
     return valid_crs_set == crs_set;
 };
 
-FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_header_(bool bRead)
 {
-    auto newGrid = FiniteGrid();
     if (bRead)
     {
         check_swap_bytes();
@@ -389,11 +386,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     /* 1-3 | NC, NR, NS | signed int >0
      * # of columns (fastest changing),rows, sections (slowest changing)
      * emdb convention: NC=NR=NS                     */
-    if (!bRead)
-    {
-        meta_.num_crs = to_crs_order(grid_data.getLattice().getExtend());
 
-    }
     do_int32_ivec_(&meta_.num_crs, bRead);
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -417,17 +410,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * Lengths in Aangstroms for a single voxel are as follows:
      * Xvoxel = X_LENGTH/NX Yvoxel = Y_LENGTH/NY Zvoxel = Z_LENGTH/NZ */
 
-    if (!bRead)
-    {
-        meta_.extend = grid_data.getLattice().getExtend();
-    }
-
     do_int32_ivec_(&meta_.extend, bRead);
-
-    if (bRead)
-    {
-        newGrid.setLattice(meta_.extend);
-    }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
      * Unit Cell repeats along X, Y, Z In Aangstrom
@@ -443,70 +426,32 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * By convention, cell angles (ALPHA, BETA, GAMMA)
      * are 90 degrees for single particle or tomogram EM maps;
      * they follow IUCr space group conventions for crystals.*/
-    RVec cell_length;
-    RVec cell_angles {
-        90, 90, 90
-    };
-    // convert to Aangstrom before writing
-    if (!bRead)
+    do_float32_rvec_(&meta_.cell_length, bRead);
+    do_float32_rvec_(&meta_.cell_angles, bRead);
+    // By convention, unset cell angles (all 0) are interpreted as 90 deg.
+    if (meta_.cell_angles[XX]*meta_.cell_angles[YY]*meta_.cell_angles[ZZ] < 1e-5)
     {
-        for (int dimension = 0; dimension <= ZZ; ++dimension)
-        {
-            cell_length[dimension] = NM2A * grid_data.getCell().basisVectorLength(dimension);
-        }
-    }
-    do_float32_rvec_(&cell_length, bRead);
-    // convert from Aangstroms when reading
-    if (bRead)
-    {
-        svmul(A2NM, cell_length, cell_length);
-    }
-    do_float32_rvec_(&cell_angles, bRead);
-    if (bRead)
-    {
-        // By convention, unset cell angles (all 0) are interpreted as 90 deg.
-        if (cell_angles[XX]*cell_angles[YY]*cell_angles[ZZ] < 1e-5)
-        {
-            cell_angles = {90, 90, 90};
-        }
-        newGrid.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
+        meta_.cell_angles = {90, 90, 90};
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
      * relationship of X,Y,Z axes to columns, rows, sections
      * emdb convention: 1, 2, 3 */
+    std::array<int, 3> crs_to_xyz {{
+                                       meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1
+                                   }};
+    do_int32_ivec_(&crs_to_xyz, bRead);
+
     if (bRead)
     {
-        std::array<int, 3> crs_to_xyz;
-        do_int32_ivec_(&crs_to_xyz, bRead);
-
-        crs_to_xyz[XX] -= 1;
-        crs_to_xyz[YY] -= 1;
-        crs_to_xyz[ZZ] -= 1;
-        if (colummn_row_section_order_valid_(crs_to_xyz))
+        meta_.crs_to_xyz[XX] = crs_to_xyz[XX]-1;
+        meta_.crs_to_xyz[YY] = crs_to_xyz[YY]-1;
+        meta_.crs_to_xyz[ZZ] = crs_to_xyz[ZZ]-1;
+        if (!colummn_row_section_order_valid_(meta_.crs_to_xyz))
         {
-            set_crs_to_xyz(crs_to_xyz);
+            meta_.crs_to_xyz = {{0, 1, 2}};
         }
-        else
-        {
-            crs_to_xyz[XX] = 0;
-            crs_to_xyz[YY] = 1;
-            crs_to_xyz[ZZ] = 2;
-            set_crs_to_xyz(crs_to_xyz);
-        }
-        newGrid.set_translation(newGrid.gridpoint_coordinate(
-                                        {{
-                                             meta_.crs_start[meta_.xyz_to_crs[XX]],
-                                             meta_.crs_start[meta_.xyz_to_crs[YY]],
-                                             meta_.crs_start[meta_.xyz_to_crs[ZZ]]
-                                         }}));
-    }
-    else
-    {
-        std::array<int, 3> crs_to_xyz {{
-                                           meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1
-                                       }};
-        do_int32_ivec_(&crs_to_xyz, bRead);
+        meta_.xyz_to_crs = xyz_to_crs(meta_.crs_to_xyz);
     }
 
 
@@ -532,24 +477,28 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * # of bytes in symmetry table (multiple of 80)
      * emdb convention 0 */
     do_int32_(&meta_.num_bytes_extened_header, bRead);
-    if (bRead)
+    if (meta_.num_bytes_extened_header%80 != 0)
     {
-        checkNumBytesExtendedHeader(meta_.num_bytes_extened_header);
+        GMX_THROW(gmx::FileIOError("Read invalid number of bytes in symbol table from mrc/cpp4/imod file. Should be 80, but is " + std::to_string(meta_.num_bytes_extened_header) + "instead."));
     }
 
-    if (is_crystallographic())
+    if (meta_.is_crystallographic)
     {
         /* 25 | LSKFLG | signed int | 0,1
          * flag for skew matrix
          * emdb convention 0 */
-        gmx_int32_t hasSkewMatrix = has_skew_matrix();
+        gmx_int32_t hasSkewMatrix = meta_.has_skew_matrix ? 1 : 0;
         do_int32_(&hasSkewMatrix, bRead);
         if (bRead)
         {
-            set_has_skew_matrix(hasSkewMatrix);
+            if (!(hasSkewMatrix == 0 || hasSkewMatrix == 1))
+            {
+                GMX_THROW(gmx::FileIOError("Skew matrix flag set to invalid value in mrc/cpp4/imod file. Should be 0 or 1 but is " + std::to_string(hasSkewMatrix) + "instead."));
+            }
+            meta_.has_skew_matrix = (hasSkewMatrix == 1) ? true : false;
         }
 
-        if (has_skew_matrix())
+        if (meta_.has_skew_matrix)
         {
             /* TODO: A2NM conversion for skew matrix if necessary */
             /* 26-34 | SKWMAT | floating pt
@@ -584,28 +533,10 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      *
      * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB.
      * EMDB might use fields 50,51 and 52 for setting the coordinate system origin */
-
     for (auto && i : meta_.extra)
     {
         do_float32_(&i, bRead);
     }
-
-    if (!is_crystallographic() && bRead)
-    {
-        /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
-         * values read here are ignored.
-         * Convention is not clear at this point, whether the translation here should be treated as extra shift,
-         * in observed cases this was not the case.
-         *
-         * Silently ignore if the map translation due to grid-index start shift
-         * does not match the shift reported here.
-         */
-        if (meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
-        {
-            newGrid.set_translation({{(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]}});
-        }
-    }
-
 
     /* 53 | MAP | ASCII char
      * "MAP "
@@ -639,10 +570,6 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      *
      * Following the 2010 remediation, maps distributed by EMDB
      * now have a single label of form “::::EMDataBank.org::::EMD-1234::::”.  */
-    if (!bRead)
-    {
-        meta_.num_labels = meta_.labels.size();
-    }
     do_int32_(&meta_.num_labels, bRead);
 
     /* 57-256 | LABEL_N | ASCII char
@@ -666,8 +593,6 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     {
         write_extended_header();
     }
-
-    return newGrid;
 
 };
 
@@ -769,7 +694,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
         {
             for (int column  = 0; column  < num_crs[XX]; column++)
             {
-                do_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})), bRead);
+                do_float32_(&(grid_data.atMultiIndex(to_xyz_order({{column, row, section}}))), bRead);
             }
         }
     }
@@ -805,17 +730,6 @@ void MrcFile::Impl::check_swap_bytes()
     // rewind the file
     fsetpos(file_, &current);
 
-}
-
-void MrcFile::Impl::do_mrc(const Field<real> &grid_data, bool bRead)
-{
-    //TODO: avoid const cast
-    auto grid = do_mrc_header_(grid_data.getGrid(), bRead);
-    if (bRead)
-    {
-        *(const_cast<Field<real>*>(&grid_data)) = Field<real>(grid);
-    }
-    do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
 }
 
 bool MrcFile::Impl::known_extension(std::string filename)
@@ -913,13 +827,6 @@ MrcFile::Impl::~Impl()
     }
 };
 
-void MrcFile::Impl::set_meta(const Field<real> &grid_data)
-{
-    set_grid_stats(grid_data);
-    auto index_of_origin = grid_data.getGrid().coordinate_to_gridindex_floor_ivec({{1e-6, 1e-6, 1e-6}});
-    meta_.crs_start = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
-}
-
 void
 MrcFile::Impl::set_grid_stats(const Field<real> &grid_data)
 {
@@ -960,26 +867,28 @@ void MrcFile::write_with_own_meta(std::string filename, Field<real> &grid_data, 
     }
 
     impl_->open_file(filename, bRead);
-    impl_->do_mrc(grid_data, bRead);
+    impl_->do_mrc_header_(bRead);
+    impl_->do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
     impl_->close_file();
 }
 
 void MrcFile::write(std::string filename, const Field<real> &grid_data)
 {
     bool bRead = false;
-    impl_->set_meta(grid_data);
+    impl_->set_grid_stats(grid_data);
     impl_->open_file(filename, bRead);
-    impl_->do_mrc(grid_data, bRead);
+    impl_->setMrcMetaFromFiniteGrid(grid_data.getGrid());
+    impl_->do_mrc_header_(bRead);
+    impl_->do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
     impl_->close_file();
 }
 
 
 void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
 {
-    FiniteGrid  griddata;
     bool        bRead = true;
     impl_->open_file(filename, bRead);
-    impl_->do_mrc_header_(griddata, bRead);
+    impl_->do_mrc_header_(bRead);
     impl_->close_file();
     meta = impl_->meta_;
 }
@@ -994,7 +903,10 @@ void MrcFile::read(std::string filename, Field<real> &grid_data)
 {
     bool bRead = true;
     impl_->open_file(filename, bRead);
-    impl_->do_mrc(grid_data, bRead);
+    impl_->do_mrc_header_(bRead);
+    auto grid = impl_->setFiniteGridFromMrcMeta();
+    grid_data = Field<real>(grid);
+    impl_->do_mrc_data_(grid_data, bRead);
     impl_->close_file();
 }
 
