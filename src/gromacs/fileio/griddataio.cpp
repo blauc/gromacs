@@ -89,12 +89,12 @@ class MrcFile::Impl
         void do_mrc_data_(Field<real> &grid_data, bool bRead);
         FiniteGrid do_mrc_header_(const FiniteGrid &grid_data, bool bRead);
 
-        void set_mrc_data_mode(int mode);
+        void checkMrcDataMode(int mode);
 
         /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
          */
         void set_metadata_mrc_default();
-        void set_num_bytes_extened_header(int n);
+        void checkNumBytesExtendedHeader(int n);
 
         std::array<int, 3> xyz_to_crs(const std::array<int, 3> &order);
         std::array<int, 3> to_xyz_order(const std::array<int, 3> &i_crs);
@@ -118,14 +118,14 @@ class MrcFile::Impl
         void set_skew_matrix(matrix skew);
 
         char read_char_();
-        gmx_int32_t read_int32_();
-        void do_float32_(float * f);
-        RVec read_float32_rvec_();
-        std::array<int, 3> read_int32_ivec_();
-        void write_int32_(int data);
-        void write_int32_ivec_(const std::array<int, 3> &i);
-        void write_float32_(real data);
-        void write_float32_rvec_(const RVec &i);
+        void read_int32_(gmx_int32_t * result, bool bRead);
+        void do_float32_(float * f, bool bRead);
+        void read_float32_rvec_(RVec * result, bool bRead);
+        void  read_int32_ivec_(std::array<int, 3> * result, bool bRead);
+        void write_int32_(int * data, bool bRead);
+        void write_int32_ivec_(std::array<int, 3> *i, bool bRead);
+        void write_float32_(real data, bool bRead);
+        void write_float32_rvec_(const RVec &i, bool bRead);
 
         void set_meta(const Field<real> &grid_data);
         void set_grid_stats(const Field<real> &grid_data);
@@ -211,22 +211,24 @@ std::array<int, 3> MrcFile::Impl::to_xyz_order(const std::array<int, 3> &i_crs)
 }
 
 
-std::array<int, 3> MrcFile::Impl::read_int32_ivec_()
+void MrcFile::Impl::read_int32_ivec_(std::array<int, 3> * result, bool bRead)
 {
-    std::array<int, 3> result;
-    result[0] = read_int32_();
-    result[1] = read_int32_();
-    result[2] = read_int32_();
-    return result;
+    if (bRead)
+    {
+        read_int32_(&(*result)[0], bRead);
+        read_int32_(&(*result)[1], bRead);
+        read_int32_(&(*result)[2], bRead);
+    }
 }
 
-RVec MrcFile::Impl::read_float32_rvec_()
+void MrcFile::Impl::read_float32_rvec_(RVec * result, bool bRead)
 {
-    RVec result;
-    do_float32_(&(result[0]));
-    do_float32_(&(result[1]));
-    do_float32_(&(result[2]));
-    return result;
+    if (bRead)
+    {
+        do_float32_(&((*result)[0]), bRead);
+        do_float32_(&((*result)[1]), bRead);
+        do_float32_(&((*result)[2]), bRead);
+    }
 }
 
 
@@ -235,11 +237,14 @@ bool MrcFile::Impl::is_crystallographic()
     return meta_.is_crystallographic;
 }
 
-void MrcFile::Impl::write_float32_rvec_(const RVec &i)
+void MrcFile::Impl::write_float32_rvec_(const RVec &i, bool bRead)
 {
-    write_float32_(static_cast<float>(i[XX]));
-    write_float32_(static_cast<float>(i[YY]));
-    write_float32_(static_cast<float>(i[ZZ]));
+    if (!bRead)
+    {
+        write_float32_(static_cast<float>(i[XX]), bRead);
+        write_float32_(static_cast<float>(i[YY]), bRead);
+        write_float32_(static_cast<float>(i[ZZ]), bRead);
+    }
 }
 
 std::string MrcFile::Impl::filetype(std::string filename)
@@ -320,17 +325,15 @@ void MrcFile::Impl::set_has_skew_matrix(int flag)
     }
 }
 
-void MrcFile::Impl::set_num_bytes_extened_header(int n)
+void MrcFile::Impl::checkNumBytesExtendedHeader(int n)
 {
     if (n%80 != 0)
     {
         GMX_THROW(gmx::FileIOError("Read invalid number of bytes in symbol table from mrc/cpp4/imod file. Should be 80, but is " + std::to_string(n) + "instead."));
     }
-    meta_.num_bytes_extened_header = n;
-
 };
 
-void MrcFile::Impl::set_mrc_data_mode(int mode)
+void MrcFile::Impl::checkMrcDataMode(int mode)
 {
 /* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
  * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
@@ -345,7 +348,6 @@ void MrcFile::Impl::set_mrc_data_mode(int mode)
     {
         GMX_THROW(gmx::NotImplementedError("Other mrc/ccp4/imod data modes than 32 bit float not currently implemented. Upgrading to the newest gromacs verison might possibly help."));
     }
-    meta_.mrc_data_mode = mode;
 }
 
 void MrcFile::Impl::read_format_identifier()
@@ -371,11 +373,14 @@ std::array<int, 3> MrcFile::Impl::to_crs_order(const std::array<int, 3> &xyz_ord
     return result;
 }
 
-void MrcFile::Impl::write_int32_ivec_(const std::array<int, 3> &i)
+void MrcFile::Impl::write_int32_ivec_(std::array<int, 3> *i, bool bRead)
 {
-    write_int32_(i[XX]);
-    write_int32_(i[YY]);
-    write_int32_(i[ZZ]);
+    if (!bRead)
+    {
+        write_int32_(&(*i)[XX], bRead);
+        write_int32_(&(*i)[YY], bRead);
+        write_int32_(&(*i)[ZZ], bRead);
+    }
 }
 
 bool MrcFile::Impl::colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz)
@@ -413,11 +418,12 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention: NC=NR=NS                     */
     if (bRead)
     {
-        meta_.num_crs = read_int32_ivec_();
+        read_int32_ivec_(&meta_.num_crs, bRead);
     }
     else
     {
-        write_int32_ivec_(to_crs_order(grid_data.getLattice().getExtend()));
+        meta_.num_crs = to_crs_order(grid_data.getLattice().getExtend());
+        write_int32_ivec_(&meta_.num_crs, bRead);
     }
 
     /* 4   | MODE | signed int | 0,1,2,3,4
@@ -425,11 +431,12 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention: 2       */
     if (bRead)
     {
-        set_mrc_data_mode(read_int32_());
+        read_int32_(&meta_.mrc_data_mode, bRead);
+        checkMrcDataMode(meta_.mrc_data_mode);
     }
     else
     {
-        write_int32_(meta_.mrc_data_mode);
+        write_int32_(&meta_.mrc_data_mode, bRead);
     }
 
     /* 5-7 | NCSTART, NRSTART, NSSTART | signed int
@@ -439,11 +446,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * The center of the voxel with grid position (0,0,0) corresponds to the Cartesian coordinate origin.*/
     if (bRead)
     {
-        meta_.crs_start = read_int32_ivec_();
+        read_int32_ivec_(&meta_.crs_start, bRead);
     }
     else
     {
-        write_int32_ivec_(meta_.crs_start);
+        write_int32_ivec_(&meta_.crs_start, bRead);
     }
     /* 8-10 | NX, NY, NZ | signed int >0 |
      * intervals per unit cell repeat along X,Y Z
@@ -455,13 +462,13 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
 
     if (bRead)
     {
-        auto ivecExtend = read_int32_ivec_();
-        meta_.extend = {{ivecExtend[XX], ivecExtend[YY], ivecExtend[ZZ]}};
+        read_int32_ivec_(&meta_.extend, bRead);
         newGrid.setLattice(meta_.extend);
     }
     else
     {
-        write_int32_ivec_(grid_data.getLattice().getExtend());
+        meta_.extend = grid_data.getLattice().getExtend();
+        write_int32_ivec_(&meta_.extend, bRead);
     }
 
     /* 11-13 | X_LENGTH, Y_LENGTH, Z_LENGTH | floating pt >0
@@ -480,9 +487,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * they follow IUCr space group conventions for crystals.*/
     if (bRead)
     {
-        RVec cell_length = read_float32_rvec_();
+        RVec cell_length;
+        read_float32_rvec_(&cell_length, bRead);
         svmul(A2NM, cell_length, cell_length);
-        RVec cell_angle  = read_float32_rvec_();
+        RVec cell_angle;
+        read_float32_rvec_(&cell_angle, bRead);
         // By convention, unset cell angles (all 0) are interpreted as 90 deg.
         if (cell_angle[XX]*cell_angle[YY]*cell_angle[ZZ] < 1e-5)
         {
@@ -497,10 +506,10 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
         {
             cell_length_AA[dimension] = NM2A * grid_data.getCell().basisVectorLength(dimension);
         }
-        write_float32_rvec_(cell_length_AA);
+        write_float32_rvec_(cell_length_AA, bRead);
         /* \todo take care of other possible unit cells
          */
-        write_float32_rvec_({90, 90, 90});
+        write_float32_rvec_({90, 90, 90}, bRead);
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -508,7 +517,8 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention: 1, 2, 3 */
     if (bRead)
     {
-        auto crs_to_xyz = read_int32_ivec_();
+        std::array<int, 3> crs_to_xyz;
+        read_int32_ivec_(&crs_to_xyz, bRead);
 
         crs_to_xyz[XX] -= 1;
         crs_to_xyz[YY] -= 1;
@@ -533,24 +543,21 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     }
     else
     {
-        write_int32_ivec_({{meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1}});
+        std::array<int, 3> crs_to_xyz {{
+                                           meta_.crs_to_xyz[XX]+1, meta_.crs_to_xyz[YY]+1, meta_.crs_to_xyz[ZZ]+1
+                                       }};
+        write_int32_ivec_(&crs_to_xyz, bRead);
     }
 
 
     /* 20-22 | AMIN, AMAX, AMEAN | floating pt
      * Minimum, maximum, average density */
-    if (bRead)
-    {
-        do_float32_(&(meta_.min_value ));
-        do_float32_(&(meta_.max_value ));
-        do_float32_(&(meta_.mean_value));
-    }
-    else
-    {
-        write_float32_(meta_.min_value);
-        write_float32_(meta_.max_value);
-        write_float32_(meta_.mean_value);
-    }
+    do_float32_(&(meta_.min_value ), bRead);
+    do_float32_(&(meta_.max_value ), bRead);
+    do_float32_(&(meta_.mean_value), bRead);
+    write_float32_(meta_.min_value, bRead);
+    write_float32_(meta_.max_value, bRead);
+    write_float32_(meta_.mean_value, bRead);
     /* 23 | ISPG | signed int 1-230 |
      * space group #
      * emdb convention 1
@@ -563,11 +570,11 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * For image stacks ISPG = 0 */
     if (bRead)
     {
-        meta_.space_group = read_int32_();
+        read_int32_(&meta_.space_group, bRead);
     }
     else
     {
-        write_int32_(meta_.space_group);
+        write_int32_(&meta_.space_group, bRead);
     }
 
     /* 24 | NSYMBT | signed int | 80n
@@ -575,11 +582,12 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * emdb convention 0 */
     if (bRead)
     {
-        set_num_bytes_extened_header(read_int32_());
+        read_int32_(&meta_.num_bytes_extened_header, bRead);
+        checkNumBytesExtendedHeader(meta_.num_bytes_extened_header);
     }
     else
     {
-        write_int32_(meta_.num_bytes_extened_header);
+        write_int32_(&meta_.num_bytes_extened_header, bRead);
     }
 
     if (is_crystallographic())
@@ -589,11 +597,14 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
          * emdb convention 0 */
         if (bRead)
         {
-            set_has_skew_matrix(read_int32_());
+            gmx_int32_t hasSkewMatrix;
+            read_int32_(&hasSkewMatrix, bRead);
+            set_has_skew_matrix(hasSkewMatrix);
         }
         else
         {
-            write_int32_(has_skew_matrix());
+            gmx_int32_t hasSkewMatrix = has_skew_matrix();
+            write_int32_(&hasSkewMatrix, bRead);
         }
 
         if (has_skew_matrix())
@@ -614,17 +625,17 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
             {
                 for (auto && i : meta_.skew_matrix)
                 {
-                    do_float32_(&i);
+                    do_float32_(&i, bRead);
                 }
-                meta_.skew_translation = read_float32_rvec_();
+                read_float32_rvec_(&meta_.skew_translation, bRead);
             }
             else
             {
                 for (auto i : meta_.skew_matrix)
                 {
-                    write_float32_(i);
+                    write_float32_(i, bRead);
                 }
-                write_float32_rvec_(meta_.skew_translation);
+                write_float32_rvec_(meta_.skew_translation, bRead);
             }
         }
     }
@@ -635,14 +646,14 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
         {
             for (auto && i : meta_.extraskew)
             {
-                i = read_int32_();
+                do_float32_(&i, bRead);
             }
         }
         else
         {
             for (auto i : meta_.extraskew)
             {
-                write_float32_(i);
+                write_float32_(i, bRead);
             }
         }
     }
@@ -657,14 +668,14 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     {
         for (auto && i : meta_.extra)
         {
-            do_float32_(&i);
+            do_float32_(&i, bRead);
         }
     }
     else
     {
         for (auto i : meta_.extra)
         {
-            write_float32_(i);
+            write_float32_(i, bRead);
         }
     }
 
@@ -708,21 +719,21 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      */
     if (bRead)
     {
-        meta_.machine_stamp = read_int32_();
+        read_int32_(&meta_.machine_stamp, bRead);
     }
     else
     {
-        write_int32_(meta_.machine_stamp);
+        write_int32_(&meta_.machine_stamp, bRead);
     }
     /* 55 | RMS | floating pt
      * Density root-mean-square deviation */
     if (bRead)
     {
-        do_float32_(&(meta_.rms_value));
+        do_float32_(&(meta_.rms_value), bRead);
     }
     else
     {
-        write_float32_(meta_.rms_value);
+        write_float32_(meta_.rms_value, bRead);
     }
     /* 56 | NLABL | signed int | 0-10
      * # of labels
@@ -731,11 +742,12 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * now have a single label of form “::::EMDataBank.org::::EMD-1234::::”.  */
     if (bRead)
     {
-        meta_.num_labels = read_int32_();
+        read_int32_(&meta_.num_labels, bRead);
     }
     else
     {
-        write_int32_(meta_.labels.size());
+        meta_.num_labels = meta_.labels.size();
+        write_int32_(&meta_.num_labels, bRead);
     }
 
     /* 57-256 | LABEL_N | ASCII char
@@ -777,21 +789,23 @@ void MrcFile::Impl::swap_int32_(gmx_int32_t &result)
 }
 
 
-int MrcFile::Impl::read_int32_()
+void MrcFile::Impl::read_int32_(gmx_int32_t * result, bool bRead)
 {
-    gmx_int32_t result;
-    if (fread(&result, sizeof(result), 1, file_) != 1)
+    if (bRead)
     {
-        GMX_THROW(gmx::FileIOError("Cannot read integer from volume data at " + std::to_string(ftell(file_)) + "."));
-    }
-    ;
 
-    /* byte swap in case of different endianness */
-    if (meta_.swap_bytes)
-    {
-        swap_int32_(result);
+        if (fread(result, sizeof(gmx_int32_t), 1, file_) != 1)
+        {
+            GMX_THROW(gmx::FileIOError("Cannot read integer from volume data at " + std::to_string(ftell(file_)) + "."));
+        }
+        ;
+
+        /* byte swap in case of different endianness */
+        if (meta_.swap_bytes)
+        {
+            swap_int32_(*result);
+        }
     }
-    return result;
 }
 
 char MrcFile::Impl::read_char_()
@@ -810,11 +824,15 @@ void MrcFile::Impl::swap_float32_(float &result)
 }
 
 
-void MrcFile::Impl::do_float32_(float * result)
+void MrcFile::Impl::do_float32_(float * result, bool bRead)
 {
-    if (fread(result, sizeof(float), 1, file_) != 1)
+    if (bRead)
     {
-        GMX_THROW(gmx::FileIOError("Cannot read float from volume data at " + std::to_string(ftell(file_)) + "."));
+
+        if (fread(result, sizeof(float), 1, file_) != 1)
+        {
+            GMX_THROW(gmx::FileIOError("Cannot read float from volume data at " + std::to_string(ftell(file_)) + "."));
+        }
     }
 
     if (meta_.swap_bytes)
@@ -823,24 +841,32 @@ void MrcFile::Impl::do_float32_(float * result)
     }
 }
 
-void MrcFile::Impl::write_float32_(real data)
+void MrcFile::Impl::write_float32_(real data, bool bRead)
 {
-    float to_write = static_cast<float> (data);
-    if (meta_.swap_bytes)
+    if (!bRead)
     {
-        swap_float32_(to_write);
-    }
 
-    fwrite(&to_write, sizeof(to_write), 1, file_);
+        float to_write = static_cast<float> (data);
+        if (meta_.swap_bytes)
+        {
+            swap_float32_(to_write);
+        }
+
+        fwrite(&to_write, sizeof(to_write), 1, file_);
+    }
 }
-void MrcFile::Impl::write_int32_(int data)
+void MrcFile::Impl::write_int32_(int * data, bool bRead)
 {
-    if (meta_.swap_bytes)
+    if (!bRead)
     {
-        swap_int32_(data);
-    }
 
-    fwrite(&data, sizeof(data), 1, file_);
+        if (meta_.swap_bytes)
+        {
+            swap_int32_(*data);
+        }
+
+        fwrite(data, sizeof(gmx_int32_t), 1, file_);
+    }
 
 }
 
@@ -865,30 +891,14 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
     }
 
     auto num_crs = to_crs_order(lattice.getExtend());
-    if (bRead)
+    for (int section = 0; section  < num_crs[ZZ]; section++)
     {
-        for (int section = 0; section  < num_crs[ZZ]; section++)
+        for (int row  = 0; row  < num_crs[YY]; row++)
         {
-            for (int row  = 0; row  < num_crs[YY]; row++)
+            for (int column  = 0; column  < num_crs[XX]; column++)
             {
-                for (int column  = 0; column  < num_crs[XX]; column++)
-                {
-                    do_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})));
-                }
-            }
-        }
-
-    }
-    else
-    {
-        for (int section = 0; section  < num_crs[ZZ]; section++)
-        {
-            for (int row  = 0; row  < num_crs[YY]; row++)
-            {
-                for (int column  = 0; column  < num_crs[XX]; column++)
-                {
-                    write_float32_(grid_data.atMultiIndex(to_xyz_order({{column, row, section}})));
-                }
+                do_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})), bRead);
+                write_float32_(grid_data.atMultiIndex(to_xyz_order({{column, row, section}})), bRead);
             }
         }
     }
@@ -915,7 +925,7 @@ void MrcFile::Impl::check_swap_bytes()
     fgetpos(file_, &current);
 
     fseek(file_, 0, SEEK_SET);
-    number_columns = read_int32_();
+    read_int32_(&number_columns, true);
     if (number_columns <= 0 || number_columns >= 65536)
     {
         meta_.swap_bytes = true;
