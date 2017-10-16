@@ -119,13 +119,11 @@ class MrcFile::Impl
 
         char read_char_();
         void do_float32_(float * f, bool bRead);
-        void read_float32_rvec_(RVec * result, bool bRead);
+        void do_float32_rvec_(RVec * result, bool bRead);
 
         void do_int32_ivec_(std::array<int, 3> * result, bool bRead);
         void do_int32_(int * data, bool bRead);
 
-        void write_float32_(real * data, bool bRead);
-        void write_float32_rvec_(RVec * i, bool bRead);
 
         void set_meta(const Field<real> &grid_data);
         void set_grid_stats(const Field<real> &grid_data);
@@ -218,14 +216,11 @@ void MrcFile::Impl::do_int32_ivec_(std::array<int, 3> * result, bool bRead)
     do_int32_(&(*result)[ZZ], bRead);
 }
 
-void MrcFile::Impl::read_float32_rvec_(RVec * result, bool bRead)
+void MrcFile::Impl::do_float32_rvec_(RVec * result, bool bRead)
 {
-    if (bRead)
-    {
-        do_float32_(&((*result)[0]), bRead);
-        do_float32_(&((*result)[1]), bRead);
-        do_float32_(&((*result)[2]), bRead);
-    }
+    do_float32_(&((*result)[XX]), bRead);
+    do_float32_(&((*result)[YY]), bRead);
+    do_float32_(&((*result)[ZZ]), bRead);
 }
 
 
@@ -234,17 +229,6 @@ bool MrcFile::Impl::is_crystallographic()
     return meta_.is_crystallographic;
 }
 
-void MrcFile::Impl::write_float32_rvec_(RVec *i, bool bRead)
-{
-    if (!bRead)
-    {
-        for (size_t dimension = XX; dimension < DIM; dimension++)
-        {
-            auto number =  static_cast<float>((*i)[dimension]);
-            write_float32_(&number, bRead);
-        }
-    }
-}
 
 std::string MrcFile::Impl::filetype(std::string filename)
 {
@@ -459,34 +443,33 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * By convention, cell angles (ALPHA, BETA, GAMMA)
      * are 90 degrees for single particle or tomogram EM maps;
      * they follow IUCr space group conventions for crystals.*/
-    if (bRead)
+    RVec cell_length;
+    RVec cell_angles {
+        90, 90, 90
+    };
+    // convert to Aangstrom before writing
+    if (!bRead)
     {
-        RVec cell_length;
-        read_float32_rvec_(&cell_length, bRead);
-        svmul(A2NM, cell_length, cell_length);
-        RVec cell_angle;
-        read_float32_rvec_(&cell_angle, bRead);
-        // By convention, unset cell angles (all 0) are interpreted as 90 deg.
-        if (cell_angle[XX]*cell_angle[YY]*cell_angle[ZZ] < 1e-5)
-        {
-            cell_angle = {90, 90, 90};
-        }
-        newGrid.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
-    }
-    else
-    {
-        RVec cell_length_AA;
         for (int dimension = 0; dimension <= ZZ; ++dimension)
         {
-            cell_length_AA[dimension] = NM2A * grid_data.getCell().basisVectorLength(dimension);
+            cell_length[dimension] = NM2A * grid_data.getCell().basisVectorLength(dimension);
         }
-        write_float32_rvec_(&cell_length_AA, bRead);
-        /* \todo take care of other possible unit cells
-         */
-        RVec cell_angles {
-            90, 90, 90
-        };
-        write_float32_rvec_(&cell_angles, bRead);
+    }
+    do_float32_rvec_(&cell_length, bRead);
+    // convert from Aangstroms when reading
+    if (bRead)
+    {
+        svmul(A2NM, cell_length, cell_length);
+    }
+    do_float32_rvec_(&cell_angles, bRead);
+    if (bRead)
+    {
+        // By convention, unset cell angles (all 0) are interpreted as 90 deg.
+        if (cell_angles[XX]*cell_angles[YY]*cell_angles[ZZ] < 1e-5)
+        {
+            cell_angles = {90, 90, 90};
+        }
+        newGrid.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
     }
 
     /* 17-19 | MAPC, MAPR, MAPS | signed int | 1 (=X) 2 (=Y) 3 (=Z)
@@ -532,9 +515,7 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
     do_float32_(&(meta_.min_value ), bRead);
     do_float32_(&(meta_.max_value ), bRead);
     do_float32_(&(meta_.mean_value), bRead);
-    write_float32_(&meta_.min_value, bRead);
-    write_float32_(&meta_.max_value, bRead);
-    write_float32_(&meta_.mean_value, bRead);
+
     /* 23 | ISPG | signed int 1-230 |
      * space group #
      * emdb convention 1
@@ -582,40 +563,19 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
              * emdb convention: not set
              *
              * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB. */
-            if (bRead)
+            for (auto && i : meta_.skew_matrix)
             {
-                for (auto && i : meta_.skew_matrix)
-                {
-                    do_float32_(&i, bRead);
-                }
-                read_float32_rvec_(&meta_.skew_translation, bRead);
+                do_float32_(&i, bRead);
             }
-            else
-            {
-                for (auto i : meta_.skew_matrix)
-                {
-                    write_float32_(&i, bRead);
-                }
-                write_float32_rvec_(&meta_.skew_translation, bRead);
-            }
+            do_float32_rvec_(&meta_.skew_translation, bRead);
         }
     }
     else
     {
         /* 25-37 not used in EMDB */
-        if (bRead)
+        for (auto && i : meta_.extraskew)
         {
-            for (auto && i : meta_.extraskew)
-            {
-                do_float32_(&i, bRead);
-            }
-        }
-        else
-        {
-            for (auto i : meta_.extraskew)
-            {
-                write_float32_(&i, bRead);
-            }
+            do_float32_(&i, bRead);
         }
     }
 
@@ -625,19 +585,9 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB.
      * EMDB might use fields 50,51 and 52 for setting the coordinate system origin */
 
-    if (bRead)
+    for (auto && i : meta_.extra)
     {
-        for (auto && i : meta_.extra)
-        {
-            do_float32_(&i, bRead);
-        }
-    }
-    else
-    {
-        for (auto i : meta_.extra)
-        {
-            write_float32_(&i, bRead);
-        }
+        do_float32_(&i, bRead);
     }
 
     if (!is_crystallographic() && bRead)
@@ -678,17 +628,12 @@ FiniteGrid MrcFile::Impl::do_mrc_header_(const FiniteGrid &grid_data, bool bRead
      * 0x44,0x41,0x00,0x00  for little endian machines
      * 0x11,0x11,0x00,0x00  for big endian machines
      */
-    do_int32_(&meta_.machine_stamp, bRead);
+    do_int32_(&(meta_.machine_stamp), bRead);
+
     /* 55 | RMS | floating pt
      * Density root-mean-square deviation */
-    if (bRead)
-    {
-        do_float32_(&(meta_.rms_value), bRead);
-    }
-    else
-    {
-        write_float32_(&meta_.rms_value, bRead);
-    }
+    do_float32_(&(meta_.rms_value), bRead);
+
     /* 56 | NLABL | signed int | 0-10
      * # of labels
      *
@@ -770,22 +715,12 @@ void MrcFile::Impl::do_float32_(float * result, bool bRead)
     {
         swap_float32_(*result);
     }
-}
-
-void MrcFile::Impl::write_float32_(real * data, bool bRead)
-{
     if (!bRead)
     {
-
-        float to_write = static_cast<float> (*data);
-        if (meta_.swap_bytes)
-        {
-            swap_float32_(to_write);
-        }
-
-        fwrite(&to_write, sizeof(to_write), 1, file_);
+        fwrite(result, sizeof(float), 1, file_);
     }
 }
+
 void MrcFile::Impl::do_int32_(int * data, bool bRead)
 {
     if (bRead)
@@ -835,7 +770,6 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
             for (int column  = 0; column  < num_crs[XX]; column++)
             {
                 do_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})), bRead);
-                write_float32_(&grid_data.atMultiIndex(to_xyz_order({{column, row, section}})), bRead);
             }
         }
     }
