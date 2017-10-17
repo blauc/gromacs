@@ -100,8 +100,6 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 }
 
 
-// void GridInterpolator::makeUniform() { interpolatedGrid_->makeGridUniform(); };
-
 real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const OrthogonalBasis<DIM>::NdVector &r) const
 {
     auto rIndexInGrid = field.getGrid().coordinateToRealGridIndex(r);

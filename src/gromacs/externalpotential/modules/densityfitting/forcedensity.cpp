@@ -70,8 +70,7 @@ void ForceDensity::generateFourierTransformGrids_(
 {
     auto fourierSpaceGrid = FiniteGrid(realSpaceGrid);
     fourierSpaceGrid.convertToReciprocalSpace();
-    fourierSpaceGrid.setLattice(fourierTransformGridExtendfromRealExtend(realSpaceGrid.getLattice().getExtend()));
-    fourierSpaceGrid.resetCell();
+    fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.getLattice().getExtend()));
 
     for (auto &fourierField : forcesFT_)
     {

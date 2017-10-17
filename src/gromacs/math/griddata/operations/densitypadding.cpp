@@ -69,8 +69,7 @@ DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
     }
     auto paddedGrid = FiniteGrid(toPad_.getGrid());
 
-    paddedGrid.setLattice(paddedExtend);
-    paddedGrid.scaleCell(paddingFactor);
+    paddedGrid.setLatticeAndRescaleCell(paddedExtend);
     std::unique_ptr < Field < real>> padded(new Field<real>(paddedGrid));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
@@ -94,8 +93,7 @@ std::unique_ptr < Field < real>>
 DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend) {
 
     auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
-    unpaddedGrid.setLattice(unPadExtend);
-    unpaddedGrid.resetCell();
+    unpaddedGrid.setLatticeAndRescaleCell(unPadExtend);
     std::unique_ptr < Field < real>> unpadded(new Field<real>(unpaddedGrid));
 
     for (int iZZ = 0; iZZ < unPadExtend[ZZ]; ++iZZ)

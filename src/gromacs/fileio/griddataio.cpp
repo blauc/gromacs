@@ -167,11 +167,7 @@ std::string MrcFile::Impl::print_to_string()
     result += "swap_bytes        : " + (meta_.swap_bytes == true ? std::string("true") : std::string("false"))    + " | swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture\n";
     result += "mrc_data_mode     : " + std::to_string(meta_.mrc_data_mode) + " | data mode, currently only mode 2 is supported (32-bit float real values)\n";
     result += "machine_stamp     : " + std::to_string(meta_.machine_stamp) + " | endianess of map writing architecture (big endian " + std::to_string(0x44411111) + " little endian "+ std::to_string(0x11111444) + "\n";
-    result += "format_identifier : '";
-    result.push_back(meta_.format_identifier[0]);
-    result.push_back(meta_.format_identifier[1]);
-    result.push_back(meta_.format_identifier[2]);
-    result.push_back(meta_.format_identifier[3]);
+    result += "format_identifier : '"+ meta_.format_identifier;
     result += "' | for all density formats: four 1-byte chars reading MAP \n";
     result += "num_labels        : " + std::to_string(meta_.num_labels)    + " number of used crystallographic labels, 0 for imagestacks, 1 for em data\n";
     result += "labels            : '" + std::string(meta_.labels[0].c_str()) + " crystallographic labels or ::::EMDataBank.org::::EMD-1234:::: for EMDB entries\n";
@@ -198,7 +194,7 @@ std::string MrcFile::Impl::print_to_string()
 FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
 {
     FiniteGrid result;
-    result.setLattice(meta_.extend);
+    result.setLatticeAndRescaleCell(meta_.extend);
     RVec       cell_length;
     svmul(A2NM, meta_.cell_length, cell_length);
     result.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
@@ -502,7 +498,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
     meta_.format_identifier.resize(4);
     for (size_t i = 0; i < 4; i++)
     {
-        do_<char>(&meta_.format_identifier[i], true);
+        do_<char>(&meta_.format_identifier[i], bRead);
     }
     if (!(meta_.format_identifier.compare("MAP ") == 0))
     {

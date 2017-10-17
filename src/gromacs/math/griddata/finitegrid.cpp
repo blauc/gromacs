@@ -75,19 +75,6 @@ OrthogonalBasis<DIM>::NdVector FiniteGrid::gridpoint_coordinate(const ColumnMajo
     return result;
 };
 
-void FiniteGrid::makeGridUniform()
-{
-    if (!cell_.allVectorsSameLength(1e-5, 1))
-    {
-        cell_ = cell_.scale({
-                                {1,
-                                 unit_cell_.basisVectorLength(XX)/unit_cell_.basisVectorLength(YY),
-                                 unit_cell_.basisVectorLength(XX)/unit_cell_.basisVectorLength(ZZ) }
-                            });
-        setUnitCell_();
-    }
-}
-
 void FiniteGrid::setCell(const OrthogonalBasis<DIM> &cell)
 {
     cell_ = cell;
@@ -100,9 +87,10 @@ const ColumnMajorLattice<DIM> FiniteGrid::getLattice() const
     return lattice_;
 }
 
-void FiniteGrid::setLattice(const ColumnMajorLattice<DIM> &lattice)
+void FiniteGrid::setLatticeAndRescaleCell(const ColumnMajorLattice<DIM> &lattice)
 {
     lattice_ = lattice;
+    resetCell();
 }
 
 OrthogonalBasis<DIM> FiniteGrid::getCell() const

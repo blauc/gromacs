@@ -113,9 +113,8 @@ FourierTransformRealToComplex3D::createComplexTransformedFieldFromInput_() const
      */
     auto complexTransformedGrid = FiniteGrid(realInputField_.getGrid());
     complexTransformedGrid.convertToReciprocalSpace();
-    complexTransformedGrid.setLattice(
+    complexTransformedGrid.setLatticeAndRescaleCell(
             fourierTransformGridExtendfromRealExtend(realInputField_.getGrid().getLattice().getExtend()));
-    complexTransformedGrid.resetCell();
     return std::unique_ptr < Field < t_complex>>(new Field<t_complex>(complexTransformedGrid));
 };
 
@@ -165,8 +164,7 @@ void FourierTransformRealToComplex3D::result(
 std::unique_ptr < Field < real>>
 FourierTransformComplexToReal3D::createRealTransformedFieldFromInput_() const {
     auto realGrid = FiniteGrid(complexInputField_.getGrid());
-    realGrid.setLattice(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().getLattice().getExtend()));
-    realGrid.resetCell();
+    realGrid.setLatticeAndRescaleCell(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().getLattice().getExtend()));
     realGrid.convertToReciprocalSpace();
     return std::unique_ptr < Field < real>>(new Field<real>(realGrid));
 }
