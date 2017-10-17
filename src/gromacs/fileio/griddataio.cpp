@@ -90,8 +90,6 @@ class MrcFile::Impl
         FiniteGrid setFiniteGridFromMrcMeta();
         void setMrcMetaFromFiniteGrid(const FiniteGrid &grid );
 
-        void checkMrcDataMode(int mode);
-
         /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
          */
         void set_metadata_mrc_default();
@@ -105,11 +103,6 @@ class MrcFile::Impl
          * If the number of columns in the density file is negative or larger than 65534,
          * assume endianess missmatch between input file and reading machine architecture.*/
         void check_swap_bytes();
-
-        void set_labels();
-        void write_labels();
-        void set_extended_header();
-        void write_extended_header();
 
         bool has_skew_matrix();
         void set_skew_matrix(matrix skew);
@@ -173,15 +166,6 @@ std::string MrcFile::Impl::print_to_string()
     // result+= "extended_header: " + std::to_string(meta_.extended_header)          +" only crystallographic data: extended header, usually symbol tables\n";
     // result+= "extraskew: " + std::to_string(meta_.extraskew)                +" fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)\n";
     // result+= "extra: " + std::to_string(meta_.extra)                    +" extra data in header, currently unused\n";
-    return result;
-}
-
-std::array<int, 3> MrcFile::Impl::xyz_to_crs(const std::array<int, 3> &order)
-{
-    std::array<int, 3> result;
-    result[order[XX]]  = XX;
-    result[order[YY]]  = YY;
-    result[order[ZZ]]  = ZZ;
     return result;
 }
 
@@ -271,66 +255,6 @@ std::string MrcFile::Impl::filetype(std::string filename)
     }
 }
 
-void MrcFile::Impl::write_extended_header()
-{
-    fwrite(&((meta_.extended_header)[0]), sizeof(char), meta_.extended_header.size(), file_);
-}
-
-void MrcFile::Impl::set_labels()
-{
-    std::string mrc_label(label_size, ' ');
-    meta_.labels.clear();
-    int         read_size;
-    for (int i = 0; i < number_labels; i++)
-    {
-        read_size = fread(&mrc_label[0], 1, label_size, file_);
-        if (read_size != label_size)
-        {
-            GMX_THROW(gmx::FileIOError("Could not read label from file."));
-        }
-        meta_.labels.push_back(std::string(mrc_label));
-    }
-}
-
-void MrcFile::Impl::write_labels()
-{
-    for (auto label : meta_.labels)
-    {
-        fprintf(file_, "%.*s", label_size, label.c_str());
-    }
-}
-
-void MrcFile::Impl::set_extended_header()
-{
-    if (file_size_ < meta_.num_bytes_extened_header + header_bytes)
-    {
-        GMX_THROW(gmx::FileIOError("Density format file is smaller than expected extended header."));
-    }
-    meta_.extended_header.resize(meta_.num_bytes_extened_header);
-    if (fgets(&((meta_.extended_header)[0]), meta_.num_bytes_extened_header, file_) != nullptr)
-    {
-        GMX_THROW(gmx::FileIOError("Cannot read extended header from file."));
-    }
-    ;
-}
-
-void MrcFile::Impl::checkMrcDataMode(int mode)
-{
-/* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
- * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
- * MODE = 2: 32 bits, density stored as a floating point number (IEEE 754)
- * MODE = 3: 32 bits, Fourier transform stored as complex signed integers (ISO/IEC 10967)
- * MODE = 4: 64 bits, Fourier transform stored as complex floating point numbers (IEEE 754)     */
-    if (mode < 0 || mode > 4)
-    {
-        GMX_THROW(gmx::FileIOError("Read invalid mrc/cpp4/imod data mode. Mode " + std::to_string(mode) + " not in [0..4] ."));
-    }
-    if (mode != 2)
-    {
-        GMX_THROW(gmx::NotImplementedError("Other mrc/ccp4/imod data modes than 32 bit float not currently implemented. Upgrading to the newest gromacs verison might possibly help."));
-    }
-}
-
 void MrcFile::Impl::read_format_identifier()
 {
     meta_.format_identifier.clear();
@@ -342,7 +266,15 @@ void MrcFile::Impl::read_format_identifier()
     {
         fprintf(stderr, "\nWARNING: Expected " "MAP " " as format identifier.\n");
     }
+}
 
+std::array<int, 3> MrcFile::Impl::xyz_to_crs(const std::array<int, 3> &order)
+{
+    std::array<int, 3> result;
+    result[order[XX]]  = XX;
+    result[order[YY]]  = YY;
+    result[order[ZZ]]  = ZZ;
+    return result;
 }
 
 std::array<int, 3> MrcFile::Impl::to_crs_order(const std::array<int, 3> &xyz_order)
@@ -393,7 +325,20 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * voxel datatype
      * emdb convention: 2       */
     do_int32_(&meta_.mrc_data_mode, bRead);
-    checkMrcDataMode(meta_.mrc_data_mode);
+
+/* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
+ * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
+ * MODE = 2: 32 bits, density stored as a floating point number (IEEE 754)
+ * MODE = 3: 32 bits, Fourier transform stored as complex signed integers (ISO/IEC 10967)
+ * MODE = 4: 64 bits, Fourier transform stored as complex floating point numbers (IEEE 754)     */
+    if (meta_.mrc_data_mode < 0 || meta_.mrc_data_mode > 4)
+    {
+        GMX_THROW(gmx::FileIOError("Read invalid mrc/cpp4/imod data mode. Mode " + std::to_string(meta_.mrc_data_mode) + " not in [0..4] ."));
+    }
+    if (meta_.mrc_data_mode != 2)
+    {
+        GMX_THROW(gmx::NotImplementedError("Other mrc/ccp4/imod data modes than 32 bit float not currently implemented. Upgrading to the newest gromacs verison might possibly help."));
+    }
 
     /* 5-7 | NCSTART, NRSTART, NSSTART | signed int
      * position of first column, first row, and first section (voxel grid units)
@@ -576,22 +521,44 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * Up to 10 user-defined labels */
     if (bRead)
     {
-        set_labels();
+        std::string mrc_label(label_size, ' ');
+        meta_.labels.clear();
+        int         read_size;
+        for (int i = 0; i < number_labels; i++)
+        {
+            read_size = fread(&mrc_label[0], 1, label_size, file_);
+            if (read_size != label_size)
+            {
+                GMX_THROW(gmx::FileIOError("Could not read label from file."));
+            }
+            meta_.labels.push_back(std::string(mrc_label));
+        }
     }
     else
     {
-        write_labels();
+        for (auto label : meta_.labels)
+        {
+            fprintf(file_, "%.*s", label_size, label.c_str());
+        }
     }
 
     /* 257-257+NSYMBT | anything
      */
     if (bRead)
     {
-        set_extended_header();
+        if (file_size_ < meta_.num_bytes_extened_header + header_bytes)
+        {
+            GMX_THROW(gmx::FileIOError("Density format file is smaller than expected extended header."));
+        }
+        meta_.extended_header.resize(meta_.num_bytes_extened_header);
+        if (fgets(&((meta_.extended_header)[0]), meta_.num_bytes_extened_header, file_) != nullptr)
+        {
+            GMX_THROW(gmx::FileIOError("Cannot read extended header from file."));
+        }
     }
     else
     {
-        write_extended_header();
+        fwrite(&((meta_.extended_header)[0]), sizeof(char), meta_.extended_header.size(), file_);
     }
 
 };
@@ -678,12 +645,9 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
         {
             GMX_THROW(gmx::FileIOError("Density format file is smaller than indicated in its header."));
         }
-        else
+        if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(lattice.getNumLatticePoints()*sizeof(float)) )
         {
-            if (file_size_ > header_bytes + meta_.num_bytes_extened_header +  long(lattice.getNumLatticePoints()*sizeof(float)) )
-            {
-                fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, lattice.getNumLatticePoints()*sizeof(float));
-            }
+            fprintf(stderr, "WARNING : Density format file size is %ld, however header (%d) + symbol table (%d) + data  (%ld) is larger than indicated in its header. Reading anyway.. \n", file_size_, header_bytes, meta_.num_bytes_extened_header, lattice.getNumLatticePoints()*sizeof(float));
         }
     }
 
@@ -703,12 +667,9 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 void MrcFile::Impl::read_file_size()
 {
     fpos_t current;
-
     fgetpos(file_, &current);
-
     fseek(file_, 0, SEEK_END);
     file_size_ = ftell(file_);
-
     fsetpos(file_, &current);
 }
 
