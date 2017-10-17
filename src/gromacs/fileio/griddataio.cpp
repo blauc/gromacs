@@ -118,8 +118,8 @@ class MrcFile::Impl
 
         bool colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz);
 
-        void swap_int32_(gmx_int32_t &result);
-        void swap_float32_(float &result);
+        void swap_int32_(gmx_int32_t *result);
+        void swap_float32_(float *result);
 
         FILE     *file_;
         long      file_size_;
@@ -326,11 +326,11 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * emdb convention: 2       */
     do_int32_(&meta_.mrc_data_mode, bRead);
 
-/* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
- * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
- * MODE = 2: 32 bits, density stored as a floating point number (IEEE 754)
- * MODE = 3: 32 bits, Fourier transform stored as complex signed integers (ISO/IEC 10967)
- * MODE = 4: 64 bits, Fourier transform stored as complex floating point numbers (IEEE 754)     */
+    /* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
+     * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
+     * MODE = 2: 32 bits, density stored as a floating point number (IEEE 754)
+     * MODE = 3: 32 bits, Fourier transform stored as complex signed integers (ISO/IEC 10967)
+     * MODE = 4: 64 bits, Fourier transform stored as complex floating point numbers (IEEE 754)     */
     if (meta_.mrc_data_mode < 0 || meta_.mrc_data_mode > 4)
     {
         GMX_THROW(gmx::FileIOError("Read invalid mrc/cpp4/imod data mode. Mode " + std::to_string(meta_.mrc_data_mode) + " not in [0..4] ."));
@@ -363,6 +363,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      *
      * Lengths in Aangstroms for a single voxel are as follows:
      * Xvoxel = X_LENGTH/NX Yvoxel = Y_LENGTH/NY Zvoxel = Z_LENGTH/NZ */
+    do_float32_rvec_(&meta_.cell_length, bRead);
 
     /* 14-16 | ALPHA,BETA,GAMMA | floating pt >0, <180
      * Unit Cell angles (degrees)
@@ -371,7 +372,6 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * By convention, cell angles (ALPHA, BETA, GAMMA)
      * are 90 degrees for single particle or tomogram EM maps;
      * they follow IUCr space group conventions for crystals.*/
-    do_float32_rvec_(&meta_.cell_length, bRead);
     do_float32_rvec_(&meta_.cell_angles, bRead);
     // By convention, unset cell angles (all 0) are interpreted as 90 deg.
     if (meta_.cell_angles[XX]*meta_.cell_angles[YY]*meta_.cell_angles[ZZ] < 1e-5)
@@ -563,16 +563,16 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
 
 };
 
-void MrcFile::Impl::swap_int32_(gmx_int32_t &result)
+void MrcFile::Impl::swap_int32_(gmx_int32_t *result)
 {
 
-    gmx_int32_t src = result;
-    result = 0;
+    gmx_int32_t src = *result;
+    *result = 0;
 
-    result |= (src & 0xFF000000) >> 24;
-    result |= (src & 0x00FF0000) >> 8;
-    result |= (src & 0x0000FF00) << 8;
-    result |= (src & 0x000000FF) << 24;
+    *result |= (src & 0xFF000000) >> 24;
+    *result |= (src & 0x00FF0000) >> 8;
+    *result |= (src & 0x0000FF00) << 8;
+    *result |= (src & 0x000000FF) << 24;
 }
 
 
@@ -586,9 +586,9 @@ char MrcFile::Impl::read_char_()
     return result;
 }
 
-void MrcFile::Impl::swap_float32_(float &result)
+void MrcFile::Impl::swap_float32_(float * result)
 {
-    swap_int32_(reinterpret_cast<gmx_int32_t &>(result));
+    swap_int32_(reinterpret_cast<gmx_int32_t*>(result));
 }
 
 
@@ -596,7 +596,6 @@ void MrcFile::Impl::do_float32_(float * result, bool bRead)
 {
     if (bRead)
     {
-
         if (fread(result, sizeof(float), 1, file_) != 1)
         {
             GMX_THROW(gmx::FileIOError("Cannot read float from volume data at " + std::to_string(ftell(file_)) + "."));
@@ -605,7 +604,7 @@ void MrcFile::Impl::do_float32_(float * result, bool bRead)
 
     if (meta_.swap_bytes)
     {
-        swap_float32_(*result);
+        swap_float32_(result);
     }
     if (!bRead)
     {
@@ -626,7 +625,7 @@ void MrcFile::Impl::do_int32_(int * data, bool bRead)
     /* byte swap in case of different endianness */
     if (meta_.swap_bytes)
     {
-        swap_int32_(*data);
+        swap_int32_(data);
     }
     if (!bRead)
     {
