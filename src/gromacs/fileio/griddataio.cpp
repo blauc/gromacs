@@ -86,8 +86,8 @@ class MrcFile::Impl
 
         void do_mrc_data_(Field<real> &grid_data, bool bRead);
         void do_mrc_header_(bool bRead);
-        FiniteGrid setFiniteGridFromMrcMeta();
-        void setMrcMetaFromFiniteGrid(const FiniteGrid &grid );
+        FiniteGrid<DIM> setFiniteGridFromMrcMeta();
+        void setMrcMetaFromFiniteGrid(const FiniteGrid<DIM> &grid );
 
         /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
          */
@@ -191,11 +191,11 @@ std::string MrcFile::Impl::print_to_string()
     return result;
 }
 
-FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
+FiniteGrid<DIM> MrcFile::Impl::setFiniteGridFromMrcMeta()
 {
-    FiniteGrid result;
+    FiniteGrid<DIM> result;
     result.setLatticeAndRescaleCell(meta_.extend);
-    RVec       cell_length;
+    RVec            cell_length;
     svmul(A2NM, meta_.cell_length, cell_length);
     result.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
 
@@ -221,17 +221,17 @@ FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
     return result;
 }
 
-void MrcFile::Impl::setMrcMetaFromFiniteGrid(const FiniteGrid &grid )
+void MrcFile::Impl::setMrcMetaFromFiniteGrid(const FiniteGrid<DIM> &grid )
 {
     auto index_of_origin = grid.coordinateToFloorMultiIndex({{1e-6, 1e-6, 1e-6}});
     meta_.crs_start   = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
-    meta_.num_crs     = to_crs_order(grid.getLattice().getExtend());
-    meta_.extend      = grid.getLattice().getExtend();
+    meta_.num_crs     = to_crs_order(grid.lattice().getExtend());
+    meta_.extend      = grid.lattice().getExtend();
     meta_.cell_angles = { 90, 90, 90 };
 
     for (int dimension = 0; dimension <= ZZ; ++dimension)
     {
-        meta_.cell_length[dimension] = NM2A * grid.getCell().basisVectorLength(dimension);
+        meta_.cell_length[dimension] = NM2A * grid.cell().basisVectorLength(dimension);
     }
     meta_.num_labels = meta_.labels.size();
 }
@@ -583,7 +583,7 @@ void MrcFile::Impl::swap_int32_(gmx_int32_t *result)
 
 void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
-    const auto &lattice = grid_data.getGrid().getLattice();
+    const auto &lattice = grid_data.getGrid().lattice();
     if (bRead)
     {
         if (file_size_ < header_bytes + meta_.num_bytes_extened_header + long(lattice.getNumLatticePoints()*sizeof(float)) )
@@ -822,13 +822,13 @@ Df3File::write(std::string filename, const gmx::Field<real> &grid_data)
     const auto &grid  = grid_data.getGrid();
     auto        file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t     xExtendShort {
-        int16_t(grid.getLattice().getExtend()[XX])
+        int16_t(grid.lattice().getExtend()[XX])
     };
     int16_t yExtendShort {
-        int16_t(grid.getLattice().getExtend()[YY])
+        int16_t(grid.lattice().getExtend()[YY])
     };
     int16_t zExtendShort {
-        int16_t(grid.getLattice().getExtend()[ZZ])
+        int16_t(grid.lattice().getExtend()[ZZ])
     };
     fputc(xExtendShort >> 8, file_);
     fputc(xExtendShort & 0xff, file_);
@@ -855,7 +855,7 @@ Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx:
 
 void Df3File::SuccessfulDf3Write::writePovray()
 {
-    const auto &cell         = gridData_.getGrid().getCell();
+    const auto &cell         = gridData_.getGrid().cell();
     auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
     auto        translation  = cell.transformFromBasis({{0., 0., 0.}});
     std::string povRayString = "#declare DD = <" + std::to_string(NM2A * cell.basisVectorLength(XX)) + "," + std::to_string(NM2A *cell.basisVectorLength(YY)) + "," + std::to_string(NM2A *cell.basisVectorLength(ZZ)) + ">;\n";

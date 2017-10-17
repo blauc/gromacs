@@ -50,15 +50,14 @@ namespace gmx
 
 class WholeMoleculeGroup;
 
-template<typename real> class Field;
 template<class T> class Field;
-class FiniteGrid;
+template<int N> class FiniteGrid;
 class GaussTransform;
 
 class DensitySpreader
 {
     public:
-        explicit DensitySpreader(const FiniteGrid &grid, int numberOfThreads, int n_sigma, real sigma);
+        explicit DensitySpreader(const FiniteGrid<DIM> &grid, int numberOfThreads, int n_sigma, real sigma);
         ~DensitySpreader();
         const Field<real> &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
         void zero() const;

@@ -56,11 +56,11 @@ class Field : public std::vector<T>
 {
     public:
         Field() = default;
-        Field(const FiniteGrid &other) : grid_ {other}
-        { this->resize(grid_.getLattice().getNumLatticePoints()); };
+        Field(const FiniteGrid<DIM> &other) : grid_ {other}
+        { this->resize(grid_.lattice().getNumLatticePoints()); };
 
-        const FiniteGrid getGrid() const {return grid_; }
-        void setGrid(const FiniteGrid &other) { grid_ = other; this->resize(grid_.getLattice().getNumLatticePoints()); }
+        const FiniteGrid<DIM> getGrid() const {return grid_; }
+        void setGrid(const FiniteGrid<DIM> &other) { grid_ = other; this->resize(grid_.lattice().getNumLatticePoints()); }
 
         /*! \brief
          * Directly access an index element.
@@ -68,7 +68,7 @@ class Field : public std::vector<T>
          */
         T &atMultiIndex(const std::array<int, 3> &index)
         {
-            return this->at(grid_.getLattice().lineariseVectorIndex(index));
+            return this->at(grid_.lattice().lineariseVectorIndex(index));
         };
 
         /*! \brief
@@ -77,16 +77,16 @@ class Field : public std::vector<T>
          */
         const T &atMultiIndex(const  std::array<int, 3> &index) const
         {
-            return this->at(grid_.getLattice().lineariseVectorIndex(index));
+            return this->at(grid_.lattice().lineariseVectorIndex(index));
         };
 
         typename std::vector<T>::iterator iteratorAtMultiIndex(const std::array<int, 3> &index)
         {
-            return this->begin() + grid_.getLattice().lineariseVectorIndex(index);
+            return this->begin() + grid_.lattice().lineariseVectorIndex(index);
         }
 
     private:
-        FiniteGrid grid_;
+        FiniteGrid<DIM> grid_;
 
 };
 

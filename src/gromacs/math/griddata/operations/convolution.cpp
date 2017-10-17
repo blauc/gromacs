@@ -50,7 +50,7 @@ namespace gmx
 {
 
 GaussConvolution::GaussConvolution(const Field<real> &input)
-    :  extendBeforePadding_ {input.getGrid().getLattice().getExtend()}, input_(input), padded_input_ {
+    :  extendBeforePadding_ {input.getGrid().lattice().getExtend()}, input_(input), padded_input_ {
     nullptr
 }
 {}

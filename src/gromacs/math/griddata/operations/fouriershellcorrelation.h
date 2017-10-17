@@ -58,7 +58,7 @@ class FourierShellCorrelation
         /*! \brief Set bins from real-space grid guaranteeing six datapoints per shell.
          *
          */
-        FourierShellCorrelation(const FiniteGrid &RealGrid);
+        FourierShellCorrelation(const FiniteGrid<DIM> &RealGrid);
         /*! \brief Calculate fourier shells with custom binning. */
         FourierShellCorrelation(const std::set<real> &binEdges);
         const std::set<real> &getBinEdges() const;

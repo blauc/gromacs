@@ -55,7 +55,7 @@ class WholeMoleculeGroup;
 class Quaternion;
 
 class DensitySpreader;
-class FiniteGrid;
+template<int N> class FiniteGrid;
 template<class T> class Field;
 
 class densityBasedPotential : public PotentialEvaluator

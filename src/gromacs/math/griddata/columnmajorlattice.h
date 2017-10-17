@@ -62,6 +62,11 @@ namespace gmx
 template <int N> class ColumnMajorLattice
 {
     public:
+        // \todo remove dirty hack
+        ColumnMajorLattice()
+        {
+            std::fill(std::begin(extend_), std::end(extend_), 1);
+        }
         /*!\brief
          * N-dimensional integer index.
          */

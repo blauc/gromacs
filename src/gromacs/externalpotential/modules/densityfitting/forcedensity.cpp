@@ -66,11 +66,11 @@ ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
 };
 
 void ForceDensity::generateFourierTransformGrids_(
-        const FiniteGrid &realSpaceGrid)
+        const FiniteGrid<DIM> &realSpaceGrid)
 {
-    auto fourierSpaceGrid = FiniteGrid(realSpaceGrid);
+    auto fourierSpaceGrid = realSpaceGrid;
     fourierSpaceGrid.convertToReciprocalSpace();
-    fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.getLattice().getExtend()));
+    fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));
 
     for (auto &fourierField : forcesFT_)
     {

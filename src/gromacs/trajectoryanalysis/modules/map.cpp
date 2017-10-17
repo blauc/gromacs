@@ -267,14 +267,14 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    FiniteGrid         outputdensitygrid;
-    std::array<int, 3> extend {{
-                                   (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
-                               }};
+    FiniteGrid<DIM>             outputdensitygrid;
+    FiniteGrid<DIM>::MultiIndex extend {{
+                                            (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
+                                        }};
     outputdensitygrid.setLatticeAndRescaleCell(extend);
     outputdensitygrid.setCell( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}});
 
-    const auto &uc = outputdensitygrid.getUnitCell();
+    const auto &uc = outputdensitygrid.unitCell();
     // Make the grid uniform in x, y and z direction
     outputdensitygrid.scaleCell({{1., uc.basisVectorLength(XX)/uc.basisVectorLength(YY), uc.basisVectorLength(XX)/uc.basisVectorLength(ZZ)}});
 

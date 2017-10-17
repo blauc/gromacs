@@ -103,7 +103,7 @@ RVec RealFieldMeasure::center_of_mass() const
     RVec com = {0, 0, 0};
     for (size_t i = 0; i < realfield_.size(); i++)
     {
-        auto multiIndex     = realfield_.getGrid().getLattice().vectoriseLinearIndex(i);
+        auto multiIndex     = realfield_.getGrid().lattice().vectoriseLinearIndex(i);
         auto gridCoordinate = realfield_.getGrid().multiIndexToCoordinate(multiIndex);
         for (int dimension = XX; dimension <= ZZ; ++dimension)
         {
@@ -118,7 +118,11 @@ std::string RealFieldMeasure::to_string() const
 {
     std::string result;
     result += "------- real number grid -------\n";
-    result += realfield_.getGrid().to_string();
+    result += "\tgetExtend     \t: " + std::to_string(realfield_.getGrid().lattice().getExtend()[0]) + " " + std::to_string(realfield_.getGrid().lattice().getExtend()[1]) + " " + std::to_string(realfield_.getGrid().lattice().getExtend()[2]) + "\n";
+    result += "\tngridpoints\t: " + std::to_string(realfield_.getGrid().lattice().getNumLatticePoints()) + "\n";
+    result += "\ttranslation\t: " + std::to_string(realfield_.getGrid().translation()[0]) + " " + std::to_string(realfield_.getGrid().translation()[1]) + " " + std::to_string(realfield_.getGrid().translation()[2]) + "\n";
+    result += "\tcell_lengths\t: " + std::to_string(realfield_.getGrid().cell().basisVectorLength(0)) + " " + std::to_string(realfield_.getGrid().cell().basisVectorLength(1)) + " " + std::to_string(realfield_.getGrid().cell().basisVectorLength(2)) + "\n";
+    result += "\tV_cell     \t: " + std::to_string(realfield_.getGrid().unitCell().volume()) + "\n";
     result += "  min  :" + std::to_string(min()) + "\n";
     result += "  max  :" + std::to_string(max()) + "\n";
     result += "  mean :" + std::to_string(mean()) + "\n";
@@ -142,7 +146,7 @@ real RealFieldMeasure::entropy() const
             sum += p[i] * log(p[i]);
         }
     }
-    return -1 * realfield_.getGrid().getUnitCell().volume() * sum;
+    return -1 * realfield_.getGrid().unitCell().volume() * sum;
 };
 
 } // namespace gmx

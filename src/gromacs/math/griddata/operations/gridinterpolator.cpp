@@ -37,7 +37,7 @@
 #include "gromacs/math/vec.h"
 namespace gmx
 {
-GridInterpolator::GridInterpolator(const FiniteGrid &basis)
+GridInterpolator::GridInterpolator(const FiniteGrid<DIM> &basis)
     : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>(basis))}
 {
 };
@@ -50,14 +50,8 @@ GridInterpolator::GridInterpolator(const FiniteGrid &basis)
 std::unique_ptr < Field < real>>
 GridInterpolator::interpolateLinearly(const Field<real> &other)
 {
-    if (other.getGrid().sameGridInAbsTolerance(interpolatedGrid_->getGrid()))
-    {
-        *interpolatedGrid_ = other;
-        return std::move(interpolatedGrid_);
-    }
-
     auto        grid   = interpolatedGrid_->getGrid();
-    const auto &extend = grid.getLattice().getExtend();
+    const auto &extend = grid.lattice().getExtend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -81,7 +75,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
     }
 
     auto        grid           = interpolatedGrid_->getGrid();
-    const auto &extend         = grid.getLattice().getExtend();
+    const auto &extend         = grid.lattice().getExtend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -110,7 +104,7 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
     auto w_z = rIndexInGrid[ZZ] - (real)iIndexInGrid[ZZ];
 
     std::array<std::array<std::array<real, 2>, 2>, 2> cube;
-    const auto &lattice = field.getGrid().getLattice();
+    const auto &lattice = field.getGrid().lattice();
     for (int ii_z = 0; ii_z <= 1; ++ii_z)
     {
         for (int ii_y = 0; ii_y <= 1; ++ii_y)

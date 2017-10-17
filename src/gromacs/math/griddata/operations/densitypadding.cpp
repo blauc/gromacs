@@ -44,7 +44,7 @@ namespace gmx
 
 std::unique_ptr < Field < real>>
 DensityPadding::padPower2() {
-    const auto &extend   = toPad_.getGrid().getLattice().getExtend();
+    const auto &extend   = toPad_.getGrid().lattice().getExtend();
     real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
     real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
     real        factorZZ = pow(2, ceil(log(extend[ZZ])/log(2)));
@@ -59,7 +59,7 @@ DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
     {
         if (paddingFactor[dimension] > 1)
         {
-            paddedExtend[dimension] = std::ceil(paddingFactor[dimension] * toPad_.getGrid().getLattice().getExtend()[dimension]);
+            paddedExtend[dimension] = std::ceil(paddingFactor[dimension] * toPad_.getGrid().lattice().getExtend()[dimension]);
         }
         else
         {
@@ -67,13 +67,13 @@ DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
         }
 
     }
-    auto paddedGrid = FiniteGrid(toPad_.getGrid());
+    auto paddedGrid = toPad_.getGrid();
 
     paddedGrid.setLatticeAndRescaleCell(paddedExtend);
     std::unique_ptr < Field < real>> padded(new Field<real>(paddedGrid));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
-    auto extend = toPad_.getGrid().getLattice().getExtend();
+    auto extend = toPad_.getGrid().lattice().getExtend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)
@@ -92,7 +92,7 @@ DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
 std::unique_ptr < Field < real>>
 DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend) {
 
-    auto unpaddedGrid = FiniteGrid(toPad_.getGrid());
+    auto unpaddedGrid = toPad_.getGrid();
     unpaddedGrid.setLatticeAndRescaleCell(unPadExtend);
     std::unique_ptr < Field < real>> unpadded(new Field<real>(unpaddedGrid));
 

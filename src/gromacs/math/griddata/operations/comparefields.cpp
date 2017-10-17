@@ -118,7 +118,7 @@ real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &othe
             sum += p[i] * log(q[i] / (q_reference[i]));
         }
     }
-    return -1 * reference_.getGrid().getUnitCell().volume() *sum;
+    return -1 * reference_.getGrid().unitCell().volume() *sum;
 }
 
 real CompareFields::getKLSameGrid() const
@@ -148,7 +148,7 @@ real CompareFields::getKLSameGrid() const
 
     }
 
-    return -1 * reference_.getGrid().getUnitCell().volume() * sum;
+    return -1 * reference_.getGrid().unitCell().volume() * sum;
 };
 
 real CompareFields::getKLCrossTermSameGrid() const
@@ -172,7 +172,7 @@ real CompareFields::getKLCrossTermSameGrid() const
             sum += p[i] * log(q[i]);
         }
     }
-    return -1 * reference_.getGrid().getUnitCell().volume() *sum;
+    return -1 * reference_.getGrid().unitCell().volume() *sum;
 };
 
 

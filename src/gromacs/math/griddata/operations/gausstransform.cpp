@@ -75,11 +75,11 @@ void
 FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
 {
     grid_ = std::move((grid));
-    if (!grid_->getGrid().evenlySpaced())
+    if (!grid_->getGrid().unitCell().allVectorsSameLength(1e-6, 1))
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
     }
-    nu_       = grid_->getGrid().getUnitCell().basisVectorLength(XX)/sigma_;
+    nu_       = grid_->getGrid().unitCell().basisVectorLength(XX)/sigma_;
     m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
     E3_.resize(2*m_spread_+1);
 
@@ -137,7 +137,7 @@ FastGaussianGridding::tensor_product_()
     {
         minimumGlobalGridIndex[i] = std::max(0, grid_index_of_spread_atom_[i]-m_spread_);
         minimumUsedGridIndex_[i]  = std::min(minimumGlobalGridIndex[i], minimumUsedGridIndex_[i]);
-        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getGrid().getLattice().getExtend()[i]-1);
+        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getGrid().lattice().getExtend()[i]-1);
         maximumUsedGridIndex_[i]  = std::max(maximumGlobalGridIndex[i], maximumUsedGridIndex_[i]);
     }
 
