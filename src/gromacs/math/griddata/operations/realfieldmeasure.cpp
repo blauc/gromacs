@@ -104,7 +104,7 @@ RVec RealFieldMeasure::center_of_mass() const
     for (size_t i = 0; i < realfield_.size(); i++)
     {
         auto multiIndex     = realfield_.getGrid().getLattice().vectoriseLinearIndex(i);
-        auto gridCoordinate = realfield_.getGrid().gridpoint_coordinate(multiIndex);
+        auto gridCoordinate = realfield_.getGrid().multiIndexToCoordinate(multiIndex);
         for (int dimension = XX; dimension <= ZZ; ++dimension)
         {
             com[dimension] += realfield_[i]*gridCoordinate[dimension];
@@ -118,7 +118,7 @@ std::string RealFieldMeasure::to_string() const
 {
     std::string result;
     result += "------- real number grid -------\n";
-    result += realfield_.getGrid().print();
+    result += realfield_.getGrid().to_string();
     result += "  min  :" + std::to_string(min()) + "\n";
     result += "  max  :" + std::to_string(max()) + "\n";
     result += "  mean :" + std::to_string(mean()) + "\n";

@@ -278,7 +278,7 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
     // Make the grid uniform in x, y and z direction
     outputdensitygrid.scaleCell({{1., uc.basisVectorLength(XX)/uc.basisVectorLength(YY), uc.basisVectorLength(XX)/uc.basisVectorLength(ZZ)}});
 
-    outputdensitygrid.set_translation(
+    outputdensitygrid.setTranslation(
             {{roundf(translation[XX] / spacing_) * spacing_,
               roundf(translation[YY] / spacing_) * spacing_,
               roundf(translation[ZZ] / spacing_) * spacing_}});

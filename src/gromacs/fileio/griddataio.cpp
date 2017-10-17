@@ -199,12 +199,12 @@ FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
     svmul(A2NM, meta_.cell_length, cell_length);
     result.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
 
-    result.set_translation(result.gridpoint_coordinate(
-                                   {{
-                                        meta_.crs_start[meta_.xyz_to_crs[XX]],
-                                        meta_.crs_start[meta_.xyz_to_crs[YY]],
-                                        meta_.crs_start[meta_.xyz_to_crs[ZZ]]
-                                    }}));
+    result.setTranslation(result.multiIndexToCoordinate(
+                                  {{
+                                       meta_.crs_start[meta_.xyz_to_crs[XX]],
+                                       meta_.crs_start[meta_.xyz_to_crs[YY]],
+                                       meta_.crs_start[meta_.xyz_to_crs[ZZ]]
+                                   }}));
     /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
      * values read here are ignored.
      * Convention is not clear at this point, whether the translation here should be treated as extra shift,
@@ -215,7 +215,7 @@ FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
      */
     if (!meta_.is_crystallographic && meta_.crs_start[XX] == 0 && meta_.crs_start[YY] == 0 && meta_.crs_start[ZZ] == 0)
     {
-        result.set_translation({{(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]}});
+        result.setTranslation({{(float) A2NM * meta_.extra[size_extrarecord-3], (float) A2NM * meta_.extra[size_extrarecord-2], (float) A2NM * meta_.extra[size_extrarecord-1]}});
     }
 
     return result;
@@ -223,7 +223,7 @@ FiniteGrid MrcFile::Impl::setFiniteGridFromMrcMeta()
 
 void MrcFile::Impl::setMrcMetaFromFiniteGrid(const FiniteGrid &grid )
 {
-    auto index_of_origin = grid.coordinate_to_gridindex_floor_ivec({{1e-6, 1e-6, 1e-6}});
+    auto index_of_origin = grid.coordinateToFloorMultiIndex({{1e-6, 1e-6, 1e-6}});
     meta_.crs_start   = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
     meta_.num_crs     = to_crs_order(grid.getLattice().getExtend());
     meta_.extend      = grid.getLattice().getExtend();

@@ -106,7 +106,7 @@ template <class T, class F> void ApplyToField(Field<T> &field, F function)
      * don't have to calculate the grid index.
      */
 
-    auto gridCoordinate_z = field.gridpoint_coordinate({0, 0, 0});
+    auto gridCoordinate_z = field.multiIndexToCoordinate({0, 0, 0});
 
     auto extend   = field.extend();
     auto gridData = field.access();

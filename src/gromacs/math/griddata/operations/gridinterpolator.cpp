@@ -64,7 +64,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
         {
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
-                auto r                 = grid.gridpoint_coordinate({{i_x, i_y, i_z}});
+                auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
                 interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, r);
             }
         }
@@ -89,7 +89,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
 
-                auto r                 = grid.gridpoint_coordinate({{i_x, i_y, i_z}});
+                auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
                 auto shifted_r         = orientation.shiftedAndOriented(RVec(r[XX], r[YY], r[ZZ]), centerOfMass, translation);
                 interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, {{shifted_r[XX], shifted_r[YY], shifted_r[ZZ]}} );
 
@@ -103,7 +103,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const OrthogonalBasis<DIM>::NdVector &r) const
 {
     auto rIndexInGrid = field.getGrid().coordinateToRealGridIndex(r);
-    auto iIndexInGrid = field.getGrid().coordinate_to_gridindex_floor_ivec(r);
+    auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex(r);
 
     auto w_x = rIndexInGrid[XX] - (real)iIndexInGrid[XX];
     auto w_y = rIndexInGrid[YY] - (real)iIndexInGrid[YY];

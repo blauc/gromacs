@@ -43,12 +43,12 @@ void FiniteGrid::convertToReciprocalSpace()
     resetCell();
 }
 
-void FiniteGrid::set_translation(const OrthogonalBasis<DIM>::NdVector &translate)
+void FiniteGrid::setTranslation(const OrthogonalBasis<DIM>::NdVector &translate)
 {
     translation_ = translate;
 }
 
-ColumnMajorLattice<DIM>::MultiIndex FiniteGrid::coordinate_to_gridindex_floor_ivec(const OrthogonalBasis<DIM>::NdVector &x) const
+ColumnMajorLattice<DIM>::MultiIndex FiniteGrid::coordinateToFloorMultiIndex(const OrthogonalBasis<DIM>::NdVector &x) const
 {
     auto realValuedIndex = coordinateToRealGridIndex(x);
     ColumnMajorLattice<DIM>::MultiIndex result;
@@ -63,12 +63,7 @@ OrthogonalBasis<DIM>::NdVector FiniteGrid::coordinateToRealGridIndex(const Ortho
     return unit_cell_.transformIntoBasis(x_shifted);
 }
 
-real FiniteGrid::avg_spacing() const
-{
-    return (unit_cell_.basisVectorLength(XX) + unit_cell_.basisVectorLength(YY) + unit_cell_.basisVectorLength(ZZ)) / DIM;
-}
-
-OrthogonalBasis<DIM>::NdVector FiniteGrid::gridpoint_coordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const
+OrthogonalBasis<DIM>::NdVector FiniteGrid::multiIndexToCoordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const
 {
     auto result = unit_cell_.transformFromBasis({{real(i[XX]), real(i[YY]), real(i[ZZ])}});
     std::transform(std::begin(translation_), std::end(translation_), std::begin(result), std::begin(result), [](real a, real b){return a+b; } );
@@ -104,7 +99,7 @@ OrthogonalBasis<DIM> FiniteGrid::getUnitCell() const
 };
 
 
-std::string FiniteGrid::print() const
+std::string FiniteGrid::to_string() const
 {
     std::string result("\n  ------- finite grid -------\n");
     result += "    getExtend       : " + std::to_string(lattice_.getExtend()[0]) + " " +

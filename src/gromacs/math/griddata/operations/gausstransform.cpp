@@ -79,7 +79,7 @@ FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
     }
-    nu_       = grid_->getGrid().avg_spacing()/sigma_;
+    nu_       = grid_->getGrid().getUnitCell().basisVectorLength(XX)/sigma_;
     m_spread_ = int(ceil(n_sigma_/nu_)); // number of grid cells for spreading
     E3_.resize(2*m_spread_+1);
 
@@ -189,11 +189,11 @@ void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
     OrthogonalBasis<DIM>::NdVector y {{
                                           x[XX], x[YY], x[ZZ]
                                       }};
-    grid_index_of_spread_atom_ = grid_->getGrid().coordinate_to_gridindex_floor_ivec(y);
+    grid_index_of_spread_atom_ = grid_->getGrid().coordinateToFloorMultiIndex(y);
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {
-        dx[i]  = (x[i]-grid_->getGrid().gridpoint_coordinate(grid_index_of_spread_atom_)[i])/sigma_;
+        dx[i]  = (x[i]-grid_->getGrid().multiIndexToCoordinate(grid_index_of_spread_atom_)[i])/sigma_;
     }
     spread_1d(weight, m_spread_, dx, nu_, E3_, XX);
     spread_1d(1, m_spread_, dx, nu_, E3_, YY);

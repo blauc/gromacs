@@ -22,10 +22,10 @@ namespace gmx
 class FiniteGrid
 {
     public:
-
+        // FiniteGrid(const OrthogonalBasis<DIM> & basis, const ColumnMajorLattice<DIM> & lattice);
         OrthogonalBasis<DIM>::NdVector coordinateToRealGridIndex(const OrthogonalBasis<DIM>::NdVector &x) const;
-        ColumnMajorLattice<DIM>::MultiIndex coordinate_to_gridindex_floor_ivec(const OrthogonalBasis<DIM>::NdVector &x) const;
-        OrthogonalBasis<DIM>::NdVector gridpoint_coordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const;
+        ColumnMajorLattice<DIM>::MultiIndex coordinateToFloorMultiIndex(const OrthogonalBasis<DIM>::NdVector &x) const;
+        OrthogonalBasis<DIM>::NdVector multiIndexToCoordinate(const ColumnMajorLattice<DIM>::MultiIndex &i) const;
 
         /*! \brief
          * Convert Lattice to its corresponding lattice in reciprocal space by
@@ -34,14 +34,10 @@ class FiniteGrid
         void convertToReciprocalSpace();
 
         void scaleCell(const OrthogonalBasis<DIM>::NdVector &scale);
-        /*! \brief The average grid spacing.
-         */
-        real avg_spacing() const;
-
         /*! \brief Writes all information about the grid of reals in human readable
          * form to a string.
          */
-        std::string print() const;
+        std::string to_string() const;
 
         /*! \brief
          * Compare grid spanning vectors and translation to other.
@@ -61,7 +57,7 @@ class FiniteGrid
          *
          * Set the real-space coordinate of gridpoint (0,0,0).
          */
-        void set_translation(const OrthogonalBasis<DIM>::NdVector &translate);
+        void setTranslation(const OrthogonalBasis<DIM>::NdVector &translate);
 
         void setCell(const OrthogonalBasis<DIM> &cell);
         OrthogonalBasis<DIM> getCell() const;
