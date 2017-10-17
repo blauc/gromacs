@@ -26,28 +26,28 @@ class FiniteGrid
         typedef typename OrthogonalBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
-        FiniteGrid() : cell_ {NdVector()}, unit_cell_ {NdVector()}, lattice_ {} {
+        FiniteGrid() : cell_ {NdVector()}, unitCell_ {NdVector()}, lattice_ {} {
             NdVector   unity;
             MultiIndex integerUnity;
             std::fill(std::begin(unity), std::end(unity), 1.);
             std::fill(std::begin(integerUnity), std::end(integerUnity), 1);
             cell_      = OrthogonalBasis<N>(unity);
-            unit_cell_ =  OrthogonalBasis<N>(unity);
+            unitCell_  =  OrthogonalBasis<N>(unity);
             lattice_   = ColumnMajorLattice<N>(integerUnity);
             std::fill(std::begin(translation_), std::end(translation_), 0.);
         }
-        FiniteGrid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice)
+
+        FiniteGrid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
         {
-            cell_    = cell;
-            lattice_ = lattice;
             std::fill(std::begin(translation_), std::end(translation_), 0.);
             setUnitCell_();
         }
+
         NdVector coordinateToRealGridIndex(const NdVector &x) const
         {
             OrthogonalBasis<DIM>::NdVector x_shifted;
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_shifted), [](real x, real t){return x-t; });
-            return unit_cell_.transformIntoBasis(x_shifted);
+            return unitCell_.transformIntoBasis(x_shifted);
         };
 
         MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const
@@ -57,9 +57,10 @@ class FiniteGrid
             std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(result), [](real x){return static_cast<int>(floor(x)); });
             return result;
         }
+
         NdVector multiIndexToCoordinate(const MultiIndex &i) const
         {
-            auto result = unit_cell_.transformFromBasis({{real(i[XX]), real(i[YY]), real(i[ZZ])}});
+            auto result = unitCell_.transformFromBasis(multiIndexToNdVector_(i));
             std::transform(std::begin(translation_), std::end(translation_), std::begin(result), std::begin(result), [](real a, real b){return a+b; } );
             return result;
         }
@@ -68,10 +69,9 @@ class FiniteGrid
          * Convert Lattice to its corresponding lattice in reciprocal space by
          * Cell inversion.
          */
-        void convertToReciprocalSpace()
+        FiniteGrid<N> reciprocalGrid() const
         {
-            unit_cell_     = cell_.inverse();
-            resetCell();
+            return FiniteGrid(cell_.inverse().scale(multiIndexToNdVector_(lattice_.getExtend())), lattice_);
         }
 
         void scaleCell(const NdVector &scale)
@@ -91,7 +91,7 @@ class FiniteGrid
         void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice)
         {
             lattice_ = lattice;
-            resetCell();
+            cell_    = unitCell_.scale(multiIndexToNdVector_(lattice_.getExtend()));
         }
 
         /*! \brief
@@ -102,7 +102,6 @@ class FiniteGrid
         {
             translation_ = translate;
         }
-
 
         void setCell(const OrthogonalBasis<N> &cell)
         {
@@ -117,18 +116,18 @@ class FiniteGrid
 
         OrthogonalBasis<N> unitCell() const
         {
-            return unit_cell_;
+            return unitCell_;
         };
 
     private:
         /*! \brief
-         * Re-evaluates cell from unit cell and grid extend
+         * convert MultiIndex to NdVector
          */
-        void resetCell()
+        NdVector multiIndexToNdVector_(const MultiIndex &i) const
         {
-            NdVector unitCellToCellScale;
-            std::transform(std::begin(lattice_.getExtend()), std::end(lattice_.getExtend()), std::begin(unitCellToCellScale), [](int integerExtend){return real(integerExtend); });
-            cell_ = unit_cell_.scale(unitCellToCellScale);
+            NdVector result;
+            std::transform(std::begin(i), std::end(i), std::begin(result), [](int integerExtend){return real(integerExtend); });
+            return result;
         }
         /*! \brief
          * Re-evaluate unit cell from cell and grid extend
@@ -137,11 +136,11 @@ class FiniteGrid
         {
             NdVector cellToUnitCellScale;
             std::transform(std::begin(lattice_.getExtend()), std::end(lattice_.getExtend()), std::begin(cellToUnitCellScale), [](int integerExtend){return 1.0/real(integerExtend); });
-            unit_cell_     = cell_.scale(cellToUnitCellScale);
+            unitCell_     = cell_.scale(cellToUnitCellScale);
         }
         NdVector                     translation_;
         OrthogonalBasis<N>           cell_;
-        OrthogonalBasis<N>           unit_cell_;
+        OrthogonalBasis<N>           unitCell_;
         ColumnMajorLattice<N>        lattice_;
 };
 
