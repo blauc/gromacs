@@ -107,12 +107,38 @@ class MrcFile::Impl
         bool has_skew_matrix();
         void set_skew_matrix(matrix skew);
 
-        char read_char_();
-        void do_float32_(float * f, bool bRead);
-        void do_float32_rvec_(RVec * result, bool bRead);
 
+        template <typename T> void do_(T * result, bool bRead)
+        {
+            if (bRead)
+            {
+                if (fread(result, sizeof(T), 1, file_) != 1)
+                {
+                    GMX_THROW(gmx::FileIOError("Cannot read from volume data at " + std::to_string(ftell(file_)) + "."));
+                }
+            }
+            // swap bytes for correct endianness
+            if (meta_.swap_bytes)
+            {
+                if (sizeof(T) == 4)
+                {
+                    *result = (*result & 0xFF000000) >> 24 | (*result & 0x00FF0000) >> 8 | (*result & 0x0000FF00) << 8 | (*result & 0x000000FF) << 24;
+                }
+                if (sizeof(T) == 2)
+                {
+                    *result = (*result & 0xFF00) >> 8 | (*result & 0x00FF) << 8;
+                }
+            }
+
+            if (!bRead)
+            {
+                fwrite(result, sizeof(T), 1, file_);
+            }
+        }
+
+        char read_char_();
+        void do_float32_rvec_(RVec * result, bool bRead);
         void do_int32_ivec_(std::array<int, 3> * result, bool bRead);
-        void do_int32_(int * data, bool bRead);
 
         void set_grid_stats(const Field<real> &grid_data);
 
@@ -228,16 +254,16 @@ std::array<int, 3> MrcFile::Impl::to_xyz_order(const std::array<int, 3> &i_crs)
 
 void MrcFile::Impl::do_int32_ivec_(std::array<int, 3> * result, bool bRead)
 {
-    do_int32_(&(*result)[XX], bRead);
-    do_int32_(&(*result)[YY], bRead);
-    do_int32_(&(*result)[ZZ], bRead);
+    do_<gmx_int32_t>(&(*result)[XX], bRead);
+    do_<gmx_int32_t>(&(*result)[YY], bRead);
+    do_<gmx_int32_t>(&(*result)[ZZ], bRead);
 }
 
 void MrcFile::Impl::do_float32_rvec_(RVec * result, bool bRead)
 {
-    do_float32_(&((*result)[XX]), bRead);
-    do_float32_(&((*result)[YY]), bRead);
-    do_float32_(&((*result)[ZZ]), bRead);
+    do_<float>(&((*result)[XX]), bRead);
+    do_<float>(&((*result)[YY]), bRead);
+    do_<float>(&((*result)[ZZ]), bRead);
 }
 
 
@@ -257,11 +283,11 @@ std::string MrcFile::Impl::filetype(std::string filename)
 
 void MrcFile::Impl::read_format_identifier()
 {
-    meta_.format_identifier.clear();
-    meta_.format_identifier.push_back(read_char_());
-    meta_.format_identifier.push_back(read_char_());
-    meta_.format_identifier.push_back(read_char_());
-    meta_.format_identifier.push_back(read_char_());
+    meta_.format_identifier.resize(4);
+    for (size_t i = 0; i < 4; i++)
+    {
+        meta_.format_identifier[i] = read_char_();
+    }
     if (!(meta_.format_identifier.compare("MAP ") == 0))
     {
         fprintf(stderr, "\nWARNING: Expected " "MAP " " as format identifier.\n");
@@ -324,7 +350,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
     /* 4   | MODE | signed int | 0,1,2,3,4
      * voxel datatype
      * emdb convention: 2       */
-    do_int32_(&meta_.mrc_data_mode, bRead);
+    do_<gmx_int32_t>(&meta_.mrc_data_mode, bRead);
 
     /* MODE = 0: 8 bits, density stored as a signed byte (range -128 to 127, ISO/IEC 10967)
      * MODE = 1: 16 bits, density stored as a signed integer (range -32768 to 32767, ISO/IEC 10967)
@@ -402,9 +428,9 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
 
     /* 20-22 | AMIN, AMAX, AMEAN | floating pt
      * Minimum, maximum, average density */
-    do_float32_(&(meta_.min_value ), bRead);
-    do_float32_(&(meta_.max_value ), bRead);
-    do_float32_(&(meta_.mean_value), bRead);
+    do_<float>(&(meta_.min_value ), bRead);
+    do_<float>(&(meta_.max_value ), bRead);
+    do_<float>(&(meta_.mean_value), bRead);
 
     /* 23 | ISPG | signed int 1-230 |
      * space group #
@@ -416,12 +442,12 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      *
      * For 3D volumes of single particle or tomogram entries, ISPG=1 and NSYMBT=0.
      * For image stacks ISPG = 0 */
-    do_int32_(&meta_.space_group, bRead);
+    do_<gmx_int32_t>(&meta_.space_group, bRead);
 
     /* 24 | NSYMBT | signed int | 80n
      * # of bytes in symmetry table (multiple of 80)
      * emdb convention 0 */
-    do_int32_(&meta_.num_bytes_extened_header, bRead);
+    do_<gmx_int32_t>(&meta_.num_bytes_extened_header, bRead);
     if (meta_.num_bytes_extened_header%80 != 0)
     {
         GMX_THROW(gmx::FileIOError("Read invalid number of bytes in symbol table from mrc/cpp4/imod file. Should be 80, but is " + std::to_string(meta_.num_bytes_extened_header) + "instead."));
@@ -433,7 +459,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
          * flag for skew matrix
          * emdb convention 0 */
         gmx_int32_t hasSkewMatrix = meta_.has_skew_matrix ? 1 : 0;
-        do_int32_(&hasSkewMatrix, bRead);
+        do_<gmx_int32_t>(&hasSkewMatrix, bRead);
         if (bRead)
         {
             if (!(hasSkewMatrix == 0 || hasSkewMatrix == 1))
@@ -459,7 +485,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
              * SKWMAT, SKWTRN, and EXTRA fields are not currently used by EMDB. */
             for (auto && i : meta_.skew_matrix)
             {
-                do_float32_(&i, bRead);
+                do_<float>(&i, bRead);
             }
             do_float32_rvec_(&meta_.skew_translation, bRead);
         }
@@ -469,7 +495,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
         /* 25-37 not used in EMDB */
         for (auto && i : meta_.extraskew)
         {
-            do_float32_(&i, bRead);
+            do_<float>(&i, bRead);
         }
     }
 
@@ -480,7 +506,7 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * EMDB might use fields 50,51 and 52 for setting the coordinate system origin */
     for (auto && i : meta_.extra)
     {
-        do_float32_(&i, bRead);
+        do_<float>(&i, bRead);
     }
 
     /* 53 | MAP | ASCII char
@@ -504,18 +530,18 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
      * 0x44,0x41,0x00,0x00  for little endian machines
      * 0x11,0x11,0x00,0x00  for big endian machines
      */
-    do_int32_(&(meta_.machine_stamp), bRead);
+    do_<gmx_int32_t>(&(meta_.machine_stamp), bRead);
 
     /* 55 | RMS | floating pt
      * Density root-mean-square deviation */
-    do_float32_(&(meta_.rms_value), bRead);
+    do_<float>(&(meta_.rms_value), bRead);
 
     /* 56 | NLABL | signed int | 0-10
      * # of labels
      *
      * Following the 2010 remediation, maps distributed by EMDB
      * now have a single label of form “::::EMDataBank.org::::EMD-1234::::”.  */
-    do_int32_(&meta_.num_labels, bRead);
+    do_<gmx_int32_t>(&meta_.num_labels, bRead);
 
     /* 57-256 | LABEL_N | ASCII char
      * Up to 10 user-defined labels */
@@ -575,66 +601,6 @@ void MrcFile::Impl::swap_int32_(gmx_int32_t *result)
     *result |= (src & 0x000000FF) << 24;
 }
 
-
-char MrcFile::Impl::read_char_()
-{
-    char result;
-    if (fread(&result, 1, 1, file_) != 1)
-    {
-        GMX_THROW(gmx::FileIOError("Cannot read char from volume data at " + std::to_string(ftell(file_)) + "."));
-    }
-    return result;
-}
-
-void MrcFile::Impl::swap_float32_(float * result)
-{
-    swap_int32_(reinterpret_cast<gmx_int32_t*>(result));
-}
-
-
-void MrcFile::Impl::do_float32_(float * result, bool bRead)
-{
-    if (bRead)
-    {
-        if (fread(result, sizeof(float), 1, file_) != 1)
-        {
-            GMX_THROW(gmx::FileIOError("Cannot read float from volume data at " + std::to_string(ftell(file_)) + "."));
-        }
-    }
-
-    if (meta_.swap_bytes)
-    {
-        swap_float32_(result);
-    }
-    if (!bRead)
-    {
-        fwrite(result, sizeof(float), 1, file_);
-    }
-}
-
-void MrcFile::Impl::do_int32_(int * data, bool bRead)
-{
-    if (bRead)
-    {
-        if (fread(data, sizeof(gmx_int32_t), 1, file_) != 1)
-        {
-            GMX_THROW(gmx::FileIOError("Cannot read integer from volume data at " + std::to_string(ftell(file_)) + "."));
-        }
-
-    }
-    /* byte swap in case of different endianness */
-    if (meta_.swap_bytes)
-    {
-        swap_int32_(data);
-    }
-    if (!bRead)
-    {
-        fwrite(data, sizeof(gmx_int32_t), 1, file_);
-    }
-}
-
-
-
 void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
 {
     const auto &lattice = grid_data.getGrid().getLattice();
@@ -657,7 +623,7 @@ void MrcFile::Impl::do_mrc_data_(Field<real> &grid_data, bool bRead)
         {
             for (int column  = 0; column  < num_crs[XX]; column++)
             {
-                do_float32_(&(grid_data.atMultiIndex(to_xyz_order({{column, row, section}}))), bRead);
+                do_<float>(&(grid_data.atMultiIndex(to_xyz_order({{column, row, section}}))), bRead);
             }
         }
     }
@@ -681,7 +647,7 @@ void MrcFile::Impl::check_swap_bytes()
     fgetpos(file_, &current);
 
     fseek(file_, 0, SEEK_SET);
-    do_int32_(&number_columns, true);
+    do_<gmx_int32_t>(&number_columns, true);
     if (number_columns <= 0 || number_columns >= 65536)
     {
         meta_.swap_bytes = true;
