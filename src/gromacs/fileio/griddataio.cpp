@@ -81,7 +81,6 @@ class MrcFile::Impl
         std::string filetype(std::string filename);
         bool known_extension(std::string filename);
         void read_file_size();
-        void read_format_identifier();
 
         std::string print_to_string();
 
@@ -122,11 +121,13 @@ class MrcFile::Impl
             {
                 if (sizeof(T) == 4)
                 {
-                    *result = (*result & 0xFF000000) >> 24 | (*result & 0x00FF0000) >> 8 | (*result & 0x0000FF00) << 8 | (*result & 0x000000FF) << 24;
+                    gmx_int32_t int_tmp = gmx_int32_t(*result);
+                    *result = (int_tmp & 0xFF000000) >> 24 | (int_tmp & 0x00FF0000) >> 8 | (int_tmp & 0x0000FF00) << 8 | (int_tmp & 0x000000FF) << 24;
                 }
                 if (sizeof(T) == 2)
                 {
-                    *result = (*result & 0xFF00) >> 8 | (*result & 0x00FF) << 8;
+                    int16_t int_tmp = int16_t(*result);
+                    *result = (int_tmp & 0xFF00) >> 8 | (int_tmp & 0x00FF) << 8;
                 }
             }
 
@@ -136,7 +137,6 @@ class MrcFile::Impl
             }
         }
 
-        char read_char_();
         void do_float32_rvec_(RVec * result, bool bRead);
         void do_int32_ivec_(std::array<int, 3> * result, bool bRead);
 
@@ -278,19 +278,6 @@ std::string MrcFile::Impl::filetype(std::string filename)
     else
     {
         return filename.substr(pos+1);
-    }
-}
-
-void MrcFile::Impl::read_format_identifier()
-{
-    meta_.format_identifier.resize(4);
-    for (size_t i = 0; i < 4; i++)
-    {
-        meta_.format_identifier[i] = read_char_();
-    }
-    if (!(meta_.format_identifier.compare("MAP ") == 0))
-    {
-        fprintf(stderr, "\nWARNING: Expected " "MAP " " as format identifier.\n");
     }
 }
 
@@ -512,16 +499,14 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
     /* 53 | MAP | ASCII char
      * "MAP "
      * MRC/CCP4 MAP format identifier */
-    if (bRead)
+    meta_.format_identifier.resize(4);
+    for (size_t i = 0; i < 4; i++)
     {
-        read_format_identifier();
+        do_<char>(&meta_.format_identifier[i], true);
     }
-    else
+    if (!(meta_.format_identifier.compare("MAP ") == 0))
     {
-        for (auto i : meta_.format_identifier)
-        {
-            fwrite(&i, 1, 1, file_);
-        }
+        fprintf(stderr, "\nWARNING: Expected " "MAP " " as format identifier.\n");
     }
     /* 54 | MACHST | 32 bit
      * binary machine stamp
@@ -549,10 +534,9 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
     {
         std::string mrc_label(label_size, ' ');
         meta_.labels.clear();
-        int         read_size;
         for (int i = 0; i < number_labels; i++)
         {
-            read_size = fread(&mrc_label[0], 1, label_size, file_);
+            int read_size = fread(&mrc_label[0], 1, label_size, file_);
             if (read_size != label_size)
             {
                 GMX_THROW(gmx::FileIOError("Could not read label from file."));
