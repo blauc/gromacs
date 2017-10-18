@@ -25,9 +25,9 @@ class IFiniteGrid
     virtual MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const     = 0;
     virtual NdVector multiIndexToCoordinate(const MultiIndex &i) const          = 0;
     virtual void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) = 0;
-    virtual  ColumnMajorLattice<N> lattice() const = 0;
-    virtual  OrthogonalBasis<N> cell() const       = 0;
-    virtual  OrthogonalBasis<N> unitCell() const   = 0;
+    virtual ColumnMajorLattice<N> lattice() const = 0;
+    virtual OrthogonalBasis<N> cell() const       = 0;
+    virtual OrthogonalBasis<N> unitCell() const   = 0;
 
 };
 
@@ -158,10 +158,6 @@ class FiniteGridWithTranslation : public FiniteGrid<N>
             return *this;
         }
 
-        /*! \brief
-         * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
-         *
-         */
         NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {
             return FiniteGrid<N>::gridVectorFromGridPointToCoordinate(translateIntoGrid_(x), i);

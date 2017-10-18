@@ -62,11 +62,7 @@ namespace gmx
 template <int N> class ColumnMajorLattice
 {
     public:
-        // \todo remove dirty hack
-        ColumnMajorLattice()
-        {
-            std::fill(std::begin(extend_), std::end(extend_), 1);
-        }
+
         /*!\brief
          * N-dimensional integer index.
          */
@@ -130,8 +126,12 @@ template <int N> class ColumnMajorLattice
         }
 
         /*! \brief
-         * Inverse of lineariseVectorIndex.
+         * Generate the multi index from a linear lattice index.
          *
+         * The inverse of lineariseVectorIndex.
+         *
+         * \param[in] linearIndex non-negative and smaller than number of lattice points.
+         * \returns the vectorised linear index
          * \throws gmx::RangeError if linearIndex exceeds the number of lattice points.
          */
         MultiIndex vectoriseLinearIndex(int linearIndex) const
@@ -155,7 +155,10 @@ template <int N> class ColumnMajorLattice
         }
 
         /*! \brief
-         * True if latticeIndex is in Lattice
+         * Check if latticeIndex is a valid index for this lattice.
+         *
+         * \param[in] latticeIndex Lattice index to check
+         * \returns True if latticeIndex is in lattice
          */
         bool inLattice(const MultiIndex &latticeIndex) const
         {
@@ -174,7 +177,7 @@ template <int N> class ColumnMajorLattice
 
     private:
         //! \brief the extend of the lattice
-        std::array<int, N> extend_;
+        MultiIndex extend_;
 };
 
 } // gmx

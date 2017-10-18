@@ -32,12 +32,12 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \defgroup module_griddata Data On Regular Grids
+/*! \defgroup module_griddata Data On N-dimensional Regular Grids
  * \ingroup group_utilitymodules
  * \brief
- * Provides functionality for data representation and manipulation on three-dimensional regular grids with arbitrary data.
+ * Provides functionality for arbitrary data manipulation on N-dimensional grids.
  *
- * One-dimensional data is placed on a three-dimensional grid following this hierarchy:
+ * Data is related to N-dimensional grids following this hierarchy:
  *
  *
  * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.

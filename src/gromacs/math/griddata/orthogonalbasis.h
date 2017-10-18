@@ -65,20 +65,6 @@ class OrthogonalBasis
             return std::all_of(firstCellVectorLength, std::end(cell_), [firstLength, ftol, abstol](real length){return equal_real(length, firstLength, ftol, abstol); });
         };
 
-        bool isSameWithinTolerance(const OrthogonalBasis<N> &other, real ftol, real abstol) const
-        {
-            auto otherLength = std::begin(other.cell_);
-            for (auto currentLength : cell_)
-            {
-                if (!equal_real(currentLength, *otherLength, ftol, abstol))
-                {
-                    return false;
-                }
-                ++otherLength;
-            }
-            return true;
-        }
-
         real basisVectorLength(const int &dimension) const
         {
             if (dimension >= N)
