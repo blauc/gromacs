@@ -96,12 +96,8 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 
 real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const OrthogonalBasis<DIM>::NdVector &r) const
 {
-    auto rIndexInGrid = field.getGrid().coordinateToRealGridIndex(r);
     auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex(r);
-
-    auto w_x = rIndexInGrid[XX] - (real)iIndexInGrid[XX];
-    auto w_y = rIndexInGrid[YY] - (real)iIndexInGrid[YY];
-    auto w_z = rIndexInGrid[ZZ] - (real)iIndexInGrid[ZZ];
+    auto w            = field.getGrid().gridVectorFromGridPointToCoordinate(r, iIndexInGrid);
 
     std::array<std::array<std::array<real, 2>, 2>, 2> cube;
     const auto &lattice = field.getGrid().lattice();
@@ -130,18 +126,18 @@ real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const 
         for (int ii_y = 0; ii_y <= 1; ++ii_y)
         {
             interpolated_x[ii_y][ii_z] =
-                (1 - w_x) * cube[0][ii_y][ii_z] + (w_x)*cube[1][ii_y][ii_z];
+                (1 - w[XX]) * cube[0][ii_y][ii_z] + (w[XX])*cube[1][ii_y][ii_z];
         }
     }
 
     std::array<real, 2> interpolated_xy;
     for (int ii_z = 0; ii_z <= 1; ++ii_z)
     {
-        interpolated_xy[ii_z] = (1 - w_y) * interpolated_x[0][ii_z] +
-            (w_y)*interpolated_x[1][ii_z];
+        interpolated_xy[ii_z] = (1 - w[YY]) * interpolated_x[0][ii_z] +
+            (w[YY])*interpolated_x[1][ii_z];
     }
 
-    return ((1 - w_z) * interpolated_xy[0] + w_z * interpolated_xy[1]) / 8.0;
+    return ((1 - w[ZZ]) * interpolated_xy[0] + w[ZZ] * interpolated_xy[1]) / 8.0;
 }
 
 

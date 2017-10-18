@@ -186,10 +186,7 @@ FastGaussianGridding::tensor_product_()
 
 void FastGaussianGridding::prepare_2d_grid(const rvec x, const real weight)
 {
-    OrthogonalBasis<DIM>::NdVector y {{
-                                          x[XX], x[YY], x[ZZ]
-                                      }};
-    grid_index_of_spread_atom_ = grid_->getGrid().coordinateToFloorMultiIndex(y);
+    grid_index_of_spread_atom_ = grid_->getGrid().coordinateToFloorMultiIndex({{ x[XX], x[YY], x[ZZ] }});
     RVec dx; // (x-nearest voxel)/sigma
     for (size_t i = XX; i <= ZZ; ++i)
     {

@@ -9,30 +9,56 @@
 namespace gmx
 {
 
-/*!
- * \brief
- * A finite three-dimensional grid and conversion routines for different grid
- * representations.
- *
- * Represents a three dimensional grid with integer (x,y,z) indexing.
- * Relation of the integer indices,i, to real space vector, r, are given by cell
- * and translation:
- * i = cell^{-1} . (r - translate); r = cell . i + translate
+/*! \brief
+ * Interface to a finite N-dimensional grid that relates a finite lattice to N-dimensional space via a basis.
  */
 template <int N>
-class FiniteGrid
+class IFiniteGrid
+{
+    typedef typename OrthogonalBasis<N>::NdVector NdVector;
+    typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
+
+    /*! \brief
+     * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
+     */
+    virtual NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const = 0;
+    virtual MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const     = 0;
+    virtual NdVector multiIndexToCoordinate(const MultiIndex &i) const          = 0;
+    virtual void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) = 0;
+    virtual  ColumnMajorLattice<N> lattice() const = 0;
+    virtual  OrthogonalBasis<N> cell() const       = 0;
+    virtual  OrthogonalBasis<N> unitCell() const   = 0;
+
+};
+
+/*! \brief
+ * A finite N-dimensional grid relates a finite lattice to N-dimensional space via a basis.
+ *
+ * Relation of the integer indices,i, to real space vector, r, are given by the unit cell.
+ */
+template <int N>
+class FiniteGrid : public IFiniteGrid<N>
 {
     public:
         typedef typename OrthogonalBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
+        /*! \brief
+         * Constructs FiniteGrid from OrthogonalBasis and ColumnMajorLattice.
+         */
         FiniteGrid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
         {
             setUnitCell_();
         }
 
+        /* \brief
+         * Copy constructor declared, because the default constructor is deleted.
+         */
         FiniteGrid(const FiniteGrid &other) : cell_ {other.cell_}, unitCell_ {other.unitCell_}, lattice_ {other.lattice_} {}
 
+        /* \brief
+         * Copy assignment operator declared, because the default constructor is deleted.
+         */
         FiniteGrid<N> &operator=(FiniteGrid<N> other)
         {
             std::swap(cell_, other.cell_);
@@ -41,46 +67,56 @@ class FiniteGrid
             return *this;
         }
 
-        NdVector coordinateToRealGridIndex(const NdVector &x) const
+        //! \copydoc IFiniteGrid::gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex & i)
+        NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {
-            return unitCell_.transformIntoBasis(x);
+            auto     realValuedIndex = unitCell_.transformIntoBasis(x);
+            NdVector result;
+            std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(i), std::begin(result), [](real r, int ndx){return r-ndx; });
+            return result;
         };
 
-        MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const
+        //! \copydoc IFiniteGrid::coordinateToFloorMultiIndex(const NdVector &x)
+        MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const override
         {
-            auto       realValuedIndex = coordinateToRealGridIndex(x);
-            MultiIndex result;
+            const auto &realValuedIndex = unitCell_.transformIntoBasis(x);
+            MultiIndex  result;
             std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(result), [](real x){return static_cast<int>(floor(x)); });
             return result;
         }
 
-        NdVector multiIndexToCoordinate(const MultiIndex &i) const
+        //! \copydoc IFiniteGrid::multiIndexToCoordinate(const MultiIndex &i)
+        NdVector multiIndexToCoordinate(const MultiIndex &i) const override
         {
             return unitCell_.transformFromBasis(multiIndexToNdVector_(i));
         }
 
-        void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice)
+        //! \copydoc IFiniteGrid::setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice)
+        void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) override
         {
             lattice_ = lattice;
             cell_    = unitCell_.scaledCopy(multiIndexToNdVector_(lattice_.getExtend()));
         }
 
-        const ColumnMajorLattice<N> lattice() const
+        //! \copydoc IFiniteGrid::lattice()
+        ColumnMajorLattice<N> lattice() const override
         {
             return lattice_;
         }
 
-        OrthogonalBasis<N> cell() const
+        //! \copydoc IFiniteGrid::cell()
+        OrthogonalBasis<N> cell() const override
         {
             return cell_;
         }
 
-        OrthogonalBasis<N> unitCell() const
+        //! \copydoc IFiniteGrid::unitCell()
+        OrthogonalBasis<N> unitCell() const override
         {
             return unitCell_;
         };
+    private:
 
-    protected:
         /*! \brief
          * convert MultiIndex to NdVector
          */
@@ -99,7 +135,6 @@ class FiniteGrid
             std::transform(std::begin(lattice_.getExtend()), std::end(lattice_.getExtend()), std::begin(cellToUnitCellScale), [](int integerExtend){return 1.0/real(integerExtend); });
             unitCell_     = cell_.scaledCopy(cellToUnitCellScale);
         }
-    private:
         OrthogonalBasis<N>    cell_;
         OrthogonalBasis<N>    unitCell_;
         ColumnMajorLattice<N> lattice_;
@@ -111,16 +146,10 @@ class FiniteGridWithTranslation : public FiniteGrid<N>
     public:
         typedef typename OrthogonalBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
-        const NdVector &translation() const
-        {
-            return translation_;
-        }
 
-        FiniteGridWithTranslation(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice, const NdVector &translation) : FiniteGrid<N>{cell, lattice}, translation_ {translation}
-        { }
+        FiniteGridWithTranslation(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice, const NdVector &translation) : FiniteGrid<N>{cell, lattice}, translation_ {translation} { }
 
-        FiniteGridWithTranslation(const FiniteGridWithTranslation &other) : FiniteGrid<N>{other}, translation_ {other.translation_}
-        { }
+        FiniteGridWithTranslation(const FiniteGridWithTranslation &other) : FiniteGrid<N>{other}, translation_ {other.translation_} { }
 
         FiniteGridWithTranslation<N> &operator=(FiniteGridWithTranslation<N> other)
         {
@@ -129,20 +158,28 @@ class FiniteGridWithTranslation : public FiniteGrid<N>
             return *this;
         }
 
-
-        NdVector coordinateToRealGridIndex(const NdVector &x) const
+        /*! \brief
+         * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
+         *
+         */
+        NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {
-            OrthogonalBasis<DIM>::NdVector x_shifted;
-            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_shifted), [](real x, real t){return x-t; });
-            return FiniteGrid<N>::coordinateToRealGridIndex(x_shifted);
+            return FiniteGrid<N>::gridVectorFromGridPointToCoordinate(translateIntoGrid_(x), i);
         };
 
-
-        NdVector multiIndexToCoordinate(const MultiIndex &i) const
+        MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const override
         {
-            auto result = FiniteGrid<N>::multiIndexToCoordinate(i);
-            std::transform(std::begin(translation_), std::end(translation_), std::begin(result), std::begin(result), [](real a, real b){return a+b; } );
-            return result;
+            return FiniteGrid<N>::coordinateToFloorMultiIndex(translateIntoGrid_(x));
+        }
+
+        NdVector multiIndexToCoordinate(const MultiIndex &i) const override
+        {
+            return translateFromGrid_(FiniteGrid<N>::multiIndexToCoordinate(i));
+        }
+
+        NdVector translation() const
+        {
+            return translation_;
         }
 
         /*! \brief
@@ -155,6 +192,18 @@ class FiniteGridWithTranslation : public FiniteGrid<N>
         }
 
     private:
+        NdVector translateIntoGrid_(const NdVector &x) const
+        {
+            OrthogonalBasis<DIM>::NdVector x_translated;
+            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x-t; });
+            return x_translated;
+        };
+        NdVector translateFromGrid_(const NdVector &x) const
+        {
+            OrthogonalBasis<DIM>::NdVector x_translated;
+            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x+t; });
+            return x_translated;
+        };
         NdVector                     translation_;
 };
 
