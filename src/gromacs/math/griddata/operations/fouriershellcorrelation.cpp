@@ -52,9 +52,9 @@
 namespace gmx
 {
 
-FourierShellCorrelation::FourierShellCorrelation(const FiniteGrid<DIM> &realGrid)
+FourierShellCorrelation::FourierShellCorrelation(const FiniteGridWithTranslation<DIM> &realGrid)
 {
-    auto        reciprocalGrid = realGrid.reciprocalGrid();
+    auto        reciprocalGrid = convertGridToReciprocalSpace(realGrid);
     const auto &unitcell       =  reciprocalGrid.unitCell();
     auto        spacing        = 2*std::max({unitcell.basisVectorLength(XX), unitcell.basisVectorLength(YY), unitcell.basisVectorLength(ZZ)});
     const auto &cell           = realGrid.cell();

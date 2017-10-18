@@ -46,7 +46,7 @@ template<class T> class Field;
 class GridInterpolator
 {
     public:
-        GridInterpolator(const FiniteGrid<DIM> &basis);
+        GridInterpolator(const FiniteGridWithTranslation<DIM> &basis);
         std::unique_ptr < Field < real>> interpolateLinearly(const Field<real> &other);
         /*! \brief
             Interpolating after shifting and orienting the other grid.

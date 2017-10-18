@@ -57,6 +57,11 @@ namespace gmx
 std::array<int, 3> realGridExtendFromFourierTransfrom(const std::array<int, 3> &extend);
 std::array<int, 3> fourierTransformGridExtendfromRealExtend(const std::array<int, 3> &extend);
 
+/*! \brief
+ * Convert Lattice to its corresponding lattice in reciprocal space.
+ */
+FiniteGridWithTranslation<DIM> convertGridToReciprocalSpace(const FiniteGridWithTranslation<DIM> &grid );
+
 class FourierTransform3D
 {
     public:

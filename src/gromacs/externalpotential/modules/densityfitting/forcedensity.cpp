@@ -59,13 +59,13 @@ ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
                                    grid.getGrid(), grid.getGrid(), grid.getGrid()
                                }},
 forcesFT_ {{
-               grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid()
+               convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid())
            }},
 convolutionDensity_ {{
-                         grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid()
+                         convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid())
                      }},
 densityGradientFT_ {
-    grid.getGrid().reciprocalGrid()
+    convertGridToReciprocalSpace(grid.getGrid())
 },
 realToComplexFT_ {
     FourierTransformRealToComplex3D(grid)
@@ -76,11 +76,9 @@ realToComplexFT_ {
 };
 
 void ForceDensity::generateFourierTransformGrids_(
-        const FiniteGrid<DIM> &realSpaceGrid)
+        const FiniteGridWithTranslation<DIM> &realSpaceGrid)
 {
-    auto fourierSpaceGrid = realSpaceGrid.reciprocalGrid(
-
-                );
+    auto fourierSpaceGrid = convertGridToReciprocalSpace(realSpaceGrid);
     fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));
 
     for (auto &fourierField : forcesFT_)

@@ -48,7 +48,7 @@
 //
 // template <typename real> class Field;
 // class DensitySpreader;
-// class FiniteGrid;
+// class FiniteGridWithTranslation;
 // class FourierShellCorrelationProvider :
 //     public commonDensityBased
 // {

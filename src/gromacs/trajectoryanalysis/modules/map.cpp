@@ -267,21 +267,10 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    FiniteGrid<DIM>::MultiIndex extend {{
-                                            (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
-                                        }};
-    FiniteGrid<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend);
-
-    const auto     &uc = outputdensitygrid.unitCell();
-    // Make the grid uniform in x, y and z direction
-    auto            scaledCell = outputdensitygrid.cell().scaledCopy({{1., uc.basisVectorLength(XX)/uc.basisVectorLength(YY), uc.basisVectorLength(XX)/uc.basisVectorLength(ZZ)}});
-    outputdensitygrid.setCell(scaledCell);
-
-    outputdensitygrid.setTranslation(
-            {{roundf(translation[XX] / spacing_) * spacing_,
-              roundf(translation[YY] / spacing_) * spacing_,
-              roundf(translation[ZZ] / spacing_) * spacing_}});
-
+    FiniteGridWithTranslation<DIM>::MultiIndex extend {{
+                                                           (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
+                                                       }};
+    FiniteGridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
     outputdensity_       = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
     outputDensityBuffer_ = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
 }

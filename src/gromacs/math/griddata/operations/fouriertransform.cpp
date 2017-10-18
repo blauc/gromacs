@@ -62,6 +62,15 @@ std::array<int, 3> FourierTransform3D::columnMajorExtendToRowMajorExtend(const s
              } };
 }
 
+FiniteGridWithTranslation<DIM> convertGridToReciprocalSpace(const FiniteGridWithTranslation<DIM> &grid )
+{
+    const auto &extend = grid.lattice().getExtend();
+    FiniteGridWithTranslation<DIM>::NdVector scale;
+    std::copy(std::begin(extend), std::end(extend), std::begin(scale));
+    return FiniteGridWithTranslation<DIM>(grid.cell().inverse().scaledCopy(scale), grid.lattice(), grid.translation());
+}
+
+
 void
 FourierTransform3D::execute()
 {
@@ -105,13 +114,10 @@ std::array<int, 3> realGridExtendFromFourierTransfrom(const std::array<int, 3> &
 std::unique_ptr < Field < t_complex>>
 FourierTransformRealToComplex3D::createComplexTransformedFieldFromInput_() const {
     /*
-     * set to the size of the real
-     * grid first for correct
-     * reciprocal basis vectors,
-     * then convert to abriged FFT
-     * size
+     * set to the size of the real grid first for correct reciprocal basis vectors,
+     * then convert to abriged FFT size
      */
-    auto complexTransformedGrid = realInputField_.getGrid().reciprocalGrid();
+    auto complexTransformedGrid = convertGridToReciprocalSpace(realInputField_.getGrid());
     complexTransformedGrid.setLatticeAndRescaleCell(
             fourierTransformGridExtendfromRealExtend(realInputField_.getGrid().lattice().getExtend()));
     return std::unique_ptr < Field < t_complex>>(new Field<t_complex>(complexTransformedGrid));
@@ -164,7 +170,7 @@ std::unique_ptr < Field < real>>
 FourierTransformComplexToReal3D::createRealTransformedFieldFromInput_() const {
     auto realGrid = complexInputField_.getGrid();
     realGrid.setLatticeAndRescaleCell(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().lattice().getExtend()));
-    realGrid = realGrid.reciprocalGrid();
+    realGrid = convertGridToReciprocalSpace(realGrid);
     return std::unique_ptr < Field < real>>(new Field<real>(realGrid));
 }
 

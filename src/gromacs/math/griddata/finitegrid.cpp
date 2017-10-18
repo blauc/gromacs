@@ -10,7 +10,7 @@
 namespace gmx
 {
 
-// std::string FiniteGrid::to_string() const
+// std::string FiniteGridWithTranslation::to_string() const
 // {
 //     std::string result = "\tgetExtend     \t: " +
 //
