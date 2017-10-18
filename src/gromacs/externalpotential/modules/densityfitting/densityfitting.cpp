@@ -213,8 +213,6 @@ void DensityFitting::do_potential( const matrix /*box*/, const rvec /*x*/[], con
 }
 
 DensityFitting::DensityFitting() : ExternalPotential(),
-                                   target_density_(std::unique_ptr < Field < real>>(new Field<real>())),
-                                   simulated_density_(std::unique_ptr < Field < real>>(new Field<real>())),
                                    translation_({0, 0, 0}
                                                 ), number_of_threads_ {
     std::max(1, gmx_omp_nthreads_get(emntDefault))
@@ -323,18 +321,15 @@ void DensityFitting::read_input()
 
     if (parsed_json.has("target_density"))
     {
-        MrcFile  target_input_file;
         target_density_name_ = parsed_json["target_density"];
-        target_input_file.read(target_density_name_, *target_density_);
+        target_density_      = std::unique_ptr < Field < real>>(new Field < real>(MrcFile().read(target_density_name_)));
         if (parsed_json.has("target_density_used"))
         {
-            MrcFile target_output_file;
-            target_output_file.write(parsed_json["target_density_used"], *target_density_);
+            MrcFile().write(parsed_json["target_density_used"], *target_density_);
         }
         else
         {
-            MrcFile target_output_file;
-            target_output_file.write("target.ccp4", *target_density_);
+            MrcFile().write("target.ccp4", *target_density_);
         }
     }
     else

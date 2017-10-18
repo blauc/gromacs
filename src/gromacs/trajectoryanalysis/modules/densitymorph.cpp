@@ -98,23 +98,20 @@ class DensityMorph : public TrajectoryAnalysisModule
 
     private:
 
-        void evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential);
+        void evaluateDensityDifferential_(const Field<real> &morph, const Field<real> &target, Field<real> *differential);
         void evaluateFlow_(const Field<real> &differential, std::array<Field<real>, DIM> &densityflow);
         void applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, Field<real> &d_new, const Field<real> &d_old);
         void scaleFlow_(std::array<Field<real>, DIM> &densityflow, real scale);
-        std::string             fnmobile_       = "from.ccp4";
-        std::string             fntarget_       = "to.ccp4";
-        std::string             fnforcedensity_ = "forcedensity.ccp4";
-        std::string             fnmorphtraj_    = "morph.ccp4";
-        Field<real>             mobile_;
-        Field<real>             target_;
-        int                     every_          = 10;
-        int                     morphSteps_     = 10;
-        real                    morphstepscale_ = 1;
-        real                    sigma_          = 1;
-        std::string             potentialType_;
-        std::unique_ptr<IStructureDensityPotentialProvider>
-        potentialProvider_;
+        std::string              fnmobile_       = "from.ccp4";
+        std::string              fntarget_       = "to.ccp4";
+        std::string              fnforcedensity_ = "forcedensity.ccp4";
+        std::string              fnmorphtraj_    = "morph.ccp4";
+        int                      every_          = 10;
+        int                      morphSteps_     = 10;
+        real                     morphstepscale_ = 1;
+        real                     sigma_          = 1;
+        std::string              potentialType_;
+        std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
         PotentialEvaluatorHandle potentialEvaluator;
 };
 
@@ -193,7 +190,7 @@ void DensityMorph::analyzeFrame(int /*frnr*/, const t_trxframe & /*fr*/,
                                 t_pbc * /*pbc*/,
                                 TrajectoryAnalysisModuleData * /*pdata*/) {}
 
-void DensityMorph::evaluateDensityDifferential_(const Field<real> &morph, Field<real> &differential)
+void DensityMorph::evaluateDensityDifferential_(const Field<real> &morph, const Field<real> &target, Field<real> *differential)
 {
 
     // define the derivative of the density
@@ -215,7 +212,7 @@ void DensityMorph::evaluateDensityDifferential_(const Field<real> &morph, Field<
 
     // evaluate density derivative
     std::transform(morph.begin(), morph.end(),
-                   target_.begin(), differential.begin(),
+                   target.begin(), differential->begin(),
                    densityGradientFunction);
 
 }
@@ -322,18 +319,20 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                 gmx::InconsistentInputError("Every must be integer bigger than one."));
     }
 
-    MrcFile().read(fnmobile_, mobile_);
-    MrcFile().read(fntarget_, target_);
+    auto mobile_ = MrcFile().read(fnmobile_);
+    auto
+         target_ = MrcFile().read(fntarget_);
 
     ModifyGridData(mobile_).add_offset(0.001);
     ModifyGridData(target_).add_offset(0.001);
 
-    Field<real>                              oldMorph(mobile_);
-
-    auto                                     common_grid = mobile_.getGrid();
-    Field<real>                              differential(common_grid);
-    Field<real>                              newMorph(common_grid);
-    std::array<Field<real>, DIM>             densityflow;
+    Field<real>                  oldMorph(mobile_);
+    auto                         common_grid = mobile_.getGrid();
+    Field<real>                  differential(common_grid);
+    Field<real>                  newMorph(common_grid);
+    std::array<Field<real>, DIM> densityflow {{
+                                                  common_grid, common_grid, common_grid
+                                              }};
     fprintf(stderr, "\n");
     fflush(stderr);
     auto basesum = RealFieldMeasure(mobile_).sum();
@@ -343,7 +342,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
         auto densityDistance = CompareFields(target_, oldMorph).getKLSameGrid();
         fprintf(stderr, "\r Iteration [%7d/%7d] : d = %7g ", iMorphIterations+1, morphSteps_, densityDistance);
 
-        evaluateDensityDifferential_(oldMorph, differential);
+        evaluateDensityDifferential_(oldMorph, target_, &differential);
         evaluateFlow_(differential, densityflow);
         auto newDensityDistance = GMX_FLOAT_MAX;
         while (densityDistance < newDensityDistance)

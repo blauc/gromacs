@@ -193,11 +193,10 @@ std::string MrcFile::Impl::print_to_string()
 
 FiniteGrid<DIM> MrcFile::Impl::setFiniteGridFromMrcMeta()
 {
-    FiniteGrid<DIM> result;
-    result.setLatticeAndRescaleCell(meta_.extend);
     RVec            cell_length;
     svmul(A2NM, meta_.cell_length, cell_length);
-    result.setCell({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}});
+
+    FiniteGrid<DIM> result({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}}, meta_.extend);
 
     result.setTranslation(result.multiIndexToCoordinate(
                                   {{
@@ -799,21 +798,23 @@ void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
     meta = impl_->meta_;
 }
 
-void MrcFile::read_with_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta)
+Field<real> MrcFile::read_with_meta(std::string filename, MrcMetaData &meta)
 {
-    read(filename, grid_data);
+    auto result = read(filename);
     meta = impl_->meta_;
+    return result;
 }
 
-void MrcFile::read(std::string filename, Field<real> &grid_data)
+Field<real> MrcFile::read(std::string filename)
 {
     bool bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(bRead);
-    auto grid = impl_->setFiniteGridFromMrcMeta();
-    grid_data = Field<real>(grid);
-    impl_->do_mrc_data_(grid_data, bRead);
+    auto grid   = impl_->setFiniteGridFromMrcMeta();
+    auto result = Field<real>(grid);
+    impl_->do_mrc_data_(result, bRead);
     impl_->close_file();
+    return result;
 }
 
 Df3File::SuccessfulDf3Write

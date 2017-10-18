@@ -55,7 +55,6 @@ template <typename T>
 class Field : public std::vector<T>
 {
     public:
-        Field() = default;
         Field(const FiniteGrid<DIM> &other) : grid_ {other}
         { this->resize(grid_.lattice().getNumLatticePoints()); };
 

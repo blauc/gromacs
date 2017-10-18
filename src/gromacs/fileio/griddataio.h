@@ -131,16 +131,16 @@ class MrcFile
         /*! \brief Reads real-spaced, real-valued griddata from file.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
-         * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
+         * \returns grid_data will be filled with real-valued, real-space data on a grid upon succesful reading
          */
-        void read(std::string filename, Field<real> &grid_data);
+        Field<real> read(std::string filename);
         /*! \brief Reads real-spaced, real-valued voxel data and the map header / metadata.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
-         * \param[in] grid_data will be filled with real-valued, real-space data on a grid upon succesful reading; previous content will be discarded
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
+         * \returns grid_data will be filled with real-valued, real-space data on a grid upon succesful reading
          */
-        void read_with_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta);
+        Field<real> read_with_meta(std::string filename, MrcMetaData &meta);
 
         /*! \brief Reads
          *

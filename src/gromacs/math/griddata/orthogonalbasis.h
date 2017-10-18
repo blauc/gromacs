@@ -43,7 +43,7 @@ class OrthogonalBasis
         };
 
 
-        OrthogonalBasis<N> scale(const NdVector &scale) const
+        OrthogonalBasis<N> scaledCopy(const NdVector &scale) const
         {
             NdVector scaledCell;
             std::transform(std::begin(cell_), std::end(cell_), std::begin(scale), std::begin(scaledCell), std::multiplies<real>());

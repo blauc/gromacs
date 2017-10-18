@@ -57,7 +57,17 @@ namespace gmx
 ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
                                    grid.getGrid(), grid.getGrid(), grid.getGrid()
-                               }}, realToComplexFT_ {
+                               }},
+forcesFT_ {{
+               grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid()
+           }},
+convolutionDensity_ {{
+                         grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid(), grid.getGrid().reciprocalGrid()
+                     }},
+densityGradientFT_ {
+    grid.getGrid().reciprocalGrid()
+},
+realToComplexFT_ {
     FourierTransformRealToComplex3D(grid)
 } {
     generateFourierTransformGrids_(grid.getGrid());
@@ -68,7 +78,9 @@ ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
 void ForceDensity::generateFourierTransformGrids_(
         const FiniteGrid<DIM> &realSpaceGrid)
 {
-    auto fourierSpaceGrid = realSpaceGrid.reciprocalGrid();
+    auto fourierSpaceGrid = realSpaceGrid.reciprocalGrid(
+
+                );
     fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));
 
     for (auto &fourierField : forcesFT_)

@@ -101,7 +101,7 @@ class DensityPotential : public TrajectoryAnalysisModule
         std::string             fnoptions_;
         std::string             optionsstring_;
 
-        Field<real>             inputdensity_;
+        std::unique_ptr < Field < real>> inputdensity_;
         bool                    bRigidBodyFit_ = true;
         std::vector<float>      weight_;
         int                     every_ = 1;
@@ -188,12 +188,11 @@ void DensityPotential::optionsFinished(
         TrajectoryAnalysisSettings * /*settings*/)
 {
 
-    MrcFile ccp4inputfile;
-    ccp4inputfile.read(fnmapinput_, inputdensity_);
+    inputdensity_ = std::unique_ptr < Field < real>>(new Field<real> (MrcFile().read(fnmapinput_)));
 
     // set negative values to zero
-    std::for_each(std::begin(inputdensity_),
-                  std::end(inputdensity_),
+    std::for_each(std::begin(*inputdensity_),
+                  std::end(*inputdensity_),
                   [](real &value) { value = std::max(value, (real)0.); });
     potentialProvider_ = PotentialLibrary().create(potentialType_)();
     potentialFile_     = fopen(fnpotential_.c_str(), "w");
@@ -233,7 +232,7 @@ void DensityPotential::initAfterFirstFrame(
 
     std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
     potentialEvaluator = potentialProvider_->planPotential(
-                rVecCoordinates, weight_, inputdensity_, optionsstring_);
+                rVecCoordinates, weight_, *inputdensity_, optionsstring_);
 }
 
 void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
@@ -257,7 +256,7 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
         // else
         // {
         potential =
-            potentialEvaluator.potential(rVecCoordinates, weight_, inputdensity_);
+            potentialEvaluator.potential(rVecCoordinates, weight_, *inputdensity_);
         // }
 
         fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);

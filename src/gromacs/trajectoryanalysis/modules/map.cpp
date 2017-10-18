@@ -101,9 +101,9 @@ class Map : public TrajectoryAnalysisModule
 
         float                               sigma_   = 0.4;
         float                               n_sigma_ = 5;
-        Field<real>                         inputdensity_;
-        Field<real>                         outputdensity_;
-        Field<real>                         outputDensityBuffer_;
+        std::unique_ptr < Field < real>> inputdensity_;
+        std::unique_ptr < Field < real>> outputdensity_;
+        std::unique_ptr < Field < real>> outputDensityBuffer_;
         real                                spacing_       = 0.2;
         bool                                bPrint_        = false;
         bool                                bRigidBodyFit_ = true;
@@ -229,11 +229,11 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     if (!fnmapinput_.empty())
     {
         MrcFile ccp4inputfile;
-        ccp4inputfile.read(fnmapinput_, inputdensity_);
+        inputdensity_ = std::unique_ptr < Field < real>>(new Field<real> (ccp4inputfile.read(fnmapinput_)));
         if (bPrint_)
         {
             fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
-            fprintf(stderr, "\n%s\n", RealFieldMeasure(inputdensity_).to_string().c_str());
+            fprintf(stderr, "\n%s\n", RealFieldMeasure(*inputdensity_).to_string().c_str());
         }
     }
 }
@@ -267,24 +267,23 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    FiniteGrid<DIM>             outputdensitygrid;
     FiniteGrid<DIM>::MultiIndex extend {{
                                             (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
                                         }};
-    outputdensitygrid.setLatticeAndRescaleCell(extend);
-    outputdensitygrid.setCell( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}});
+    FiniteGrid<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend);
 
-    const auto &uc = outputdensitygrid.unitCell();
+    const auto     &uc = outputdensitygrid.unitCell();
     // Make the grid uniform in x, y and z direction
-    outputdensitygrid.scaleCell({{1., uc.basisVectorLength(XX)/uc.basisVectorLength(YY), uc.basisVectorLength(XX)/uc.basisVectorLength(ZZ)}});
+    auto            scaledCell = outputdensitygrid.cell().scaledCopy({{1., uc.basisVectorLength(XX)/uc.basisVectorLength(YY), uc.basisVectorLength(XX)/uc.basisVectorLength(ZZ)}});
+    outputdensitygrid.setCell(scaledCell);
 
     outputdensitygrid.setTranslation(
             {{roundf(translation[XX] / spacing_) * spacing_,
               roundf(translation[YY] / spacing_) * spacing_,
               roundf(translation[ZZ] / spacing_) * spacing_}});
 
-    outputdensity_.setGrid(outputdensitygrid);
-    outputDensityBuffer_.setGrid(outputdensitygrid);
+    outputdensity_       = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
+    outputDensityBuffer_ = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
 }
 
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
@@ -293,8 +292,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
     {
         if (fnmapinput_.empty())
         {
-            // Guess the extend of the map if no box is given in structure file
-            // and no other input density is given.
+            // Guess the extend of the map from the structure
             matrix box;
             rvec   translation;
             set_box_from_frame(fr, box, translation);
@@ -302,26 +300,25 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         }
         else
         {
-            // If a reference input density is given, copy the grid properties from
-            // here
-            outputdensity_.setGrid(inputdensity_.getGrid());
-            outputDensityBuffer_.setGrid(inputdensity_.getGrid());
+            // copy the grid properties from reference grid
+            outputdensity_       = std::unique_ptr < Field < real>>(new Field<real>(inputdensity_->getGrid()));
+            outputDensityBuffer_ = std::unique_ptr < Field < real>>(new Field<real>(inputdensity_->getGrid()));
         }
 
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(outputdensity_.getGrid(), 1, n_sigma_, sigma_));
+                    new DensitySpreader(outputdensity_->getGrid(), 1, n_sigma_, sigma_));
 
 
-        ModifyGridData(outputDensityBuffer_).zero();
+        ModifyGridData(*outputDensityBuffer_).zero();
     }
 
     std::vector<RVec> coordinates(fr.x, fr.x + fr.natoms);
 
-    outputdensity_ = spreader_->spreadLocalAtoms(coordinates, weight_);
+    *outputdensity_ = spreader_->spreadLocalAtoms(coordinates, weight_);
 
     if (nFr_ == 1)
     {
-        std::copy(std::begin(outputdensity_), std::end(outputdensity_), std::begin(outputDensityBuffer_));
+        std::copy(std::begin(*outputdensity_), std::end(*outputdensity_), std::begin(*outputDensityBuffer_));
     }
     else
     {
@@ -332,7 +329,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
                                            const real &average) {
                 return expAverage_ * current + (1 - expAverage_) * average;
             };
-        std::transform(std::begin(outputdensity_), std::end(outputdensity_), std::begin(outputdensity_), std::begin(outputDensityBuffer_), exponentialAveraging);
+        std::transform(std::begin(*outputdensity_), std::end(*outputdensity_), std::begin(*outputdensity_), std::begin(*outputDensityBuffer_), exponentialAveraging);
     }
 }
 
@@ -363,17 +360,12 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
         if (!fnmapoutput_.empty())
         {
-            MrcFile().write(
-                    fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4",
-                    outputdensity_);
+            MrcFile().write( fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + ".ccp4", *outputdensity_);
         }
 
         if (!fnfrmapoutput_.empty())
         {
-            MrcFile().write(
-                    fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) +
-                    std::to_string(frnr) + ".ccp4",
-                    outputDensityBuffer_);
+            MrcFile().write( fnfrmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", *outputDensityBuffer_);
         }
     }
 }
