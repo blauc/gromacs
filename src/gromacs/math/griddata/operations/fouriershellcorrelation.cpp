@@ -52,7 +52,7 @@
 namespace gmx
 {
 
-FourierShellCorrelation::FourierShellCorrelation(const FiniteGridWithTranslation<DIM> &realGrid)
+FourierShellCorrelation::FourierShellCorrelation(const GridWithTranslation<DIM> &realGrid)
 {
     auto        reciprocalGrid = convertGridToReciprocalSpace(realGrid);
     const auto &unitcell       =  reciprocalGrid.unitCell();

@@ -66,7 +66,7 @@ class ForceDensity
 
     private:
         void generateConvolutionDensity_();
-        void generateFourierTransformGrids_(const FiniteGridWithTranslation<DIM> &realSpaceGrid);
+        void generateFourierTransformGrids_(const GridWithTranslation<DIM> &realSpaceGrid);
         real sigma_;
         std::array<Field<real>, DIM>                    forces_;
         std::array<Field<t_complex>, DIM>               forcesFT_;

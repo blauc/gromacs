@@ -62,12 +62,12 @@ std::array<int, 3> FourierTransform3D::columnMajorExtendToRowMajorExtend(const s
              } };
 }
 
-FiniteGridWithTranslation<DIM> convertGridToReciprocalSpace(const FiniteGridWithTranslation<DIM> &grid )
+GridWithTranslation<DIM> convertGridToReciprocalSpace(const GridWithTranslation<DIM> &grid )
 {
     const auto &extend = grid.lattice().getExtend();
-    FiniteGridWithTranslation<DIM>::NdVector scale;
+    GridWithTranslation<DIM>::NdVector scale;
     std::copy(std::begin(extend), std::end(extend), std::begin(scale));
-    return FiniteGridWithTranslation<DIM>(grid.cell().inverse().scaledCopy(scale), grid.lattice(), grid.translation());
+    return GridWithTranslation<DIM>(grid.cell().inverse().scaledCopy(scale), grid.lattice(), grid.translation());
 }
 
 

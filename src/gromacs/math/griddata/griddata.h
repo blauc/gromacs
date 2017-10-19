@@ -42,9 +42,9 @@
  *
  * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
  *
- * \ref gmx::FiniteGridWithTranslation places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
+ * \ref gmx::GridWithTranslation places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
  *
- * \ref gmx::Field binds one-dimensional data array to a \ref gmx::FiniteGridWithTranslation.
+ * \ref gmx::Field binds one-dimensional data array to a \ref gmx::GridWithTranslation.
  *
  * \ref gmx::Field<real> provides functionality for real valued data on the grid.
  *

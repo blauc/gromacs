@@ -86,8 +86,8 @@ class MrcFile::Impl
 
         void do_mrc_data_(Field<real> &grid_data, bool bRead);
         void do_mrc_header_(bool bRead);
-        FiniteGridWithTranslation<DIM> setFiniteGridWithTranslationFromMrcMeta();
-        void setMrcMetaFromFiniteGridWithTranslation(const FiniteGridWithTranslation<DIM> &grid );
+        GridWithTranslation<DIM> setGridWithTranslationFromMrcMeta();
+        void setMrcMetaFromGridWithTranslation(const GridWithTranslation<DIM> &grid );
 
         /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
          */
@@ -191,14 +191,14 @@ std::string MrcFile::Impl::print_to_string()
     return result;
 }
 
-FiniteGridWithTranslation<DIM> MrcFile::Impl::setFiniteGridWithTranslationFromMrcMeta()
+GridWithTranslation<DIM> MrcFile::Impl::setGridWithTranslationFromMrcMeta()
 {
     RVec            cell_length;
     svmul(A2NM, meta_.cell_length, cell_length);
 
-    FiniteGrid<DIM>                tmpgrid({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}}, meta_.extend);
+    Grid<DIM>                      tmpgrid({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}}, meta_.extend);
     auto                           translation =  tmpgrid.multiIndexToCoordinate( {{ meta_.crs_start[meta_.xyz_to_crs[XX]], meta_.crs_start[meta_.xyz_to_crs[YY]], meta_.crs_start[meta_.xyz_to_crs[ZZ]] }});
-    FiniteGridWithTranslation<DIM> result({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}}, meta_.extend, translation);
+    GridWithTranslation<DIM>       result({{{cell_length[XX], cell_length[YY], cell_length[ZZ]}}}, meta_.extend, translation);
     /* If this the map origin is shifted, because the grid indexing starts at other values than zero,
      * values read here are ignored.
      * Convention is not clear at this point, whether the translation here should be treated as extra shift,
@@ -215,7 +215,7 @@ FiniteGridWithTranslation<DIM> MrcFile::Impl::setFiniteGridWithTranslationFromMr
     return result;
 }
 
-void MrcFile::Impl::setMrcMetaFromFiniteGridWithTranslation(const FiniteGridWithTranslation<DIM> &grid )
+void MrcFile::Impl::setMrcMetaFromGridWithTranslation(const GridWithTranslation<DIM> &grid )
 {
     auto index_of_origin = grid.coordinateToFloorMultiIndex({{1e-6, 1e-6, 1e-6}});
     meta_.crs_start   = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
@@ -777,7 +777,7 @@ void MrcFile::write(std::string filename, const Field<real> &grid_data)
     bool bRead = false;
     impl_->set_grid_stats(grid_data);
     impl_->open_file(filename, bRead);
-    impl_->setMrcMetaFromFiniteGridWithTranslation(grid_data.getGrid());
+    impl_->setMrcMetaFromGridWithTranslation(grid_data.getGrid());
     impl_->do_mrc_header_(bRead);
     impl_->do_mrc_data_(*(const_cast<Field<real>*>(&grid_data)), bRead);
     impl_->close_file();
@@ -805,7 +805,7 @@ Field<real> MrcFile::read(std::string filename)
     bool bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(bRead);
-    auto grid   = impl_->setFiniteGridWithTranslationFromMrcMeta();
+    auto grid   = impl_->setGridWithTranslationFromMrcMeta();
     auto result = Field<real>(grid);
     impl_->do_mrc_data_(result, bRead);
     impl_->close_file();

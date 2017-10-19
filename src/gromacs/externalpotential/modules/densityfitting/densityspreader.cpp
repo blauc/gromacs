@@ -48,7 +48,7 @@ DensitySpreader::~DensitySpreader()
 {
 };
 
-DensitySpreader::DensitySpreader(const FiniteGridWithTranslation<DIM> &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
+DensitySpreader::DensitySpreader(const GridWithTranslation<DIM> &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
     new std::vector < std::unique_ptr < Field<real>>>
 },
 simulated_density_ {

@@ -267,10 +267,10 @@ void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
 
 void Map::set_finitegrid_from_box(matrix box, rvec translation)
 {
-    FiniteGridWithTranslation<DIM>::MultiIndex extend {{
-                                                           (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
-                                                       }};
-    FiniteGridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
+    GridWithTranslation<DIM>::MultiIndex extend {{
+                                                     (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
+                                                 }};
+    GridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
     outputdensity_       = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
     outputDensityBuffer_ = std::unique_ptr < Field < real>>(new Field<real>(outputdensitygrid));
 }

@@ -37,7 +37,7 @@
 #include "gromacs/math/vec.h"
 namespace gmx
 {
-GridInterpolator::GridInterpolator(const FiniteGridWithTranslation<DIM> &basis)
+GridInterpolator::GridInterpolator(const GridWithTranslation<DIM> &basis)
     : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>(basis))}
 {
 };

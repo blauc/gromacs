@@ -60,7 +60,7 @@ std::array<int, 3> fourierTransformGridExtendfromRealExtend(const std::array<int
 /*! \brief
  * Convert Lattice to its corresponding lattice in reciprocal space.
  */
-FiniteGridWithTranslation<DIM> convertGridToReciprocalSpace(const FiniteGridWithTranslation<DIM> &grid );
+GridWithTranslation<DIM> convertGridToReciprocalSpace(const GridWithTranslation<DIM> &grid );
 
 class FourierTransform3D
 {

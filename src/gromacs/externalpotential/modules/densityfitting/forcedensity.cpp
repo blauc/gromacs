@@ -76,7 +76,7 @@ realToComplexFT_ {
 };
 
 void ForceDensity::generateFourierTransformGrids_(
-        const FiniteGridWithTranslation<DIM> &realSpaceGrid)
+        const GridWithTranslation<DIM> &realSpaceGrid)
 {
     auto fourierSpaceGrid = convertGridToReciprocalSpace(realSpaceGrid);
     fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));

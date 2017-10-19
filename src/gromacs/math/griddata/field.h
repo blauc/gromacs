@@ -55,11 +55,11 @@ template <typename T>
 class Field : public std::vector<T>
 {
     public:
-        Field(const FiniteGridWithTranslation<DIM> &grid) : grid_ {grid}
+        Field(const GridWithTranslation<DIM> &grid) : grid_ {grid}
         { this->resize(grid_.lattice().getNumLatticePoints()); };
 
-        const FiniteGridWithTranslation<DIM> getGrid() const {return grid_; }
-        void setGrid(const FiniteGridWithTranslation<DIM> &other) { grid_ = other; this->resize(grid_.lattice().getNumLatticePoints()); }
+        const GridWithTranslation<DIM> getGrid() const {return grid_; }
+        void setGrid(const GridWithTranslation<DIM> &other) { grid_ = other; this->resize(grid_.lattice().getNumLatticePoints()); }
 
         /*! \brief
          * Directly access an index element.
@@ -85,7 +85,7 @@ class Field : public std::vector<T>
         }
 
     private:
-        FiniteGridWithTranslation<DIM> grid_;
+        GridWithTranslation<DIM> grid_;
 
 };
 
