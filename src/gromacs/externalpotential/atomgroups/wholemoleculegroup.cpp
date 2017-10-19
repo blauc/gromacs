@@ -49,8 +49,6 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/mdlib/groupcoord.h"
-#include "gromacs/math/griddata/hilbertsort.h"
-// #include "gromacs/fileio/xtcio.h"
 
 namespace gmx
 {
@@ -111,58 +109,6 @@ WholeMoleculeGroup::~WholeMoleculeGroup()
 {
     // close_xtc(out_);
 };
-
-void
-WholeMoleculeGroup::reSort_(std::vector<int> &to_sort, const std::vector<int> &sortIndex)
-{
-    std::vector<int> sorted(sortIndex.size());
-    for (int i  = 0; i < to_sort.size(); ++i)
-    {
-        sorted[i] = to_sort[sortIndex[i]];
-    }
-    to_sort = sorted;
-}
-
-void
-WholeMoleculeGroup::reSortrVec_(rvec * to_sort, const std::vector<int> &sortIndex)
-{
-    std::vector<RVec> new_to_sort(sortIndex.size());
-    for (int i  = 0; i < sortIndex.size(); ++i)
-    {
-        new_to_sort[i] = to_sort[sortIndex[i]];
-    }
-    for (int i  = 0; i < sortIndex.size(); ++i)
-    {
-        copy_rvec(new_to_sort[i], to_sort[i]);
-    }
-}
-
-void
-WholeMoleculeGroup::reSortReal_(std::vector<real> &to_sort, const std::vector<int> &sortIndex)
-{
-    std::vector<real> sorted(sortIndex.size());
-    for (int i  = 0; i < sortIndex.size(); ++i)
-    {
-        sorted[i] = to_sort[sortIndex[i]];
-    }
-    for (int i  = 0; i < sortIndex.size(); ++i)
-    {
-        to_sort[i] = sorted[i];
-    }
-}
-
-
-void
-WholeMoleculeGroup::medianSort()
-{
-    hilbertMedianSort(Group::xTransformed_, sortIndex_);
-    reSort_(ind_loc_, sortIndex_);
-    reSort_(coll_ind_, sortIndex_);
-    reSortrVec_(as_rvec_array(Group::xTransformed_.data()), sortIndex_);
-    reSortrVec_(as_rvec_array(x_collective_.data()), sortIndex_);
-    reSortrVec_(as_rvec_array(x_reference_.data()), sortIndex_);
-    reSortReal_(Group::weights_, sortIndex_);
-}
 
 void
 WholeMoleculeGroup::set_x(const rvec x[], const matrix box)
