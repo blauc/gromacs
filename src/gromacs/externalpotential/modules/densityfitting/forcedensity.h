@@ -59,19 +59,19 @@ namespace gmx
 class ForceDensity
 {
     public:
-        ForceDensity(const Field<real>             &grid,
+        ForceDensity(const FieldReal3D             &grid,
                      real                           sigma);
         ~ForceDensity() = default;
-        const std::array<Field<real>, DIM> &getForce();
+        const std::array<FieldReal3D, DIM> &getForce();
 
     private:
         void generateConvolutionDensity_();
-        void generateFourierTransformGrids_(const GridWithTranslation<DIM> &realSpaceGrid);
+        void generateFourierTransformGrids_(const IGrid<DIM> &realSpaceGrid);
         real sigma_;
-        std::array<Field<real>, DIM>                    forces_;
-        std::array<Field<t_complex>, DIM>               forcesFT_;
-        std::array<Field<t_complex>, DIM>               convolutionDensity_;
-        Field<t_complex>                                densityGradientFT_;
+        std::array<FieldReal3D, DIM>                    forces_;
+        std::array<FieldComplex3D, DIM>                 forcesFT_;
+        std::array<FieldComplex3D, DIM>                 convolutionDensity_;
+        FieldComplex3D                                  densityGradientFT_;
         std::vector<FourierTransformComplexToReal3D>    complexToRealFTarray_;
         FourierTransformRealToComplex3D                 realToComplexFT_;
 };

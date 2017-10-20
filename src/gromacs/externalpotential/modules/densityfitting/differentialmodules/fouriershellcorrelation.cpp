@@ -50,8 +50,8 @@
 // namespace gmx
 // {
 //
-// const Field<real> &FourierShellCorrelationProvider::evaluateDensityDifferential(
-//         const Field<real> & /*comparant*/, const Field<real> &reference)
+// const FieldReal3D &FourierShellCorrelationProvider::evaluateDensityDifferential(
+//         const FieldReal3D & /*comparant*/, const FieldReal3D &reference)
 // {
 //     differential->copy_grid(reference);
 //     // TODO: everything
@@ -59,13 +59,13 @@
 // }
 //
 // real FourierShellCorrelationProvider::evaluateDensityDensityPotential(
-//         const Field<real> &comparant, const Field<real> &reference,
+//         const FieldReal3D &comparant, const FieldReal3D &reference,
 //         const RVec &translation, const Quaternion &orientation)
 // {
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //         (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = Field<real>(comparant).center_of_mass();
+//         auto centerOfMass = FieldReal3D(comparant).center_of_mass();
 //         auto interpolated = GridInterpolator(reference).interpolateLinearly(
 //                     comparant, translation, centerOfMass, orientation);
 //         auto fscCurve = FourierShellCorrelation(reference).getFscCurve(

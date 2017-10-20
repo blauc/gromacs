@@ -33,17 +33,16 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /********************************************************************
- * Field<real>
+ * FieldReal3D
  */
 #include "modifygriddata.h"
-#include "realfieldmeasure.h"
 #include "gromacs/math/vec.h"
-#include <array>
+#include "gromacs/math/griddata/operations/realfieldmeasure.h"
 
 namespace gmx
 {
 
-ModifyGridData::ModifyGridData(Field<real> &grid)
+ModifyGridData::ModifyGridData(std::vector<real> &grid)
     : grid_ {grid}
 { };
 
@@ -55,7 +54,7 @@ ModifyGridData &ModifyGridData::multiply(real value)
 
 real ModifyGridData::normalize()
 {
-    real integratedDensity =  RealFieldMeasure(grid_).mean();
+    real integratedDensity =  DataVectorMeasure(grid_).mean();
     multiply(1/integratedDensity);
     return integratedDensity;
 }

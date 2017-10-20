@@ -48,7 +48,7 @@
 namespace gmx
 {
 
-CompareFields::CompareFields(const Field<real> &reference, const Field<real> &other)
+CompareFields::CompareFields(const FieldReal3D &reference, const FieldReal3D &other)
     : reference_ {reference}, other_ {
     other
 }
@@ -88,11 +88,13 @@ real CompareFields::correlate(real threshold) const
 
 real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
-    auto ref = this->reference_;
-    return std::accumulate(std::begin(coordinates), std::end(coordinates), 0.,
-                           [ref] (const real sum, const RVec r){
-                               return sum + GridInterpolator(ref.getGrid()).getLinearInterpolationAt(ref, {{r[XX], r[YY], r[ZZ]}});
-                           });
+    real        sum    = 0;
+    const auto &interp = GridInterpolator(reference_.getGrid().duplicate());
+    for (const auto &r : coordinates)
+    {
+        sum += interp.getLinearInterpolationAt(reference_, {{r[XX], r[YY], r[ZZ]}});
+    }
+    return sum;
 };
 
 real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const

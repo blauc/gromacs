@@ -62,7 +62,7 @@ class FourierShellCorrelation
         /*! \brief Calculate fourier shells with custom binning. */
         FourierShellCorrelation(const std::set<real> &binEdges);
         const std::set<real> &getBinEdges() const;
-        std::vector<real> getFscCurve(const Field<real> &reference, const Field<real> &other);
+        std::vector<real> getFscCurve(const FieldReal3D &reference, const FieldReal3D &other);
 
     private:
         class BinShells_;

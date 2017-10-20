@@ -34,42 +34,44 @@
  */
 
 #include "realfieldmeasure.h"
+#include "gromacs/utility/gmxomp.h"
+
 namespace gmx
 {
 
-RealFieldMeasure::RealFieldMeasure(const Field<real> &realfield)
+DataVectorMeasure::DataVectorMeasure(const std::vector<real> &realfield)
     : realfield_ {realfield}
 {};
 
-real RealFieldMeasure::sum() const
+real DataVectorMeasure::sum() const
 {
     return std::accumulate(realfield_.cbegin(), realfield_.cend(), 0.);
 }
 
 /*! \brief The minimum grid data value. */
-real RealFieldMeasure::min() const
+real DataVectorMeasure::min() const
 {
     return *std::min_element(realfield_.cbegin(), realfield_.cend());
 };
 /*! \brief The maximum grid data value. */
-real RealFieldMeasure::max() const
+real DataVectorMeasure::max() const
 {
     return *std::max_element(realfield_.cbegin(), realfield_.cend());
 };
 /*! \brief The mean grid data value. */
-real RealFieldMeasure::mean() const
+real DataVectorMeasure::mean() const
 {
     return sum() / static_cast<float>(realfield_.size());
 };
 /*! \brief
  * The size of the griddata in bytes.
  */
-size_t RealFieldMeasure::data_size() const
+size_t DataVectorMeasure::data_size() const
 {
     return realfield_.size();
 };
 
-real RealFieldMeasure::sumOfSquareDeviation() const
+real DataVectorMeasure::sumOfSquareDeviation() const
 {
     real data_mean = mean();
     return std::accumulate(realfield_.cbegin(), realfield_.cend(), 0.,
@@ -78,25 +80,29 @@ real RealFieldMeasure::sumOfSquareDeviation() const
                            });
 }
 
-real RealFieldMeasure::normSquared() const
+real DataVectorMeasure::normSquared() const
 {
     return std::accumulate(
             realfield_.cbegin(), realfield_.cend(), 0.,
             [](const real &a, const real &b) { return a + square(b); });
 }
 
-real RealFieldMeasure::norm() const { return sqrt(normSquared()); }
+real DataVectorMeasure::norm() const { return sqrt(normSquared()); }
 /*! \brief The variance of data values.
  *
  * Two pass algorithm, where mean is calculated fist, due to large expected
  * amount of data. (Typical data size=1,000,000)
  */
-real RealFieldMeasure::var() const
+real DataVectorMeasure::var() const
 {
     return sumOfSquareDeviation() / realfield_.size();
 }
 /*! \brief The root mean square deviation of grid data values. */
-real RealFieldMeasure::rms() const { return sqrt(var()); };
+real DataVectorMeasure::rms() const { return sqrt(var()); };
+
+RealFieldMeasure::RealFieldMeasure(const Field<real, DIM> &realfield)
+    : realfield_ {realfield}
+{};
 
 RVec RealFieldMeasure::center_of_mass() const
 {
@@ -110,27 +116,11 @@ RVec RealFieldMeasure::center_of_mass() const
             com[dimension] += realfield_[i]*gridCoordinate[dimension];
         }
     }
-    svmul(1. / (RealFieldMeasure(*this).sum()), com, com);
+    svmul(1. / (DataVectorMeasure(realfield_).sum()), com, com);
     return com;
 }
 
-std::string RealFieldMeasure::to_string() const
-{
-    std::string result;
-    result += "------- real number grid -------\n";
-    result += "\tgetExtend     \t: " + std::to_string(realfield_.getGrid().lattice().getExtend()[0]) + " " + std::to_string(realfield_.getGrid().lattice().getExtend()[1]) + " " + std::to_string(realfield_.getGrid().lattice().getExtend()[2]) + "\n";
-    result += "\tngridpoints\t: " + std::to_string(realfield_.getGrid().lattice().getNumLatticePoints()) + "\n";
-    result += "\ttranslation\t: " + std::to_string(realfield_.getGrid().translation()[0]) + " " + std::to_string(realfield_.getGrid().translation()[1]) + " " + std::to_string(realfield_.getGrid().translation()[2]) + "\n";
-    result += "\tcell_lengths\t: " + std::to_string(realfield_.getGrid().cell().basisVectorLength(0)) + " " + std::to_string(realfield_.getGrid().cell().basisVectorLength(1)) + " " + std::to_string(realfield_.getGrid().cell().basisVectorLength(2)) + "\n";
-    result += "\tV_cell     \t: " + std::to_string(realfield_.getGrid().unitCell().volume()) + "\n";
-    result += "  min  :" + std::to_string(min()) + "\n";
-    result += "  max  :" + std::to_string(max()) + "\n";
-    result += "  mean :" + std::to_string(mean()) + "\n";
-    result += "  var  :" + std::to_string(var()) + "\n";
-    result += "  rms  :" + std::to_string(rms()) + "\n";
-    result += "\n----- end real number grid -----\n\n";
-    return result;
-}
+
 real RealFieldMeasure::entropy() const
 {
     auto p    = realfield_.cbegin();

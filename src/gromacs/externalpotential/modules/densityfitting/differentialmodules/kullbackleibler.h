@@ -57,8 +57,8 @@ class KullbackLeiblerPotential : public densityBasedPotential
         ~KullbackLeiblerPotential() = default;
         KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf);
 
-        real densityDensityPotential(const Field<real> &reference,
-                                     const Field<real> &comparant) const override;
+        real densityDensityPotential(const FieldReal3D &reference,
+                                     const FieldReal3D &comparant) const override;
 };
 
 class KullbackLeiblerForce : public densityBasedForce
@@ -68,8 +68,8 @@ class KullbackLeiblerForce : public densityBasedForce
         KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
 
     private:
-        void setDensityDifferential(const Field<real>    &reference,
-                                    const Field<real>    &comparant) const override;
+        void setDensityDifferential(const FieldReal3D    &reference,
+                                    const FieldReal3D    &comparant) const override;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
@@ -78,13 +78,13 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
         ~KullbackLeiblerProvider() = default;
         ForceEvaluatorHandle
         planForce(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                  const Field<real> &reference, const std::string &options,
+                  const FieldReal3D &reference, const std::string &options,
                   const RVec &translation = {0, 0, 0},
                   const Quaternion &orientation = {{1, 0, 0}, 0},
                   const RVec &centerOfRotation = {0, 0, 0}) override;
         PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
-                      const std::vector<real> &weights, const Field<real> &reference,
+                      const std::vector<real> &weights, const FieldReal3D &reference,
                       const std::string &options, const RVec &translation = {0, 0, 0},
                       const Quaternion &orientation = {{1, 0, 0}, 0},
                       const RVec &centerOfRotation = {0, 0, 0}) override;

@@ -62,7 +62,7 @@ densityBasedPotential::densityBasedPotential(const DensitySpreader &spreader,
 
 real densityBasedPotential::potential(const std::vector<RVec> &coordinates,
                                       const std::vector<real> &weights,
-                                      const Field<real>       &reference,
+                                      const FieldReal3D       &reference,
                                       const RVec              &translation,
                                       const Quaternion        &orientation,
                                       const RVec              &centerOfRotation) const
@@ -94,7 +94,7 @@ n_threads_ {
 
 void densityBasedForce::force(std::vector<RVec> &force,
                               const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                              const Field<real> &reference, const RVec &translation,
+                              const FieldReal3D &reference, const RVec &translation,
                               const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     if (selfSpreading_)
@@ -108,25 +108,18 @@ void densityBasedForce::force(std::vector<RVec> &force,
                                                           centerOfRotation),
                                reference);
     }
-    auto                       forceDensity =
+    const auto &forceGrid =
         ForceDensity(*differential_, sigma_differential_).getForce();
-    std::array<Field<real>, 3> forceGrid {
-        {
-            Field<real>(forceDensity[XX]),
-            Field<real>(forceDensity[YY]),
-            Field<real>(forceDensity[ZZ])
-        }
-    };
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
-
+    ;
     for (size_t i = 0; i != coordinates.size(); ++i)
     {
         auto r = orientation.shiftedAndOriented(coordinates[i], centerOfRotation,
                                                 translation);
         auto f = RVec {
-            GridInterpolator(forceGrid[XX].getGrid()).getLinearInterpolationAt(forceGrid[XX], {{r[XX], r[YY], r[ZZ]}}),
-            GridInterpolator(forceGrid[YY].getGrid()).getLinearInterpolationAt(forceGrid[YY], {{r[XX], r[YY], r[ZZ]}}),
-            GridInterpolator(forceGrid[ZZ].getGrid()).getLinearInterpolationAt(forceGrid[ZZ], {{r[XX], r[YY], r[ZZ]}})
+            GridInterpolator(forceGrid[XX].getGrid().duplicate()).getLinearInterpolationAt(forceGrid[XX], {{r[XX], r[YY], r[ZZ]}}),
+            GridInterpolator(forceGrid[YY].getGrid().duplicate()).getLinearInterpolationAt(forceGrid[YY], {{r[XX], r[YY], r[ZZ]}}),
+            GridInterpolator(forceGrid[ZZ].getGrid().duplicate()).getLinearInterpolationAt(forceGrid[ZZ], {{r[XX], r[YY], r[ZZ]}})
         };
         svmul(weights[i], f, force[i]);
         orientation.rotate_backwards(force[i]);
@@ -134,7 +127,7 @@ void densityBasedForce::force(std::vector<RVec> &force,
 }
 //
 // void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const
-// Field<real> &reference, const RVec &translation, const Quaternion
+// FieldReal3D &reference, const RVec &translation, const Quaternion
 // &orientation,
 //                                        const RVec &centerOfRotation )
 // {
@@ -142,10 +135,10 @@ void densityBasedForce::force(std::vector<RVec> &force,
 //     setDensityDifferential(*spread_density_, reference);
 //     auto forceDensity = ForceDensity(*differential_,
 //     sigma_differential_).getForce();
-//     std::array<Field<real>, 3> forceGrid { {
-//                                                         Field<real>(forceDensity[XX]),
-//                                                         Field<real>(forceDensity[YY]),
-//                                                         Field<real>(forceDensity[ZZ])
+//     std::array<FieldReal3D, 3> forceGrid { {
+//                                                         FieldReal3D(forceDensity[XX]),
+//                                                         FieldReal3D(forceDensity[YY]),
+//                                                         FieldReal3D(forceDensity[ZZ])
 //                                                     } };
 //
 // #pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid,

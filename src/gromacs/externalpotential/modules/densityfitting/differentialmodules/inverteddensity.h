@@ -54,20 +54,20 @@
 //
 //         std::unique_ptr<PotentialForceEvaluator>
 //         plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-//              const Field<real> &reference, const std::string &options,
+//              const FieldReal3D &reference, const std::string &options,
 //              const RVec &translation = {0, 0, 0},
 //              const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialForceEvaluator>
-//         plan(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+//         plan(const WholeMoleculeGroup &atoms, const FieldReal3D &reference,
 //              const std::string &options, const RVec &translation = {0, 0, 0},
 //              const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialEvaluator>
 //         planPotential(const std::vector<RVec> &coordinates,
-//                       const std::vector<real> &weights, const Field<real> &reference,
+//                       const std::vector<real> &weights, const FieldReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialEvaluator>
-//         planPotential(const WholeMoleculeGroup &atoms, const Field<real> &reference,
+//         planPotential(const WholeMoleculeGroup &atoms, const FieldReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});
 //

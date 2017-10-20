@@ -46,7 +46,7 @@
  *
  * \ref gmx::Field binds one-dimensional data array to a \ref gmx::GridWithTranslation.
  *
- * \ref gmx::Field<real> provides functionality for real valued data on the grid.
+ * \ref gmx::FieldReal3D provides functionality for real valued data on the grid.
  *
  * \author Christian Blau <cblau@gwdg.de>
  */

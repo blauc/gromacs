@@ -51,13 +51,13 @@
 // namespace gmx
 // {
 //
-// const Field<real> &
-// CrossCorrelation::evaluateDensityDifferential(const Field<real> &comparant,
-//                                               const Field<real> &reference)
+// const FieldReal3D &
+// CrossCorrelation::evaluateDensityDifferential(const FieldReal3D &comparant,
+//                                               const FieldReal3D &reference)
 // {
 //     differential->copy_grid(reference);
 //     auto cc                      = GridMeasures(reference).correlate(comparant);
-//     auto normSimulation          = Field<real>(comparant).properties().norm();
+//     auto normSimulation          = FieldReal3D(comparant).properties().norm();
 //     auto densityGradientFunction = [normSimulation, cc](real densityExperiment,
 //                                                         real densitySimulation) {
 //             return (densityExperiment - cc * densitySimulation) / (normSimulation);
@@ -69,13 +69,13 @@
 // }
 //
 // real CrossCorrelation::evaluateDensityDensityPotential(
-//         const Field<real> &comparant, const Field<real> &reference,
+//         const FieldReal3D &comparant, const FieldReal3D &reference,
 //         const RVec &translation, const Quaternion &orientation)
 // {
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //         (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = Field<real>(comparant).center_of_mass();
+//         auto centerOfMass = FieldReal3D(comparant).center_of_mass();
 //         auto interpolated = GridInterpolator(reference).interpolateLinearly(
 //                     comparant, translation, centerOfMass, orientation);
 //         return GridMeasures(*interpolated)

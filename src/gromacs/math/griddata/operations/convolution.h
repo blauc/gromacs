@@ -52,15 +52,15 @@ namespace gmx
 class GaussConvolution
 {
     public:
-        GaussConvolution(const Field<real> &input);
-        std::unique_ptr < Field < real>> convolute(real sigma);
+        GaussConvolution(const FieldReal3D &input);
+        std::unique_ptr < FieldReal3D> convolute(real sigma);
         GaussConvolution &pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor);
 
     private:
         const ColumnMajorLattice<DIM>::MultiIndex &extendBeforePadding_;
-        const Field<real>                         &input_;
-        std::unique_ptr < Field < real>> padded_input_;
-        std::unique_ptr < Field < t_complex>> fourierTransform_;
+        const FieldReal3D                         &input_;
+        std::unique_ptr < FieldReal3D>             padded_input_;
+        std::unique_ptr < FieldComplex3D>          fourierTransform_;
 };
 
 }      // gmx

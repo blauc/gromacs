@@ -35,29 +35,38 @@
  #ifndef GMX_MATH_GRIDINTERPOLATOR_H
  #define GMX_MATH_GRIDINTERPOLATOR_H
 
-#include "../field.h"
+#include <memory>
+
+#include "gromacs/utility/real.h"
+#include "gromacs/math/griddata/orthogonalbasis.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/math/griddata/field.h"
 
 namespace gmx
 {
 class Quaternion;
 
-template<class T> class Field;
+template<int N> class GridWithTranslation;
+#ifndef DIM
+#define DIM 3
+#endif
+
 
 class GridInterpolator
 {
     public:
-        GridInterpolator(const GridWithTranslation<DIM> &basis);
-        std::unique_ptr < Field < real>> interpolateLinearly(const Field<real> &other);
+        GridInterpolator(std::unique_ptr < IGrid < DIM>> basis);
+        std::unique_ptr < FieldReal3D> interpolateLinearly(const FieldReal3D &other);
         /*! \brief
             Interpolating after shifting and orienting the other grid.
          */
-        std::unique_ptr < Field < real>> interpolateLinearly(const Field<real> &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
-        real getLinearInterpolationAt(const Field<real> &field, const OrthogonalBasis<DIM>::NdVector &r) const;
+        std::unique_ptr < FieldReal3D> interpolateLinearly(const FieldReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
+        real getLinearInterpolationAt(const FieldReal3D &field, const OrthogonalBasis<DIM>::NdVector &r) const;
 
         void makeUniform();
 
     private:
-        std::unique_ptr < Field < real>> interpolatedGrid_;
+        std::unique_ptr < FieldReal3D> interpolatedGrid_;
 };
 
 

@@ -72,7 +72,7 @@ GaussTransform::getMaximumUsedGridIndex()
 
 
 void
-FastGaussianGridding::set_grid(std::unique_ptr < Field < real>> grid)
+FastGaussianGridding::set_grid(std::unique_ptr < FieldReal3D> grid)
 {
     grid_ = std::move((grid));
     if (!grid_->getGrid().unitCell().allVectorsSameLength(1e-6, 1))
@@ -205,7 +205,7 @@ FastGaussianGridding::transform(const rvec x, real weight)
     tensor_product_();
 }
 
-std::unique_ptr < Field < real>>
+std::unique_ptr < FieldReal3D>
 FastGaussianGridding::finish_and_return_grid()
 {
     return std::move(grid_);

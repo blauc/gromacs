@@ -55,7 +55,7 @@ namespace gmx
 FourierShellCorrelation::FourierShellCorrelation(const GridWithTranslation<DIM> &realGrid)
 {
     auto        reciprocalGrid = convertGridToReciprocalSpace(realGrid);
-    const auto &unitcell       =  reciprocalGrid.unitCell();
+    const auto &unitcell       =  reciprocalGrid->unitCell();
     auto        spacing        = 2*std::max({unitcell.basisVectorLength(XX), unitcell.basisVectorLength(YY), unitcell.basisVectorLength(ZZ)});
     const auto &cell           = realGrid.cell();
     auto        highestK       = norm(RVec {cell.basisVectorLength(XX), cell.basisVectorLength(YY), cell.basisVectorLength(ZZ)});
@@ -106,7 +106,7 @@ FourierShellCorrelation::BinShells_
 };
 
 std::vector<real>
-FourierShellCorrelation::getFscCurve(const Field<real> &reference, const Field<real> &other)
+FourierShellCorrelation::getFscCurve(const FieldReal3D &reference, const FieldReal3D &other)
 {
     for (auto &shell : referenceShells_)
     {

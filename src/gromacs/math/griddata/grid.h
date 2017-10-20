@@ -15,19 +15,21 @@ namespace gmx
 template <int N>
 class IGrid
 {
-    typedef typename OrthogonalBasis<N>::NdVector NdVector;
-    typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
+    public:
+        typedef typename OrthogonalBasis<N>::NdVector NdVector;
+        typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
-    /*! \brief
-     * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
-     */
-    virtual NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const = 0;
-    virtual MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const     = 0;
-    virtual NdVector multiIndexToCoordinate(const MultiIndex &i) const          = 0;
-    virtual void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) = 0;
-    virtual ColumnMajorLattice<N> lattice() const = 0;
-    virtual OrthogonalBasis<N> cell() const       = 0;
-    virtual OrthogonalBasis<N> unitCell() const   = 0;
+        /*! \brief
+         * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
+         */
+        virtual NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const = 0;
+        virtual MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const     = 0;
+        virtual NdVector multiIndexToCoordinate(const MultiIndex &i) const          = 0;
+        virtual void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) = 0;
+        virtual ColumnMajorLattice<N> lattice() const = 0;
+        virtual OrthogonalBasis<N> cell() const       = 0;
+        virtual OrthogonalBasis<N> unitCell() const   = 0;
+        virtual std::unique_ptr < IGrid < N>> duplicate() const = 0;
 
 };
 
@@ -46,7 +48,7 @@ class Grid : public IGrid<N>
         /*! \brief
          * Constructs Grid from OrthogonalBasis and ColumnMajorLattice.
          */
-        Grid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
+        Grid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : IGrid<N>(), cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
         {
             setUnitCell_();
         }
@@ -115,6 +117,12 @@ class Grid : public IGrid<N>
         {
             return unitCell_;
         };
+
+        std::unique_ptr < IGrid < N>> duplicate() const override
+        {
+            return std::unique_ptr < IGrid < N>>(new Grid<N>(*this));
+        }
+
     private:
 
         /*! \brief
@@ -140,6 +148,9 @@ class Grid : public IGrid<N>
         ColumnMajorLattice<N> lattice_;
 };
 
+/*
+ *
+ */
 template <int N>
 class GridWithTranslation : public Grid<N>
 {
@@ -173,11 +184,6 @@ class GridWithTranslation : public Grid<N>
             return translateFromGrid_(Grid<N>::multiIndexToCoordinate(i));
         }
 
-        NdVector translation() const
-        {
-            return translation_;
-        }
-
         /*! \brief
          *
          * Set the real-space coordinate of gridpoint (0,0,0).
@@ -185,6 +191,11 @@ class GridWithTranslation : public Grid<N>
         void setTranslation(const NdVector &translate)
         {
             translation_ = translate;
+        }
+
+        std::unique_ptr < IGrid < N>> duplicate() const override
+        {
+            return std::unique_ptr < IGrid < N>>(new GridWithTranslation<N>(*this));
         }
 
     private:

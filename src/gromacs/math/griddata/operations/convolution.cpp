@@ -49,7 +49,7 @@
 namespace gmx
 {
 
-GaussConvolution::GaussConvolution(const Field<real> &input)
+GaussConvolution::GaussConvolution(const FieldReal3D &input)
     :  extendBeforePadding_ {input.getGrid().lattice().getExtend()}, input_(input), padded_input_ {
     nullptr
 }
@@ -60,7 +60,8 @@ GaussConvolution &GaussConvolution::pad(const OrthogonalBasis<DIM>::NdVector &pa
     return *this;
 }
 
-std::unique_ptr < Field < real>> GaussConvolution::convolute(real sigma) {
+std::unique_ptr < FieldReal3D> GaussConvolution::convolute(real sigma)
+{
     if (padded_input_ != nullptr)
     {
         fourierTransform_ =

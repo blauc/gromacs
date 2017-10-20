@@ -36,13 +36,8 @@
 #define GMX_MATH_REALFIELDMEASURE_H
 
 #include <vector>
-#include <numeric>
-#include <algorithm>
-#include "gromacs/math/functions.h"
 #include "../field.h"
 #include "gromacs/math/vec.h"
-#include <string>
-#include "gromacs/utility/gmxomp.h"
 
 namespace gmx
 {
@@ -50,7 +45,19 @@ namespace gmx
 class RealFieldMeasure
 {
     public:
-        explicit RealFieldMeasure(const Field<real> &realfield);
+        explicit RealFieldMeasure(const Field<real, DIM> &realfield);
+        ~RealFieldMeasure() = default;
+        RVec center_of_mass() const;
+        real entropy() const;
+    private:
+        const Field<real, DIM> &realfield_;
+
+};
+
+class DataVectorMeasure
+{
+    public:
+        explicit DataVectorMeasure(const std::vector<real> &realfield);
         /*! \brief The sum of all grid values. */
         real sum() const;
         /*! \brief The minimum grid data value. */
@@ -78,14 +85,8 @@ class RealFieldMeasure
         /*! \brief The root mean square deviation of grid data values. */
         real rms() const;
 
-
-        RVec center_of_mass() const;
-
-        std::string to_string() const;
-        real entropy() const;
-
     private:
-        const Field<real> &realfield_;
+        const std::vector<real> &realfield_;
 };
 
 }      // namespace gmx

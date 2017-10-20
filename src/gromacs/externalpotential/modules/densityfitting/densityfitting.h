@@ -46,6 +46,7 @@
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/math/quaternion.h"
+#include "gromacs/math/griddata/field.h"
 
 
 struct t_fileio;
@@ -57,7 +58,6 @@ namespace gmx
 class GroupAtom;
 
 struct MrcMetaData;
-template<class T> class Field;
 class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
@@ -108,9 +108,9 @@ class DensityFitting : public ExternalPotential
         int         every_nth_step_;
         std::string options_;
 
-        std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
-        std::unique_ptr < Field < real>>                           target_density_;
-        std::unique_ptr < Field < real>>                           simulated_density_;
+        std::unique_ptr<IStructureDensityPotentialProvider>      potentialProvider_;
+        std::unique_ptr < FieldReal3D>                           target_density_;
+        std::unique_ptr < FieldReal3D>                           simulated_density_;
         real                    background_density_;
         MrcMetaData             meta_;
         std::string             trajectory_name_;

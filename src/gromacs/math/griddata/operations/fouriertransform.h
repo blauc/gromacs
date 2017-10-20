@@ -60,11 +60,12 @@ std::array<int, 3> fourierTransformGridExtendfromRealExtend(const std::array<int
 /*! \brief
  * Convert Lattice to its corresponding lattice in reciprocal space.
  */
-GridWithTranslation<DIM> convertGridToReciprocalSpace(const GridWithTranslation<DIM> &grid );
+std::unique_ptr < IGrid < DIM>> convertGridToReciprocalSpace(const IGrid<DIM> &grid );
 
 class FourierTransform3D
 {
     public:
+        FourierTransform3D(const FourierTransform3D &other) = default;
         ~FourierTransform3D();
         std::array<int, 3> columnMajorExtendToRowMajorExtend(const std::array<int, 3> &extend) const;
         void execute();
@@ -78,34 +79,34 @@ class FourierTransform3D
 class FourierTransformRealToComplex3D : public FourierTransform3D
 {
     public:
-        FourierTransformRealToComplex3D(const Field<real> &realInputField);
-        std::unique_ptr < Field < t_complex>> result();
-        void  result(Field < t_complex> &complexTransformedField);
+        FourierTransformRealToComplex3D(const FieldReal3D &realInputField);
+        std::unique_ptr < FieldComplex3D> result();
+        void  result(FieldComplex3D &complexTransformedField);
         FourierTransformRealToComplex3D &normalize();
 
     private:
-        std::unique_ptr < Field < t_complex>> createComplexTransformedFieldFromInput_() const;
-        const Field<real> &realInputField_;
+        std::unique_ptr < FieldComplex3D> createComplexTransformedFieldFromInput_() const;
+        const FieldReal3D &realInputField_;
 };
 
 class FourierTransformComplexToReal3D : public FourierTransform3D
 {
     public:
-        FourierTransformComplexToReal3D(const Field<t_complex> &complexInputField);
-        std::unique_ptr < Field < real>> result();
-        void result(Field < real> &realTransformedField);
+        FourierTransformComplexToReal3D(const FieldComplex3D &complexInputField);
+        std::unique_ptr < FieldReal3D> result();
+        void result(FieldReal3D &realTransformedField);
         FourierTransformComplexToReal3D &normalize();
 
     private:
-        std::unique_ptr < Field < real>>  createRealTransformedFieldFromInput_() const;
-        const Field<t_complex> &complexInputField_;
+        std::unique_ptr < FieldReal3D>  createRealTransformedFieldFromInput_() const;
+        const FieldComplex3D &complexInputField_;
 };
 
 class ApplyToUnshiftedFourierTransform
 {
     public:
         typedef const std::function<void(t_complex &, RVec)> &FunctionOnComplexField;
-        ApplyToUnshiftedFourierTransform(Field<t_complex> &field);
+        ApplyToUnshiftedFourierTransform(FieldComplex3D &field);
         const ApplyToUnshiftedFourierTransform &
         apply(FunctionOnComplexField appliedFunction);
 
@@ -121,7 +122,7 @@ class ApplyToUnshiftedFourierTransform
                                          std::vector<t_complex>::iterator itRowStart,
                                          std::vector<t_complex>::iterator itRowEnd,
                                          FunctionOnComplexField appliedFunction);
-        Field<t_complex> &field_;
+        FieldComplex3D &field_;
 };
 }
 #endif /* end of include guard: GMX_MATH_FOURIERTRANSFORM_H */

@@ -42,8 +42,8 @@
 namespace gmx
 {
 
-std::unique_ptr < Field < real>>
-DensityPadding::padPower2() {
+std::unique_ptr < FieldReal3D> DensityPadding::padPower2()
+{
     const auto &extend   = toPad_.getGrid().lattice().getExtend();
     real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
     real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
@@ -52,8 +52,9 @@ DensityPadding::padPower2() {
     return pad({{factorXX/real(extend[XX]), factorYY/real(extend[YY]), factorZZ/real(extend[ZZ])}} );
 }
 
-std::unique_ptr < Field < real>>
-DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
+std::unique_ptr < FieldReal3D>
+DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor)
+{
     std::array<int, 3> paddedExtend;
     for (int dimension = 0; dimension < DIM; dimension++)
     {
@@ -67,10 +68,10 @@ DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
         }
 
     }
-    auto paddedGrid = toPad_.getGrid();
+    auto paddedGrid = Grid<DIM>(toPad_.getGrid().cell(), toPad_.getGrid().lattice());
 
     paddedGrid.setLatticeAndRescaleCell(paddedExtend);
-    std::unique_ptr < Field < real>> padded(new Field<real>(paddedGrid));
+    std::unique_ptr < FieldReal3D> padded(new FieldReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(paddedGrid))));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
     auto extend = toPad_.getGrid().lattice().getExtend();
@@ -86,15 +87,16 @@ DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor) {
     }
     return padded;
 }
-DensityPadding::DensityPadding(const Field<real> &toPad) : toPad_ {toPad}
+DensityPadding::DensityPadding(const FieldReal3D &toPad) : toPad_ {toPad}
 {}
 
-std::unique_ptr < Field < real>>
-DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend) {
+std::unique_ptr < FieldReal3D>
+DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend)
+{
 
-    auto unpaddedGrid = toPad_.getGrid();
+    auto unpaddedGrid = Grid<3>(toPad_.getGrid().cell(), toPad_.getGrid().lattice());
     unpaddedGrid.setLatticeAndRescaleCell(unPadExtend);
-    std::unique_ptr < Field < real>> unpadded(new Field<real>(unpaddedGrid));
+    std::unique_ptr < FieldReal3D> unpadded(new FieldReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(unpaddedGrid))));
 
     for (int iZZ = 0; iZZ < unPadExtend[ZZ]; ++iZZ)
     {

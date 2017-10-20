@@ -55,10 +55,10 @@
 //     public:
 //         FourierShellCorrelationProvider() : commonDensityBased(std::bind(&FourierShellCorrelationProvider::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
 //         ~FourierShellCorrelationProvider() = default;
-//         const Field<real> &evaluateDensityDifferential(const Field<real> &comparant,
-//                                                        const Field<real> &reference);
+//         const FieldReal3D &evaluateDensityDifferential(const FieldReal3D &comparant,
+//                                                        const FieldReal3D &reference);
 //         real evaluateDensityDensityPotential(
-//             const Field<real> &comparant, const Field<real> &reference,
+//             const FieldReal3D &comparant, const FieldReal3D &reference,
 //             const RVec &translation = {0, 0, 0},
 //             const Quaternion &orientation = {{0, 0, 1}, 0});
 //         void parseDifferentialOptionsString(const std::string &options);

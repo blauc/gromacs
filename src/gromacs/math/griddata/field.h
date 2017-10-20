@@ -43,53 +43,68 @@
 #ifndef GMX_MATH_griddata_FIELD_H
 #define GMX_MATH_griddata_FIELD_H
 
-#include "griddata.h"
-#include "finitegrid.h"
+#include "grid.h"
+#include "gromacs/math/gmxcomplex.h"
+#include "gromacs/utility/real.h"
 
 #include <vector>
 
 namespace gmx
 {
 
-template <typename T>
+template <typename T, int N>
 class Field : public std::vector<T>
 {
     public:
-        Field(const GridWithTranslation<DIM> &grid) : grid_ {grid}
-        { this->resize(grid_.lattice().getNumLatticePoints()); };
+        Field(std::unique_ptr < IGrid < N>> grid) : grid_ {std::move(grid)}
+        {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
 
-        const GridWithTranslation<DIM> getGrid() const {return grid_; }
-        void setGrid(const GridWithTranslation<DIM> &other) { grid_ = other; this->resize(grid_.lattice().getNumLatticePoints()); }
+        Field(const Field &other) : grid_ {other.grid_->duplicate()}
+        {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+
+        const IGrid<N> &getGrid() const
+        {
+            return *grid_;
+        }
+
+        void setGrid(std::unique_ptr < IGrid < N>> &&grid)
+        {
+            grid_ = std::move(grid);
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
 
         /*! \brief
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        T &atMultiIndex(const std::array<int, 3> &index)
+        T &atMultiIndex(const typename IGrid<N>::MultiIndex &index)
         {
-            return this->at(grid_.lattice().lineariseVectorIndex(index));
+            return this->at(grid_->lattice().lineariseVectorIndex(index));
         };
 
         /*! \brief
          * Directly access an index element.
          * \throws std::out_of_range if element is out of array bounds
          */
-        const T &atMultiIndex(const  std::array<int, 3> &index) const
+        const T &atMultiIndex(const typename IGrid<N>::MultiIndex &index) const
         {
-            return this->at(grid_.lattice().lineariseVectorIndex(index));
+            return this->at(grid_->lattice().lineariseVectorIndex(index));
         };
 
-        typename std::vector<T>::iterator iteratorAtMultiIndex(const std::array<int, 3> &index)
+        typename std::vector<T>::iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index)
         {
-            return this->begin() + grid_.lattice().lineariseVectorIndex(index);
+            return this->begin() + grid_->lattice().lineariseVectorIndex(index);
         }
 
     private:
-        GridWithTranslation<DIM> grid_;
-
+        std::unique_ptr < IGrid < N>> grid_;
 };
 
-template <class T, class F> void ApplyToField(Field<T> &field, F function)
+template <class T, int N, class F> void ApplyToField(Field<T, N> &field, F function)
 {
     RVec d_x = field.unit_cell_XX();
     RVec d_y = field.unit_cell_YY();
@@ -131,6 +146,9 @@ template <class T, class F> void ApplyToField(Field<T> &field, F function)
         rvec_inc(gridCoordinate_z, d_z);       // next step in grid z-direction
     }
 };
+
+typedef Field<real, 3> FieldReal3D;
+typedef Field<t_complex, 3> FieldComplex3D;
 
 }      // namespace gmx
 

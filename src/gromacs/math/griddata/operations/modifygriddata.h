@@ -35,7 +35,8 @@
 #ifndef GMX_MATH_MODIFYGRIDDATA_H
 #define GMX_MATH_MODIFYGRIDDATA_H
 
-#include "../field.h"
+#include <vector>
+#include "gromacs/math/vec.h"
 
 namespace gmx
 {
@@ -50,7 +51,7 @@ namespace gmx
 class ModifyGridData
 {
     public:
-        ModifyGridData(Field<real> &grid);
+        ModifyGridData(std::vector<real> &data);
         ~ModifyGridData() = default;
         ModifyGridData &multiply(real value);
 
@@ -62,7 +63,7 @@ class ModifyGridData
          */
         ModifyGridData &zero();
     private:
-        Field<real> &grid_;
+        std::vector<real> &grid_;
 };
 
 }

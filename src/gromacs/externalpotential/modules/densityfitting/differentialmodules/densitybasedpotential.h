@@ -56,7 +56,6 @@ class Quaternion;
 
 class DensitySpreader;
 template<int N> class GridWithTranslation;
-template<class T> class Field;
 
 class densityBasedPotential : public PotentialEvaluator
 {
@@ -65,12 +64,12 @@ class densityBasedPotential : public PotentialEvaluator
         ~densityBasedPotential() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights,
-                       const Field<real> &reference,
+                       const FieldReal3D &reference,
                        const RVec &translation = {0, 0, 0},
                        const Quaternion &orientation = {{1, 0, 0}, 0},
                        const RVec &centerOfRotation = {0, 0, 0}) const override;
-        virtual real densityDensityPotential(const Field<real> &reference,
-                                             const Field<real> &comparant) const = 0;
+        virtual real densityDensityPotential(const FieldReal3D &reference,
+                                             const FieldReal3D &comparant) const = 0;
     protected:
         const DensitySpreader &spreader_;
         bool                   selfSpreading_;
@@ -86,19 +85,19 @@ class densityBasedForce : public ForceEvaluator
 
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
                    const std::vector<real> &weights,
-                   const Field<real> &reference,
+                   const FieldReal3D &reference,
                    const RVec &translation = {0, 0, 0},
                    const Quaternion &orientation = {{1, 0, 0}, 0},
                    const RVec &centerOfRotation = {0, 0, 0}) const override;
 
     protected:
-        virtual void setDensityDifferential(const Field<real>    &reference,
-                                            const Field<real>    &comparant) const = 0;
-        std::unique_ptr < Field < real>> differential_;
-        real                   sigma_differential_;
-        int                    n_threads_;
-        const DensitySpreader &spreader_;
-        bool                   selfSpreading_;
+        virtual void setDensityDifferential(const FieldReal3D    &reference,
+                                            const FieldReal3D    &comparant) const = 0;
+        std::unique_ptr < FieldReal3D> differential_;
+        real                           sigma_differential_;
+        int                            n_threads_;
+        const DensitySpreader         &spreader_;
+        bool                           selfSpreading_;
 };
 
 }      /* gmx */

@@ -34,11 +34,13 @@
  */
 #include "gridinterpolator.h"
 #include "gromacs/math/quaternion.h"
+#include "gromacs/math/griddata/field.h"
 #include "gromacs/math/vec.h"
+
 namespace gmx
 {
-GridInterpolator::GridInterpolator(const GridWithTranslation<DIM> &basis)
-    : interpolatedGrid_ {std::unique_ptr < Field < real>>(new Field<real>(basis))}
+GridInterpolator::GridInterpolator(std::unique_ptr < IGrid < DIM>> basis)
+    : interpolatedGrid_ {std::unique_ptr < FieldReal3D>(new FieldReal3D(std::move(basis)))}
 {
 };
 
@@ -47,10 +49,10 @@ GridInterpolator::GridInterpolator(const GridWithTranslation<DIM> &basis)
  *      find rational number grid cell index in input grid
  *      use fractional part for weights
  */
-std::unique_ptr < Field < real>>
-GridInterpolator::interpolateLinearly(const Field<real> &other)
+std::unique_ptr < FieldReal3D>
+GridInterpolator::interpolateLinearly(const FieldReal3D &other)
 {
-    auto        grid   = interpolatedGrid_->getGrid();
+    const auto &grid   = interpolatedGrid_->getGrid();
     const auto &extend = grid.lattice().getExtend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
@@ -66,16 +68,16 @@ GridInterpolator::interpolateLinearly(const Field<real> &other)
     return std::move(interpolatedGrid_);
 };
 
-std::unique_ptr < Field < real>>
-GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
+std::unique_ptr < FieldReal3D>
+GridInterpolator::interpolateLinearly(const FieldReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
 {
     if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
     {
         return interpolateLinearly(other);
     }
 
-    auto        grid           = interpolatedGrid_->getGrid();
-    const auto &extend         = grid.lattice().getExtend();
+    const auto &grid            = interpolatedGrid_->getGrid();
+    const auto &extend          = grid.lattice().getExtend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -94,7 +96,7 @@ GridInterpolator::interpolateLinearly(const Field<real> &other, const RVec &tran
 }
 
 
-real GridInterpolator::getLinearInterpolationAt(const Field<real> &field, const OrthogonalBasis<DIM>::NdVector &r) const
+real GridInterpolator::getLinearInterpolationAt(const FieldReal3D &field, const OrthogonalBasis<DIM>::NdVector &r) const
 {
     auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex(r);
     auto w            = field.getGrid().gridVectorFromGridPointToCoordinate(r, iIndexInGrid);

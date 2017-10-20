@@ -45,6 +45,7 @@
 #include "gromacs/math/vec.h"
 
 #include "gromacs/math/griddata/columnmajorlattice.h"
+#include "gromacs/math/griddata/field.h"
 #include <array>
 #include <vector>
 #include <memory>
@@ -54,25 +55,23 @@ namespace gmx
 
 typedef BasicVector<int> IVec;
 
-template<class T> class Field;
-
 class GaussTransform
 {
     public:
         GaussTransform()  = default;
         ~GaussTransform() = default;
-        virtual void set_grid(std::unique_ptr < Field < real>> grid) = 0;
+        virtual void set_grid(std::unique_ptr < FieldReal3D> grid) = 0;
         void set_sigma(real sigma);
         void set_n_sigma(real n_sigma);
         virtual void transform(const rvec x, real weight) = 0;
-        virtual std::unique_ptr < Field < real>> finish_and_return_grid() = 0;
+        virtual std::unique_ptr < FieldReal3D> finish_and_return_grid() = 0;
         IVec getMinimumUsedGridIndex();
         IVec getMaximumUsedGridIndex();
     protected:
         // no other object should have access to the grid while Gauss transform is in progress
-        std::unique_ptr < Field < real>> grid_;
-        real                      sigma_;
-        real                      n_sigma_;
+        std::unique_ptr < FieldReal3D> grid_;
+        real                           sigma_;
+        real                           n_sigma_;
         IVec minimumUsedGridIndex_;
         IVec maximumUsedGridIndex_;
 };
@@ -90,7 +89,7 @@ class FastGaussianGridding : public GaussTransform
         ~FastGaussianGridding() = default;
         /*! \brief Checks if grid is rectangular and equispaced.
          */
-        void set_grid(std::unique_ptr < Field < real>> grid);
+        void set_grid(std::unique_ptr < FieldReal3D> grid);
         /*! \brief Perform gaussian spreading of one source with a weight.
          *
          * Feed one source at a time.
@@ -98,7 +97,7 @@ class FastGaussianGridding : public GaussTransform
         void transform(const rvec x, real weight);
         /*! \brief Perform any outstanding caluclations, then hand back ownership of the grid.
          */
-        std::unique_ptr < Field < real>> finish_and_return_grid();
+        std::unique_ptr < FieldReal3D> finish_and_return_grid();
     protected:
         void prepare_2d_grid(const rvec x, const real weight);
         ColumnMajorLattice<DIM>::MultiIndex grid_index_of_spread_atom_;

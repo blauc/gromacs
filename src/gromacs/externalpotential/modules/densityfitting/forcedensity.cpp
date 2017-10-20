@@ -51,49 +51,51 @@
  * ForceDensity
  */
 
+
 namespace gmx
 {
 
-ForceDensity::ForceDensity(const Field<real> &grid, real sigma)
+
+ForceDensity::ForceDensity(const FieldReal3D &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
-                                   grid.getGrid(), grid.getGrid(), grid.getGrid()
+                                   grid, grid, grid
                                }},
 forcesFT_ {{
-               convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid())
+               convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate()))
            }},
 convolutionDensity_ {{
-                         convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid()), convertGridToReciprocalSpace(grid.getGrid())
+                         convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate()))
                      }},
 densityGradientFT_ {
-    convertGridToReciprocalSpace(grid.getGrid())
+    convertGridToReciprocalSpace(*(grid.getGrid().duplicate()))
 },
 realToComplexFT_ {
     FourierTransformRealToComplex3D(grid)
 } {
-    generateFourierTransformGrids_(grid.getGrid());
+    generateFourierTransformGrids_(*(grid.getGrid().duplicate()));
     generateConvolutionDensity_();
     realToComplexFT_.normalize();
 };
 
 void ForceDensity::generateFourierTransformGrids_(
-        const GridWithTranslation<DIM> &realSpaceGrid)
+        const IGrid<DIM> &realSpaceGrid)
 {
     auto fourierSpaceGrid = convertGridToReciprocalSpace(realSpaceGrid);
-    fourierSpaceGrid.setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));
+    fourierSpaceGrid->setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().getExtend()));
 
     for (auto &fourierField : forcesFT_)
     {
-        fourierField.setGrid(fourierSpaceGrid);
+        fourierField.setGrid(fourierSpaceGrid->duplicate());
         complexToRealFTarray_.emplace_back(fourierField);
         complexToRealFTarray_.back().normalize();
     }
 
     for (auto &convolutionGrid : convolutionDensity_)
     {
-        convolutionGrid.setGrid(fourierSpaceGrid);
+        convolutionGrid.setGrid(fourierSpaceGrid->duplicate());
     }
 
-    densityGradientFT_.setGrid(fourierSpaceGrid);
+    densityGradientFT_.setGrid(fourierSpaceGrid->duplicate());
 }
 
 void ForceDensity::generateConvolutionDensity_()
@@ -111,7 +113,7 @@ void ForceDensity::generateConvolutionDensity_()
     }
 }
 
-const std::array<Field<real>, DIM> &
+const std::array<FieldReal3D, DIM> &
 ForceDensity::getForce()
 {
     realToComplexFT_.result(densityGradientFT_);

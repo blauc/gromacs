@@ -322,7 +322,7 @@ void DensityFitting::read_input()
     if (parsed_json.has("target_density"))
     {
         target_density_name_ = parsed_json["target_density"];
-        target_density_      = std::unique_ptr < Field < real>>(new Field < real>(MrcFile().read(target_density_name_)));
+        target_density_      = std::unique_ptr < FieldReal3D>(new FieldReal3D(MrcFile().read(target_density_name_)));
         if (parsed_json.has("target_density_used"))
         {
             MrcFile().write(parsed_json["target_density_used"], *target_density_);

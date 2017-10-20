@@ -46,8 +46,8 @@
 // namespace gmx
 // {
 //
-// // const Field<real> &InvertedDensity::evaluateDensityDifferential(
-// //         const Field<real> & /*comparant*/, const Field<real> &reference)
+// // const FieldReal3D &InvertedDensity::evaluateDensityDifferential(
+// //         const FieldReal3D & /*comparant*/, const FieldReal3D &reference)
 // // {
 // //     return reference;
 // // }
@@ -55,7 +55,7 @@
 // // real
 // // InvertedDensity::evaluateStructureDensityPotential(
 // //         const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-// //         const Field<real> &reference, const RVec &translation,
+// //         const FieldReal3D &reference, const RVec &translation,
 // //         const Quaternion &orientation)
 // // {
 // //     RVec centerOfMass {
@@ -70,9 +70,9 @@
 // //         rvec_inc(centerOfMass, weighted_coordinate);
 // //     }
 // //     svmul(1./weight_sum, centerOfMass, centerOfMass);
-// //     auto referenceField<real> = Field<real>(reference);
-// //     auto sumOverGrid       = [referenceField<real>, centerOfMass, translation, orientation] (const real sum, const RVec r){
-// //             return sum + referenceField<real>.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
+// //     auto referenceFieldReal3D = FieldReal3D(reference);
+// //     auto sumOverGrid       = [referenceFieldReal3D, centerOfMass, translation, orientation] (const real sum, const RVec r){
+// //             return sum + referenceFieldReal3D.getLinearInterpolationAt(orientation.shiftedAndOriented(r, centerOfMass, translation));
 // //         };
 // //     return std::accumulate(std::begin(coordinates), std::end(coordinates), 0., sumOverGrid);
 // // };
@@ -97,7 +97,7 @@
 // // real
 // // InvertedDensity::evaluateGroupDensityPotential(
 // //         const WholeMoleculeGroup &atoms,
-// //         const Field<real> &reference, const RVec &translation,
+// //         const FieldReal3D &reference, const RVec &translation,
 // //         const Quaternion &orientation)
 // // {
 // //     real result       = 0;
@@ -109,7 +109,7 @@
 // //         auto          endThreadAtoms   = atoms.end(thread, number_of_threads_);
 // //         for (auto atom = beginThreadAtoms; atom != endThreadAtoms; ++atom)
 // //         {
-// //             result += Field<real>(reference).getLinearInterpolationAt(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation));
+// //             result += FieldReal3D(reference).getLinearInterpolationAt(orientation.shiftedAndOriented(*(*atom).xTransformed, centerOfMass, translation));
 // //         }
 // //     }
 // //     return result;

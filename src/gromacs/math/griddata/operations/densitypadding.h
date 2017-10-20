@@ -41,22 +41,23 @@
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/griddata/orthogonalbasis.h"
 #include "gromacs/math/griddata/columnmajorlattice.h"
+#include "gromacs/math/griddata/field.h"
 
 namespace gmx
 {
-template<class real> class Field;
+
 
 class DensityPadding
 {
     public:
-        DensityPadding(const Field<real> &toPad);
-        std::unique_ptr < Field < real>> pad(const OrthogonalBasis<DIM>::NdVector & paddingFactor);
+        DensityPadding(const FieldReal3D &toPad);
+        std::unique_ptr < FieldReal3D> pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor);
 
-        std::unique_ptr < Field < real>> padPower2();
-        std::unique_ptr < Field < real>> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
+        std::unique_ptr < FieldReal3D> padPower2();
+        std::unique_ptr < FieldReal3D> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
 
     private:
-        const Field<real> &toPad_;
+        const FieldReal3D &toPad_;
 };
 }      // namespace gmx
 

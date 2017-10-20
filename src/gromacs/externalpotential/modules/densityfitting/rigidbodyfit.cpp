@@ -46,7 +46,7 @@ namespace gmx
 {
 
 RigidBodyFitResult RigidBodyFit::fitCoordinates(
-        const Field<real> &reference, const std::vector<RVec> &x,
+        const FieldReal3D &reference, const std::vector<RVec> &x,
         const std::vector<real> &weights,
         const PotentialEvaluatorHandle &fitPotentialProvider)
 {
@@ -124,7 +124,7 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 
 //
 // void RigidBodyFit::fitWholeMoleculeGroup(
-//         const Field<real> &reference, WholeMoleculeGroup *atoms,
+//         const FieldReal3D &reference, WholeMoleculeGroup *atoms,
 //         const IDifferentialPotentialProvider &fitPotentialProvider)
 // {
 //

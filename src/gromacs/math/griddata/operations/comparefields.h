@@ -39,15 +39,15 @@
 #include <set>
 #include "gromacs/utility/real.h"
 #include "gromacs/math/gmxcomplex.h"
+#include "gromacs/math/griddata/field.h"
 
 namespace gmx
 {
 
-template<typename real> class Field;
 class CompareFields
 {
     public:
-        CompareFields(const Field<real> &reference, const Field<real> &other);
+        CompareFields(const FieldReal3D &reference, const FieldReal3D &other);
         real correlate(real threshold = -GMX_REAL_MAX) const;
         real getRelativeKLCrossTermSameGrid( const std::vector<real> &other_reference) const;
         real getRelativeKLCrossTerm(const std::vector<real>    &other_reference) const;
@@ -58,8 +58,8 @@ class CompareFields
 
     private:
         real correlate_(const std::vector<real> &a, const std::vector<real> &b) const;
-        const Field<real> &reference_;
-        const Field<real> &other_;
+        const FieldReal3D &reference_;
+        const FieldReal3D &other_;
 };
 }
 

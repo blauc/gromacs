@@ -117,7 +117,7 @@ class MrcFile
          * \param[in] filename name of the file to write the griddata to, typically *.cpp4, *.mrc or *.map
          * \param[in] grid_data real-valued, real-space data on a grid
          */
-        void write(std::string filename, const Field<real> &grid_data);
+        void write(std::string filename, const FieldReal3D &grid_data);
 
         /*! \brief Write real-spaced, real-valued griddata to file with user-defined metadata.
          *
@@ -126,21 +126,21 @@ class MrcFile
          * \param[in] meta struct with own metadata
          * \param[in] bOwnGridStats calculate min, max, mean and rms self if true, otherwise copy from metadata
          */
-        void write_with_own_meta(std::string filename, Field<real> &grid_data, MrcMetaData &meta, bool bOwnGridStats);
+        void write_with_own_meta(std::string filename, FieldReal3D &grid_data, MrcMetaData &meta, bool bOwnGridStats);
 
         /*! \brief Reads real-spaced, real-valued griddata from file.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \returns grid_data will be filled with real-valued, real-space data on a grid upon succesful reading
          */
-        Field<real> read(std::string filename);
+        FieldReal3D read(std::string filename);
         /*! \brief Reads real-spaced, real-valued voxel data and the map header / metadata.
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
          * \returns grid_data will be filled with real-valued, real-space data on a grid upon succesful reading
          */
-        Field<real> read_with_meta(std::string filename, MrcMetaData &meta);
+        FieldReal3D read_with_meta(std::string filename, MrcMetaData &meta);
 
         /*! \brief Reads
          *
@@ -168,13 +168,13 @@ class Df3File
         {
             public:
                 void writePovray();
-                SuccessfulDf3Write(std::string filename, const Field<real> &grid_data);
+                SuccessfulDf3Write(std::string filename, const FieldReal3D &grid_data);
             private:
                 std::string        filename_;
-                const Field<real> &gridData_;
+                const FieldReal3D &gridData_;
         };
     public:
-        SuccessfulDf3Write write(std::string filename, const Field<real> &grid_data);
+        SuccessfulDf3Write write(std::string filename, const FieldReal3D &grid_data);
 };
 
 }      // namespace gmx

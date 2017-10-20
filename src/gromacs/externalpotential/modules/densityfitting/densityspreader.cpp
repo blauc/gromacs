@@ -48,11 +48,11 @@ DensitySpreader::~DensitySpreader()
 {
 };
 
-DensitySpreader::DensitySpreader(const GridWithTranslation<DIM> &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
-    new std::vector < std::unique_ptr < Field<real>>>
+DensitySpreader::DensitySpreader(const IGrid<DIM> &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
+    new std::vector < std::unique_ptr < FieldReal3D>>
 },
 simulated_density_ {
-    new Field<real>(grid)
+    new FieldReal3D(grid.duplicate())
 }, number_of_threads_ {
     numberOfThreads
 }
@@ -63,7 +63,7 @@ simulated_density_ {
     {
     #pragma omp critical
         {
-            (*simulated_density_buffer_).emplace_back(new Field<real>(grid));
+            (*simulated_density_buffer_).emplace_back(new FieldReal3D(grid.duplicate()));
             (*gauss_transform_).emplace_back(new FastGaussianGridding());
         }
     }
@@ -74,7 +74,7 @@ simulated_density_ {
     }
 }
 
-const Field<real> &
+const FieldReal3D &
 DensitySpreader::getSpreadGrid() const
 {
     return *simulated_density_;
@@ -89,7 +89,7 @@ void DensitySpreader::zero() const
 }
 
 
-const Field<real> &
+const FieldReal3D &
 DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     std::vector<IVec>            minimumUsedGridIndex(number_of_threads_);
@@ -116,7 +116,7 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
 }
 
-const Field<real> &
+const FieldReal3D &
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
     std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
@@ -136,10 +136,10 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     int  nGridPointsXX        = gridEnd[XX]-gridStart[XX];
 
     // store the data accessors for threadlocal grid data in a vector
-    std::vector<Field<real> > simulatedDensityThreadGridData;
+    std::vector<FieldReal3D > simulatedDensityThreadGridData;
     for (int thread = 0; thread < number_of_threads_; ++thread)
     {
-        simulatedDensityThreadGridData.emplace_back(*(*simulated_density_buffer_)[thread]);
+        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->getGrid().duplicate());
     }
 
     //
