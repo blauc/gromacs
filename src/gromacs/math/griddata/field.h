@@ -104,49 +104,6 @@ class Field : public std::vector<T>
         std::unique_ptr < IGrid < N>> grid_;
 };
 
-template <class T, int N, class F> void ApplyToField(Field<T, N> &field, F function)
-{
-    RVec d_x = field.unit_cell_XX();
-    RVec d_y = field.unit_cell_YY();
-    RVec d_z = field.unit_cell_ZZ();
-
-    /*
-     * Use iterators to step though the grid.
-     * This relies on the assumption that the grid is stored with z the slowest
-     * and x the fasted changing dimension with no padding
-     * (x,y,z not being linked to any coordiante system, but short-hand for first,
-     * second, third dimension)
-     * Loosing generality through this approach, we save substantial time when we
-     * don't have to calculate the grid index.
-     */
-
-    auto gridCoordinate_z = field.multiIndexToCoordinate({0, 0, 0});
-
-    auto extend   = field.extend();
-    auto gridData = field.access();
-
-    for (int gridIndexZZ = 0; gridIndexZZ < extend[ZZ]; ++gridIndexZZ)
-    {
-        auto gridCoordinate_yz =
-            gridCoordinate_z; // start at the beginning of a "y-row"
-        for (int gridIndexYY = 0; gridIndexYY < extend[YY]; ++gridIndexYY)
-        {
-            auto gridCoordinate =
-                gridCoordinate_yz; // start at the beginning of an "x-column"
-            auto gridIterator = gridData.zy_column_begin(gridIndexZZ, gridIndexYY);
-
-            for (int gridIndexXX = 0; gridIndexXX < extend[XX]; ++gridIndexXX)
-            {
-                function(*gridIterator, gridCoordinate);
-                ++gridIterator;
-                rvec_inc(gridCoordinate, d_x); // next step in grid x-direction
-            }
-            rvec_inc(gridCoordinate_yz, d_y);  // next step in grid y-direction
-        }
-        rvec_inc(gridCoordinate_z, d_z);       // next step in grid z-direction
-    }
-};
-
 typedef Field<real, 3> FieldReal3D;
 typedef Field<t_complex, 3> FieldComplex3D;
 
