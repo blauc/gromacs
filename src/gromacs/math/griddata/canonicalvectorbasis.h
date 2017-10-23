@@ -55,8 +55,12 @@ namespace gmx
 /*! \brief
  * The canonical basis of an N-dimensional vector space.
  *
- * The canoncial vector basis is orthogonal and aligned with the respective axis.
- * It's represenation is a diagonal matrix.
+ * The canoncial vector basis is orthogonal and aligned with the axis.
+ * It transforms vectors into and out of the
+ * After an identy mapping from vector to vector, this is the next simple
+ * implementation of a vector space basis.
+ *
+ *
  * \tparam int Number of dimensions of the vector space
  */
 template <int N>

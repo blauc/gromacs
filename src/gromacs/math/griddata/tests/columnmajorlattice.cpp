@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,9 +34,7 @@
  */
 /*! \internal \file
  * \brief
- * Tests matrix inversion routines
- *
- * \todo Test error conditions when they throw exceptions
+ * Tests column major lattice indexing routines
  *
  * \author Christian Blau <cblau@gwdg.de>
  * \ingroup module_math
@@ -55,7 +53,6 @@
 namespace gmx
 {
 
-
 namespace test
 {
 
@@ -65,29 +62,64 @@ namespace internal
 namespace
 {
 
-
-
-TEST(ColumnMajorLatticeTest, canConstructObject)
+TEST(ColumnMajorLatticeTest, canConstruct)
 {
-    ColumnMajorLattice<2>indexer {
-        ColumnMajorLattice<2>::MultiIndex {{
-                                               4, 2
-                                           }}
+    ColumnMajorLattice<1> minimalLAttice {{{
+                                               1
+                                           }}};
+    ColumnMajorLattice<2> twoDLattice {{{
+                                            4, 2
+                                        }}};
+    ColumnMajorLattice<4> fourDLattice {{{
+                                             4, 2, 78, 1
+                                         }}};
+}
+
+TEST(ColumnMajorLatticeTest, numberLatticePoints)
+{
+    ASSERT_EQ(ColumnMajorLattice<4>({{{ 4, 2, 78, 5}}}).getNumLatticePoints(), );
+}
+
+TEST(ColumnMajorLatticeTest, lineariseIsInverseOfVectorise)
+{
+    ColumnMajorLattice<3> onedLattice {{{
+                                            1
+                                        }}};
+
+    int oneDLinearIndex {
+        0
     };
+    ASSERT_EQ(oneDLinearIndex, onedLattice.lineariseVectorIndex(onedLattice.vectoriseLinearIndex(oneDLinearIndex)));
+
+    // Test all indices in three-dimensional grid
+    ColumnMajorLattice<3> threeDimensionalLattice {{{
+                                                        2, 3, 4
+                                                    }}};
+
+    std::vector<int> threeDLinearIndices(threeDimensionalLattice.getNumLatticePoints());
+    std::iota (std::begin(threeDLinearIndices), std::end(threeDLinearIndices), 0);
+    for (const auto &i : threeDLinearIndices)
+    {
+        ASSERT_EQ(i, threeDimensionalLattice.lineariseVectorIndex(threeDimensionalLattice.vectoriseLinearIndex(i)));
+    }
 }
 
-TEST(ColumnMajorLatticeTest, roundTrip)
+TEST(ColumnMajorLatticeTest, vectoriseIsInverseOfLinearise)
 {
+    // Test all indices in three-dimensional grid
+    ColumnMajorLattice<3> threeDimensionalLattice {{{
+                                                        2, 3, 4
+                                                    }}};
 
-    ColumnMajorLattice<3> indexer {{{
-                                        2, 3, 4
-                                    }}};
-
-    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(2));
-    indexer.lineariseVectorIndex(indexer.vectoriseLinearIndex(5));
-    // EXPECT_THROW_GMX();
+    std::vector<ColumnMajorLattice<3>::MultiIndex> threeDLinearIndices(threeDimensionalLattice.getNumLatticePoints());
+    std::iota (std::begin(threeDLinearIndices), std::end(threeDLinearIndices), 0);
+    for (const auto &i : threeDLinearIndices)
+    {
+        ASSERT_EQ(i, threeDimensionalLattice.vectoriseLinearIndex(threeDimensionalLattice.lineariseVectorIndex(i)));
+    }
 }
 
+// EXPECT_THROW_GMX();
 
 
 } // namespace
