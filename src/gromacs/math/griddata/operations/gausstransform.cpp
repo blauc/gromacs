@@ -42,6 +42,8 @@
 #include "gausstransform.h"
 #include "../field.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/math/griddata/canonicalvectorbasis.h"
+#include "gromacs/utility/compare.h"
 
 namespace gmx
 {
@@ -71,11 +73,28 @@ GaussTransform::getMaximumUsedGridIndex()
 };
 
 
+/*! \brief
+ * True, if length is same in x,y,z -direction.
+ */
+bool FastGaussianGridding::allVectorsSameLength(const CanonicalVectorBasis<DIM> &basis, real ftol, real abstol) const
+{
+    auto firstLength           = basis.basisVectorLength(0);
+    for (int dimension = 1; dimension < DIM; ++dimension)
+    {
+        if (!equal_real(basis.basisVectorLength(dimension), firstLength, ftol, abstol))
+        {
+            return false;
+        }
+    }
+    ;
+    return true;
+}
+
 void
 FastGaussianGridding::set_grid(std::unique_ptr < FieldReal3D> grid)
 {
     grid_ = std::move((grid));
-    if (!grid_->getGrid().unitCell().allVectorsSameLength(1e-6, 1))
+    if (!allVectorsSameLength(grid_->getGrid().unitCell(), 1e-6, 1))
     {
         GMX_THROW(gmx::InconsistentInputError("Grid needs to be evently spaced to use the current implementation of fast gaussian gridding."));
     }

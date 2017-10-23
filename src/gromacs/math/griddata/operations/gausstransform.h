@@ -54,6 +54,7 @@ namespace gmx
 {
 
 typedef BasicVector<int> IVec;
+template <int N> class CanonicalVectorBasis;
 
 class GaussTransform
 {
@@ -108,6 +109,7 @@ class FastGaussianGridding : public GaussTransform
         void spread_1d(real weight, int m_spread, rvec dx, real nu, const std::vector<real> &E3, int dimension);
         void tensor_product_2d_();
         void tensor_product_();
+        bool allVectorsSameLength(const CanonicalVectorBasis<3> &basis, real ftol, real abstol) const;
 
         real nu_; // spacing/sigma
         std::vector < std::vector < std::vector<real>>> spread_block_;
