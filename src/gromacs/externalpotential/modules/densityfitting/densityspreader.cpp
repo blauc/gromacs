@@ -119,7 +119,6 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
 const FieldReal3D &
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
-    std::vector<std::vector<real>::iterator> contributingThreadLocalVoxelIterators(number_of_threads_);
 
     std::array<int, 3> gridStart;
     std::array<int, 3> gridEnd;
@@ -134,26 +133,18 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     // add together all thread-local grids, using only density values, where there is
     // actual spread density
     int  nGridPointsXX        = gridEnd[XX]-gridStart[XX];
-
-    // store the data accessors for threadlocal grid data in a vector
-    std::vector<FieldReal3D > simulatedDensityThreadGridData;
-    for (int thread = 0; thread < number_of_threads_; ++thread)
-    {
-        simulatedDensityThreadGridData.emplace_back((*simulated_density_buffer_)[thread]->getGrid().duplicate());
-    }
-
-    //
     for (int gridIndexZZ = gridStart[ZZ]; gridIndexZZ < gridEnd[ZZ]; ++gridIndexZZ)
     {
         for (int gridIndexYY = gridStart[YY]; gridIndexYY < gridEnd[YY]; ++gridIndexYY)
         {
-            contributingThreadLocalVoxelIterators.resize(0);
+            std::vector<FieldReal3D::iterator> contributingThreadVoxels;
+
             // access rows in thread local grids if they contribute to the density
             for (int thread = 0; thread < number_of_threads_; ++thread)
             {
                 if ((minimumUsedGridIndex[thread][ZZ] <= gridIndexZZ) && ( gridIndexZZ <= maximumUsedGridIndex[thread][ZZ] ) && (minimumUsedGridIndex[thread][YY] <= gridIndexYY) && (gridIndexYY <= maximumUsedGridIndex[thread][YY]))
                 {
-                    contributingThreadLocalVoxelIterators.push_back(simulatedDensityThreadGridData[thread].iteratorAtMultiIndex({{gridStart[XX], gridIndexYY, gridIndexZZ}}));
+                    contributingThreadVoxels.push_back(((*simulated_density_buffer_)[thread])->iteratorAtMultiIndex({{gridStart[XX], gridIndexYY, gridIndexZZ}}));
                 }
             }
             std::vector<real>::iterator simulatedDensityVoxelIterator = simulated_density_->iteratorAtMultiIndex({{gridStart[XX], gridIndexYY, gridIndexZZ}});
@@ -161,7 +152,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
             for (int gridIndexXX = 0; gridIndexXX < nGridPointsXX; ++gridIndexXX)
             {
                 // loop over the local threads, collect voxel contributions and advance all threadlocal iterators to next voxel in row
-                for (auto &threadLocalVoxel : contributingThreadLocalVoxelIterators)
+                for (auto &threadLocalVoxel : contributingThreadVoxels)
                 {
                     *simulatedDensityVoxelIterator += *threadLocalVoxel;
                     ++threadLocalVoxel;
