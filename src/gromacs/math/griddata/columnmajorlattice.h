@@ -84,12 +84,11 @@ template <int N> class ColumnMajorLattice
             {
                 GMX_THROW(RangeError("Lattice extend must be larger zero in all dimensions."));
             }
-        };
-
+        }
         /*! \brief
          * The lattice extend as N-dimensional index.
          */
-        const MultiIndex &getExtend() const { return extend_; };
+        const MultiIndex &extend() const { return extend_; };
 
         /*! \brief
          * The number of points in the lattice.
@@ -99,7 +98,7 @@ template <int N> class ColumnMajorLattice
         int getNumLatticePoints() const
         {
             return std::accumulate(std::begin(extend_), std::end(extend_), 1, std::multiplies<int>());
-        };
+        }
 
         /*! \brief
          * Returns one-dimensional lattice index from N-dimensional multi index.
@@ -185,7 +184,7 @@ template <int N> class ColumnMajorLattice
 
     private:
         //! \brief the extend of the lattice
-        const MultiIndex extend_;
+        MultiIndex extend_;
 };
 
 } // gmx

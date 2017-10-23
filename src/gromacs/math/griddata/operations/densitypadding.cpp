@@ -44,7 +44,7 @@ namespace gmx
 
 std::unique_ptr < FieldReal3D> DensityPadding::padPower2()
 {
-    const auto &extend   = toPad_.getGrid().lattice().getExtend();
+    const auto &extend   = toPad_.getGrid().lattice().extend();
     real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
     real        factorYY = pow(2, ceil(log(extend[YY])/log(2)));
     real        factorZZ = pow(2, ceil(log(extend[ZZ])/log(2)));
@@ -60,7 +60,7 @@ DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
     {
         if (paddingFactor[dimension] > 1)
         {
-            paddedExtend[dimension] = std::ceil(paddingFactor[dimension] * toPad_.getGrid().lattice().getExtend()[dimension]);
+            paddedExtend[dimension] = std::ceil(paddingFactor[dimension] * toPad_.getGrid().lattice().extend()[dimension]);
         }
         else
         {
@@ -74,7 +74,7 @@ DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
     std::unique_ptr < FieldReal3D> padded(new FieldReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(paddedGrid))));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
-    auto extend = toPad_.getGrid().lattice().getExtend();
+    auto extend = toPad_.getGrid().lattice().extend();
     for (int iZZ = 0; iZZ < extend[ZZ]; ++iZZ)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)

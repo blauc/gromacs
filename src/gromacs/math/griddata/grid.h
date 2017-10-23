@@ -148,7 +148,7 @@ class Grid : public IGrid<N>
         /*! \brief
          * Copy constructor declared, because the default constructor is deleted.
          */
-        Grid(const Grid &other) : cell_ {other.cell_}, unitCell_ {other.unitCell_}, lattice_ {other.lattice_} {}
+        Grid(const Grid &other) : cell_ {other.cell_}, lattice_ {other.lattice_}, unitCell_ {other.unitCell_} {}
 
         /*! \brief
          * Copy assignment operator declared, because the default constructor is deleted.
@@ -189,7 +189,7 @@ class Grid : public IGrid<N>
         void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) override
         {
             lattice_ = lattice;
-            cell_    = unitCell_.scaledCopy(multiIndexToNdVector(lattice_.getExtend()));
+            cell_    = unitCell_.scaledCopy(multiIndexToNdVector(lattice_.extend()));
         }
 
         //! \copydoc IGrid::lattice()
@@ -211,9 +211,9 @@ class Grid : public IGrid<N>
         };
 
         //! \copydoc IGrid::duplicate()
-        IGridPointer duplicate() const override
+        typename IGrid<N>::IGridPointer duplicate() const override
         {
-            return IGridPointer(new Grid<N>(*this));
+            return typename IGrid<N>::IGridPointer(new Grid<N>(*this));
         }
 
     private:
@@ -235,7 +235,7 @@ class Grid : public IGrid<N>
         {
             NdVector    cellToUnitCellScale;
             const auto &invertInteger = [](int integerExtend){return 1.0/real(integerExtend); };
-            std::transform(std::begin(lattice.getExtend()), std::end(lattice.getExtend()), std::begin(cellToUnitCellScale), invertInteger);
+            std::transform(std::begin(lattice.extend()), std::end(lattice.extend()), std::begin(cellToUnitCellScale), invertInteger);
             return cell.scaledCopy(cellToUnitCellScale);
         }
         CanonicalVectorBasis<N>    cell_;
@@ -290,9 +290,9 @@ class GridWithTranslation : public Grid<N>
             translation_ = translate;
         }
 
-        IGridPointer duplicate() const override
+        typename IGrid<N>::IGridPointer duplicate() const override
         {
-            return IGridPointer(new GridWithTranslation<N>(*this));
+            return typename IGrid<N>::IGridPointer(new GridWithTranslation<N>(*this));
         }
 
     private:

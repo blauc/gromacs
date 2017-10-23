@@ -53,7 +53,7 @@ std::unique_ptr < FieldReal3D>
 GridInterpolator::interpolateLinearly(const FieldReal3D &other)
 {
     const auto &grid   = interpolatedGrid_->getGrid();
-    const auto &extend = grid.lattice().getExtend();
+    const auto &extend = grid.lattice().extend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -77,7 +77,7 @@ GridInterpolator::interpolateLinearly(const FieldReal3D &other, const RVec &tran
     }
 
     const auto &grid            = interpolatedGrid_->getGrid();
-    const auto &extend          = grid.lattice().getExtend();
+    const auto &extend          = grid.lattice().extend();
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)

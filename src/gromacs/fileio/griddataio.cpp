@@ -219,8 +219,8 @@ void MrcFile::Impl::setMrcMetaFromGridWithTranslation(const IGrid<DIM> &grid )
 {
     auto index_of_origin = grid.coordinateToFloorMultiIndex({{1e-6, 1e-6, 1e-6}});
     meta_.crs_start   = {{-index_of_origin[XX], -index_of_origin[YY], -index_of_origin[ZZ]}};
-    meta_.num_crs     = to_crs_order(grid.lattice().getExtend());
-    meta_.extend      = grid.lattice().getExtend();
+    meta_.num_crs     = to_crs_order(grid.lattice().extend());
+    meta_.extend      = grid.lattice().extend();
     meta_.cell_angles = { 90, 90, 90 };
 
     for (int dimension = 0; dimension <= ZZ; ++dimension)
@@ -590,7 +590,7 @@ void MrcFile::Impl::do_mrc_data_(FieldReal3D &grid_data, bool bRead)
         }
     }
 
-    auto num_crs = to_crs_order(lattice.getExtend());
+    auto num_crs = to_crs_order(lattice.extend());
     for (int section = 0; section  < num_crs[ZZ]; section++)
     {
         for (int row  = 0; row  < num_crs[YY]; row++)
@@ -818,13 +818,13 @@ Df3File::write(std::string filename, const gmx::FieldReal3D &grid_data)
     const auto &grid  = grid_data.getGrid();
     auto        file_ = gmx_fio_fopen(filename.c_str(), "w");
     int16_t     xExtendShort {
-        int16_t(grid.lattice().getExtend()[XX])
+        int16_t(grid.lattice().extend()[XX])
     };
     int16_t yExtendShort {
-        int16_t(grid.lattice().getExtend()[YY])
+        int16_t(grid.lattice().extend()[YY])
     };
     int16_t zExtendShort {
-        int16_t(grid.lattice().getExtend()[ZZ])
+        int16_t(grid.lattice().extend()[ZZ])
     };
     fputc(xExtendShort >> 8, file_);
     fputc(xExtendShort & 0xff, file_);

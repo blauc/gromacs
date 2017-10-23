@@ -156,7 +156,7 @@ FastGaussianGridding::tensor_product_()
     {
         minimumGlobalGridIndex[i] = std::max(0, grid_index_of_spread_atom_[i]-m_spread_);
         minimumUsedGridIndex_[i]  = std::min(minimumGlobalGridIndex[i], minimumUsedGridIndex_[i]);
-        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getGrid().lattice().getExtend()[i]-1);
+        maximumGlobalGridIndex[i] = std::min(grid_index_of_spread_atom_[i]+m_spread_, grid_->getGrid().lattice().extend()[i]-1);
         maximumUsedGridIndex_[i]  = std::max(maximumGlobalGridIndex[i], maximumUsedGridIndex_[i]);
     }
 

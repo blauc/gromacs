@@ -228,7 +228,7 @@ void DensityMorph::evaluateFlow_(const FieldReal3D &differential, std::array<std
     {
         densityflow[dimension] =
             DensityPadding(paddedDensityFlow[dimension])
-                .unpad(differential.getGrid().lattice().getExtend());
+                .unpad(differential.getGrid().lattice().extend());
     }
 
     // find the scale for the flow
@@ -358,7 +358,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
              */
             // go through grid and use densityflow to shift density
 
-            auto extend = mobile_.getGrid().lattice().getExtend();
+            auto extend = mobile_.getGrid().lattice().extend();
 
             // MrcFile().write("flowxx.ccp4", densityflow[XX]);
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);
