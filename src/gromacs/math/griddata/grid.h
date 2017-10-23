@@ -3,7 +3,7 @@
 
 #include "gromacs/math/vectypes.h"
 #include "columnmajorlattice.h"
-#include "orthogonalbasis.h"
+#include "canonicalvectorbasis.h"
 #include <memory>
 #include <cmath>
 namespace gmx
@@ -16,7 +16,7 @@ template <int N>
 class IGrid
 {
     public:
-        typedef typename OrthogonalBasis<N>::NdVector NdVector;
+        typedef typename CanonicalVectorBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
         /*! \brief
@@ -26,9 +26,9 @@ class IGrid
         virtual MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const     = 0;
         virtual NdVector multiIndexToCoordinate(const MultiIndex &i) const          = 0;
         virtual void setLatticeAndRescaleCell(const ColumnMajorLattice<N> &lattice) = 0;
-        virtual ColumnMajorLattice<N> lattice() const = 0;
-        virtual OrthogonalBasis<N> cell() const       = 0;
-        virtual OrthogonalBasis<N> unitCell() const   = 0;
+        virtual ColumnMajorLattice<N> lattice() const      = 0;
+        virtual CanonicalVectorBasis<N> cell() const       = 0;
+        virtual CanonicalVectorBasis<N> unitCell() const   = 0;
         virtual std::unique_ptr < IGrid < N>> duplicate() const = 0;
 
 };
@@ -42,13 +42,13 @@ template <int N>
 class Grid : public IGrid<N>
 {
     public:
-        typedef typename OrthogonalBasis<N>::NdVector NdVector;
+        typedef typename CanonicalVectorBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
         /*! \brief
-         * Constructs Grid from OrthogonalBasis and ColumnMajorLattice.
+         * Constructs Grid from CanonicalVectorBasis and ColumnMajorLattice.
          */
-        Grid(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : IGrid<N>(), cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
+        Grid(const CanonicalVectorBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : IGrid<N>(), cell_ {cell}, unitCell_ {NdVector()}, lattice_ {lattice}
         {
             setUnitCell_();
         }
@@ -107,13 +107,13 @@ class Grid : public IGrid<N>
         }
 
         //! \copydoc IGrid::cell()
-        OrthogonalBasis<N> cell() const override
+        CanonicalVectorBasis<N> cell() const override
         {
             return cell_;
         }
 
         //! \copydoc IGrid::unitCell()
-        OrthogonalBasis<N> unitCell() const override
+        CanonicalVectorBasis<N> unitCell() const override
         {
             return unitCell_;
         };
@@ -143,9 +143,9 @@ class Grid : public IGrid<N>
             std::transform(std::begin(lattice_.getExtend()), std::end(lattice_.getExtend()), std::begin(cellToUnitCellScale), [](int integerExtend){return 1.0/real(integerExtend); });
             unitCell_     = cell_.scaledCopy(cellToUnitCellScale);
         }
-        OrthogonalBasis<N>    cell_;
-        OrthogonalBasis<N>    unitCell_;
-        ColumnMajorLattice<N> lattice_;
+        CanonicalVectorBasis<N>    cell_;
+        CanonicalVectorBasis<N>    unitCell_;
+        ColumnMajorLattice<N>      lattice_;
 };
 
 /*
@@ -155,10 +155,10 @@ template <int N>
 class GridWithTranslation : public Grid<N>
 {
     public:
-        typedef typename OrthogonalBasis<N>::NdVector NdVector;
+        typedef typename CanonicalVectorBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
-        GridWithTranslation(const OrthogonalBasis<N> &cell, const ColumnMajorLattice<N> &lattice, const NdVector &translation) : Grid<N>{cell, lattice}, translation_ {translation} { }
+        GridWithTranslation(const CanonicalVectorBasis<N> &cell, const ColumnMajorLattice<N> &lattice, const NdVector &translation) : Grid<N>{cell, lattice}, translation_ {translation} { }
 
         GridWithTranslation(const GridWithTranslation &other) : Grid<N>{other}, translation_ {other.translation_} { }
 
@@ -201,13 +201,13 @@ class GridWithTranslation : public Grid<N>
     private:
         NdVector translateIntoGrid_(const NdVector &x) const
         {
-            OrthogonalBasis<DIM>::NdVector x_translated;
+            CanonicalVectorBasis<DIM>::NdVector x_translated;
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x-t; });
             return x_translated;
         };
         NdVector translateFromGrid_(const NdVector &x) const
         {
-            OrthogonalBasis<DIM>::NdVector x_translated;
+            CanonicalVectorBasis<DIM>::NdVector x_translated;
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x+t; });
             return x_translated;
         };

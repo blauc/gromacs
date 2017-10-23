@@ -96,7 +96,7 @@ GridInterpolator::interpolateLinearly(const FieldReal3D &other, const RVec &tran
 }
 
 
-real GridInterpolator::getLinearInterpolationAt(const FieldReal3D &field, const OrthogonalBasis<DIM>::NdVector &r) const
+real GridInterpolator::getLinearInterpolationAt(const FieldReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const
 {
     auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex(r);
     auto w            = field.getGrid().gridVectorFromGridPointToCoordinate(r, iIndexInGrid);

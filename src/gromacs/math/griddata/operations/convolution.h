@@ -54,7 +54,7 @@ class GaussConvolution
     public:
         GaussConvolution(const FieldReal3D &input);
         std::unique_ptr < FieldReal3D> convolute(real sigma);
-        GaussConvolution &pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor);
+        GaussConvolution &pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor);
 
     private:
         const ColumnMajorLattice<DIM>::MultiIndex &extendBeforePadding_;

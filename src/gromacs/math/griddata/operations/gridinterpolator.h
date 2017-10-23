@@ -38,7 +38,7 @@
 #include <memory>
 
 #include "gromacs/utility/real.h"
-#include "gromacs/math/griddata/orthogonalbasis.h"
+#include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/griddata/field.h"
 
@@ -61,7 +61,7 @@ class GridInterpolator
             Interpolating after shifting and orienting the other grid.
          */
         std::unique_ptr < FieldReal3D> interpolateLinearly(const FieldReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
-        real getLinearInterpolationAt(const FieldReal3D &field, const OrthogonalBasis<DIM>::NdVector &r) const;
+        real getLinearInterpolationAt(const FieldReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const;
 
         void makeUniform();
 

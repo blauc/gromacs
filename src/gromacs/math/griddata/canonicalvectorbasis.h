@@ -1,5 +1,5 @@
-#ifndef GMX_MATH_ORTHOGONALBASIS_H
-#define GMX_MATH_ORTHOGONALBASIS_H
+#ifndef GMX_MATH_CanonicalVectorBasis_H
+#define GMX_MATH_CanonicalVectorBasis_H
 #include "gromacs/utility/compare.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/math/vectypes.h"
@@ -11,13 +11,12 @@
 namespace gmx
 {
 
-
 template <int N>
-class OrthogonalBasis
+class CanonicalVectorBasis
 {
     public:
         typedef std::array<real, N> NdVector;
-        OrthogonalBasis(const NdVector &cell)
+        CanonicalVectorBasis(const NdVector &cell)
         {
             cell_ = cell;
             std::transform(std::begin(cell_), std::end(cell_), std::begin(cellInverse_), [](real c){return 1/c; });
@@ -37,17 +36,17 @@ class OrthogonalBasis
             return result;
         };
 
-        OrthogonalBasis<N> inverse() const
+        CanonicalVectorBasis<N> inverse() const
         {
-            return OrthogonalBasis(cellInverse_);
+            return CanonicalVectorBasis(cellInverse_);
         };
 
 
-        OrthogonalBasis<N> scaledCopy(const NdVector &scale) const
+        CanonicalVectorBasis<N> scaledCopy(const NdVector &scale) const
         {
             NdVector scaledCell;
             std::transform(std::begin(cell_), std::end(cell_), std::begin(scale), std::begin(scaledCell), std::multiplies<real>());
-            return OrthogonalBasis(scaledCell);
+            return CanonicalVectorBasis(scaledCell);
         };
 
         real volume() const

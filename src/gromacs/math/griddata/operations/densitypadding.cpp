@@ -53,7 +53,7 @@ std::unique_ptr < FieldReal3D> DensityPadding::padPower2()
 }
 
 std::unique_ptr < FieldReal3D>
-DensityPadding::pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor)
+DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
 {
     std::array<int, 3> paddedExtend;
     for (int dimension = 0; dimension < DIM; dimension++)

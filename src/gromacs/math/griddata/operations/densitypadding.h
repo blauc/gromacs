@@ -39,7 +39,7 @@
 #include <memory>
 #include <array>
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/orthogonalbasis.h"
+#include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/math/griddata/columnmajorlattice.h"
 #include "gromacs/math/griddata/field.h"
 
@@ -51,7 +51,7 @@ class DensityPadding
 {
     public:
         DensityPadding(const FieldReal3D &toPad);
-        std::unique_ptr < FieldReal3D> pad(const OrthogonalBasis<DIM>::NdVector &paddingFactor);
+        std::unique_ptr < FieldReal3D> pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor);
 
         std::unique_ptr < FieldReal3D> padPower2();
         std::unique_ptr < FieldReal3D> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
