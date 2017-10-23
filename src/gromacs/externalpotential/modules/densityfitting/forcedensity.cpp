@@ -55,10 +55,9 @@
 namespace gmx
 {
 
-
 ForceDensity::ForceDensity(const FieldReal3D &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
-                                   grid, grid, grid
+                                   grid.getGrid().duplicate(), grid.getGrid().duplicate(), grid.getGrid().duplicate()
                                }},
 forcesFT_ {{
                convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate())), convertGridToReciprocalSpace(*(grid.getGrid().duplicate()))

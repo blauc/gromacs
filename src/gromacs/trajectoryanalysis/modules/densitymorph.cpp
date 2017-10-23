@@ -222,8 +222,8 @@ void DensityMorph::evaluateFlow_(const FieldReal3D &differential, std::array<std
     // calculate force direction on grid from density derivative
     auto        paddedDifferential =
         DensityPadding(differential).pad({{2.0, 2.0, 2.0}});
-    const auto &paddedDensityFlow =
-        ForceDensity(*paddedDifferential, sigma_).getForce();
+    auto        forcedensity      = ForceDensity(*paddedDifferential, sigma_);
+    const auto &paddedDensityFlow = forcedensity.getForce();
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
     {
         densityflow[dimension] =

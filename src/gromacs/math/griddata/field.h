@@ -61,7 +61,7 @@ class Field : public std::vector<T>
             this->resize(grid_->lattice().getNumLatticePoints());
         }
 
-        Field(const Field &other) : grid_ {other.grid_->duplicate()}
+        Field(const Field &other) : std::vector<T>(other), grid_ {other.grid_->duplicate()}
         {
             this->resize(grid_->lattice().getNumLatticePoints());
         }
@@ -78,7 +78,7 @@ class Field : public std::vector<T>
         }
 
         /*! \brief
-         * Directly access an index element.
+         * Access an element via multi index.
          * \throws std::out_of_range if element is out of array bounds
          */
         T &atMultiIndex(const typename IGrid<N>::MultiIndex &index)
@@ -87,7 +87,7 @@ class Field : public std::vector<T>
         };
 
         /*! \brief
-         * Directly access an index element.
+         * Const version to access an element via multi index.
          * \throws std::out_of_range if element is out of array bounds
          */
         const T &atMultiIndex(const typename IGrid<N>::MultiIndex &index) const
