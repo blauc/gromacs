@@ -182,7 +182,7 @@ class Grid : public IGrid<N>
         {
             const auto &realValuedIndex = unitCell_.transformIntoBasis(x);
             MultiIndex  result;
-            std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(result), [](real x){return static_cast<int>(floor(x)); });
+            std::transform(std::begin(realValuedIndex), std::end(realValuedIndex), std::begin(result), [](real x){return static_cast<int>(std::floor(x)); });
             return result;
         }
 
