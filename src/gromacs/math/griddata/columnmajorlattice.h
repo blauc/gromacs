@@ -141,9 +141,9 @@ template <int N> class ColumnMajorLattice
         {
             MultiIndex result;
             auto       stride = getNumLatticePoints();
-            if (linearIndex >= stride)
+            if (linearIndex < 0  || linearIndex >= stride)
             {
-                GMX_THROW(RangeError("Linear index larger than number of lattice points."));
+                GMX_THROW(RangeError("Linear index must be non-negative and smaller than number of lattice points."));
             }
             // Build a multi index from a linear index,
             // starting from the slowest moving dimension (from the back)

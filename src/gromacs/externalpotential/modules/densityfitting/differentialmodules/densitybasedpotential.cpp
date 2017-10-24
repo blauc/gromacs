@@ -44,7 +44,7 @@
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
 
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 #include "gromacs/math/griddata/operations/gridinterpolator.h"
 
@@ -60,12 +60,12 @@ densityBasedPotential::densityBasedPotential(const DensitySpreader &spreader,
     selfSpreading
 } {}
 
-real densityBasedPotential::potential(const std::vector<RVec> &coordinates,
-                                      const std::vector<real> &weights,
-                                      const FieldReal3D       &reference,
-                                      const RVec              &translation,
-                                      const Quaternion        &orientation,
-                                      const RVec              &centerOfRotation) const
+real densityBasedPotential::potential(const std::vector<RVec>    &coordinates,
+                                      const std::vector<real>    &weights,
+                                      const GridDataReal3D       &reference,
+                                      const RVec                 &translation,
+                                      const Quaternion           &orientation,
+                                      const RVec                 &centerOfRotation) const
 {
     if (selfSpreading_)
     {
@@ -94,7 +94,7 @@ n_threads_ {
 
 void densityBasedForce::force(std::vector<RVec> &force,
                               const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                              const FieldReal3D &reference, const RVec &translation,
+                              const GridDataReal3D &reference, const RVec &translation,
                               const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     if (selfSpreading_)
@@ -127,7 +127,7 @@ void densityBasedForce::force(std::vector<RVec> &force,
 }
 //
 // void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const
-// FieldReal3D &reference, const RVec &translation, const Quaternion
+// GridDataReal3D &reference, const RVec &translation, const Quaternion
 // &orientation,
 //                                        const RVec &centerOfRotation )
 // {
@@ -135,10 +135,10 @@ void densityBasedForce::force(std::vector<RVec> &force,
 //     setDensityDifferential(*spread_density_, reference);
 //     auto forceDensity = ForceDensity(*differential_,
 //     sigma_differential_).getForce();
-//     std::array<FieldReal3D, 3> forceGrid { {
-//                                                         FieldReal3D(forceDensity[XX]),
-//                                                         FieldReal3D(forceDensity[YY]),
-//                                                         FieldReal3D(forceDensity[ZZ])
+//     std::array<GridDataReal3D, 3> forceGrid { {
+//                                                         GridDataReal3D(forceDensity[XX]),
+//                                                         GridDataReal3D(forceDensity[YY]),
+//                                                         GridDataReal3D(forceDensity[ZZ])
 //                                                     } };
 //
 // #pragma omp parallel num_threads(n_threads_) shared(stderr,atoms,forceGrid,

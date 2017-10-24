@@ -40,7 +40,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/quaternion.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 
 #include <memory>
@@ -59,16 +59,16 @@ class DensitySpreader
     public:
         explicit DensitySpreader(const IGrid<DIM> &grid, int numberOfThreads, int n_sigma, real sigma);
         ~DensitySpreader();
-        const FieldReal3D &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
+        const GridDataReal3D &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
         void zero() const;
-        const FieldReal3D &getSpreadGrid() const;
+        const GridDataReal3D &getSpreadGrid() const;
 
     private:
         std::unique_ptr < std::vector < std::unique_ptr<GaussTransform>>> gauss_transform_;
-        std::unique_ptr < std::vector < std::unique_ptr < FieldReal3D> >> simulated_density_buffer_;
-        std::unique_ptr< FieldReal3D > simulated_density_;
+        std::unique_ptr < std::vector < std::unique_ptr < GridDataReal3D> >> simulated_density_buffer_;
+        std::unique_ptr< GridDataReal3D > simulated_density_;
         int number_of_threads_;
-        const FieldReal3D             &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const;
+        const GridDataReal3D             &sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const;
 };
 
 } /* gmx */

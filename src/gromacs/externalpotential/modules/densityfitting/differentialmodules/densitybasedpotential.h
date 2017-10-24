@@ -43,7 +43,7 @@
 
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/utility/real.h"
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
@@ -64,12 +64,12 @@ class densityBasedPotential : public PotentialEvaluator
         ~densityBasedPotential() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights,
-                       const FieldReal3D &reference,
+                       const GridDataReal3D &reference,
                        const RVec &translation = {0, 0, 0},
                        const Quaternion &orientation = {{1, 0, 0}, 0},
                        const RVec &centerOfRotation = {0, 0, 0}) const override;
-        virtual real densityDensityPotential(const FieldReal3D &reference,
-                                             const FieldReal3D &comparant) const = 0;
+        virtual real densityDensityPotential(const GridDataReal3D &reference,
+                                             const GridDataReal3D &comparant) const = 0;
     protected:
         const DensitySpreader &spreader_;
         bool                   selfSpreading_;
@@ -85,19 +85,19 @@ class densityBasedForce : public ForceEvaluator
 
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
                    const std::vector<real> &weights,
-                   const FieldReal3D &reference,
+                   const GridDataReal3D &reference,
                    const RVec &translation = {0, 0, 0},
                    const Quaternion &orientation = {{1, 0, 0}, 0},
                    const RVec &centerOfRotation = {0, 0, 0}) const override;
 
     protected:
-        virtual void setDensityDifferential(const FieldReal3D    &reference,
-                                            const FieldReal3D    &comparant) const = 0;
-        std::unique_ptr < FieldReal3D> differential_;
-        real                           sigma_differential_;
-        int                            n_threads_;
-        const DensitySpreader         &spreader_;
-        bool                           selfSpreading_;
+        virtual void setDensityDifferential(const GridDataReal3D    &reference,
+                                            const GridDataReal3D    &comparant) const = 0;
+        std::unique_ptr < GridDataReal3D> differential_;
+        real                              sigma_differential_;
+        int                               n_threads_;
+        const DensitySpreader            &spreader_;
+        bool                              selfSpreading_;
 };
 
 }      /* gmx */

@@ -39,7 +39,7 @@
 //
 // #include "../densityspreader.h"
 // #include "gromacs/fileio/json.h"
-// #include "gromacs/math/griddata/field.h"
+// #include "gromacs/math/griddata/griddata.h"
 // #include "gromacs/math/griddata/fouriershellcorrelation.h"
 // #include "gromacs/math/griddata/gridinterpolator.h"
 // #include "gromacs/math/griddata/gridmeasures.h"
@@ -50,8 +50,8 @@
 // namespace gmx
 // {
 //
-// const FieldReal3D &FourierShellCorrelationProvider::evaluateDensityDifferential(
-//         const FieldReal3D & /*comparant*/, const FieldReal3D &reference)
+// const GridDataReal3D &FourierShellCorrelationProvider::evaluateDensityDifferential(
+//         const GridDataReal3D & /*comparant*/, const GridDataReal3D &reference)
 // {
 //     differential->copy_grid(reference);
 //     // TODO: everything
@@ -59,13 +59,13 @@
 // }
 //
 // real FourierShellCorrelationProvider::evaluateDensityDensityPotential(
-//         const FieldReal3D &comparant, const FieldReal3D &reference,
+//         const GridDataReal3D &comparant, const GridDataReal3D &reference,
 //         const RVec &translation, const Quaternion &orientation)
 // {
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //         (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = FieldReal3D(comparant).center_of_mass();
+//         auto centerOfMass = GridDataReal3D(comparant).center_of_mass();
 //         auto interpolated = GridInterpolator(reference).interpolateLinearly(
 //                     comparant, translation, centerOfMass, orientation);
 //         auto fscCurve = FourierShellCorrelation(reference).getFscCurve(

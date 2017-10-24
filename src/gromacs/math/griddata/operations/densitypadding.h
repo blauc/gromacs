@@ -41,7 +41,7 @@
 #include "gromacs/math/vectypes.h"
 #include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/math/griddata/columnmajorlattice.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 namespace gmx
 {
@@ -50,14 +50,14 @@ namespace gmx
 class DensityPadding
 {
     public:
-        DensityPadding(const FieldReal3D &toPad);
-        std::unique_ptr < FieldReal3D> pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor);
+        DensityPadding(const GridDataReal3D &toPad);
+        std::unique_ptr < GridDataReal3D> pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor);
 
-        std::unique_ptr < FieldReal3D> padPower2();
-        std::unique_ptr < FieldReal3D> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
+        std::unique_ptr < GridDataReal3D> padPower2();
+        std::unique_ptr < GridDataReal3D> unpad(const ColumnMajorLattice<DIM>::MultiIndex &extend);
 
     private:
-        const FieldReal3D &toPad_;
+        const GridDataReal3D &toPad_;
 };
 }      // namespace gmx
 

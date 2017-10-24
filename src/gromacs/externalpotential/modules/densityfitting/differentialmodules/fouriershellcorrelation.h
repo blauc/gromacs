@@ -39,14 +39,14 @@
 //
 // #include "common.h"
 // #include "../densityspreader.h"
-// #include "gromacs/math/griddata/field.h"
+// #include "gromacs/math/griddata/griddata.h"
 // #include "gromacs/math/quaternion.h"
 // #include <string>
 // namespace gmx
 // {
 // class WholeMoleculeGroup;
 //
-// template <typename real> class Field;
+// template <typename real> class GridData;
 // class DensitySpreader;
 // class GridWithTranslation;
 // class FourierShellCorrelationProvider :
@@ -55,10 +55,10 @@
 //     public:
 //         FourierShellCorrelationProvider() : commonDensityBased(std::bind(&FourierShellCorrelationProvider::evaluateDensityDifferential, this, std::placeholders::_1, std::placeholders::_2)){};
 //         ~FourierShellCorrelationProvider() = default;
-//         const FieldReal3D &evaluateDensityDifferential(const FieldReal3D &comparant,
-//                                                        const FieldReal3D &reference);
+//         const GridDataReal3D &evaluateDensityDifferential(const GridDataReal3D &comparant,
+//                                                        const GridDataReal3D &reference);
 //         real evaluateDensityDensityPotential(
-//             const FieldReal3D &comparant, const FieldReal3D &reference,
+//             const GridDataReal3D &comparant, const GridDataReal3D &reference,
 //             const RVec &translation = {0, 0, 0},
 //             const Quaternion &orientation = {{0, 0, 1}, 0});
 //         void parseDifferentialOptionsString(const std::string &options);

@@ -41,7 +41,7 @@
 #ifndef GMX_MATH_FOURIERSHELLCORRELATION_H_
 #define GMX_MATH_FOURIERSHELLCORRELATION_H_
 
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/gmxcomplex.h"
 #include <set>
 #include <map>
@@ -62,7 +62,7 @@ class FourierShellCorrelation
         /*! \brief Calculate fourier shells with custom binning. */
         FourierShellCorrelation(const std::set<real> &binEdges);
         const std::set<real> &getBinEdges() const;
-        std::vector<real> getFscCurve(const FieldReal3D &reference, const FieldReal3D &other);
+        std::vector<real> getFscCurve(const GridDataReal3D &reference, const GridDataReal3D &other);
 
     private:
         class BinShells_;

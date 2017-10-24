@@ -95,27 +95,27 @@ class Map : public TrajectoryAnalysisModule
         void set_box_from_frame(const t_trxframe &fr, matrix box, rvec translation);
         void frameToDensity_(const t_trxframe &fr, int nFr);
 
-        std::string                         fnmapinput_;
-        std::string                         fnmapoutput_;
+        std::string                            fnmapinput_;
+        std::string                            fnmapoutput_;
 
-        float                               sigma_   = 0.4;
-        float                               n_sigma_ = 5;
-        std::unique_ptr < FieldReal3D>      inputdensity_;
-        std::unique_ptr < FieldReal3D>      outputDensityBuffer_;
-        real                                spacing_       = 0.2;
-        bool                                bPrint_        = false;
-        bool                                bRigidBodyFit_ = true;
-        std::vector<float>                  weight_;
-        int                                 every_                    = 1;
-        real                                expAverage_               = 1.;
-        int                                 nFr_                      = 0;
-        bool                                bFitFramesToTopStructure_ = false;
-        int                                 nAtomsReference_;
-        std::vector<RVec>                   referenceX_;
-        matrix                              referenceBox;
-        std::vector<real>                   fitWeights;
-        bool                                bUseBox_ = false;
-        std::unique_ptr<DensitySpreader>    spreader_;
+        float                                  sigma_   = 0.4;
+        float                                  n_sigma_ = 5;
+        std::unique_ptr < GridDataReal3D>      inputdensity_;
+        std::unique_ptr < GridDataReal3D>      outputDensityBuffer_;
+        real                                   spacing_       = 0.2;
+        bool                                   bPrint_        = false;
+        bool                                   bRigidBodyFit_ = true;
+        std::vector<float>                     weight_;
+        int                                    every_                    = 1;
+        real                                   expAverage_               = 1.;
+        int                                    nFr_                      = 0;
+        bool                                   bFitFramesToTopStructure_ = false;
+        int                                    nAtomsReference_;
+        std::vector<RVec>                      referenceX_;
+        matrix                                 referenceBox;
+        std::vector<real>                      fitWeights;
+        bool                                   bUseBox_ = false;
+        std::unique_ptr<DensitySpreader>       spreader_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -220,7 +220,7 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     if (!fnmapinput_.empty())
     {
         MrcFile ccp4inputfile;
-        inputdensity_ = std::unique_ptr < FieldReal3D>(new FieldReal3D (ccp4inputfile.read(fnmapinput_)));
+        inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (ccp4inputfile.read(fnmapinput_)));
         if (bPrint_)
         {
             fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
@@ -261,7 +261,7 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
                                                      (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
                                                  }};
     GridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
-    outputDensityBuffer_ = std::unique_ptr < FieldReal3D>(new FieldReal3D(outputdensitygrid.duplicate()));
+    outputDensityBuffer_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D(outputdensitygrid.duplicate()));
 }
 
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
@@ -279,7 +279,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         else
         {
             // copy the grid properties from reference grid
-            outputDensityBuffer_ = std::unique_ptr < FieldReal3D>(new FieldReal3D(*inputdensity_));
+            outputDensityBuffer_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D(*inputdensity_));
         }
 
         spreader_ = std::unique_ptr<DensitySpreader>(

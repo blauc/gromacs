@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /********************************************************************
- * FieldReal3D
+ * GridDataReal3D
  */
 #include "modifygriddata.h"
 #include "gromacs/math/vec.h"

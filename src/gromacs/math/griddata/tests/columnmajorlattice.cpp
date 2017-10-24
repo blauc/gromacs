@@ -43,7 +43,7 @@
 
 #include "gromacs/math/griddata/columnmajorlattice.h"
 
-#include <array>
+#include <vector>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -77,12 +77,13 @@ TEST(ColumnMajorLatticeTest, canConstruct)
 
 TEST(ColumnMajorLatticeTest, numberLatticePoints)
 {
-    ASSERT_EQ(ColumnMajorLattice<4>({{{ 4, 2, 78, 5}}}).getNumLatticePoints(), );
+    //TODO: implement and test overflow behaviour
+    ASSERT_EQ(ColumnMajorLattice<4>({{{ 4, 2, 78, 5}}}).getNumLatticePoints(), 3120);
 }
 
 TEST(ColumnMajorLatticeTest, lineariseIsInverseOfVectorise)
 {
-    ColumnMajorLattice<3> onedLattice {{{
+    ColumnMajorLattice<1> onedLattice {{{
                                             1
                                         }}};
 
@@ -111,15 +112,38 @@ TEST(ColumnMajorLatticeTest, vectoriseIsInverseOfLinearise)
                                                         2, 3, 4
                                                     }}};
 
-    std::vector<ColumnMajorLattice<3>::MultiIndex> threeDLinearIndices(threeDimensionalLattice.getNumLatticePoints());
-    std::iota (std::begin(threeDLinearIndices), std::end(threeDLinearIndices), 0);
-    for (const auto &i : threeDLinearIndices)
+    std::vector<ColumnMajorLattice<3>::MultiIndex> threeDVectorIndices;
+    std::vector<int> x_indices = {0, 1};
+    std::vector<int> y_indices = {0, 1, 2};
+    std::vector<int> z_indices = {0, 1, 2, 3};
+
+    for (const auto &ix : x_indices)
+    {
+        for (const auto &iy : y_indices)
+        {
+            for (const auto &iz : z_indices)
+            {
+                threeDVectorIndices.push_back({{ix, iy, iz}});
+            }
+        }
+    }
+    for (const auto &i : threeDVectorIndices)
     {
         ASSERT_EQ(i, threeDimensionalLattice.vectoriseLinearIndex(threeDimensionalLattice.lineariseVectorIndex(i)));
     }
 }
 
-// EXPECT_THROW_GMX();
+TEST(ColumnMajorLatticeTest, throwsWhenOutOfBounds)
+{
+    ColumnMajorLattice<3> threeDimensionalLattice {{{
+                                                        2, 3, 4
+                                                    }}};
+    EXPECT_THROW_GMX(threeDimensionalLattice.lineariseVectorIndex({{-1, 0, 0}}), gmx::RangeError);
+    EXPECT_THROW_GMX(threeDimensionalLattice.lineariseVectorIndex({{3, 1, 1}}), gmx::RangeError);
+    EXPECT_THROW_GMX(threeDimensionalLattice.vectoriseLinearIndex(-1), gmx::RangeError);
+    EXPECT_THROW_GMX(threeDimensionalLattice.vectoriseLinearIndex(24), gmx::RangeError);
+
+}
 
 
 } // namespace

@@ -36,21 +36,21 @@
 #define GMX_MATH_REALFIELDMEASURE_H
 
 #include <vector>
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/vec.h"
 
 namespace gmx
 {
 
-class RealFieldMeasure
+class RealGridDataMeasure
 {
     public:
-        explicit RealFieldMeasure(const Field<real, DIM> &realfield);
-        ~RealFieldMeasure() = default;
+        explicit RealGridDataMeasure(const GridData<real, DIM> &realfield);
+        ~RealGridDataMeasure() = default;
         RVec center_of_mass() const;
         real entropy() const;
     private:
-        const Field<real, DIM> &realfield_;
+        const GridData<real, DIM> &realfield_;
 
 };
 

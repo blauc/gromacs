@@ -42,7 +42,7 @@
 #include "fouriertransform.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/gmxcomplex.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 #include <set>
 #include <functional>
@@ -106,7 +106,7 @@ FourierShellCorrelation::BinShells_
 };
 
 std::vector<real>
-FourierShellCorrelation::getFscCurve(const FieldReal3D &reference, const FieldReal3D &other)
+FourierShellCorrelation::getFscCurve(const GridDataReal3D &reference, const GridDataReal3D &other)
 {
     for (auto &shell : referenceShells_)
     {

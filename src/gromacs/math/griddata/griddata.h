@@ -35,24 +35,22 @@
 /*! \defgroup module_griddata Data On N-dimensional Regular Grids
  * \ingroup group_utilitymodules
  * \brief
- * Provides functionality for arbitrary data manipulation on N-dimensional grids.
+ * Provides functionality for data manipulation on N-dimensional grids.
  *
- * Data is related to N-dimensional grids following this hierarchy:
- *
- *
- * \ref gmx::ColumnMajorLattice translates three- to one-dimensional indices, given the integer grid extend in three dimensions.
- *
- * \ref gmx::GridWithTranslation places gmx::ColumnMajorLattice in space with a unit cell and translation vector.
- *
- * \ref gmx::Field binds one-dimensional data array to a \ref gmx::GridWithTranslation.
- *
- * \ref gmx::FieldReal3D provides functionality for real valued data on the grid.
+ * To represent data on N-dimensional grids, a linear data vector is adressed
+ * with a multi-dimensional index on an N-dimensional lattice (\ref gmx::ColumnMajorLattice).
+ * To relate this lattice to coordinates, a vector basis is added to the lattice
+ * that translates external coordinates into an internal grid representation (\ref gmx::CanonincalVectorBasis).
+ * The \ref gmx::IGrid combines lattice indexing and spacial representation with a vector basis.
+ * Grids have the responsibility to place N-dimensional multi-indices in space
+ * and may be equipped with additional properties like translation (\ref gmx::GridWithTranslation)
+ * and periodicity (not implemented yet).
  *
  * \author Christian Blau <cblau@gwdg.de>
  */
 /*! \file
  * \brief
- * Public API convenience header for volume data handling.
+ * Declates GridData.
  *
  * \author Christian Blau <cblau@gwdg.de>
  * \inpublicapi
@@ -62,5 +60,90 @@
 #ifndef GMX_MATH_GRIDDATA_H_
 #define GMX_MATH_GRIDDATA_H_
 
+#include "grid.h"
+#include "gromacs/math/gmxcomplex.h"
+#include "gromacs/utility/real.h"
+
+#include <vector>
+
+namespace gmx
+{
+
+/*! \brief
+ * Data on an N-dimensional grid.
+ *
+ * Ensures that it can hold as many elements as lattice points in the grid.
+ * \tparam T Data type to be stored on grid
+ * \tparam N Number of grid dimensions */
+template <typename T, int N>
+class GridData : public std::vector<T>
+{
+    public:
+        /*! \brief
+         * Consumes a grid to construct GridData.
+         *
+         * Allocates data container elements matching to the number of lattice points in the grid.
+         * \param[in] grid Pointer to interface that describes the grid. */
+        GridData(std::unique_ptr < IGrid < N>> grid) : grid_ {std::move(grid)}
+        {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+        /*! \brief
+         * Copy constructor for GridData.
+         * \param[in] other GridData to be copied from. */
+        GridData(const GridData &other) : std::vector<T>(other), grid_ {other.grid_->duplicate()}
+        {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+        /*! \brief
+         * Access reference to the underlying grid.
+         * \returns immutable handle to the grid interface */
+        const IGrid<N> &getGrid() const
+        {
+            return *grid_;
+        }
+        /*! \brief
+         * Set a new grid and resize data container accordingly. */
+        void setGrid(std::unique_ptr < IGrid < N>> &&grid)
+        {
+            grid_ = std::move(grid);
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+        /*! \brief
+         * Access an element via multi index.
+         * \throws std::out_of_range if element is out of array bounds
+         * \returns Data element in grid at given index. */
+        T &atMultiIndex(const typename IGrid<N>::MultiIndex &index)
+        {
+            return this->at(grid_->lattice().lineariseVectorIndex(index));
+        }
+        /*! \brief
+         * Const version to access an element via multi index.
+         * \throws std::out_of_range if element is out of array bounds
+         * \returns Data element in grid at given index. */
+        const T &atMultiIndex(const typename IGrid<N>::MultiIndex &index) const
+        {
+            return this->at(grid_->lattice().lineariseVectorIndex(index));
+        }
+        /*! \brief
+         * Yield an iterator to a grid element via multi index.
+         * \throws std::out_of_range if index is out of bounds for grid.
+         * \returns Iterator to data element in grid at given index. */
+        typename std::vector<T>::iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index)
+        {
+            return std::begin(*this) + grid_->lattice().lineariseVectorIndex(index);
+        }
+
+    private:
+        //! Reference to grid.
+        std::unique_ptr < IGrid < N>> grid_;
+};
+
+//! Three-dimensional real numbers on a grid.
+typedef GridData<real, DIM> GridDataReal3D;
+//! Three-dimensional complex numbers on a grid.
+typedef GridData<t_complex, DIM> GridDataComplex3D;
+
+}      // namespace gmx
 
 #endif // GMX_MATH_GRIDDATA_H_

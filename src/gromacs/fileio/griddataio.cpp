@@ -84,7 +84,7 @@ class MrcFile::Impl
 
         std::string print_to_string();
 
-        void do_mrc_data_(FieldReal3D &grid_data, bool bRead);
+        void do_mrc_data_(GridDataReal3D &grid_data, bool bRead);
         void do_mrc_header_(bool bRead);
         std::unique_ptr < IGrid < DIM>> setGridWithTranslationFromMrcMeta();
         void setMrcMetaFromGridWithTranslation(const IGrid<DIM> &grid );
@@ -140,7 +140,7 @@ class MrcFile::Impl
         void do_float32_rvec_(RVec * result, bool bRead);
         void do_int32_ivec_(std::array<int, 3> * result, bool bRead);
 
-        void set_grid_stats(const FieldReal3D &grid_data);
+        void set_grid_stats(const GridDataReal3D &grid_data);
 
         bool colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz);
 
@@ -575,7 +575,7 @@ void MrcFile::Impl::swap_int32_(gmx_int32_t *result)
     *result |= (src & 0x000000FF) << 24;
 }
 
-void MrcFile::Impl::do_mrc_data_(FieldReal3D &grid_data, bool bRead)
+void MrcFile::Impl::do_mrc_data_(GridDataReal3D &grid_data, bool bRead)
 {
     const auto &lattice = grid_data.getGrid().lattice();
     if (bRead)
@@ -728,7 +728,7 @@ MrcFile::Impl::~Impl()
 };
 
 void
-MrcFile::Impl::set_grid_stats(const FieldReal3D &grid_data)
+MrcFile::Impl::set_grid_stats(const GridDataReal3D &grid_data)
 {
     auto properties = DataVectorMeasure(grid_data);
     meta_.min_value  = properties.min();
@@ -755,7 +755,7 @@ std::string MrcFile::print_to_string()
     return impl_->print_to_string();
 }
 
-void MrcFile::write_with_own_meta(std::string filename, FieldReal3D &grid_data, MrcMetaData &meta, bool bOwnGridStats)
+void MrcFile::write_with_own_meta(std::string filename, GridDataReal3D &grid_data, MrcMetaData &meta, bool bOwnGridStats)
 {
     bool bRead = false;
 
@@ -768,18 +768,18 @@ void MrcFile::write_with_own_meta(std::string filename, FieldReal3D &grid_data, 
 
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(bRead);
-    impl_->do_mrc_data_(*(const_cast<FieldReal3D*>(&grid_data)), bRead);
+    impl_->do_mrc_data_(*(const_cast<GridDataReal3D*>(&grid_data)), bRead);
     impl_->close_file();
 }
 
-void MrcFile::write(std::string filename, const FieldReal3D &grid_data)
+void MrcFile::write(std::string filename, const GridDataReal3D &grid_data)
 {
     bool bRead = false;
     impl_->set_grid_stats(grid_data);
     impl_->open_file(filename, bRead);
     impl_->setMrcMetaFromGridWithTranslation(grid_data.getGrid());
     impl_->do_mrc_header_(bRead);
-    impl_->do_mrc_data_(*(const_cast<FieldReal3D*>(&grid_data)), bRead);
+    impl_->do_mrc_data_(*(const_cast<GridDataReal3D*>(&grid_data)), bRead);
     impl_->close_file();
 }
 
@@ -793,27 +793,27 @@ void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
     meta = impl_->meta_;
 }
 
-FieldReal3D MrcFile::read_with_meta(std::string filename, MrcMetaData &meta)
+GridDataReal3D MrcFile::read_with_meta(std::string filename, MrcMetaData &meta)
 {
     auto result = read(filename);
     meta = impl_->meta_;
     return result;
 }
 
-FieldReal3D MrcFile::read(std::string filename)
+GridDataReal3D MrcFile::read(std::string filename)
 {
     bool bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(bRead);
     auto grid   = impl_->setGridWithTranslationFromMrcMeta();
-    auto result = FieldReal3D(std::move(grid));
+    auto result = GridDataReal3D(std::move(grid));
     impl_->do_mrc_data_(result, bRead);
     impl_->close_file();
     return result;
 }
 
 Df3File::SuccessfulDf3Write
-Df3File::write(std::string filename, const gmx::FieldReal3D &grid_data)
+Df3File::write(std::string filename, const gmx::GridDataReal3D &grid_data)
 {
     const auto &grid  = grid_data.getGrid();
     auto        file_ = gmx_fio_fopen(filename.c_str(), "w");
@@ -845,7 +845,7 @@ Df3File::write(std::string filename, const gmx::FieldReal3D &grid_data)
     return Df3File::SuccessfulDf3Write(filename, grid_data);
 }
 
-Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::FieldReal3D &grid_data) : filename_ {filename}, gridData_ {
+Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::GridDataReal3D &grid_data) : filename_ {filename}, gridData_ {
     grid_data
 } {};
 

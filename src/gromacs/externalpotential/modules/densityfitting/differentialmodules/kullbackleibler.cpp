@@ -48,7 +48,7 @@ namespace gmx
 {
 
 void KullbackLeiblerForce::setDensityDifferential(
-        const FieldReal3D &comparant, const FieldReal3D &reference) const
+        const GridDataReal3D &comparant, const GridDataReal3D &reference) const
 {
     differential_->setGrid(reference.getGrid().duplicate());
     auto sumSimulatedDensity     = DataVectorMeasure(comparant).sum();
@@ -65,20 +65,20 @@ void KullbackLeiblerForce::setDensityDifferential(
                    densityGradientFunction);
 }
 real KullbackLeiblerPotential::densityDensityPotential(
-        const FieldReal3D &reference, const FieldReal3D &comparant) const
+        const GridDataReal3D &reference, const GridDataReal3D &comparant) const
 {
-    return CompareFields(reference, comparant).getKLSameGrid();
+    return CompareGridDatas(reference, comparant).getKLSameGrid();
 }
 // real
 // KullbackLeibler::evaluateDensityDensityPotential(
-//         const FieldReal3D &comparant, const FieldReal3D &reference,
+//         const GridDataReal3D &comparant, const GridDataReal3D &reference,
 //         const RVec &translation,
 //         const Quaternion &orientation)
 // {
 //     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
 //     (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
 //     {
-//         auto centerOfMass = FieldReal3D(comparant).center_of_mass();
+//         auto centerOfMass = GridDataReal3D(comparant).center_of_mass();
 //         auto interpolated =
 //         GridInterpolator(reference).interpolateLinearly(comparant,
 //         translation, centerOfMass, orientation);
@@ -100,7 +100,7 @@ KullbackLeiblerPotential::KullbackLeiblerPotential(
 
 ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
         const std::vector<RVec> & /*coordinates*/,
-        const std::vector<real> & /*weights*/, const FieldReal3D &reference,
+        const std::vector<real> & /*weights*/, const GridDataReal3D &reference,
         const std::string &options, const RVec & /*translation*/,
         const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
 {
@@ -122,7 +122,7 @@ ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
 
 PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
         const std::vector<RVec> & /*coordinates*/,
-        const std::vector<real> & /*weights*/, const FieldReal3D &reference,
+        const std::vector<real> & /*weights*/, const GridDataReal3D &reference,
         const std::string &options, const RVec & /*translation*/,
         const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
 {

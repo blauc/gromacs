@@ -42,7 +42,7 @@
 #ifndef GMX_MATH_FOURIERTRANSFORM_H
 #define GMX_MATH_FOURIERTRANSFORM_H
 
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/real.h"
@@ -79,36 +79,36 @@ class FourierTransform3D
 class FourierTransformRealToComplex3D : public FourierTransform3D
 {
     public:
-        FourierTransformRealToComplex3D(const FieldReal3D &realInputField);
-        std::unique_ptr < FieldComplex3D> result();
-        void  result(FieldComplex3D &complexTransformedField);
+        FourierTransformRealToComplex3D(const GridDataReal3D &realInputGridData);
+        std::unique_ptr < GridDataComplex3D> result();
+        void  result(GridDataComplex3D &complexTransformedGridData);
         FourierTransformRealToComplex3D &normalize();
 
     private:
-        std::unique_ptr < FieldComplex3D> createComplexTransformedFieldFromInput_() const;
-        const FieldReal3D &realInputField_;
+        std::unique_ptr < GridDataComplex3D> createComplexTransformedGridDataFromInput_() const;
+        const GridDataReal3D &realInputGridData_;
 };
 
 class FourierTransformComplexToReal3D : public FourierTransform3D
 {
     public:
-        FourierTransformComplexToReal3D(const FieldComplex3D &complexInputField);
-        std::unique_ptr < FieldReal3D> result();
-        void result(FieldReal3D &realTransformedField);
+        FourierTransformComplexToReal3D(const GridDataComplex3D &complexInputGridData);
+        std::unique_ptr < GridDataReal3D> result();
+        void result(GridDataReal3D &realTransformedGridData);
         FourierTransformComplexToReal3D &normalize();
 
     private:
-        std::unique_ptr < FieldReal3D>  createRealTransformedFieldFromInput_() const;
-        const FieldComplex3D &complexInputField_;
+        std::unique_ptr < GridDataReal3D>  createRealTransformedGridDataFromInput_() const;
+        const GridDataComplex3D &complexInputGridData_;
 };
 
 class ApplyToUnshiftedFourierTransform
 {
     public:
-        typedef const std::function<void(t_complex &, RVec)> &FunctionOnComplexField;
-        ApplyToUnshiftedFourierTransform(FieldComplex3D &field);
+        typedef const std::function<void(t_complex &, RVec)> &FunctionOnComplexGridData;
+        ApplyToUnshiftedFourierTransform(GridDataComplex3D &field);
         const ApplyToUnshiftedFourierTransform &
-        apply(FunctionOnComplexField appliedFunction);
+        apply(FunctionOnComplexGridData appliedFunction);
 
     private:
         void applyToAllColumnsWithinSection_(
@@ -116,13 +116,13 @@ class ApplyToUnshiftedFourierTransform
             RVec deltakRow, RVec deltakColumn,
             std::vector<t_complex>::iterator itColumnStart,
             std::vector<t_complex>::iterator itColumnEnd,
-            FunctionOnComplexField appliedFunction);
+            FunctionOnComplexGridData appliedFunction);
 
         void applyToAllRowsWithinColumn_(RVec coordinateColumnBegin, RVec deltakRow,
                                          std::vector<t_complex>::iterator itRowStart,
                                          std::vector<t_complex>::iterator itRowEnd,
-                                         FunctionOnComplexField appliedFunction);
-        FieldComplex3D &field_;
+                                         FunctionOnComplexGridData appliedFunction);
+        GridDataComplex3D &field_;
 };
 }
 #endif /* end of include guard: GMX_MATH_FOURIERTRANSFORM_H */

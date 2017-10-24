@@ -40,7 +40,7 @@
  * \inpublicapi
  */
 #include "gausstransform.h"
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/utility/compare.h"
@@ -91,7 +91,7 @@ bool FastGaussianGridding::allVectorsSameLength(const CanonicalVectorBasis<DIM> 
 }
 
 void
-FastGaussianGridding::set_grid(std::unique_ptr < FieldReal3D> grid)
+FastGaussianGridding::set_grid(std::unique_ptr < GridDataReal3D> grid)
 {
     grid_ = std::move((grid));
     if (!allVectorsSameLength(grid_->getGrid().unitCell(), 1e-6, 1))
@@ -224,7 +224,7 @@ FastGaussianGridding::transform(const rvec x, real weight)
     tensor_product_();
 }
 
-std::unique_ptr < FieldReal3D>
+std::unique_ptr < GridDataReal3D>
 FastGaussianGridding::finish_and_return_grid()
 {
     return std::move(grid_);

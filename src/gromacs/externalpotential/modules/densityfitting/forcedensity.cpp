@@ -44,7 +44,7 @@
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/math/griddata/operations/fouriertransform.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include <algorithm>
 
 /******************************************************************************
@@ -55,7 +55,7 @@
 namespace gmx
 {
 
-ForceDensity::ForceDensity(const FieldReal3D &grid, real sigma)
+ForceDensity::ForceDensity(const GridDataReal3D &grid, real sigma)
     : sigma_ {sigma}, forces_ {{
                                    grid.getGrid().duplicate(), grid.getGrid().duplicate(), grid.getGrid().duplicate()
                                }},
@@ -82,10 +82,10 @@ void ForceDensity::generateFourierTransformGrids_(
     auto fourierSpaceGrid = convertGridToReciprocalSpace(realSpaceGrid);
     fourierSpaceGrid->setLatticeAndRescaleCell(fourierTransformGridExtendfromRealExtend(realSpaceGrid.lattice().extend()));
 
-    for (auto &fourierField : forcesFT_)
+    for (auto &fourierGridData : forcesFT_)
     {
-        fourierField.setGrid(fourierSpaceGrid->duplicate());
-        complexToRealFTarray_.emplace_back(fourierField);
+        fourierGridData.setGrid(fourierSpaceGrid->duplicate());
+        complexToRealFTarray_.emplace_back(fourierGridData);
         complexToRealFTarray_.back().normalize();
     }
 
@@ -112,7 +112,7 @@ void ForceDensity::generateConvolutionDensity_()
     }
 }
 
-const std::array<FieldReal3D, DIM> &
+const std::array<GridDataReal3D, DIM> &
 ForceDensity::getForce()
 {
     realToComplexFT_.result(densityGradientFT_);

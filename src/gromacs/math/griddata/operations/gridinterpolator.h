@@ -40,7 +40,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 namespace gmx
 {
@@ -56,17 +56,17 @@ class GridInterpolator
 {
     public:
         GridInterpolator(std::unique_ptr < IGrid < DIM>> basis);
-        std::unique_ptr < FieldReal3D> interpolateLinearly(const FieldReal3D &other);
+        std::unique_ptr < GridDataReal3D> interpolateLinearly(const GridDataReal3D &other);
         /*! \brief
             Interpolating after shifting and orienting the other grid.
          */
-        std::unique_ptr < FieldReal3D> interpolateLinearly(const FieldReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
-        real getLinearInterpolationAt(const FieldReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const;
+        std::unique_ptr < GridDataReal3D> interpolateLinearly(const GridDataReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
+        real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const;
 
         void makeUniform();
 
     private:
-        std::unique_ptr < FieldReal3D> interpolatedGrid_;
+        std::unique_ptr < GridDataReal3D> interpolatedGrid_;
 };
 
 

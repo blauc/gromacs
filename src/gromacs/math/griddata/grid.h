@@ -61,8 +61,11 @@ template <int N>
 class IGrid
 {
     public:
+        //! short-hand notation for N-dimensional vector.
         typedef typename CanonicalVectorBasis<N>::NdVector NdVector;
+        //! short-hand notation for N-dimensional index.
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
+        //! short-hand notation for reference to grid interface.
         typedef std::unique_ptr < IGrid < N>> IGridPointer;
 
         /*! \brief
@@ -140,18 +143,22 @@ class Grid : public IGrid<N>
 
         /*! \brief
          * Constructs Grid from CanonicalVectorBasis and ColumnMajorLattice.
+         * \param[in] cell The spacial extend of the grid
+         * \param[in] lattice The lattice that describes the grid points.
          */
         Grid(const CanonicalVectorBasis<N> &cell, const ColumnMajorLattice<N> &lattice) : IGrid<N>(), cell_ {cell}, lattice_ {lattice}, unitCell_ {calculateUnitCellFromLatticeAndCell(lattice, cell)}
         {
         }
-
         /*! \brief
          * Copy constructor declared, because the default constructor is deleted.
+         * \param[in] other Grid to be copied from
          */
         Grid(const Grid &other) : cell_ {other.cell_}, lattice_ {other.lattice_}, unitCell_ {other.unitCell_} {}
 
         /*! \brief
          * Copy assignment operator declared, because the default constructor is deleted.
+         * \param[in]
+         * \returns Copied Grid
          */
         Grid<N> &operator=(Grid<N> other)
         {
@@ -219,7 +226,8 @@ class Grid : public IGrid<N>
     private:
 
         /*! \brief
-         * convert MultiIndex to NdVector
+         * Cast MultiIndex to NdVector.
+         * \param[in] i N-dimensional index.
          */
         NdVector multiIndexToNdVector(const MultiIndex &i) const
         {
@@ -230,6 +238,9 @@ class Grid : public IGrid<N>
         }
         /*! \brief
          * Re-evaluate unit cell from cell and grid extend
+         * \param[in] lattice The lattice, the grid points are based on
+         * \param[in] cell The full extend of the grid
+         * \returns Unit cell of the grid
          */
         CanonicalVectorBasis<N> calculateUnitCellFromLatticeAndCell(const ColumnMajorLattice<N> &lattice, const CanonicalVectorBasis<N> cell)
         {
@@ -238,8 +249,11 @@ class Grid : public IGrid<N>
             std::transform(std::begin(lattice.extend()), std::end(lattice.extend()), std::begin(cellToUnitCellScale), invertInteger);
             return cell.scaledCopy(cellToUnitCellScale);
         }
+        //! The cell spanning the whole grid extend
         CanonicalVectorBasis<N>    cell_;
+        //! The lattice indexing all points in the grid
         ColumnMajorLattice<N>      lattice_;
+        //! The pre-calculated grid unit cell.
         CanonicalVectorBasis<N>    unitCell_;
 };
 
@@ -255,10 +269,22 @@ class GridWithTranslation : public Grid<N>
         typedef typename CanonicalVectorBasis<N>::NdVector NdVector;
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
 
+        /*! \brief
+         * Construct \ref gmx::Grid with additional translation vector.
+         */
         GridWithTranslation(const CanonicalVectorBasis<N> &cell, const ColumnMajorLattice<N> &lattice, const NdVector &translation) : Grid<N>{cell, lattice}, translation_ {translation} { }
 
+        /*! \brief
+         * Copy constructor declared, because the default constructor is deleted.
+         * \param[in] other Grid to be copied from
+         */
         GridWithTranslation(const GridWithTranslation &other) : Grid<N>{other}, translation_ {other.translation_} { }
 
+        /*! \brief
+         * Copy assignment operator declared, because the default constructor is deleted.
+         * \param[in]
+         * \returns Copied Grid
+         */
         GridWithTranslation<N> &operator=(GridWithTranslation<N> other)
         {
             Grid<N>::operator=(other);
@@ -266,48 +292,61 @@ class GridWithTranslation : public Grid<N>
             return *this;
         }
 
+        //! \copydoc IGrid::gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex & i)
         NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {
             return Grid<N>::gridVectorFromGridPointToCoordinate(translateIntoGrid_(x), i);
         };
 
+        //! \copydoc IGrid::coordinateToFloorMultiIndex(const NdVector &x)
         MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const override
         {
             return Grid<N>::coordinateToFloorMultiIndex(translateIntoGrid_(x));
         }
 
+        //! \copydoc IGrid::multiIndexToCoordinate(const MultiIndex &i)
         NdVector multiIndexToCoordinate(const MultiIndex &i) const override
         {
             return translateFromGrid_(Grid<N>::multiIndexToCoordinate(i));
         }
 
         /*! \brief
-         *
          * Set the real-space coordinate of gridpoint (0,0,0).
+         * \param[in] translate Translation vector
          */
         void setTranslation(const NdVector &translate)
         {
             translation_ = translate;
         }
 
+        //! \copydoc IGrid::duplicate()
         typename IGrid<N>::IGridPointer duplicate() const override
         {
             return typename IGrid<N>::IGridPointer(new GridWithTranslation<N>(*this));
         }
 
     private:
+        /*! \brief
+         * \param[in] x Vector to be translated from external into grid coordinates
+         * \returns Translated vector.
+         */
         NdVector translateIntoGrid_(const NdVector &x) const
         {
             CanonicalVectorBasis<DIM>::NdVector x_translated;
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x-t; });
             return x_translated;
         };
+        /*! \brief
+         * \param[in] x Vector to be translated from grid into external coordinates
+         * \returns the translated vector.
+         */
         NdVector translateFromGrid_(const NdVector &x) const
         {
             CanonicalVectorBasis<DIM>::NdVector x_translated;
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), [](real x, real t){return x+t; });
             return x_translated;
         };
+        //! The external coordinates of lattice point (0,...,0)
         NdVector                     translation_;
 };
 

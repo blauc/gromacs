@@ -98,10 +98,10 @@ class DensityMorph : public TrajectoryAnalysisModule
 
     private:
 
-        void evaluateDensityDifferential_(const FieldReal3D &morph, const FieldReal3D &target, FieldReal3D *differential);
-        void evaluateFlow_(const FieldReal3D &differential, std::array<std::unique_ptr<FieldReal3D>, DIM> &densityflow);
-        void applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, FieldReal3D &d_new, const FieldReal3D &d_old);
-        void scaleFlow_(std::array<std::unique_ptr<FieldReal3D>, DIM> &densityflow, real scale);
+        void evaluateDensityDifferential_(const GridDataReal3D &morph, const GridDataReal3D &target, GridDataReal3D *differential);
+        void evaluateFlow_(const GridDataReal3D &differential, std::array<std::unique_ptr<GridDataReal3D>, DIM> &densityflow);
+        void applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, GridDataReal3D &d_new, const GridDataReal3D &d_old);
+        void scaleFlow_(std::array<std::unique_ptr<GridDataReal3D>, DIM> &densityflow, real scale);
         std::string              fnmobile_       = "from.ccp4";
         std::string              fntarget_       = "to.ccp4";
         std::string              fnforcedensity_ = "forcedensity.ccp4";
@@ -190,7 +190,7 @@ void DensityMorph::analyzeFrame(int /*frnr*/, const t_trxframe & /*fr*/,
                                 t_pbc * /*pbc*/,
                                 TrajectoryAnalysisModuleData * /*pdata*/) {}
 
-void DensityMorph::evaluateDensityDifferential_(const FieldReal3D &morph, const FieldReal3D &target, FieldReal3D *differential)
+void DensityMorph::evaluateDensityDifferential_(const GridDataReal3D &morph, const GridDataReal3D &target, GridDataReal3D *differential)
 {
 
     // define the derivative of the density
@@ -198,7 +198,7 @@ void DensityMorph::evaluateDensityDifferential_(const FieldReal3D &morph, const 
         DataVectorMeasure(morph).sum();
     //
     // auto cc = GridMeasures(morph).correlate(target_);
-    // auto normSimulation = FieldReal3D(morph).properties().norm();
+    // auto normSimulation = GridDataReal3D(morph).properties().norm();
     // auto densityGradientFunction = [normSimulation, cc](
     //     real densityExperiment, real densitySimulation) {
     //   return (densityExperiment - cc * densitySimulation) / (normSimulation);
@@ -217,7 +217,7 @@ void DensityMorph::evaluateDensityDifferential_(const FieldReal3D &morph, const 
 
 }
 
-void DensityMorph::evaluateFlow_(const FieldReal3D &differential, std::array<std::unique_ptr<FieldReal3D>, DIM> &densityflow)
+void DensityMorph::evaluateFlow_(const GridDataReal3D &differential, std::array<std::unique_ptr<GridDataReal3D>, DIM> &densityflow)
 {
     // calculate force direction on grid from density derivative
     auto        paddedDifferential =
@@ -244,7 +244,7 @@ void DensityMorph::evaluateFlow_(const FieldReal3D &differential, std::array<std
 
 }
 
-void DensityMorph::scaleFlow_(std::array<std::unique_ptr<FieldReal3D>, DIM> &densityflow, real scale)
+void DensityMorph::scaleFlow_(std::array<std::unique_ptr<GridDataReal3D>, DIM> &densityflow, real scale)
 {
     for (size_t dimension = XX; dimension <= ZZ; dimension++)
     {
@@ -252,7 +252,7 @@ void DensityMorph::scaleFlow_(std::array<std::unique_ptr<FieldReal3D>, DIM> &den
     }
 }
 
-void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, FieldReal3D &d_new, const FieldReal3D &d_old)
+void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridIndex, GridDataReal3D &d_new, const GridDataReal3D &d_old)
 {
     auto f = norm(f_vec);
 
@@ -325,19 +325,19 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
 
     ModifyGridData(mobile_).add_offset(0.001);
     ModifyGridData(target_).add_offset(0.001);
-    FieldReal3D                                   oldMorph(mobile_);
-    FieldReal3D                                   differential(mobile_.getGrid().duplicate());
-    FieldReal3D                                   newMorph(mobile_.getGrid().duplicate());
-    std::array<std::unique_ptr<FieldReal3D>, DIM> densityflow {{
-                                                                   std::unique_ptr<FieldReal3D>(new FieldReal3D(mobile_.getGrid().duplicate())),  std::unique_ptr<FieldReal3D>(new FieldReal3D(mobile_.getGrid().duplicate())),  std::unique_ptr<FieldReal3D>(new FieldReal3D(mobile_.getGrid().duplicate()))
-                                                               }};
+    GridDataReal3D                                   oldMorph(mobile_);
+    GridDataReal3D                                   differential(mobile_.getGrid().duplicate());
+    GridDataReal3D                                   newMorph(mobile_.getGrid().duplicate());
+    std::array<std::unique_ptr<GridDataReal3D>, DIM> densityflow {{
+                                                                      std::unique_ptr<GridDataReal3D>(new GridDataReal3D(mobile_.getGrid().duplicate())),  std::unique_ptr<GridDataReal3D>(new GridDataReal3D(mobile_.getGrid().duplicate())),  std::unique_ptr<GridDataReal3D>(new GridDataReal3D(mobile_.getGrid().duplicate()))
+                                                                  }};
     fprintf(stderr, "\n");
     fflush(stderr);
     auto basesum = DataVectorMeasure(mobile_).sum();
     for (int iMorphIterations = 0; iMorphIterations < morphSteps_;
          iMorphIterations++)
     {
-        auto densityDistance = CompareFields(target_, oldMorph).getKLSameGrid();
+        auto densityDistance = CompareGridDatas(target_, oldMorph).getKLSameGrid();
         fprintf(stderr, "\r Iteration [%7d/%7d] : d = %7g ", iMorphIterations+1, morphSteps_, densityDistance);
 
         evaluateDensityDifferential_(oldMorph, target_, &differential);
@@ -364,7 +364,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
             // MrcFile().write("flowyy.ccp4", densityflow[YY]);
             // MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
             //
-            // FieldReal3D flowintensity(densityflow[XX]);
+            // GridDataReal3D flowintensity(densityflow[XX]);
             // std::transform(oldMorph.access().begin(), oldMorph.access().end(), densityflow[XX].access().begin(), flowintensity.access().begin(),[](real a,real b){return a*b;});
             // MrcFile().write("intensityxx.ccp4", flowintensity);
 
@@ -391,7 +391,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     }
                 }
             }
-            newDensityDistance = CompareFields(target_, newMorph).getKLSameGrid();
+            newDensityDistance = CompareGridDatas(target_, newMorph).getKLSameGrid();
             fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, DataVectorMeasure(newMorph).sum()-basesum);
 
         }

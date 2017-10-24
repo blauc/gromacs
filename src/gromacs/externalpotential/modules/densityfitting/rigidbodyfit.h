@@ -41,7 +41,7 @@
 
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 
 namespace gmx
 {
@@ -71,12 +71,12 @@ class RigidBodyFit
 {
     public:
         RigidBodyFitResult
-        fitCoordinates(const FieldReal3D &reference, const std::vector<RVec> &x,
+        fitCoordinates(const GridDataReal3D &reference, const std::vector<RVec> &x,
                        const std::vector<real> &weights,
                        const PotentialForceEvaluator &fitPotentialProvider);
 
         RigidBodyFitResult
-        fitCoordinates(const FieldReal3D &reference, const std::vector<RVec> &x,
+        fitCoordinates(const GridDataReal3D &reference, const std::vector<RVec> &x,
                        const std::vector<real> &weights,
                        const PotentialEvaluatorHandle &fitPotentialProvider);
 
@@ -84,14 +84,14 @@ class RigidBodyFit
         const real minimial_improvement_ = 1e-10;
         const int  max_steps_            = 1e5;
         RVec
-        gradientTranslation_(const FieldReal3D &reference, const std::vector<RVec> &x,
+        gradientTranslation_(const GridDataReal3D &reference, const std::vector<RVec> &x,
                              const std::vector<real> &weights,
                              const PotentialEvaluatorHandle &fitPotentialProvider,
                              const RVec &translation,
                              const RVec &center_of_rotation,
                              const Quaternion &orientation);
         Quaternion
-        gradientOrientation_(const FieldReal3D &reference, const std::vector<RVec> &x,
+        gradientOrientation_(const GridDataReal3D &reference, const std::vector<RVec> &x,
                              const std::vector<real> &weights,
                              const PotentialEvaluatorHandle &fitPotentialProvider,
                              const RVec &translation,

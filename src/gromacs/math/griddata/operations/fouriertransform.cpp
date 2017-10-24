@@ -42,7 +42,7 @@
 
 #include "fouriertransform.h"
 #include "densitypadding.h"
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
@@ -110,119 +110,119 @@ std::array<int, 3> realGridExtendFromFourierTransfrom(const std::array<int, 3> &
     };
 };
 
-std::unique_ptr < FieldComplex3D>
-FourierTransformRealToComplex3D::createComplexTransformedFieldFromInput_() const
+std::unique_ptr < GridDataComplex3D>
+FourierTransformRealToComplex3D::createComplexTransformedGridDataFromInput_() const
 {
     /*
      * set to the size of the real grid first for correct reciprocal basis vectors,
      * then convert to abriged FFT size
      */
-    auto complexTransformedGrid = convertGridToReciprocalSpace(realInputField_.getGrid());
+    auto complexTransformedGrid = convertGridToReciprocalSpace(realInputGridData_.getGrid());
     complexTransformedGrid->setLatticeAndRescaleCell(
-            fourierTransformGridExtendfromRealExtend(realInputField_.getGrid().lattice().extend()));
-    return std::unique_ptr < FieldComplex3D>(new FieldComplex3D {std::move(complexTransformedGrid)});
+            fourierTransformGridExtendfromRealExtend(realInputGridData_.getGrid().lattice().extend()));
+    return std::unique_ptr < GridDataComplex3D>(new GridDataComplex3D {std::move(complexTransformedGrid)});
 };
 
 FourierTransformRealToComplex3D::FourierTransformRealToComplex3D(
-        const FieldReal3D &realInputField)
-    : realInputField_ {realInputField}
+        const GridDataReal3D &realInputGridData)
+    : realInputGridData_ {realInputGridData}
 {
 
 };
-std::unique_ptr < FieldComplex3D> FourierTransformRealToComplex3D::result()
+std::unique_ptr < GridDataComplex3D> FourierTransformRealToComplex3D::result()
 {
-    auto complexTransformedField = createComplexTransformedFieldFromInput_();
-    result(*complexTransformedField);
-    return complexTransformedField;
+    auto complexTransformedGridData = createComplexTransformedGridDataFromInput_();
+    result(*complexTransformedGridData);
+    return complexTransformedGridData;
 }
 
 void FourierTransformRealToComplex3D::result(
-        FieldComplex3D &complexTransformedField)
+        GridDataComplex3D &complexTransformedGridData)
 {
 
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_r2c(
-                    3, columnMajorExtendToRowMajorExtend(realInputField_.getGrid().lattice().extend()).data(),
-                    (float *)realInputField_.data(),
-                    (fftwf_complex *)complexTransformedField.data(),
+                    3, columnMajorExtendToRowMajorExtend(realInputGridData_.getGrid().lattice().extend()).data(),
+                    (float *)realInputGridData_.data(),
+                    (fftwf_complex *)complexTransformedGridData.data(),
                     FFTW_ESTIMATE);
     }
     fftwf_execute_dft_r2c(
-            plan_, (float *)realInputField_.data(),
-            (fftwf_complex *)complexTransformedField.data());
+            plan_, (float *)realInputGridData_.data(),
+            (fftwf_complex *)complexTransformedGridData.data());
     if (bNormalize)
     {
-        auto orthoscale = 1.0 / sqrt(complexTransformedField.size());
+        auto orthoscale = 1.0 / sqrt(complexTransformedGridData.size());
 
         auto normalizeComplexTransform = [orthoscale](t_complex &value) {
                 value.re *= orthoscale;
                 value.im *= orthoscale;
             };
 
-        std::for_each(complexTransformedField.begin(),
-                      complexTransformedField.end(),
+        std::for_each(complexTransformedGridData.begin(),
+                      complexTransformedGridData.end(),
                       normalizeComplexTransform);
     }
 }
 
-std::unique_ptr < FieldReal3D>
-FourierTransformComplexToReal3D::createRealTransformedFieldFromInput_() const
+std::unique_ptr < GridDataReal3D>
+FourierTransformComplexToReal3D::createRealTransformedGridDataFromInput_() const
 {
     Grid<DIM> realGrid {
-        complexInputField_.getGrid().cell(), complexInputField_.getGrid().lattice()
+        complexInputGridData_.getGrid().cell(), complexInputGridData_.getGrid().lattice()
     };
-    realGrid.setLatticeAndRescaleCell(realGridExtendFromFourierTransfrom(complexInputField_.getGrid().lattice().extend()));
+    realGrid.setLatticeAndRescaleCell(realGridExtendFromFourierTransfrom(complexInputGridData_.getGrid().lattice().extend()));
     auto realGridPointer = convertGridToReciprocalSpace(realGrid);
-    return std::unique_ptr < FieldReal3D>(new FieldReal3D(std::move(realGridPointer)));
+    return std::unique_ptr < GridDataReal3D>(new GridDataReal3D(std::move(realGridPointer)));
 }
 
 FourierTransformComplexToReal3D::FourierTransformComplexToReal3D(
-        const FieldComplex3D &complexInputField)
-    : complexInputField_ {complexInputField}
+        const GridDataComplex3D &complexInputGridData)
+    : complexInputGridData_ {complexInputGridData}
 {};
 
-std::unique_ptr < FieldReal3D>
+std::unique_ptr < GridDataReal3D>
 FourierTransformComplexToReal3D::result()
 {
-    auto realTransformedField = createRealTransformedFieldFromInput_();
-    result(*realTransformedField);
-    return realTransformedField;
+    auto realTransformedGridData = createRealTransformedGridDataFromInput_();
+    result(*realTransformedGridData);
+    return realTransformedGridData;
 }
 
 void
 FourierTransformComplexToReal3D::result(
-        FieldReal3D &realTransformedField)
+        GridDataReal3D &realTransformedGridData)
 {
     if (plan_ == nullptr)
     {
         plan_ = fftwf_plan_dft_c2r(
-                    3, columnMajorExtendToRowMajorExtend(realTransformedField.getGrid().lattice().extend()).data(),
-                    (fftwf_complex *)complexInputField_.data(),
-                    (float *)realTransformedField.data(), FFTW_ESTIMATE);
+                    3, columnMajorExtendToRowMajorExtend(realTransformedGridData.getGrid().lattice().extend()).data(),
+                    (fftwf_complex *)complexInputGridData_.data(),
+                    (float *)realTransformedGridData.data(), FFTW_ESTIMATE);
     }
     fftwf_execute_dft_c2r(
-            plan_, (fftwf_complex *)complexInputField_.data(),
-            (float *)realTransformedField.data());
+            plan_, (fftwf_complex *)complexInputGridData_.data(),
+            (float *)realTransformedGridData.data());
 
     if (bNormalize)
     {
-        auto orthoscale         = 1 / sqrt(realTransformedField.size());
+        auto orthoscale         = 1 / sqrt(realTransformedGridData.size());
         auto normalizeTransform = [orthoscale](real &value) {
                 value *= orthoscale;
             };
-        std::for_each(realTransformedField.begin(),
-                      realTransformedField.end(), normalizeTransform);
+        std::for_each(realTransformedGridData.begin(),
+                      realTransformedGridData.end(), normalizeTransform);
     }
 };
 
 ApplyToUnshiftedFourierTransform::ApplyToUnshiftedFourierTransform(
-        FieldComplex3D &field)
+        GridDataComplex3D &field)
     : field_ {field}
 {};
 
 const ApplyToUnshiftedFourierTransform &ApplyToUnshiftedFourierTransform::apply(
-        FunctionOnComplexField appliedFunction)
+        FunctionOnComplexGridData appliedFunction)
 {
 
     /*
@@ -274,7 +274,7 @@ void ApplyToUnshiftedFourierTransform::applyToAllColumnsWithinSection_(
         RVec deltakRow, RVec deltakColumn,
         std::vector<t_complex>::iterator itColumnStart,
         std::vector<t_complex>::iterator itColumnEnd,
-        FunctionOnComplexField appliedFunction)
+        FunctionOnComplexGridData appliedFunction)
 {
 
     auto itMiddleColumn = itColumnStart + ((nColumns + 1) / 2) * nRowsPerColumn;
@@ -302,7 +302,7 @@ void ApplyToUnshiftedFourierTransform::applyToAllRowsWithinColumn_(
         RVec coordinateColumnBegin, RVec deltakRow,
         std::vector<t_complex>::iterator itRowStart,
         std::vector<t_complex>::iterator itRowEnd,
-        FunctionOnComplexField appliedFunction)
+        FunctionOnComplexGridData appliedFunction)
 {
 
     auto k = coordinateColumnBegin;

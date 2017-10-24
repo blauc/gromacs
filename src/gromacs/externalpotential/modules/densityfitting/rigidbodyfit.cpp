@@ -36,7 +36,7 @@
 #include "rigidbodyfit.h"
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/selection/centerofmass.h"
 #include "gromacs/math/vec.h"
@@ -46,13 +46,13 @@ namespace gmx
 {
 
 RigidBodyFitResult RigidBodyFit::fitCoordinates(
-        const FieldReal3D &reference, const std::vector<RVec> &x,
+        const GridDataReal3D &reference, const std::vector<RVec> &x,
         const std::vector<real> &weights,
         const PotentialEvaluatorHandle &fitPotentialProvider)
 {
 
     // first guess of parameters
-    auto             center_of_mass_density = RealFieldMeasure(reference).center_of_mass();
+    auto             center_of_mass_density = RealGridDataMeasure(reference).center_of_mass();
     rvec             center_of_geometry_structure;
     std::vector<int> indices(x.size());
     std::iota(indices.begin(), indices.end(), 0);
@@ -124,7 +124,7 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 
 //
 // void RigidBodyFit::fitWholeMoleculeGroup(
-//         const FieldReal3D &reference, WholeMoleculeGroup *atoms,
+//         const GridDataReal3D &reference, WholeMoleculeGroup *atoms,
 //         const IDifferentialPotentialProvider &fitPotentialProvider)
 // {
 //

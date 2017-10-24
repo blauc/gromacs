@@ -34,7 +34,7 @@
  */
 #include "densityspreader.h"
 #include "gromacs/externalpotential/atomgroups/wholemoleculegroup.h"
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/griddata/operations/modifygriddata.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/math/griddata/operations/gausstransform.h"
@@ -49,10 +49,10 @@ DensitySpreader::~DensitySpreader()
 };
 
 DensitySpreader::DensitySpreader(const IGrid<DIM> &grid, int numberOfThreads, int n_sigma, real sigma) : gauss_transform_ {new std::vector < std::unique_ptr < GaussTransform>>}, simulated_density_buffer_ {
-    new std::vector < std::unique_ptr < FieldReal3D>>
+    new std::vector < std::unique_ptr < GridDataReal3D>>
 },
 simulated_density_ {
-    new FieldReal3D(grid.duplicate())
+    new GridDataReal3D(grid.duplicate())
 }, number_of_threads_ {
     numberOfThreads
 }
@@ -63,7 +63,7 @@ simulated_density_ {
     {
     #pragma omp critical
         {
-            (*simulated_density_buffer_).emplace_back(new FieldReal3D(grid.duplicate()));
+            (*simulated_density_buffer_).emplace_back(new GridDataReal3D(grid.duplicate()));
             (*gauss_transform_).emplace_back(new FastGaussianGridding());
         }
     }
@@ -74,7 +74,7 @@ simulated_density_ {
     }
 }
 
-const FieldReal3D &
+const GridDataReal3D &
 DensitySpreader::getSpreadGrid() const
 {
     return *simulated_density_;
@@ -89,7 +89,7 @@ void DensitySpreader::zero() const
 }
 
 
-const FieldReal3D &
+const GridDataReal3D &
 DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
 {
     std::vector<IVec>            minimumUsedGridIndex(number_of_threads_);
@@ -116,7 +116,7 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
     return sumThreadLocalGrids_(minimumUsedGridIndex, maximumUsedGridIndex);
 }
 
-const FieldReal3D &
+const GridDataReal3D &
 DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIndex, const std::vector<IVec> &maximumUsedGridIndex) const
 {
 
@@ -137,7 +137,7 @@ DensitySpreader::sumThreadLocalGrids_(const std::vector<IVec> &minimumUsedGridIn
     {
         for (int gridIndexYY = gridStart[YY]; gridIndexYY < gridEnd[YY]; ++gridIndexYY)
         {
-            std::vector<FieldReal3D::iterator> contributingThreadVoxels;
+            std::vector<GridDataReal3D::iterator> contributingThreadVoxels;
 
             // access rows in thread local grids if they contribute to the density
             for (int thread = 0; thread < number_of_threads_; ++thread)

@@ -35,7 +35,7 @@
 
 #include "comparefields.h"
 #include "fouriertransform.h"
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gridinterpolator.h"
 #include "realfieldmeasure.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
@@ -48,14 +48,14 @@
 namespace gmx
 {
 
-CompareFields::CompareFields(const FieldReal3D &reference, const FieldReal3D &other)
+CompareGridDatas::CompareGridDatas(const GridDataReal3D &reference, const GridDataReal3D &other)
     : reference_ {reference}, other_ {
     other
 }
 {};
 
-real CompareFields::correlate_(const std::vector<real> &a,
-                               const std::vector<real> &b) const
+real CompareGridDatas::correlate_(const std::vector<real> &a,
+                                  const std::vector<real> &b) const
 {
 
     auto              aMean = std::accumulate(a.cbegin(), a.cend(), 0.) / a.size();
@@ -67,7 +67,7 @@ real CompareFields::correlate_(const std::vector<real> &a,
     return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
 }
 
-real CompareFields::correlate(real threshold) const
+real CompareGridDatas::correlate(real threshold) const
 {
     std::vector<real> referenceAboveThreshold;
     std::vector<real> otherWhereReferenceAboveThreshold;
@@ -86,7 +86,7 @@ real CompareFields::correlate(real threshold) const
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
-real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
+real CompareGridDatas::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
     real        sum    = 0;
     const auto &interp = GridInterpolator(reference_.getGrid().duplicate());
@@ -97,7 +97,7 @@ real CompareFields::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
     return sum;
 };
 
-real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
+real CompareGridDatas::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
 {
     // for numerical stability use a reference density
     if (reference_.size() != other_.size())
@@ -123,7 +123,7 @@ real CompareFields::getRelativeKLCrossTermSameGrid(const std::vector<real> &othe
     return -1 * reference_.getGrid().unitCell().volume() *sum;
 }
 
-real CompareFields::getKLSameGrid() const
+real CompareGridDatas::getKLSameGrid() const
 {
     if (reference_.size() != other_.size())
     {
@@ -153,7 +153,7 @@ real CompareFields::getKLSameGrid() const
     return -1 * reference_.getGrid().unitCell().volume() * sum;
 };
 
-real CompareFields::getKLCrossTermSameGrid() const
+real CompareGridDatas::getKLCrossTermSameGrid() const
 {
     if (reference_.size() != other_.size())
     {

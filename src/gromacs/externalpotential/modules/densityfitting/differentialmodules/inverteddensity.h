@@ -38,7 +38,7 @@
 // #include "gmxpre.h"
 //
 // #include "gromacs/math/quaternion.h"
-// #include "gromacs/math/griddata/field.h"
+// #include "gromacs/math/griddata/griddata.h"
 // #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 // #include <string>
 // namespace gmx
@@ -46,7 +46,7 @@
 // class WholeMoleculeGroup;
 //
 //
-// template <typename real> class Field;
+// template <typename real> class GridData;
 //
 // class InvertedDensity : public IStructureDensityPotentialProvider
 // {
@@ -54,20 +54,20 @@
 //
 //         std::unique_ptr<PotentialForceEvaluator>
 //         plan(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-//              const FieldReal3D &reference, const std::string &options,
+//              const GridDataReal3D &reference, const std::string &options,
 //              const RVec &translation = {0, 0, 0},
 //              const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialForceEvaluator>
-//         plan(const WholeMoleculeGroup &atoms, const FieldReal3D &reference,
+//         plan(const WholeMoleculeGroup &atoms, const GridDataReal3D &reference,
 //              const std::string &options, const RVec &translation = {0, 0, 0},
 //              const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialEvaluator>
 //         planPotential(const std::vector<RVec> &coordinates,
-//                       const std::vector<real> &weights, const FieldReal3D &reference,
+//                       const std::vector<real> &weights, const GridDataReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});
 //         std::unique_ptr<PotentialEvaluator>
-//         planPotential(const WholeMoleculeGroup &atoms, const FieldReal3D &reference,
+//         planPotential(const WholeMoleculeGroup &atoms, const GridDataReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});
 //

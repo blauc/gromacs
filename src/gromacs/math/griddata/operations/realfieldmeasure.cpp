@@ -100,11 +100,11 @@ real DataVectorMeasure::var() const
 /*! \brief The root mean square deviation of grid data values. */
 real DataVectorMeasure::rms() const { return sqrt(var()); };
 
-RealFieldMeasure::RealFieldMeasure(const Field<real, DIM> &realfield)
+RealGridDataMeasure::RealGridDataMeasure(const GridData<real, DIM> &realfield)
     : realfield_ {realfield}
 {};
 
-RVec RealFieldMeasure::center_of_mass() const
+RVec RealGridDataMeasure::center_of_mass() const
 {
     RVec com = {0, 0, 0};
     for (size_t i = 0; i < realfield_.size(); i++)
@@ -121,7 +121,7 @@ RVec RealFieldMeasure::center_of_mass() const
 }
 
 
-real RealFieldMeasure::entropy() const
+real RealGridDataMeasure::entropy() const
 {
     auto p    = realfield_.cbegin();
     int  size = realfield_.size();

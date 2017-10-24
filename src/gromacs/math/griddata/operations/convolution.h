@@ -42,7 +42,7 @@
 #ifndef GMX_MATH_CONVOLUTION_H
 #define GMX_MATH_CONVOLUTION_H
 
-#include "gromacs/math/griddata/field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/gmxcomplex.h"
 #include <array>
 
@@ -52,15 +52,15 @@ namespace gmx
 class GaussConvolution
 {
     public:
-        GaussConvolution(const FieldReal3D &input);
-        std::unique_ptr < FieldReal3D> convolute(real sigma);
+        GaussConvolution(const GridDataReal3D &input);
+        std::unique_ptr < GridDataReal3D> convolute(real sigma);
         GaussConvolution &pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor);
 
     private:
-        const ColumnMajorLattice<DIM>::MultiIndex &extendBeforePadding_;
-        const FieldReal3D                         &input_;
-        std::unique_ptr < FieldReal3D>             padded_input_;
-        std::unique_ptr < FieldComplex3D>          fourierTransform_;
+        const ColumnMajorLattice<DIM>::MultiIndex    &extendBeforePadding_;
+        const GridDataReal3D                         &input_;
+        std::unique_ptr < GridDataReal3D>             padded_input_;
+        std::unique_ptr < GridDataComplex3D>          fourierTransform_;
 };
 
 }      // gmx

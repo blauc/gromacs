@@ -34,7 +34,7 @@
  */
 
 #include "densitypadding.h"
-#include "../field.h"
+#include "gromacs/math/griddata/griddata.h"
 #include <cmath>
 #include <array>
 #include "gromacs/utility/exceptions.h"
@@ -42,7 +42,7 @@
 namespace gmx
 {
 
-std::unique_ptr < FieldReal3D> DensityPadding::padPower2()
+std::unique_ptr < GridDataReal3D> DensityPadding::padPower2()
 {
     const auto &extend   = toPad_.getGrid().lattice().extend();
     real        factorXX = pow(2, ceil(log(extend[XX])/log(2)));
@@ -52,7 +52,7 @@ std::unique_ptr < FieldReal3D> DensityPadding::padPower2()
     return pad({{factorXX/real(extend[XX]), factorYY/real(extend[YY]), factorZZ/real(extend[ZZ])}} );
 }
 
-std::unique_ptr < FieldReal3D>
+std::unique_ptr < GridDataReal3D>
 DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
 {
     std::array<int, 3> paddedExtend;
@@ -71,7 +71,7 @@ DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
     auto paddedGrid = Grid<DIM>(toPad_.getGrid().cell(), toPad_.getGrid().lattice());
 
     paddedGrid.setLatticeAndRescaleCell(paddedExtend);
-    std::unique_ptr < FieldReal3D> padded(new FieldReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(paddedGrid))));
+    std::unique_ptr < GridDataReal3D> padded(new GridDataReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(paddedGrid))));
     std::fill(std::begin(*padded), std::end(*padded), 0.);
 
     auto extend = toPad_.getGrid().lattice().extend();
@@ -87,16 +87,16 @@ DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
     }
     return padded;
 }
-DensityPadding::DensityPadding(const FieldReal3D &toPad) : toPad_ {toPad}
+DensityPadding::DensityPadding(const GridDataReal3D &toPad) : toPad_ {toPad}
 {}
 
-std::unique_ptr < FieldReal3D>
+std::unique_ptr < GridDataReal3D>
 DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend)
 {
 
     auto unpaddedGrid = Grid<3>(toPad_.getGrid().cell(), toPad_.getGrid().lattice());
     unpaddedGrid.setLatticeAndRescaleCell(unPadExtend);
-    std::unique_ptr < FieldReal3D> unpadded(new FieldReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(unpaddedGrid))));
+    std::unique_ptr < GridDataReal3D> unpadded(new GridDataReal3D(std::unique_ptr < IGrid < 3>>(new Grid<DIM>(unpaddedGrid))));
 
     for (int iZZ = 0; iZZ < unPadExtend[ZZ]; ++iZZ)
     {
