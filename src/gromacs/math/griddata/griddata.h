@@ -60,11 +60,10 @@
 #ifndef GMX_MATH_GRIDDATA_H_
 #define GMX_MATH_GRIDDATA_H_
 
+#include <vector>
 #include "grid.h"
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/utility/real.h"
-
-#include <vector>
 
 namespace gmx
 {
@@ -73,10 +72,10 @@ namespace gmx
  * Data on an N-dimensional grid.
  *
  * Ensures that it can hold as many elements as lattice points in the grid.
- * \tparam T Data type to be stored on grid
+ * \tparam TContainer Data type container for the data on the grid
  * \tparam N Number of grid dimensions */
-template <typename T, int N>
-class GridData : public std::vector<T>
+template <class TContainer, int N>
+class GridData : public TContainer
 {
     public:
         /*! \brief
@@ -91,7 +90,7 @@ class GridData : public std::vector<T>
         /*! \brief
          * Copy constructor for GridData.
          * \param[in] other GridData to be copied from. */
-        GridData(const GridData &other) : std::vector<T>(other), grid_ {other.grid_->duplicate()}
+        GridData(const GridData &other) : TContainer(other), grid_ {other.grid_->duplicate()}
         {
             this->resize(grid_->lattice().getNumLatticePoints());
         }
@@ -113,7 +112,7 @@ class GridData : public std::vector<T>
          * Yield an iterator to a grid element via multi index.
          * \throws std::out_of_range if index is out of bounds for grid.
          * \returns Iterator to data element in grid at given index. */
-        typename std::vector<T>::iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index)
+        typename TContainer::iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index)
         {
             return std::begin(*this) + grid_->lattice().lineariseVectorIndex(index);
         }
@@ -121,11 +120,10 @@ class GridData : public std::vector<T>
          * Yield an iterator to a grid element via multi index.
          * \throws std::out_of_range if index is out of bounds for grid.
          * \returns Iterator to data element in grid at given index. */
-        typename std::vector<T>::const_iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index) const
+        typename TContainer::const_iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index) const
         {
             return std::begin(*this) + grid_->lattice().lineariseVectorIndex(index);
         }
-
 
     private:
         //! Reference to grid.
@@ -133,9 +131,9 @@ class GridData : public std::vector<T>
 };
 
 //! Three-dimensional real numbers on a grid.
-typedef GridData<real, DIM> GridDataReal3D;
+typedef GridData<std::vector<real>, DIM> GridDataReal3D;
 //! Three-dimensional complex numbers on a grid.
-typedef GridData<t_complex, DIM> GridDataComplex3D;
+typedef GridData<std::vector<t_complex>, DIM> GridDataComplex3D;
 
 }      // namespace gmx
 

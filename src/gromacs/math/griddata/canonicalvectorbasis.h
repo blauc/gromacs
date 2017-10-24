@@ -151,7 +151,7 @@ class CanonicalVectorBasis
         {
             if (dimension >= N || dimension < 0)
             {
-                GMX_THROW(RangeError("Dimension of basis vector must be smaller than Basis dimension."));
+                GMX_THROW(RangeError("Dimension of basis vector must be non-negative and smaller than Basis dimension."));
             }
             return basisVectorLengths_[dimension];
         }

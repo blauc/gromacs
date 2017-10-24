@@ -100,7 +100,7 @@ real DataVectorMeasure::var() const
 /*! \brief The root mean square deviation of grid data values. */
 real DataVectorMeasure::rms() const { return sqrt(var()); };
 
-RealGridDataMeasure::RealGridDataMeasure(const GridData<real, DIM> &realfield)
+RealGridDataMeasure::RealGridDataMeasure(const GridDataReal3D &realfield)
     : realfield_ {realfield}
 {};
 

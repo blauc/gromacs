@@ -45,12 +45,12 @@ namespace gmx
 class RealGridDataMeasure
 {
     public:
-        explicit RealGridDataMeasure(const GridData<real, DIM> &realfield);
+        explicit RealGridDataMeasure(const GridDataReal3D &realfield);
         ~RealGridDataMeasure() = default;
         RVec center_of_mass() const;
         real entropy() const;
     private:
-        const GridData<real, DIM> &realfield_;
+        const GridDataReal3D &realfield_;
 
 };
 
