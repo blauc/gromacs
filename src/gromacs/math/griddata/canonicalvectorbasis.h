@@ -77,6 +77,11 @@ class CanonicalVectorBasis
         CanonicalVectorBasis(const NdVector &basisVectorLengths)
         {
             basisVectorLengths_ = basisVectorLengths;
+            const auto &isZero = [](real length){return fabs(length) <= GMX_REAL_EPS; };
+            if (std::any_of(std::begin(basisVectorLengths_), std::end(basisVectorLengths_), isZero))
+            {
+                GMX_THROW(RangeError("Basis vector length cannot be zero."));
+            }
             std::transform(std::begin(basisVectorLengths_), std::end(basisVectorLengths_), std::begin(basisVectorLengthsInverse_), [](real c){return 1/c; });
         }
 
