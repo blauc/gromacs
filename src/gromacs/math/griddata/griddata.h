@@ -110,22 +110,6 @@ class GridData : public std::vector<T>
             this->resize(grid_->lattice().getNumLatticePoints());
         }
         /*! \brief
-         * Access an element via multi index.
-         * \throws std::out_of_range if element is out of array bounds
-         * \returns Data element in grid at given index. */
-        T &atMultiIndex(const typename IGrid<N>::MultiIndex &index)
-        {
-            return this->at(grid_->lattice().lineariseVectorIndex(index));
-        }
-        /*! \brief
-         * Const version to access an element via multi index.
-         * \throws std::out_of_range if element is out of array bounds
-         * \returns Data element in grid at given index. */
-        const T &atMultiIndex(const typename IGrid<N>::MultiIndex &index) const
-        {
-            return this->at(grid_->lattice().lineariseVectorIndex(index));
-        }
-        /*! \brief
          * Yield an iterator to a grid element via multi index.
          * \throws std::out_of_range if index is out of bounds for grid.
          * \returns Iterator to data element in grid at given index. */
@@ -133,6 +117,15 @@ class GridData : public std::vector<T>
         {
             return std::begin(*this) + grid_->lattice().lineariseVectorIndex(index);
         }
+        /*! \brief
+         * Yield an iterator to a grid element via multi index.
+         * \throws std::out_of_range if index is out of bounds for grid.
+         * \returns Iterator to data element in grid at given index. */
+        typename std::vector<T>::const_iterator iteratorAtMultiIndex(const typename IGrid<N>::MultiIndex &index) const
+        {
+            return std::begin(*this) + grid_->lattice().lineariseVectorIndex(index);
+        }
+
 
     private:
         //! Reference to grid.

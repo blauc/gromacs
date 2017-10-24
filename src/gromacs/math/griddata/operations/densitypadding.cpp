@@ -79,10 +79,9 @@ DensityPadding::pad(const CanonicalVectorBasis<DIM>::NdVector &paddingFactor)
     {
         for (int iYY = 0; iYY < extend[YY]; ++iYY)
         {
-            for (int iXX = 0; iXX < extend[XX]; ++iXX)
-            {
-                padded->atMultiIndex({{iXX, iYY, iZZ}}) = toPad_.atMultiIndex({{iXX, iYY, iZZ}});
-            }
+            auto rowBegin = toPad_.iteratorAtMultiIndex({{0, iYY, iZZ}});
+            auto rowEnd   = ++(toPad_.iteratorAtMultiIndex({{extend[XX]-1, iYY, iZZ}}));
+            std::copy(rowBegin, rowEnd, padded->iteratorAtMultiIndex({{0, iYY, iZZ}}));
         }
     }
     return padded;
@@ -102,10 +101,9 @@ DensityPadding::unpad(const  ColumnMajorLattice<DIM>::MultiIndex &unPadExtend)
     {
         for (int iYY = 0; iYY < unPadExtend[YY]; ++iYY)
         {
-            for (int iXX = 0; iXX < unPadExtend[XX]; ++iXX)
-            {
-                unpadded->atMultiIndex({{iXX, iYY, iZZ}}) = toPad_.atMultiIndex({{iXX, iYY, iZZ}});
-            }
+            auto rowBegin = toPad_.iteratorAtMultiIndex({{0, iYY, iZZ}});
+            auto rowEnd   = ++(toPad_.iteratorAtMultiIndex({{unPadExtend[XX]-1, iYY, iZZ}}));
+            std::copy(rowBegin, rowEnd, unpadded->iteratorAtMultiIndex({{0, iYY, iZZ}}));
         }
     }
 

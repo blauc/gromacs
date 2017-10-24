@@ -61,7 +61,7 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
                 auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
-                interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, r);
+                *(interpolatedGrid_->iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, r);
             }
         }
     }
@@ -87,7 +87,7 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other, const RVec &t
 
                 auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
                 auto shifted_r         = orientation.shiftedAndOriented(RVec(r[XX], r[YY], r[ZZ]), centerOfMass, translation);
-                interpolatedGrid_->atMultiIndex({{i_x, i_y, i_z}}) = getLinearInterpolationAt(other, {{shifted_r[XX], shifted_r[YY], shifted_r[ZZ]}} );
+                *(interpolatedGrid_->iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, {{shifted_r[XX], shifted_r[YY], shifted_r[ZZ]}} );
 
             }
         }
@@ -112,7 +112,7 @@ real GridInterpolator::getLinearInterpolationAt(const GridDataReal3D &field, con
                 std::array<int, 3> cube_index = {{iIndexInGrid[XX]+ii_x, iIndexInGrid[YY]+ii_y, iIndexInGrid[ZZ]+ii_z}};
                 if (lattice.inLattice(cube_index))
                 {
-                    cube[ii_x][ii_y][ii_z] = field.atMultiIndex(cube_index);
+                    cube[ii_x][ii_y][ii_z] = *(field.iteratorAtMultiIndex(cube_index));
                 }
                 else
                 {

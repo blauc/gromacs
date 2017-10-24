@@ -298,16 +298,16 @@ void DensityMorph::applyFlowOnVoxel_(RVec f_vec, const std::array<int, 3> &gridI
                     {
                         share[dimension] = df[dimension] == 0 ? (1-fabs(f_vec[dimension])) : fabs(f_vec[dimension]);
                     }
-                    auto voxel_voxel_flow =  share[XX]*share[YY]* share[ZZ] * fabs(f) * d_old.atMultiIndex(gridIndex);
-                    flow_sum                           += voxel_voxel_flow;
-                    d_new.atMultiIndex(receivingVoxel) += voxel_voxel_flow;
+                    auto voxel_voxel_flow =  share[XX]*share[YY]* share[ZZ] * fabs(f) * *(d_old.iteratorAtMultiIndex(gridIndex));
+                    flow_sum                                      += voxel_voxel_flow;
+                    *(d_new.iteratorAtMultiIndex(receivingVoxel)) += voxel_voxel_flow;
                 }
             }
         }
     }
 
     // flow away from voxels
-    d_new.atMultiIndex(gridIndex) += d_old.atMultiIndex(gridIndex) - flow_sum;
+    *(d_new.iteratorAtMultiIndex(gridIndex)) += *(d_old.iteratorAtMultiIndex(gridIndex)) - flow_sum;
 
 }
 
@@ -383,8 +383,8 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                                                                             ix, iy, iz
                                                                         } };
                         RVec f_vec {
-                            densityflow[XX]->atMultiIndex(gridIndex), densityflow[YY]->atMultiIndex(gridIndex),
-                            densityflow[ZZ]->atMultiIndex(gridIndex)
+                            *(densityflow[XX]->iteratorAtMultiIndex(gridIndex)), *(densityflow[YY]->iteratorAtMultiIndex(gridIndex)),
+                            *(densityflow[ZZ]->iteratorAtMultiIndex(gridIndex))
                         };
                         applyFlowOnVoxel_(f_vec, gridIndex, newMorph, oldMorph);
 
