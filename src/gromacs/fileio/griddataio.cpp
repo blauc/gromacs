@@ -597,7 +597,8 @@ void MrcFile::Impl::do_mrc_data_(GridDataReal3D &grid_data, bool bRead)
         {
             for (int column  = 0; column  < num_crs[XX]; column++)
             {
-                do_<float>(&(grid_data.atMultiIndex(to_xyz_order({{column, row, section}}))), bRead);
+                const auto &currentPosition =  grid_data.iteratorAtMultiIndex(to_xyz_order({{column, row, section}}));
+                do_<float>(&(*currentPosition), bRead);
             }
         }
     }

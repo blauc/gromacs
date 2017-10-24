@@ -67,17 +67,12 @@ class MapTest : public ::testing::Test
 
 TEST_F(MapTest, CanReadMapFile)
 {
-    gmx::GridDataReal3D             grid_data;
-    gmx::MrcFile                    map_file;
-    std::string                     filename = fileManager_.getInputFilePath("EMD-2578.map");
-
-    map_file.read(filename, grid_data);
-
+    auto gridData = gmx::MrcFile().read(fileManager_.getInputFilePath("EMD-2578.map"));
 }
 
 TEST_F(MapTest, IORoundTripMapFile)
 {
-    gmx::GridDataReal3D                grid_data;
+
     gmx::MrcFile                       map_file;
     gmx::MrcMetaData                   metadata;
     const int                          header_byte_size = 1024;
@@ -89,7 +84,7 @@ TEST_F(MapTest, IORoundTripMapFile)
         filename + ".test"
     };
 
-    map_file.read_with_meta(filename, grid_data, metadata);
+    auto grid_data = map_file.read_with_meta(filename, metadata);
     map_file.write_with_own_meta(write_filename, grid_data, metadata, bOwnGridStats);
 
     // Files should be of same size and have at least 1024 bytes to contain the header
