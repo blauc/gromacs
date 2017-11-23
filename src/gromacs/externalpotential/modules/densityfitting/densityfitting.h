@@ -47,7 +47,7 @@
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/griddata/griddata.h"
-
+#include "gromacs/fileio/mrcmetadata.h"
 
 struct t_fileio;
 struct gmx_mtop_atomlookup;

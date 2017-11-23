@@ -51,48 +51,7 @@
 
 namespace gmx
 {
-
-/*! \brief
- * A container for the metadata in mrc file formats (compatible with ccp4 and map and mostly imod).
- *
- * For a detailed decription see
- * "EMDB Map Distribution Format Description Version 1.01 (c) emdatabank.org 2014"
- */
-struct MrcMetaData{
-    bool                                     swap_bytes;               //!< swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture)
-    int                                      space_group;              //!< space group as defined by IUCr conventions (Table 12.3.4.1 Standard space-group symbols”, pages 824-831, International Tables for Crystallography, Volume A, fifth edition)
-    int                                      mrc_data_mode;            //!< data mode, currently only mode 2 is supported (32-bit float real values)
-    int                                      machine_stamp;            //!< endianess of map writing architecture (big endian; 0x44410000 , little endian: 0x11110000)
-    std::string                              format_identifier;        //!< for all density formats: four 1-byte chars reading "MAP " (a little pointless, I know)
-
-    int                                      num_labels;               //!< number of used crystallographic labels, 0 for imagestacks, 1 for emdb data
-    std::vector < std::string>               labels;                   //!< crystallographic labels or \:\:\:\:EMDataBank.org\:\:\:\:EMD-1234\:\:\:\: for EMDB entries
-
-    RVec                                     cell_length;              //!< length of the crystallographic unit cell
-    RVec                                     cell_angles;              //!< crystallographic unit cell angles
-
-    std::array<int, 3>                       crs_to_xyz;               //!< Axis order
-    std::array<int, 3>                       xyz_to_crs;               //!< reversed Axis order
-    std::array<int, 3>                       num_crs;                  //!< redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10
-    std::array<int, 3>                       extend;                   //!< the grid extend, check against num_crs
-    std::array<int, 3>                       crs_start;                //!< Start of values in grid, typically 0,0,0
-
-    float                                    min_value;                //!< minimum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
-    float                                    max_value;                //!< maximum voxel value; may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)
-    float                                    mean_value;               //!< mean voxel value   (not always reported,as evident from density)
-    float                                    rms_value;                //!< rms of the density (not always reported,as evident from density)
-
-    bool                                     is_crystallographic;      //!< true if crystallographic data is to be read
-    bool                                     has_skew_matrix;          //!< only crystallographic data: true if skew matrix is stored
-    std::array<float, 9>                     skew_matrix;              //!< only crystallographic data: skew matrix or, if skew flag is zero, data in place of skew matrix
-    RVec                                     skew_translation;         //!< only crystallographic data: skew translatation or, if skew flag is zero, data in place of skew translation
-    int                                      num_bytes_extened_header; //!< only crystallographic data: the size of the symbol table in bytes
-    std::vector<char>                        extended_header;          //!< only crystallographic data: extended header, usually symbol tables
-
-    std::array<float, 13>                    extraskew;                //!< fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)
-    std::array<float, 15>                    extra;                    //!< extra data in header, currently unused
-};
-
+struct MrcMetaData;
 /*! \brief
  * Read and write real-space real-valued volume data files
  * according to the electron microscopy data bank (EMDB) standard.
@@ -126,7 +85,7 @@ class MrcFile
          * \param[in] meta struct with own metadata
          * \param[in] bOwnGridStats calculate min, max, mean and rms self if true, otherwise copy from metadata
          */
-        void write_with_own_meta(std::string filename, GridDataReal3D &grid_data, MrcMetaData &meta, bool bOwnGridStats);
+        void write_with_own_meta(std::string filename, GridDataReal3D &grid_data, const MrcMetaData &meta, bool bOwnGridStats);
 
         /*! \brief Reads real-spaced, real-valued griddata from file.
          *
@@ -140,14 +99,14 @@ class MrcFile
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
          * \returns grid_data will be filled with real-valued, real-space data on a grid upon succesful reading
          */
-        GridDataReal3D read_with_meta(std::string filename, MrcMetaData &meta);
+        GridDataReal3D read_with_meta(std::string filename, MrcMetaData *meta);
 
         /*! \brief Reads
          *
          * \param[in] filename name of the file from which to read the griddata, typically *.cpp4, *.mrc or *.map
          * \param[in] meta returns the metadata from reading; previous content will be overwritten
          */
-        void read_meta(std::string filename, MrcMetaData &meta);
+        void read_meta(std::string filename, MrcMetaData *meta);
 
         /*! \brief Write the current state of the MrcFile object into a string.
          * Useful for checking the contents of an mrc/ccp4 file.

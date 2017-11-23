@@ -43,15 +43,16 @@
 #include "gmxpre.h"
 
 #include "griddataio.h"
-
-#include "config.h"
+#include "mrcmetadata.h"
 
 #include <cstdio>
 
 #include <algorithm>
+#include <complex>
 #include <string>
 #include <vector>
 #include <set>
+#include <type_traits>
 
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/math/vec.h"
@@ -89,10 +90,6 @@ class MrcFile::Impl
         std::unique_ptr < IGrid < DIM>> setGridWithTranslationFromMrcMeta();
         void setMrcMetaFromGridWithTranslation(const IGrid<DIM> &grid );
 
-        /*! \brief Set the mrc metadata to default values for 3d cryo-EM.
-         */
-        void set_metadata_mrc_default();
-
         std::array<int, 3> xyz_to_crs(const std::array<int, 3> &order);
         std::array<int, 3> to_xyz_order(const std::array<int, 3> &i_crs);
         std::array<int, 3> to_crs_order(const std::array<int, 3> &xyz_order);
@@ -119,12 +116,28 @@ class MrcFile::Impl
             // swap bytes for correct endianness
             if (meta_.swap_bytes)
             {
-                if (sizeof(T) == 4)
+                // byte swap for complex numbers, swap real and imaginary part seperately
+                if (std::is_same<T, t_complex>())
+                {
+                    GMX_THROW(NotImplementedError("Cannot read complex numbers for now."));
+                }
+                // byte swap for real numbers
+                if (std::is_same<T, double>())
+                {
+                    gmx_int64_t int_tmp = gmx_int64_t(*result);
+                    *result = (int_tmp & 0xFF00000000000000) >> 7*8 | (int_tmp & 0x00FF000000000000) >> 5*8 |
+                        (int_tmp & 0x0000FF0000000000) >> 3*8 | (int_tmp & 0x000000FF00000000) >> 1*8 |
+                        (int_tmp & 0x00000000FF000000) << 1*8 | (int_tmp & 0x0000000000FF0000) << 3*8 |
+                        (int_tmp & 0x000000000000FF00) << 5*8 | (int_tmp & 0x00000000000000FF) << 7*8;
+                }
+
+                // byte swap for real numbers
+                if (std::is_same<T, float>())
                 {
                     gmx_int32_t int_tmp = gmx_int32_t(*result);
                     *result = (int_tmp & 0xFF000000) >> 24 | (int_tmp & 0x00FF0000) >> 8 | (int_tmp & 0x0000FF00) << 8 | (int_tmp & 0x000000FF) << 24;
                 }
-                if (sizeof(T) == 2)
+                if (std::is_same<T, int16_t>())
                 {
                     int16_t int_tmp = int16_t(*result);
                     *result = (int_tmp & 0xFF00) >> 8 | (int_tmp & 0x00FF) << 8;
@@ -144,9 +157,6 @@ class MrcFile::Impl
 
         bool colummn_row_section_order_valid_(std::array<int, 3> crs_to_xyz);
 
-        void swap_int32_(gmx_int32_t *result);
-        void swap_float32_(float *result);
-
         FILE     *file_;
         long      file_size_;
         const int size_extrarecord;
@@ -157,39 +167,6 @@ class MrcFile::Impl
 
         MrcMetaData                    meta_;
 };
-
-std::string MrcFile::Impl::print_to_string()
-{
-    meta_.labels[0].erase(std::remove_if(meta_.labels[0].begin(), meta_.labels[0].end(), [](int i){return i == '\000'; }), meta_.labels[0].end());
-    std::string result;
-    result += "\n---MrcFile Info--file size:" + std::to_string(file_size_) + "---\n";
-
-    result += "swap_bytes        : " + (meta_.swap_bytes == true ? std::string("true") : std::string("false"))    + " | swap bytes upon reading/writing (applied, when endianess is different between file and machine architecture\n";
-    result += "mrc_data_mode     : " + std::to_string(meta_.mrc_data_mode) + " | data mode, currently only mode 2 is supported (32-bit float real values)\n";
-    result += "machine_stamp     : " + std::to_string(meta_.machine_stamp) + " | endianess of map writing architecture (big endian " + std::to_string(0x44411111) + " little endian "+ std::to_string(0x11111444) + "\n";
-    result += "format_identifier : '"+ meta_.format_identifier;
-    result += "' | for all density formats: four 1-byte chars reading MAP \n";
-    result += "num_labels        : " + std::to_string(meta_.num_labels)    + " number of used crystallographic labels, 0 for imagestacks, 1 for em data\n";
-    result += "labels            : '" + std::string(meta_.labels[0].c_str()) + " crystallographic labels or ::::EMDataBank.org::::EMD-1234:::: for EMDB entries\n";
-    result += "crs_to_xyz        : " + std::to_string(meta_.crs_to_xyz[0]) + " " + std::to_string(meta_.crs_to_xyz[1]) + " " + std::to_string(meta_.crs_to_xyz[2]) + " Axis order\n";
-    result += "xyz_to_crs        : " + std::to_string(meta_.xyz_to_crs[0]) + " " + std::to_string(meta_.xyz_to_crs[1]) + " " + std::to_string(meta_.xyz_to_crs[2]) + " reversed Axis order\n";
-    result += "num_crs           : " + std::to_string(meta_.num_crs[0])    + " " + std::to_string(meta_.num_crs[1]) + " " + std::to_string(meta_.num_crs[2]) + " extend in column row section redundand entry, we use the grid extend (NX,NY,NZ) from header words 8-10\n";
-    result += "extend            : " + std::to_string(meta_.extend[0])    + " " + std::to_string(meta_.extend[1]) + " " + std::to_string(meta_.extend[2]) + " grid extend in x, y, z \n";
-    result += "crs_start         : " + std::to_string(meta_.crs_start[0])  + " " + std::to_string(meta_.crs_start[0]) + " " + std::to_string(meta_.crs_start[0])+" Start of values in grid, typically 0,0,0\n";
-    result += "min_value         : " + std::to_string(meta_.min_value)     + " minimum voxel value may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)\n";
-    result += "max_value         : " + std::to_string(meta_.max_value)     + " maximum voxel value may be used to scale values in currently unsupported compressed data mode (mrc_data_mode=0)\n";
-    result += "mean_value        : " + std::to_string(meta_.mean_value)    + " mean voxel value   (not always reported,as evident from density)\n";
-    result += "rms_value         : " + std::to_string(meta_.rms_value)     + " rms of the density (not always reported,as evident from density)\n";
-    result += "is_crystallographic: " + std::to_string(meta_.is_crystallographic) +" true if crystallographic data is to be read\n";
-    result += "has_skew_matrix   : " + (meta_.has_skew_matrix == true ? std::string("true") : std::string("false"))  + " only crystallographic data: true if skew matrix is stored\n";
-    // result+= "skew_matrix: " + std::to_string(meta_.skew_matrix)              +" only crystallographic data: skew matrix or, if skew flag is zero, data in place \n";
-    // result+= "skew_translation: " + std::to_string(meta_.skew_translation)         +" only crystallographic data: skew translatation or, if skew flag is zero, data in place of skew translation\n";
-    result += "num_bytes_extened_header : " + std::to_string(meta_.num_bytes_extened_header) +" only crystallographic data: the size of the symbol table in bytes\n";
-    // result+= "extended_header: " + std::to_string(meta_.extended_header)          +" only crystallographic data: extended header, usually symbol tables\n";
-    // result+= "extraskew: " + std::to_string(meta_.extraskew)                +" fields unused in EMDB standard, but used for skew matrix and translation in crystallogrphic data (skew flag, skew matrix and skew translation)\n";
-    // result+= "extra: " + std::to_string(meta_.extra)                    +" extra data in header, currently unused\n";
-    return result;
-}
 
 std::unique_ptr < IGrid < DIM>> MrcFile::Impl::setGridWithTranslationFromMrcMeta()
 {
@@ -563,18 +540,6 @@ void MrcFile::Impl::do_mrc_header_(bool bRead)
 
 };
 
-void MrcFile::Impl::swap_int32_(gmx_int32_t *result)
-{
-
-    gmx_int32_t src = *result;
-    *result = 0;
-
-    *result |= (src & 0xFF000000) >> 24;
-    *result |= (src & 0x00FF0000) >> 8;
-    *result |= (src & 0x0000FF00) << 8;
-    *result |= (src & 0x000000FF) << 24;
-}
-
 void MrcFile::Impl::do_mrc_data_(GridDataReal3D &grid_data, bool bRead)
 {
     const auto &lattice = grid_data.getGrid().lattice();
@@ -667,46 +632,6 @@ void MrcFile::Impl::open_file(std::string filename, bool bRead)
 
 }
 
-void MrcFile::Impl::set_metadata_mrc_default()
-{
-    meta_.swap_bytes               = false;
-    meta_.space_group              = 1;
-    meta_.mrc_data_mode            = 2;
-    meta_.num_bytes_extened_header = 0;
-    meta_.has_skew_matrix          = false;
-    meta_.crs_start                = {{0, 0, 0}};
-    meta_.crs_to_xyz               = {{0, 1, 2}};
-    meta_.xyz_to_crs               = {{0, 1, 2}};
-    meta_.skew_matrix              = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
-    meta_.skew_translation         = {0, 0, 0};
-    meta_.is_crystallographic      = false;
-    meta_.extra                    = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
-    meta_.extraskew                = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }};
-    meta_.format_identifier        = "MAP ";
-
-    // check endianess
-#if GMX_INTEGER_BIG_ENDIAN
-    meta_.machine_stamp            = 1145110528;
-#else
-    meta_.machine_stamp            = 4369;
-#endif
-
-    meta_.labels                   = {
-        {"::::EMDataBank.org::::EMD-xxxx::::Own Data Following EMDB convention::::::::::::"},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "},
-        {"                                                                                "}
-    };
-    meta_.num_labels               = meta_.labels.size();
-    meta_.extended_header          = {};
-}
-
 void MrcFile::Impl::close_file()
 {
     gmx_fio_fclose(file_);
@@ -717,7 +642,7 @@ MrcFile::Impl::Impl() : file_(nullptr), file_size_(0), size_extrarecord(15),
                         filetypes({"mrc", "ccp4", "imod", "map"}
                                   )
 {
-    MrcFile::Impl::set_metadata_mrc_default();
+    meta_.setEMDBDefaults();
 };
 
 MrcFile::Impl::~Impl()
@@ -756,7 +681,7 @@ std::string MrcFile::print_to_string()
     return impl_->print_to_string();
 }
 
-void MrcFile::write_with_own_meta(std::string filename, GridDataReal3D &grid_data, MrcMetaData &meta, bool bOwnGridStats)
+void MrcFile::write_with_own_meta(std::string filename, GridDataReal3D &grid_data, const MrcMetaData &meta, bool bOwnGridStats)
 {
     bool bRead = false;
 
@@ -785,19 +710,19 @@ void MrcFile::write(std::string filename, const GridDataReal3D &grid_data)
 }
 
 
-void MrcFile::read_meta(std::string filename, MrcMetaData &meta)
+void MrcFile::read_meta(std::string filename, MrcMetaData *meta)
 {
     bool        bRead = true;
     impl_->open_file(filename, bRead);
     impl_->do_mrc_header_(bRead);
     impl_->close_file();
-    meta = impl_->meta_;
+    *meta = impl_->meta_;
 }
 
-GridDataReal3D MrcFile::read_with_meta(std::string filename, MrcMetaData &meta)
+GridDataReal3D MrcFile::read_with_meta(std::string filename, MrcMetaData *meta)
 {
     auto result = read(filename);
-    meta = impl_->meta_;
+    *meta = impl_->meta_;
     return result;
 }
 
@@ -811,78 +736,6 @@ GridDataReal3D MrcFile::read(std::string filename)
     impl_->do_mrc_data_(result, bRead);
     impl_->close_file();
     return result;
-}
-
-Df3File::SuccessfulDf3Write
-Df3File::write(std::string filename, const gmx::GridDataReal3D &grid_data)
-{
-    const auto &grid  = grid_data.getGrid();
-    auto        file_ = gmx_fio_fopen(filename.c_str(), "w");
-    int16_t     xExtendShort {
-        int16_t(grid.lattice().extend()[XX])
-    };
-    int16_t yExtendShort {
-        int16_t(grid.lattice().extend()[YY])
-    };
-    int16_t zExtendShort {
-        int16_t(grid.lattice().extend()[ZZ])
-    };
-    fputc(xExtendShort >> 8, file_);
-    fputc(xExtendShort & 0xff, file_);
-    fputc(yExtendShort >> 8, file_);
-    fputc(yExtendShort & 0xff, file_);
-    fputc(zExtendShort >> 8, file_);
-    fputc(zExtendShort & 0xff, file_);
-    auto measure = DataVectorMeasure(grid_data);
-    auto gridMax = measure.max();
-    auto gridMin = measure.min();
-    for (auto voxel : grid_data)
-    {
-        auto scaledValue = float(voxel - gridMin)/float(gridMax-gridMin);
-        char datum       = static_cast<char>(255*scaledValue);
-        fputc(datum, file_);
-    }
-    gmx_fio_fclose(file_);
-    return Df3File::SuccessfulDf3Write(filename, grid_data);
-}
-
-Df3File::SuccessfulDf3Write::SuccessfulDf3Write(std::string filename, const gmx::GridDataReal3D &grid_data) : filename_ {filename}, gridData_ {
-    grid_data
-} {};
-
-void Df3File::SuccessfulDf3Write::writePovray()
-{
-    const auto &cell         = gridData_.getGrid().cell();
-    auto        file         = gmx_fio_fopen((filename_+".pov").c_str(), "w");
-    auto        translation  = cell.transformFromBasis({{0., 0., 0.}});
-    std::string povRayString = "#declare DD = <" + std::to_string(NM2A * cell.basisVectorLength(XX)) + "," + std::to_string(NM2A *cell.basisVectorLength(YY)) + "," + std::to_string(NM2A *cell.basisVectorLength(ZZ)) + ">;\n";
-    povRayString += std::string("#declare theinterior = interior {\n")
-        +"\tmedia {\n"
-        +"\t\temission <1,1,1> / 10\n"
-        +"\t\tabsorption <1,1,1> / 3\n"
-        +"\t\tscattering {1 0.5}\n"
-        +"\t\tdensity {\n"
-        +"\t\t\tdensity_file df3 \"" + filename_+"\"\n"
-        +"\t\t\tinterpolate 1\n"
-        +"\t\t\tcolor_map {\n"
-        +"\t\t\t\t[0 rgb <0,0,0>]\n"
-        +"\t\t\t\t[1 rgb <1,1,1>]\n"
-        +"\t\t\t}\n"
-        +"\t\t}\n"
-        +"\t}\n"
-        +"}\n"
-        +"\n"
-        + "box {\n"
-        +"\t\t<0,0,0>, <1,1,1>\n"
-        +"\t\tpigment { rgbf 1 }\n"
-        +"\t\tinterior { theinterior }\n"
-        +"\t\thollow\n"
-        +"\t\tscale DD\n"
-        +"\t\ttranslate <" + std::to_string(NM2A *translation[XX]) + ","+std::to_string(NM2A *translation[YY])+ "," + std::to_string(NM2A *translation[ZZ]) + ">\n"
-        +"\t}\n";
-    fprintf(file, "%s", povRayString.c_str());
-    gmx_fio_fclose(file);
-
 }
 
 } // namespace gmx
