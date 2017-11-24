@@ -51,6 +51,7 @@
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/math/quaternion.h"
 #include "gromacs/math/griddata/operations/modifygriddata.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/options/basicoptions.h"
@@ -116,6 +117,7 @@ class Map : public TrajectoryAnalysisModule
         std::vector<real>                      fitWeights;
         bool                                   bUseBox_ = false;
         std::unique_ptr<DensitySpreader>       spreader_;
+        Quaternion::QVec                       orientation_;
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -169,6 +171,7 @@ void Map::initOptions(IOptionsContainer          *options,
     options->addOption(BooleanOption("rigidBodyFit")
                            .store(&bRigidBodyFit_)
                            .description("Use rigid body fitting in all steps."));
+    options->addOption(FloatOption("orientation").store(orientation_.data()).vector());
     options->addOption(BooleanOption("useBox").store(&bUseBox_).description(
                                "Use the box information in the structure file to setup the grid."));
     options->addOption(

@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <array>
 #include <numeric>
+#include <functional>
 
 namespace gmx
 {

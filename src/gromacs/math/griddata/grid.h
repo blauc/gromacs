@@ -350,6 +350,7 @@ class GridWithTranslation : public Grid<N>
         NdVector                     translation_;
 };
 
+
 }
 
 #endif

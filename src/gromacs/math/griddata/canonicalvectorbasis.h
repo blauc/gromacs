@@ -48,6 +48,7 @@
 #include <numeric>
 #include <algorithm>
 #include <functional>
+#include <cmath>
 
 namespace gmx
 {
@@ -144,6 +145,17 @@ class CanonicalVectorBasis
         {
             return std::accumulate(std::begin(basisVectorLengths_), std::end(basisVectorLengths_), 1.0, std::multiplies<real>());
         }
+
+        /*! \brief
+         * The length of all basis vectors.
+         *
+         * \returns a vector with the lengths
+         */
+        NdVector basisVectorLengths() const
+        {
+            return basisVectorLengths_;
+        }
+
 
         /*! \brief
          * The length of a basis vector in the specified dimension.
