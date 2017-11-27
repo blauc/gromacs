@@ -61,7 +61,6 @@ class ForceDensity
     public:
         ForceDensity(const GridDataReal3D             &grid,
                      real                              sigma);
-        ~ForceDensity() = default;
         const std::array<GridDataReal3D, DIM> &getForce();
 
     private:

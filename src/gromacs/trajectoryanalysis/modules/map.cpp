@@ -226,10 +226,9 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
 
         //////////////// play with rotation /////////////////////////
         auto targetGrid = GridWithTranslationOrientation(inputdensity_.getGrid());
-        targetGrid.setOrientation({{1.4, 0., 0., 1}});
-        auto interp     = GridInterpolator(targetGrid);
-        auto rotated    = interp.interpolateLinearly(inputdensity_);
-        MrcFile().write("rotated.ccp4", *rotated);
+        targetGrid.setOrientation({{{1.4, 0., 0., 1}}});
+        auto rotated    = interpolateLinearly(inputdensity_, targetGrid);
+        MrcFile().write("rotated.ccp4", rotated);
         /////////////////////////////////////////////////////////////
     }
 }

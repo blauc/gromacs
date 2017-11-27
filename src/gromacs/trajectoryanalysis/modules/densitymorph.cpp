@@ -112,7 +112,7 @@ class DensityMorph : public TrajectoryAnalysisModule
         real                     sigma_          = 1;
         std::string              potentialType_;
         std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
-        PotentialEvaluatorHandle potentialEvaluator;
+        // PotentialEvaluatorHandle potentialEvaluator;
 };
 
 void DensityMorph::initOptions(IOptionsContainer          *options,

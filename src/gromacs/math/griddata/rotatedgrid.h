@@ -69,8 +69,8 @@ class GridWithTranslationOrientation : public Grid<DIM>
         /*! \brief
          * Infer translation and orientation from other grid properties
          */
-        GridWithTranslationOrientation(const IGrid<DIM> &other ) : Grid<DIM>{other.cell(), other.lattice()}, orientation_ {{0., 0., 0., 1.}}
-        { translation_ = other.multiIndexToCoordinate({0, 0, 0}); }
+        GridWithTranslationOrientation(const IGrid<DIM> &other ) : Grid<DIM>{other.cell(), other.lattice()}, orientation_ {{{0., 0., 0., 1.}}}
+        { translation_ = other.multiIndexToCoordinate({{0, 0, 0}}); }
 
 
         /*! \brief
@@ -144,7 +144,7 @@ class GridWithTranslationOrientation : public Grid<DIM>
 
             std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), std::minus<real>());
 
-            auto gridCenter = this->cell().scaledCopy({0.5, 0.5, 0.5});
+            auto gridCenter = this->cell().scaledCopy({{0.5, 0.5, 0.5}});
             std::transform(std::begin(x_translated), std::end(x_translated), std::begin(gridCenter.basisVectorLengths()), std::begin(x_translated), std::minus<real>());
             auto rTranslated = RVec {x_translated.data()};
             orientation_.rotate_backwards(rTranslated);

@@ -89,10 +89,9 @@ real CompareGridDatas::correlate(real threshold) const
 real CompareGridDatas::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
     real        sum    = 0;
-    const auto &interp = GridInterpolator(reference_.getGrid());
     for (const auto &r : coordinates)
     {
-        sum += interp.getLinearInterpolationAt(reference_, {{r[XX], r[YY], r[ZZ]}});
+        sum += getLinearInterpolationAt(reference_, {{r[XX], r[YY], r[ZZ]}});
     }
     return sum;
 };

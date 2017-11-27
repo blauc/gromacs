@@ -39,36 +39,22 @@
 
 #include "gromacs/utility/real.h"
 #include "gromacs/math/griddata/canonicalvectorbasis.h"
-#include "gromacs/math/vectypes.h"
 #include "gromacs/math/griddata/griddata.h"
 
 namespace gmx
 {
-class Quaternion;
+template <int N> class IGrid;
 
-template<int N> class GridWithTranslation;
 #ifndef DIM
 #define DIM 3
 #endif
 
+GridDataReal3D interpolateLinearly(const GridDataReal3D &other, const IGrid < DIM>  &targetGrid);
+/*! \brief
+    Interpolating after shifting and orienting the other grid.
+ */
+real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r);
 
-class GridInterpolator
-{
-    public:
-        GridInterpolator(const IGrid < DIM>  &basis);
-        std::unique_ptr < GridDataReal3D> interpolateLinearly(const GridDataReal3D &other);
-        /*! \brief
-            Interpolating after shifting and orienting the other grid.
-         */
-        real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const;
-
-        void makeUniform();
-
-    private:
-        std::unique_ptr < GridDataReal3D> interpolatedGrid_;
-};
-
-
-}
+}       // namespace gmx
 
  #endif /* end of include guard: GMX_MATH_GRIDINTERPOLATOR_H */

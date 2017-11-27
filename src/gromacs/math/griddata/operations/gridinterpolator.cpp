@@ -33,27 +33,22 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 #include "gridinterpolator.h"
-#include "gromacs/math/quaternion.h"
-#include "gromacs/math/griddata/griddata.h"
+
 #include "gromacs/math/vec.h"
 
 namespace gmx
 {
-GridInterpolator::GridInterpolator(const IGrid < DIM> &basis)
-    : interpolatedGrid_ {std::unique_ptr < GridDataReal3D>(new GridDataReal3D(basis))}
-{
-}
 
 /*
  * for each target grid point:
  *      find rational number grid cell index in input grid
  *      use fractional part for weights
  */
-std::unique_ptr < GridDataReal3D>
-GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
+GridDataReal3D
+interpolateLinearly(const GridDataReal3D &other, const IGrid < DIM> &targetGrid)
 {
-    const auto &grid   = interpolatedGrid_->getGrid();
-    const auto &extend = grid.lattice().extend();
+    GridDataReal3D interpolatedData(targetGrid);
+    const auto    &extend = targetGrid.lattice().extend();
 
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
@@ -61,16 +56,16 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
         {
             for (int i_x = 0; i_x < extend[XX]; ++i_x)
             {
-                auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
-                *(interpolatedGrid_->iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, r);
+                auto r                 = targetGrid.multiIndexToCoordinate({{i_x, i_y, i_z}});
+                *(interpolatedData.iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, r);
             }
         }
     }
 
-    return std::move(interpolatedGrid_);
+    return interpolatedData;
 }
 
-real GridInterpolator::getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const
+real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r)
 {
     auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex(r);
     auto w            = field.getGrid().gridVectorFromGridPointToCoordinate(r, iIndexInGrid);

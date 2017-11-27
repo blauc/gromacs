@@ -70,7 +70,6 @@ class PotentialEvaluatorHandle
         {};
         PotentialEvaluatorHandle(const PotentialEvaluatorHandle &other) : evaluator_ {other.evaluator_}
         {};
-        ~PotentialEvaluatorHandle() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights, const GridDataReal3D &reference,
                        const RVec &translation = {0, 0, 0},

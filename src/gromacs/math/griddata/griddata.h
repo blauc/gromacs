@@ -116,7 +116,7 @@ class GridData : public TContainer
         GridData &operator=(const GridData &other)
         {
             this->TContainer::operator=(other);
-            grid_ = other.grid_.duplicate();
+            grid_ = other.grid_->duplicate();
             this->resize(grid_->lattice().getNumLatticePoints());
         }
         /*! \brief
