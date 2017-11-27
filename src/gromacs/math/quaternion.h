@@ -60,7 +60,8 @@ class Quaternion
          */
         Quaternion(RVec direction, real phi);
         Quaternion(const RVec &x);
-        Quaternion(QVec q);
+        Quaternion(const QVec &qvec);
+        Quaternion(const Quaternion &quaternion) = default;
         real &operator[](int i);
         /*! \brief Invert this QVec.
          * q^(-1) = q*

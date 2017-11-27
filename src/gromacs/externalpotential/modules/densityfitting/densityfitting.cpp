@@ -217,9 +217,10 @@ DensityFitting::DensityFitting() : ExternalPotential(),
                                                 ), number_of_threads_ {
     std::max(1, gmx_omp_nthreads_get(emntDefault))
 },
-exponentialDeltaEnergyAverage_ {
-    0.0
-}, orientation_ {
+// exponentialDeltaEnergyAverage_ {
+// 0.0
+// },
+orientation_ {
     Quaternion::QVec({{1., 0., 0., 0.}})
 }
 {

@@ -59,7 +59,6 @@ class constGroupAtom
 {
     public:
         constGroupAtom()  = default;
-        ~constGroupAtom() = default;
         constGroupAtom(const GroupAtom &atom);
         const real                                   *x;
         std::vector<RVec>::const_iterator             force;
@@ -75,7 +74,6 @@ class GroupAtom
 {
     public:
         GroupAtom()  = default;
-        ~GroupAtom() = default;
         GroupAtom(const constGroupAtom &constAtom); //TODO: remove this dirty const-away casting
         const real                             *x;
         std::vector<RVec>::iterator             force;

@@ -45,7 +45,7 @@
 
 namespace gmx
 {
-struct GroupAtom;
+class GroupAtom;
 namespace externalpotential
 {
 class Template : public ExternalPotential

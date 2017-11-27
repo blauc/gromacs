@@ -104,7 +104,7 @@ class DensityFitting : public ExternalPotential
         real        k_;
         real        sigma_;
         real        n_sigma_;
-        real        norm_simulated_;
+        // real        norm_simulated_;
         int         every_nth_step_;
         std::string options_;
 
@@ -119,19 +119,19 @@ class DensityFitting : public ExternalPotential
         RVec                    translation_;
         RVec                    centerOfRotation_;
         std::vector<real>       reference_density_;
-        real                    reference_divergence_ = 0;
+        // real                    reference_divergence_ = 0;
         real                    k_factor_;
         int                     number_of_threads_;
-        real                    absolute_target_divergence_;
+        // real                    absolute_target_divergence_;
         real                    optimalDeltaPotentialEnergy_;
-        real                    exponentialDeltaEnergyAverage_;
+        // real                    exponentialDeltaEnergyAverage_;
         real                    maximumEnergyFluctuationPerAtom_;
         std::string             target_density_name_;
         Quaternion              orientation_;
         std::string             fitMethod_;
         std::function<void(const matrix box, const rvec x[])> initialize_;
         bool                    bWriteXTC_;
-        real                    totalScatteringSum_;
+        // real                    totalScatteringSum_;
 
 };
 

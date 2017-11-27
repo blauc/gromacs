@@ -56,7 +56,7 @@ Quaternion::Quaternion(const RVec &x) : q_
 }
 {}
 
-Quaternion::Quaternion(QVec q) : q_ {q}
+Quaternion::Quaternion(const QVec &q) : q_ {q}
 {}
 
 
