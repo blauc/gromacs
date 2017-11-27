@@ -83,8 +83,6 @@ class MrcFile::Impl
         bool known_extension(std::string filename);
         void read_file_size();
 
-        std::string print_to_string();
-
         void do_mrc_data_(GridDataReal3D &grid_data, bool bRead);
         void do_mrc_header_(bool bRead);
         std::unique_ptr < IGrid < DIM>> setGridWithTranslationFromMrcMeta();
@@ -674,11 +672,6 @@ MrcFile::MrcFile() : impl_(new MrcFile::Impl)
 MrcFile::~MrcFile()
 {
     impl_->close_file();
-}
-
-std::string MrcFile::print_to_string()
-{
-    return impl_->print_to_string();
 }
 
 void MrcFile::write_with_own_meta(std::string filename, GridDataReal3D &grid_data, const MrcMetaData &meta, bool bOwnGridStats)

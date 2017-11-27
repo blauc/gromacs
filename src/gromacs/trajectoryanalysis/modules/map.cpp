@@ -53,6 +53,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/griddata/operations/modifygriddata.h"
+#include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
@@ -104,7 +105,6 @@ class Map : public TrajectoryAnalysisModule
         std::unique_ptr < GridDataReal3D>      inputdensity_;
         std::unique_ptr < GridDataReal3D>      outputDensityBuffer_;
         real                                   spacing_       = 0.2;
-        bool                                   bPrint_        = false;
         bool                                   bRigidBodyFit_ = true;
         std::vector<float>                     weight_;
         int                                    every_                    = 1;
@@ -117,7 +117,7 @@ class Map : public TrajectoryAnalysisModule
         std::vector<real>                      fitWeights;
         bool                                   bUseBox_ = false;
         std::unique_ptr<DensitySpreader>       spreader_;
-        Quaternion::QVec                       orientation_;
+        Quaternion::QVec                       orientation_ = {{1, 0, 0, 1}};
 };
 
 void Map::initOptions(IOptionsContainer          *options,
@@ -166,12 +166,10 @@ void Map::initOptions(IOptionsContainer          *options,
                                "Spacing of the density grid (nm)"));
     options->addOption(IntegerOption("every").store(&every_).description(
                                "Analyse only -every frame."));
-    options->addOption(BooleanOption("print").store(&bPrint_).description(
-                               "Output density information to terminal, then exit."));
     options->addOption(BooleanOption("rigidBodyFit")
                            .store(&bRigidBodyFit_)
                            .description("Use rigid body fitting in all steps."));
-    options->addOption(FloatOption("orientation").store(orientation_.data()).vector());
+    options->addOption(FloatOption("orientation").store(orientation_.data()).vector().valueCount(4));
     options->addOption(BooleanOption("useBox").store(&bUseBox_).description(
                                "Use the box information in the structure file to setup the grid."));
     options->addOption(
@@ -224,11 +222,10 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     {
         MrcFile ccp4inputfile;
         inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (ccp4inputfile.read(fnmapinput_)));
-        if (bPrint_)
-        {
-            fprintf(stderr, "\n%s\n", ccp4inputfile.print_to_string().c_str());
-        }
     }
+    auto interp  = GridInterpolator(inputdensity_->getGrid().duplicate());
+    auto rotated = interp.interpolateLinearly(*inputdensity_, {0., 0., 0.}, {0., 0., 0.}, orientation_);
+    MrcFile().write("rotated.ccp4", *rotated);
 }
 
 void Map::set_box_from_frame(const t_trxframe &fr, matrix box,

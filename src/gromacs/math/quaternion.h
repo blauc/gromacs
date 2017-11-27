@@ -59,7 +59,7 @@ class Quaternion
          * \param[in] phi Rotation around direction in rad.
          */
         Quaternion(RVec direction, real phi);
-        Quaternion(RVec &x);
+        Quaternion(const RVec &x);
         Quaternion(QVec q);
         real &operator[](int i);
         /*! \brief Invert this QVec.

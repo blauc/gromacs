@@ -48,7 +48,7 @@
 namespace gmx
 {
 
-Quaternion::Quaternion(RVec &x) : q_
+Quaternion::Quaternion(const RVec &x) : q_
 {
     {
         0, x[0], x[1], x[2]
