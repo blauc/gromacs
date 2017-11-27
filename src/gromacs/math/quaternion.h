@@ -50,9 +50,17 @@
 namespace gmx
 {
 
+/*! \brief Quaternion class.
+ *
+ * These quaternions describe orientations in three dimensional space,
+ * via angle \phi and axis x ={x_1,x_2,x_3}.
+ *
+ */
 class Quaternion
 {
     public:
+        /*! \brief Four dimensional vector (\phi, x_1, x_2, x_3).
+         */
         typedef std::array<real, 4> QVec;
         /*! Construct a QVec from orientation direction and rotation angle.
          * \param[in] direction Vector pointing into the orientation direction.

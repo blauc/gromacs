@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
  * http://www.gnu.org/licenses, or write to the Free Software Foundation,
- * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1DIM01  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
  * consider that scientific software is very special. Version
@@ -54,23 +54,30 @@ namespace gmx
  * \tparam N dimensionality of the grid
  */
 
-class GridWithTranslationOrientation : public Grid<3>
+class GridWithTranslationOrientation : public Grid<DIM>
 {
     public:
-        typedef typename CanonicalVectorBasis<3>::NdVector NdVector;
-        typedef typename ColumnMajorLattice<3>::MultiIndex MultiIndex;
+        typedef typename CanonicalVectorBasis<DIM>::NdVector NdVector;
+        typedef typename ColumnMajorLattice<DIM>::MultiIndex MultiIndex;
 
         /*! \brief
-         * Construct \ref gmx::Grid with additional translation vector.
+         * Construct \ref gmx::Grid with additional translation and orientation.
          */
-        GridWithTranslationOrientation(const CanonicalVectorBasis<3> &cell, const ColumnMajorLattice<3> &lattice, const NdVector &translation, const Quaternion orientation ) :
-            Grid<3>{cell, lattice}, translation_ {translation}, orientation_ {orientation} { }
+        GridWithTranslationOrientation(const CanonicalVectorBasis<DIM> &cell, const ColumnMajorLattice<DIM> &lattice, const NdVector &translation, const Quaternion orientation ) :
+            Grid<DIM>{cell, lattice}, translation_ {translation}, orientation_ {orientation} { }
+
+        /*! \brief
+         * Infer translation and orientation from other grid properties
+         */
+        GridWithTranslationOrientation(const IGrid<DIM> &other ) : Grid<DIM>{other.cell(), other.lattice()}, orientation_ {{0., 0., 0., 1.}}
+        { translation_ = other.multiIndexToCoordinate({0, 0, 0}); }
+
 
         /*! \brief
          * Copy constructor declared, because the default constructor is deleted.
          * \param[in] other Grid to be copied from
          */
-        GridWithTranslationOrientation(const GridWithTranslationOrientation &other) : Grid<3>{other}, translation_ {other.translation_}, orientation_ {other.orientation_} {}
+        GridWithTranslationOrientation(const GridWithTranslationOrientation &other) : Grid<DIM>{other}, translation_ {other.translation_}, orientation_ {other.orientation_} {}
 
         /*! \brief
          * Copy assignment operator declared, because the default constructor is deleted.
@@ -79,7 +86,7 @@ class GridWithTranslationOrientation : public Grid<3>
          */
         GridWithTranslationOrientation &operator=(GridWithTranslationOrientation other)
         {
-            Grid<3>::operator=(other);
+            Grid<DIM>::operator=(other);
             std::swap(translation_, other.translation_);
             std::swap(orientation_, other.orientation_);
             return *this;
@@ -88,19 +95,19 @@ class GridWithTranslationOrientation : public Grid<3>
         //! \copydoc IGrid::gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex & i)
         NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {
-            return Grid<3>::gridVectorFromGridPointToCoordinate(translateIntoGrid_(x), i);
+            return Grid<DIM>::gridVectorFromGridPointToCoordinate(translateIntoGrid_(x), i);
         };
 
         //! \copydoc IGrid::coordinateToFloorMultiIndex(const NdVector &x)
         MultiIndex coordinateToFloorMultiIndex(const NdVector &x) const override
         {
-            return Grid<3>::coordinateToFloorMultiIndex(translateIntoGrid_(x));
+            return Grid<DIM>::coordinateToFloorMultiIndex(translateIntoGrid_(x));
         }
 
         //! \copydoc IGrid::multiIndexToCoordinate(const MultiIndex &i)
         NdVector multiIndexToCoordinate(const MultiIndex &i) const override
         {
-            return translateFromGrid_(Grid<3>::multiIndexToCoordinate(i));
+            return translateFromGrid_(Grid<DIM>::multiIndexToCoordinate(i));
         }
         /*! \brief
          * Set the orientation around the grid mid-point .
@@ -121,9 +128,9 @@ class GridWithTranslationOrientation : public Grid<3>
         }
 
         //! \copydoc IGrid::duplicate()
-        typename IGrid<3>::IGridPointer duplicate() const override
+        typename IGrid<DIM>::IGridPointer duplicate() const override
         {
-            return typename IGrid<3>::IGridPointer(new GridWithTranslationOrientation(*this));
+            return typename IGrid<DIM>::IGridPointer(new GridWithTranslationOrientation(*this));
         }
 
     private:

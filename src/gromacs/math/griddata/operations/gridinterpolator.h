@@ -55,7 +55,7 @@ template<int N> class GridWithTranslation;
 class GridInterpolator
 {
     public:
-        GridInterpolator(std::unique_ptr < IGrid < DIM>> basis);
+        GridInterpolator(const IGrid < DIM>  &basis);
         std::unique_ptr < GridDataReal3D> interpolateLinearly(const GridDataReal3D &other);
         /*! \brief
             Interpolating after shifting and orienting the other grid.

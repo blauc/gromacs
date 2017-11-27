@@ -88,6 +88,16 @@ class GridData : public TContainer
             this->resize(grid_->lattice().getNumLatticePoints());
         }
         /*! \brief
+         * Copies a grid to construct GridData.
+         *
+         * Allocates data container elements matching to the number of lattice points in the grid.
+         * \param[in] grid Pointer to interface that describes the grid. */
+        GridData(const IGrid < N> &grid) : grid_ {std::move(grid.duplicate())}
+        {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+
+        /*! \brief
          * Copy constructor for GridData.
          * \param[in] other GridData to be copied from. */
         GridData(const GridData &other) : TContainer(other), grid_ {other.grid_->duplicate()}

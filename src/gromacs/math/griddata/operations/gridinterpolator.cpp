@@ -39,10 +39,10 @@
 
 namespace gmx
 {
-GridInterpolator::GridInterpolator(std::unique_ptr < IGrid < DIM>> basis)
-    : interpolatedGrid_ {std::unique_ptr < GridDataReal3D>(new GridDataReal3D(std::move(basis)))}
+GridInterpolator::GridInterpolator(const IGrid < DIM> &basis)
+    : interpolatedGrid_ {std::unique_ptr < GridDataReal3D>(new GridDataReal3D(basis))}
 {
-};
+}
 
 /*
  * for each target grid point:
@@ -68,7 +68,7 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
     }
 
     return std::move(interpolatedGrid_);
-};
+}
 
 real GridInterpolator::getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const
 {

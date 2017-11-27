@@ -52,6 +52,7 @@
 #include "gromacs/math/do_fit.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/quaternion.h"
+#include "gromacs/math/griddata/rotatedgrid.h"
 #include "gromacs/math/griddata/operations/modifygriddata.h"
 #include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
@@ -222,10 +223,14 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     {
         MrcFile ccp4inputfile;
         inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (ccp4inputfile.read(fnmapinput_)));
+
+        //////////////// play with rotation /////////////////////////
+        auto targetGrid = GridWithTranslationOrientation(inputdensity_->getGrid());
+        auto interp     = GridInterpolator(targetGrid);
+        auto rotated    = interp.interpolateLinearly(*inputdensity_);
+        MrcFile().write("rotated.ccp4", *rotated);
+        /////////////////////////////////////////////////////////////
     }
-    auto interp  = GridInterpolator(inputdensity_->getGrid().duplicate());
-    auto rotated = interp.interpolateLinearly(*inputdensity_);
-    MrcFile().write("rotated.ccp4", *rotated);
 }
 
 void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
