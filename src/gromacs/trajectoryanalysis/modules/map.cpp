@@ -103,8 +103,8 @@ class Map : public TrajectoryAnalysisModule
 
         float                                  sigma_   = 0.4;
         float                                  n_sigma_ = 5;
-        std::unique_ptr < GridDataReal3D>      inputdensity_;
-        std::unique_ptr < GridDataReal3D>      outputDensityBuffer_;
+        GridDataReal3D                         inputdensity_;
+        GridDataReal3D                         outputDensityBuffer_;
         real                                   spacing_       = 0.2;
         bool                                   bRigidBodyFit_ = true;
         std::vector<float>                     weight_;
@@ -222,12 +222,13 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     if (!fnmapinput_.empty())
     {
         MrcFile ccp4inputfile;
-        inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (ccp4inputfile.read(fnmapinput_)));
+        inputdensity_ = ccp4inputfile.read(fnmapinput_);
 
         //////////////// play with rotation /////////////////////////
-        auto targetGrid = GridWithTranslationOrientation(inputdensity_->getGrid());
+        auto targetGrid = GridWithTranslationOrientation(inputdensity_.getGrid());
+        targetGrid.setOrientation({{1.4, 0., 0., 1}});
         auto interp     = GridInterpolator(targetGrid);
-        auto rotated    = interp.interpolateLinearly(*inputdensity_);
+        auto rotated    = interp.interpolateLinearly(inputdensity_);
         MrcFile().write("rotated.ccp4", *rotated);
         /////////////////////////////////////////////////////////////
     }
@@ -266,7 +267,7 @@ void Map::set_finitegrid_from_box(matrix box, rvec translation)
                                                      (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
                                                  }};
     GridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
-    outputDensityBuffer_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D(outputdensitygrid.duplicate()));
+    outputDensityBuffer_ = GridDataReal3D(outputdensitygrid);
 }
 
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
@@ -284,13 +285,13 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
         else
         {
             // copy the grid properties from reference grid
-            outputDensityBuffer_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D(*inputdensity_));
+            outputDensityBuffer_ = GridDataReal3D(inputdensity_.getGrid());
         }
 
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(outputDensityBuffer_->getGrid(), 1, n_sigma_, sigma_));
+                    new DensitySpreader(outputDensityBuffer_.getGrid(), 1, n_sigma_, sigma_));
 
-        ModifyGridData(*outputDensityBuffer_).zero();
+        ModifyGridData(outputDensityBuffer_).zero();
     }
 
     std::vector<RVec> coordinates(fr.x, fr.x + fr.natoms);
@@ -299,7 +300,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
 
     if (nFr == 1)
     {
-        std::copy(std::begin(spreaddensity), std::end(spreaddensity), std::begin(*outputDensityBuffer_));
+        std::copy(std::begin(spreaddensity), std::end(spreaddensity), std::begin(outputDensityBuffer_));
     }
     else
     {
@@ -310,7 +311,7 @@ void Map::frameToDensity_(const t_trxframe &fr, int nFr)
                                            const real &average) {
                 return expAverage_ * current + (1 - expAverage_) * average;
             };
-        std::transform(std::begin(spreaddensity), std::end(spreaddensity), std::begin(spreaddensity), std::begin(*outputDensityBuffer_), exponentialAveraging);
+        std::transform(std::begin(spreaddensity), std::end(spreaddensity), std::begin(spreaddensity), std::begin(outputDensityBuffer_), exponentialAveraging);
     }
 }
 
@@ -341,7 +342,7 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
         if (!fnmapoutput_.empty())
         {
-            MrcFile().write( fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", *outputDensityBuffer_);
+            MrcFile().write( fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
         }
 
     }

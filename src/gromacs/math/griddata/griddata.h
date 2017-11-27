@@ -79,6 +79,11 @@ class GridData : public TContainer
 {
     public:
         /*! \brief
+         * Default constructor for convenience.
+         *
+         * \TODO: causes segfaults when grid functions are accessed before initialisation  */
+        GridData() = default;
+        /*! \brief
          * Consumes a grid to construct GridData.
          *
          * Allocates data container elements matching to the number of lattice points in the grid.
@@ -102,6 +107,16 @@ class GridData : public TContainer
          * \param[in] other GridData to be copied from. */
         GridData(const GridData &other) : TContainer(other), grid_ {other.grid_->duplicate()}
         {
+            this->resize(grid_->lattice().getNumLatticePoints());
+        }
+
+        /*! \brief
+         * Copy assignment for GridData.
+         * \param[in] other GridData to be copied from. */
+        GridData &operator=(const GridData &other)
+        {
+            this->TContainer::operator=(other);
+            grid_ = other.grid_.duplicate();
             this->resize(grid_->lattice().getNumLatticePoints());
         }
         /*! \brief
