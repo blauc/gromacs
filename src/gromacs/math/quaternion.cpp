@@ -45,6 +45,8 @@
 #include <numeric>
 #include <array>
 
+#include <cstdio>
+
 namespace gmx
 {
 
@@ -55,12 +57,10 @@ Quaternion::Quaternion(const RVec &x) : q_
     }
 }
 {
-    normalize();
 }
 
 Quaternion::Quaternion(const QVec &q) : q_ {q}
 {
-    normalize();
 }
 
 
@@ -152,7 +152,7 @@ Quaternion::invert()
 void
 Quaternion::normalize()
 {
-    auto norm = this->norm();
+    const auto &norm = this->norm();
     for (auto &component : q_)
     {
         component /= norm;
@@ -162,7 +162,7 @@ Quaternion::normalize()
 real
 Quaternion::norm() const
 {
-    return std::sqrt(std::accumulate(begin(q_), end(q_), 0., [](const real squaresum, real component){return squaresum + component*component; }));
+    return std::sqrt(std::accumulate(std::begin(q_), std::end(q_), 0., [](const real squaresum, real component){return squaresum + component*component; }));
 }
 
 RVec

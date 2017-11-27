@@ -69,7 +69,7 @@ class GridWithTranslationOrientation : public Grid<DIM>
         /*! \brief
          * Infer translation and orientation from other grid properties
          */
-        GridWithTranslationOrientation(const IGrid<DIM> &other ) : Grid<DIM>{other.cell(), other.lattice()}, orientation_ {{{0., 0., 0., 1.}}}
+        GridWithTranslationOrientation(const IGrid<DIM> &other ) : Grid<DIM>{other.cell(), other.lattice()}, orientation_ {{0., 0., 1.}, 0.}
         { translation_ = other.multiIndexToCoordinate({{0, 0, 0}}); }
 
 
@@ -169,7 +169,7 @@ class GridWithTranslationOrientation : public Grid<DIM>
             // add grid translation to shifted vector
             std::transform(std::begin(xExternal.as_vec()), std::end(xExternal.as_vec()), std::begin(translation_), std::begin(xExternal.as_vec()), std::plus<real>());
 
-            return {xExternal[0], xExternal[1], xExternal[2]};
+            return {{xExternal[0], xExternal[1], xExternal[2]}};
 
         };
         //! The external coordinates of lattice point (0,...,0)

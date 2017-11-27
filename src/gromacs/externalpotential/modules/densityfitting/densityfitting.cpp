@@ -221,7 +221,9 @@ DensityFitting::DensityFitting() : ExternalPotential(),
 // 0.0
 // },
 orientation_ {
-    Quaternion::QVec({{1., 0., 0., 0.}})
+    {
+        1., 0., 0.
+    }, 0.
 }
 {
 }

@@ -59,7 +59,8 @@ namespace gmx
 class Quaternion
 {
     public:
-        /*! \brief Four dimensional vector (\phi, x_1, x_2, x_3).
+        Quaternion(const Quaternion &quaternion) = default;
+        /*! \brief Four dimensional vector (cos(\phi/2), x_1, x_2, x_3).
          */
         typedef std::array<real, 4> QVec;
         /*! Construct a QVec from orientation direction and rotation angle.
@@ -67,9 +68,6 @@ class Quaternion
          * \param[in] phi Rotation around direction in rad.
          */
         Quaternion(RVec direction, real phi);
-        Quaternion(const RVec &x);
-        Quaternion(const QVec &qvec);
-        Quaternion(const Quaternion &quaternion) = default;
         real &operator[](int i);
         real operator[](int i) const;
         /*! \brief Invert this QVec.
@@ -88,6 +86,8 @@ class Quaternion
         void rotate_backwards(RVec &x) const;
         RVec shiftedAndOriented(const RVec &x, const RVec &centerOfMass, const RVec &shift) const;
     private:
+        Quaternion(const QVec &qvec);
+        Quaternion(const RVec &x);
         QVec q_;
 };
 
