@@ -224,7 +224,7 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
         inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (ccp4inputfile.read(fnmapinput_)));
     }
     auto interp  = GridInterpolator(inputdensity_->getGrid().duplicate());
-    auto rotated = interp.interpolateLinearly(*inputdensity_, {0., 0., 0.}, {0., 0., 0.}, orientation_);
+    auto rotated = interp.interpolateLinearly(*inputdensity_);
     MrcFile().write("rotated.ccp4", *rotated);
 }
 

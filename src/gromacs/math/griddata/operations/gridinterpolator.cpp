@@ -54,6 +54,7 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
 {
     const auto &grid   = interpolatedGrid_->getGrid();
     const auto &extend = grid.lattice().extend();
+
     for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
     {
         for (int i_y = 0; i_y < extend[YY]; ++i_y)
@@ -65,36 +66,9 @@ GridInterpolator::interpolateLinearly(const GridDataReal3D &other)
             }
         }
     }
+
     return std::move(interpolatedGrid_);
 };
-
-std::unique_ptr < GridDataReal3D>
-GridInterpolator::interpolateLinearly(const GridDataReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation)
-{
-    if (norm2(translation) < 1e-10 && orientation.norm() <  1e-10)
-    {
-        return interpolateLinearly(other);
-    }
-
-    const auto &grid            = interpolatedGrid_->getGrid();
-    const auto &extend          = grid.lattice().extend();
-    for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
-    {
-        for (int i_y = 0; i_y < extend[YY]; ++i_y)
-        {
-            for (int i_x = 0; i_x < extend[XX]; ++i_x)
-            {
-
-                auto r                 = grid.multiIndexToCoordinate({{i_x, i_y, i_z}});
-                auto shifted_r         = orientation.shiftedAndOriented(RVec(r[XX], r[YY], r[ZZ]), centerOfMass, translation);
-                *(interpolatedGrid_->iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, {{shifted_r[XX], shifted_r[YY], shifted_r[ZZ]}} );
-
-            }
-        }
-    }
-    return std::move(interpolatedGrid_);
-}
-
 
 real GridInterpolator::getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const
 {

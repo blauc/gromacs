@@ -60,7 +60,6 @@ class GridInterpolator
         /*! \brief
             Interpolating after shifting and orienting the other grid.
          */
-        std::unique_ptr < GridDataReal3D> interpolateLinearly(const GridDataReal3D &other, const RVec &translation, const RVec &centerOfMass, const Quaternion &orientation);
         real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r) const;
 
         void makeUniform();
