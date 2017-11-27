@@ -140,17 +140,17 @@ class GridWithTranslationOrientation : public Grid<DIM>
          */
         NdVector translateIntoGrid_(const NdVector &x) const
         {
-            CanonicalVectorBasis<DIM>::NdVector x_translated;
+            CanonicalVectorBasis<DIM>::NdVector xInternal;
 
-            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), std::minus<real>());
+            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(xInternal), std::minus<real>());
 
-            auto gridCenter = this->cell().scaledCopy({{0.5, 0.5, 0.5}});
-            std::transform(std::begin(x_translated), std::end(x_translated), std::begin(gridCenter.basisVectorLengths()), std::begin(x_translated), std::minus<real>());
-            auto rTranslated = RVec {x_translated.data()};
+            auto gridCenter = this->cell().scaledCopy({{0.5, 0.5, 0.5}}).basisVectorLengths();
+            std::transform(std::begin(xInternal), std::end(xInternal), std::begin(gridCenter), std::begin(xInternal), std::minus<real>());
+            RVec rTranslated {xInternal.data()};
             orientation_.rotate_backwards(rTranslated);
-            std::transform(std::begin(rTranslated.as_vec()), std::end(rTranslated.as_vec()), std::begin(gridCenter.basisVectorLengths()), std::begin(x_translated), std::plus<real>());
+            std::transform(std::begin(rTranslated.as_vec()), std::end(rTranslated.as_vec()), std::begin(gridCenter), std::begin(xInternal), std::plus<real>());
 
-            return x_translated;
+            return xInternal;
         };
         /*! \brief
          * \param[in] x Vector to be translated from grid into external coordinates
@@ -158,18 +158,18 @@ class GridWithTranslationOrientation : public Grid<DIM>
          */
         NdVector translateFromGrid_(const NdVector &x) const
         {
-            CanonicalVectorBasis<DIM>::NdVector x_translated;
+            RVec xExternal;
 
-            auto gridCenter = this->lattice().extend();
-            RVec rCenter    = {gridCenter[0]/2.f, gridCenter[1]/2.f, gridCenter[2]/2.f};
-            std::transform(std::begin(x), std::end(x), std::begin(rCenter.as_vec()), std::begin(x_translated), std::minus<real>());
-            auto rTranslated = RVec {x_translated.data()};
-            orientation_.rotate(rTranslated);
-            std::transform(std::begin(rTranslated.as_vec()), std::end(rTranslated.as_vec()), std::begin(rCenter.as_vec()), std::begin(x_translated), std::plus<real>());
+            // rotate around grid center: shift to center, rotate, shift back
+            auto gridCenter = this->cell().scaledCopy({{0.5, 0.5, 0.5}}).basisVectorLengths();
+            std::transform(std::begin(x), std::end(x), std::begin(gridCenter), std::begin(xExternal.as_vec()), std::minus<real>());
+            orientation_.rotate(xExternal);
+            std::transform(std::begin(xExternal.as_vec()), std::end(xExternal.as_vec()), std::begin(gridCenter), std::begin(xExternal.as_vec()), std::plus<real>());
 
-            std::transform(std::begin(x), std::end(x), std::begin(translation_), std::begin(x_translated), std::plus<real>());
+            // add grid translation to shifted vector
+            std::transform(std::begin(xExternal.as_vec()), std::end(xExternal.as_vec()), std::begin(translation_), std::begin(xExternal.as_vec()), std::plus<real>());
 
-            return x_translated;
+            return {xExternal[0], xExternal[1], xExternal[2]};
 
         };
         //! The external coordinates of lattice point (0,...,0)

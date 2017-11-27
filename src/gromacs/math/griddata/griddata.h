@@ -118,6 +118,7 @@ class GridData : public TContainer
             this->TContainer::operator=(other);
             grid_ = other.grid_->duplicate();
             this->resize(grid_->lattice().getNumLatticePoints());
+            return *this;
         }
         /*! \brief
          * Access reference to the underlying grid.
