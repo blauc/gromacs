@@ -71,11 +71,12 @@ class Quaternion
         Quaternion(const QVec &qvec);
         Quaternion(const Quaternion &quaternion) = default;
         real &operator[](int i);
+        real operator[](int i) const;
         /*! \brief Invert this QVec.
          * q^(-1) = q*
          */
-        Quaternion operator*(Quaternion other) const;
-        Quaternion &operator*=(Quaternion other);
+        Quaternion operator*(const Quaternion &other) const;
+        Quaternion &operator*=(const Quaternion &other);
         Quaternion operator=(const Quaternion &other);
         void invert();
         Quaternion inverse() const;

@@ -54,10 +54,14 @@ Quaternion::Quaternion(const RVec &x) : q_
         0, x[0], x[1], x[2]
     }
 }
-{}
+{
+    normalize();
+}
 
 Quaternion::Quaternion(const QVec &q) : q_ {q}
-{}
+{
+    normalize();
+}
 
 
 Quaternion::Quaternion(RVec direction, real phi)
@@ -86,8 +90,14 @@ Quaternion::operator[](int i )
     return q_[i];
 }
 
+real
+Quaternion::operator[](int i ) const
+{
+    return q_[i];
+}
+
 Quaternion
-Quaternion::operator*(Quaternion other) const
+Quaternion::operator*(const Quaternion &other) const
 {
     return {{{
                  q_[0] * other[0] - q_[1] * other[1] - q_[2] * other[2] - q_[3] * other[3],
@@ -98,7 +108,7 @@ Quaternion::operator*(Quaternion other) const
 }
 
 Quaternion &
-Quaternion::operator*=(Quaternion other)
+Quaternion::operator*=(const Quaternion &other)
 {
     QVec result = {{
                        q_[0] * other[0] - q_[1] * other[1] - q_[2] * other[2] - q_[3] * other[3],
