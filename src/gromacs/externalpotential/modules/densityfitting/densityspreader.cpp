@@ -90,7 +90,7 @@ void DensitySpreader::zero() const
 
 
 const GridDataReal3D &
-DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights,  const RVec &translation, const Quaternion &orientation, const RVec &centerOfRotation) const
+DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights) const
 {
     std::vector<IVec>            minimumUsedGridIndex(number_of_threads_);
     std::vector<IVec>            maximumUsedGridIndex(number_of_threads_);
@@ -107,7 +107,7 @@ DensitySpreader::spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<
 
         for (auto atomIndex = beginThreadAtoms; atomIndex != endThreadAtoms; ++atomIndex)
         {
-            (*gauss_transform_)[thread]->transform(orientation.shiftedAndOriented(x[atomIndex], centerOfRotation, translation), weights[atomIndex]);
+            (*gauss_transform_)[thread]->transform(x[atomIndex], weights[atomIndex]);
         }
         (*simulated_density_buffer_)[thread] = (*gauss_transform_)[thread]->finish_and_return_grid(); //TODO:std:move ?
         minimumUsedGridIndex[thread]         = (*gauss_transform_)[thread]->getMinimumUsedGridIndex();

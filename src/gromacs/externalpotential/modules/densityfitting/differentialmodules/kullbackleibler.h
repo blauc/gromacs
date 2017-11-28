@@ -78,16 +78,11 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
         ~KullbackLeiblerProvider() = default;
         ForceEvaluatorHandle
         planForce(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                  const GridDataReal3D &reference, const std::string &options,
-                  const RVec &translation = {0, 0, 0},
-                  const Quaternion &orientation = {{1, 0, 0}, 0},
-                  const RVec &centerOfRotation = {0, 0, 0}) override;
+                  const GridDataReal3D &reference, const std::string &options) override;
         PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const GridDataReal3D &reference,
-                      const std::string &options, const RVec &translation = {0, 0, 0},
-                      const Quaternion &orientation = {{1, 0, 0}, 0},
-                      const RVec &centerOfRotation = {0, 0, 0}) override;
+                      const std::string &options) override;
 
     private:
         void log_(const std::string &message);

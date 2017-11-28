@@ -101,8 +101,7 @@ KullbackLeiblerPotential::KullbackLeiblerPotential(
 ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
         const std::vector<RVec> & /*coordinates*/,
         const std::vector<real> & /*weights*/, const GridDataReal3D &reference,
-        const std::string &options, const RVec & /*translation*/,
-        const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
+        const std::string &options)
 {
     parseOptions_(options);
     if (spreader_ == nullptr)
@@ -123,8 +122,7 @@ ForceEvaluatorHandle KullbackLeiblerProvider::planForce(
 PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
         const std::vector<RVec> & /*coordinates*/,
         const std::vector<real> & /*weights*/, const GridDataReal3D &reference,
-        const std::string &options, const RVec & /*translation*/,
-        const Quaternion & /*orientation*/, const RVec & /*centerOfRotation*/)
+        const std::string &options)
 {
     parseOptions_(options);
     if (spreader_ == nullptr)

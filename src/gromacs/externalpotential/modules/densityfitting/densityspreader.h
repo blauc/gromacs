@@ -59,7 +59,7 @@ class DensitySpreader
     public:
         explicit DensitySpreader(const IGrid<DIM> &grid, int numberOfThreads, int n_sigma, real sigma);
         ~DensitySpreader();
-        const GridDataReal3D &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights, const RVec &translation = {0, 0, 0}, const Quaternion &orientation = {{1, 0, 0}, 0}, const RVec &centerOfRotation = {0, 0, 0}) const;
+        const GridDataReal3D &spreadLocalAtoms(const std::vector<RVec> &x, const std::vector<real> &weights) const;
         void zero() const;
         const GridDataReal3D &getSpreadGrid() const;
 

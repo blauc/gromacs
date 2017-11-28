@@ -64,10 +64,7 @@ class densityBasedPotential : public PotentialEvaluator
         ~densityBasedPotential() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights,
-                       const GridDataReal3D &reference,
-                       const RVec &translation = {0, 0, 0},
-                       const Quaternion &orientation = {{1, 0, 0}, 0},
-                       const RVec &centerOfRotation = {0, 0, 0}) const override;
+                       const GridDataReal3D    &reference) const override;
         virtual real densityDensityPotential(const GridDataReal3D &reference,
                                              const GridDataReal3D &comparant) const = 0;
     protected:
@@ -85,10 +82,7 @@ class densityBasedForce : public ForceEvaluator
 
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
                    const std::vector<real> &weights,
-                   const GridDataReal3D &reference,
-                   const RVec &translation = {0, 0, 0},
-                   const Quaternion &orientation = {{1, 0, 0}, 0},
-                   const RVec &centerOfRotation = {0, 0, 0}) const override;
+                   const GridDataReal3D &reference) const override;
 
     protected:
         virtual void setDensityDifferential(const GridDataReal3D    &reference,

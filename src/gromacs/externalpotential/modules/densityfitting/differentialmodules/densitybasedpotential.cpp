@@ -62,17 +62,13 @@ densityBasedPotential::densityBasedPotential(const DensitySpreader &spreader,
 
 real densityBasedPotential::potential(const std::vector<RVec>    &coordinates,
                                       const std::vector<real>    &weights,
-                                      const GridDataReal3D       &reference,
-                                      const RVec                 &translation,
-                                      const Quaternion           &orientation,
-                                      const RVec                 &centerOfRotation) const
+                                      const GridDataReal3D       &reference) const
 {
     if (selfSpreading_)
     {
         spreader_.zero();
         return densityDensityPotential(
-                reference, spreader_.spreadLocalAtoms(coordinates, weights, translation,
-                                                      orientation, centerOfRotation));
+                reference, spreader_.spreadLocalAtoms(coordinates, weights));
     }
     else
     {
@@ -94,8 +90,7 @@ n_threads_ {
 
 void densityBasedForce::force(std::vector<RVec> &force,
                               const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                              const GridDataReal3D &reference, const RVec &translation,
-                              const Quaternion &orientation, const RVec &centerOfRotation) const
+                              const GridDataReal3D &reference) const
 {
     if (selfSpreading_)
     {
@@ -103,9 +98,7 @@ void densityBasedForce::force(std::vector<RVec> &force,
     }
     else
     {
-        setDensityDifferential(spreader_.spreadLocalAtoms(coordinates, weights,
-                                                          translation, orientation,
-                                                          centerOfRotation),
+        setDensityDifferential(spreader_.spreadLocalAtoms(coordinates, weights),
                                reference);
     }
     const auto &forceGrid =
@@ -114,15 +107,12 @@ void densityBasedForce::force(std::vector<RVec> &force,
     ;
     for (size_t i = 0; i != coordinates.size(); ++i)
     {
-        auto r = orientation.shiftedAndOriented(coordinates[i], centerOfRotation,
-                                                translation);
         auto f = RVec {
-            getLinearInterpolationAt(forceGrid[XX], {{r[XX], r[YY], r[ZZ]}}),
-            getLinearInterpolationAt(forceGrid[YY], {{r[XX], r[YY], r[ZZ]}}),
-            getLinearInterpolationAt(forceGrid[ZZ], {{r[XX], r[YY], r[ZZ]}})
+            getLinearInterpolationAt(forceGrid[XX], coordinates[i]),
+            getLinearInterpolationAt(forceGrid[YY], coordinates[i]),
+            getLinearInterpolationAt(forceGrid[ZZ], coordinates[i])
         };
         svmul(weights[i], f, force[i]);
-        orientation.rotate_backwards(force[i]);
     }
 }
 //

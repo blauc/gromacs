@@ -39,12 +39,9 @@
 #include "gromacs/math/griddata/griddata.h"
 #include "gromacs/utility/real.h"
 
-
 #include <memory>
 #include <string>
 #include <vector>
-
-#include "gromacs/math/quaternion.h"
 
 namespace gmx
 {
@@ -56,10 +53,7 @@ class PotentialEvaluator
         virtual ~PotentialEvaluator() = default;
         virtual real potential(const std::vector<RVec> &coordinates,
                                const std::vector<real> &weights,
-                               const GridDataReal3D &reference,
-                               const RVec &translation = {0, 0, 0},
-                               const Quaternion &orientation = {{1, 0, 0}, 0},
-                               const RVec &centerOfRotation = {0, 0, 0}) const = 0;
+                               const GridDataReal3D    &reference) const = 0;
 };
 
 class PotentialEvaluatorHandle
@@ -71,13 +65,9 @@ class PotentialEvaluatorHandle
         PotentialEvaluatorHandle(const PotentialEvaluatorHandle &other) : evaluator_ {other.evaluator_}
         {};
         real potential(const std::vector<RVec> &coordinates,
-                       const std::vector<real> &weights, const GridDataReal3D &reference,
-                       const RVec &translation = {0, 0, 0},
-                       const Quaternion &orientation = {{1, 0, 0}, 0},
-                       const RVec &centerOfRotation = {0, 0, 0}) const
+                       const std::vector<real> &weights, const GridDataReal3D &reference) const
         {
-            return evaluator_->potential(coordinates, weights, reference, translation,
-                                         orientation, centerOfRotation);
+            return evaluator_->potential(coordinates, weights, reference);
         };
 
     private:
@@ -91,22 +81,17 @@ class IStructureDensityPotentialProvider
         virtual PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const GridDataReal3D &reference,
-                      const std::string &options, const RVec &translation = {0, 0, 0},
-                      const Quaternion &orientation = {{1, 0, 0}, 0},
-                      const RVec &centerOfRotation = {0, 0, 0}) = 0;
+                      const std::string &options) = 0;
 };
 
 class ForceEvaluator
 {
     public:
         virtual ~ForceEvaluator() = default;
-        virtual void force(std::vector<RVec> &force,
+        virtual void force(std::vector<RVec>       &force,
                            const std::vector<RVec> &coordinates,
                            const std::vector<real> &weights,
-                           const GridDataReal3D &reference,
-                           const RVec &translation = {0, 0, 0},
-                           const Quaternion &orientation = {{1, 0, 0}, 0},
-                           const RVec &centerOfRotation = {0, 0, 0}) const = 0;
+                           const GridDataReal3D    &reference) const = 0;
 };
 
 class ForceEvaluatorHandle
@@ -116,13 +101,9 @@ class ForceEvaluatorHandle
         ForceEvaluatorHandle(const ForceEvaluator * evaluator ) : evaluator_ {evaluator}
         {};
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
-                   const std::vector<real> &weights, const GridDataReal3D &reference,
-                   const RVec &translation = {0, 0, 0},
-                   const Quaternion &orientation = {{1, 0, 0}, 0},
-                   const RVec &centerOfRotation = {0, 0, 0}) const
+                   const std::vector<real> &weights, const GridDataReal3D &reference) const
         {
-            evaluator_->force(force, coordinates, weights, reference, translation,
-                              orientation, centerOfRotation);
+            evaluator_->force(force, coordinates, weights, reference);
         };
 
     private:
@@ -135,10 +116,7 @@ class IStructureDensityForceProvider
         virtual ~IStructureDensityForceProvider() = default;
         virtual ForceEvaluatorHandle
         planForce(const std::vector<RVec> &coordinates,
-                  const std::vector<real> &weights, const GridDataReal3D &reference,
-                  const std::string &options, const RVec &translation = {0, 0, 0},
-                  const Quaternion &orientation = {{1, 0, 0}, 0},
-                  const RVec &centerOfRotation = {0, 0, 0}) = 0;
+                  const std::vector<real> &weights, const GridDataReal3D &reference, const std::string &options) = 0;
 };
 
 class IStructureDensityPotentialForceProvider

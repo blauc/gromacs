@@ -90,8 +90,7 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
         // svmul(alpha, gradient_translation, translation_direction);
 
 
-        fitPotentialProvider.potential(x, weights, reference, translation,
-                                       orientation, center_of_mass_density);
+        fitPotentialProvider.potential(x, weights, reference);
         orientation[0] = 1;
         //   calculate potential gradient
         //   line search along potential gradient, until potential improves

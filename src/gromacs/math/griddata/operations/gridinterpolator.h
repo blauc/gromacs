@@ -54,6 +54,10 @@ GridDataReal3D interpolateLinearly(const GridDataReal3D &other, const IGrid < DI
     Interpolating after shifting and orienting the other grid.
  */
 real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r);
+/*! \brief
+    Interpolating after shifting and orienting the other grid.
+ */
+real getLinearInterpolationAt(const GridDataReal3D &field, const RVec &r);
 
 }       // namespace gmx
 
