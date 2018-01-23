@@ -51,7 +51,7 @@ namespace gmx
 {
 class WholeMoleculeGroup;
 
-class KullbackLeiblerPotential : public densityBasedPotential
+class KullbackLeiblerPotential : public DensityBasedPotential
 {
     public:
         ~KullbackLeiblerPotential() = default;
@@ -61,15 +61,12 @@ class KullbackLeiblerPotential : public densityBasedPotential
                                      const GridDataReal3D &comparant) const override;
 };
 
-class KullbackLeiblerForce : public densityBasedForce
+class KullbackLeiblerForce : public DensityBasedForce
 {
     public:
         ~KullbackLeiblerForce() = default;
         KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
-
-    private:
-        void setDensityDifferential(const GridDataReal3D    &reference,
-                                    const GridDataReal3D    &comparant) const override;
+        const GridDataReal3D &densityDifferential(const GridDataReal3D    &reference, const GridDataReal3D    &comparant) const override;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider

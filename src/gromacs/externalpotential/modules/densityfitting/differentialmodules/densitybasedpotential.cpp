@@ -54,13 +54,13 @@
 namespace gmx
 {
 
-densityBasedPotential::densityBasedPotential(const DensitySpreader &spreader,
+DensityBasedPotential::DensityBasedPotential(const DensitySpreader &spreader,
                                              bool                   selfSpreading)
     : spreader_ {spreader}, selfSpreading_ {
     selfSpreading
 } {}
 
-real densityBasedPotential::potential(const std::vector<RVec>    &coordinates,
+real DensityBasedPotential::potential(const std::vector<RVec>    &coordinates,
                                       const std::vector<real>    &weights,
                                       const GridDataReal3D       &reference) const
 {
@@ -70,13 +70,11 @@ real densityBasedPotential::potential(const std::vector<RVec>    &coordinates,
         return densityDensityPotential(
                 reference, spreader_.spreadLocalAtoms(coordinates, weights));
     }
-    else
-    {
-        return densityDensityPotential(spreader_.getSpreadGrid(), reference);
-    }
+    ;
+    return densityDensityPotential(spreader_.getSpreadGrid(), reference);
 };
 
-densityBasedForce::densityBasedForce(const DensitySpreader &spreader,
+DensityBasedForce::DensityBasedForce(const DensitySpreader &spreader,
                                      real sigma_differential, int n_threads,
                                      bool selfSpreading)
     : sigma_differential_ {sigma_differential},
@@ -88,21 +86,21 @@ n_threads_ {
     selfSpreading
 } {};
 
-void densityBasedForce::force(std::vector<RVec> &force,
+void DensityBasedForce::force(std::vector<RVec> &force,
                               const std::vector<RVec> &coordinates, const std::vector<real> &weights,
                               const GridDataReal3D &reference) const
 {
     if (selfSpreading_)
     {
-        setDensityDifferential(spreader_.getSpreadGrid(), reference);
+        densityDifferential(spreader_.getSpreadGrid(), reference);
     }
     else
     {
-        setDensityDifferential(spreader_.spreadLocalAtoms(coordinates, weights),
-                               reference);
+        densityDifferential(spreader_.spreadLocalAtoms(coordinates, weights),
+                            reference);
     }
     const auto &forceGrid =
-        ForceDensity(*differential_, sigma_differential_).getForce();
+        ForceDensity(differential_, sigma_differential_).getForce();
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
     ;
     for (size_t i = 0; i != coordinates.size(); ++i)
@@ -116,7 +114,7 @@ void densityBasedForce::force(std::vector<RVec> &force,
     }
 }
 //
-// void densityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const
+// void DensityBasedPotentialForce::force(WholeMoleculeGroup &atoms, const
 // GridDataReal3D &reference, const RVec &translation, const Quaternion
 // &orientation,
 //                                        const RVec &centerOfRotation )

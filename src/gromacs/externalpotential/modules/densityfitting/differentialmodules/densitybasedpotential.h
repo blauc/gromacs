@@ -41,9 +41,9 @@
 #include <string>
 #include <vector>
 
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/utility/real.h"
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
@@ -51,47 +51,49 @@
 namespace gmx
 {
 
-class WholeMoleculeGroup;
-class Quaternion;
-
 class DensitySpreader;
-template<int N> class GridWithTranslation;
+template <int N> class GridWithTranslation;
 
-class densityBasedPotential : public PotentialEvaluator
+class DensityBasedPotential : public PotentialEvaluator
 {
     public:
-        explicit densityBasedPotential(const DensitySpreader &spreader, bool selfSpreading = true);
-        ~densityBasedPotential() = default;
+        explicit DensityBasedPotential(const DensitySpreader &spreader,
+                                       bool                   selfSpreading = true);
+        ~DensityBasedPotential() = default;
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights,
                        const GridDataReal3D    &reference) const override;
-        virtual real densityDensityPotential(const GridDataReal3D &reference,
-                                             const GridDataReal3D &comparant) const = 0;
+        virtual real
+        densityDensityPotential(const GridDataReal3D &reference,
+                                const GridDataReal3D &comparant) const = 0;
+
     protected:
         const DensitySpreader &spreader_;
-        bool                   selfSpreading_;
+        const bool             selfSpreading_;
 };
 
-
 // make a PotentialEvaluator member
-class densityBasedForce : public ForceEvaluator
+class DensityBasedForce : public ForceEvaluator
 {
     public:
-        explicit densityBasedForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool selfSpreading = false);
-        ~densityBasedForce() = default;
+        explicit DensityBasedForce(const DensitySpreader &spreader,
+                                   real sigma_differential, int n_threads,
+                                   bool selfSpreading = false);
+        ~DensityBasedForce() = default;
 
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
                    const std::vector<real> &weights,
                    const GridDataReal3D &reference) const override;
+        virtual const GridDataReal3D &
+        densityDifferential(const GridDataReal3D &reference,
+                            const GridDataReal3D &comparant) const = 0;
 
     protected:
-        virtual void setDensityDifferential(const GridDataReal3D    &reference,
-                                            const GridDataReal3D    &comparant) const = 0;
-        std::unique_ptr < GridDataReal3D> differential_;
-        real                              sigma_differential_;
-        int                               n_threads_;
-        const DensitySpreader            &spreader_;
-        bool                              selfSpreading_;
+        mutable GridDataReal3D differential_; //< prevents memory re-aquisition in repeat evaluations
+        const real             sigma_differential_;
+        const int              n_threads_;
+        const DensitySpreader &spreader_;
+        const bool             selfSpreading_;
 };
 
 }      /* gmx */

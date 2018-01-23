@@ -44,16 +44,17 @@
 
 #include "densitypotential.h"
 
-#include <string>
 #include <algorithm>
+#include <string>
 
 #include "gromacs/externalpotential/modules/densityfitting/emscatteringfactors.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentiallibrary.h"
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
-#include "gromacs/fileio/pdbio.h"
+#include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/fileio/griddataio.h"
-#include "gromacs/utility/smalloc.h"
+#include "gromacs/fileio/pdbio.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/smalloc.h"
 
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
@@ -95,22 +96,21 @@ class DensityPotential : public TrajectoryAnalysisModule
     private:
         void frameToForceDensity_(const t_trxframe &fr);
 
-        std::string                       fnmapinput_;
-        std::string                       fnpotential_ = std::string("potential.dat");
-        std::string                       forcedensity_;
-        std::string                       fnoptions_;
-        std::string                       optionsstring_;
+        std::string                                         fnmapinput_;
+        std::string                                         fnpotential_ = std::string("potential.dat");
+        std::string                                         forcedensity_;
+        std::string                                         fnoptions_;
+        std::string                                         optionsstring_;
 
-        std::unique_ptr < GridDataReal3D> inputdensity_;
-        bool                              bRigidBodyFit_ = true;
-        std::vector<float>                weight_;
-        int                               every_ = 1;
-        FILE                             *potentialFile_;
-        int                               nFr_ = 0;
-        std::string                       potentialType_;
-        std::unique_ptr<IStructureDensityPotentialProvider>
-        potentialProvider_;
-        PotentialEvaluatorHandle potentialEvaluator;
+        std::unique_ptr<GridDataReal3D>                     inputdensity_;
+        bool bRigidBodyFit_ = true;
+        std::vector<float>                                  weight_;
+        int                                                 every_ = 1;
+        FILE                                               *potentialFile_;
+        // int                      nFr_ = 0;
+        std::string                                         potentialType_;
+        std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
+        PotentialEvaluatorHandle                            potentialEvaluator;
 };
 
 void DensityPotential::initOptions(IOptionsContainer          *options,
@@ -188,11 +188,11 @@ void DensityPotential::optionsFinished(
         TrajectoryAnalysisSettings * /*settings*/)
 {
 
-    inputdensity_ = std::unique_ptr < GridDataReal3D>(new GridDataReal3D (MrcFile().read(fnmapinput_)));
+    inputdensity_ = std::unique_ptr<GridDataReal3D>(
+                new GridDataReal3D(MrcFile().read(fnmapinput_)));
 
     // set negative values to zero
-    std::for_each(std::begin(*inputdensity_),
-                  std::end(*inputdensity_),
+    std::for_each(std::begin(*inputdensity_), std::end(*inputdensity_),
                   [](real &value) { value = std::max(value, (real)0.); });
     potentialProvider_ = PotentialLibrary().create(potentialType_)();
     potentialFile_     = fopen(fnpotential_.c_str(), "w");
@@ -210,9 +210,10 @@ void DensityPotential::optionsFinished(
         if (buffer)
         {
             auto read_length = fread(buffer, 1, length, optionsFile);
-            if (read_length != (size_t) length)
+            if (read_length != (size_t)length)
             {
-                GMX_THROW(FileIOError(std::string("Something went wrong reading ")+fnoptions_));
+                GMX_THROW(FileIOError(std::string("Something went wrong reading ") +
+                                      fnoptions_));
             }
         }
         buffer[length] = '\0';
@@ -246,18 +247,18 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
 
         std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
 
-        // if (bRigidBodyFit_)
-        // {
-        // RigidBodyFit rigidbodyfit;
-        // rigidbodyfit.fitCoordinates(inputdensity_, rVecCoordinates, weight_,
-        // *potentialForceEvaluator_);
-        // potential = rigidbodyfit.bestFitPotential();
-        // }
-        // else
-        // {
-        potential =
-            potentialEvaluator.potential(rVecCoordinates, weight_, *inputdensity_);
-        // }
+        if (bRigidBodyFit_)
+        {
+            potential = RigidBodyFit()
+                    .fitCoordinates(*inputdensity_, rVecCoordinates, weight_,
+                                    potentialEvaluator)
+                    .potential();
+        }
+        else
+        {
+            potential = potentialEvaluator.potential(rVecCoordinates, weight_,
+                                                     *inputdensity_);
+        }
 
         fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);
 

@@ -48,14 +48,14 @@
 namespace gmx
 {
 
-CompareGridDatas::CompareGridDatas(const GridDataReal3D &reference, const GridDataReal3D &other)
+ComapreGridData::ComapreGridData(const GridDataReal3D &reference, const GridDataReal3D &other)
     : reference_ {reference}, other_ {
     other
 }
 {};
 
-real CompareGridDatas::correlate_(const std::vector<real> &a,
-                                  const std::vector<real> &b) const
+real ComapreGridData::correlate_(const std::vector<real> &a,
+                                 const std::vector<real> &b) const
 {
 
     auto              aMean = std::accumulate(a.cbegin(), a.cend(), 0.) / a.size();
@@ -67,7 +67,7 @@ real CompareGridDatas::correlate_(const std::vector<real> &a,
     return std::accumulate(mulArray.begin(), mulArray.end(), 0.) / sqrt(aSSE*bSSE);
 }
 
-real CompareGridDatas::correlate(real threshold) const
+real ComapreGridData::correlate(real threshold) const
 {
     std::vector<real> referenceAboveThreshold;
     std::vector<real> otherWhereReferenceAboveThreshold;
@@ -86,7 +86,7 @@ real CompareGridDatas::correlate(real threshold) const
     return correlate_(referenceAboveThreshold, otherWhereReferenceAboveThreshold);
 };
 
-real CompareGridDatas::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
+real ComapreGridData::gridSumAtCoordiantes(const std::vector<RVec> &coordinates)
 {
     real        sum    = 0;
     for (const auto &r : coordinates)
@@ -96,7 +96,7 @@ real CompareGridDatas::gridSumAtCoordiantes(const std::vector<RVec> &coordinates
     return sum;
 };
 
-real CompareGridDatas::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
+real ComapreGridData::getRelativeKLCrossTermSameGrid(const std::vector<real> &other_reference) const
 {
     // for numerical stability use a reference density
     if (reference_.size() != other_.size())
@@ -122,7 +122,7 @@ real CompareGridDatas::getRelativeKLCrossTermSameGrid(const std::vector<real> &o
     return -1 * reference_.getGrid().unitCell().volume() *sum;
 }
 
-real CompareGridDatas::getKLSameGrid() const
+real ComapreGridData::getKLSameGrid() const
 {
     if (reference_.size() != other_.size())
     {
@@ -152,7 +152,7 @@ real CompareGridDatas::getKLSameGrid() const
     return -1 * reference_.getGrid().unitCell().volume() * sum;
 };
 
-real CompareGridDatas::getKLCrossTermSameGrid() const
+real ComapreGridData::getKLCrossTermSameGrid() const
 {
     if (reference_.size() != other_.size())
     {

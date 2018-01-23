@@ -337,7 +337,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
     for (int iMorphIterations = 0; iMorphIterations < morphSteps_;
          iMorphIterations++)
     {
-        auto densityDistance = CompareGridDatas(target_, oldMorph).getKLSameGrid();
+        auto densityDistance = ComapreGridData(target_, oldMorph).getKLSameGrid();
         fprintf(stderr, "\r Iteration [%7d/%7d] : d = %7g ", iMorphIterations+1, morphSteps_, densityDistance);
 
         evaluateDensityDifferential_(oldMorph, target_, &differential);
@@ -348,7 +348,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
             morphstepscale_ /= 2.;
             if (morphstepscale_ < 1e2*GMX_FLOAT_EPS)
             {
-                GMX_THROW(ToleranceError("Cannot move closer to target density before maximum number of steps reached."));
+                GMX_THROW(ToleranceError("Cannot move closer to target density, yet maximum number of steps not reached."));
             }
             scaleFlow_(densityflow, morphstepscale_);
             /*
@@ -360,9 +360,9 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
 
             auto extend = mobile_.getGrid().lattice().extend();
 
-            // MrcFile().write("flowxx.ccp4", densityflow[XX]);
-            // MrcFile().write("flowyy.ccp4", densityflow[YY]);
-            // MrcFile().write("flowzz.ccp4", densityflow[ZZ]);
+            MrcFile().write("flowxx.ccp4", *(densityflow[XX]));
+            MrcFile().write("flowyy.ccp4", *(densityflow[YY]));
+            MrcFile().write("flowzz.ccp4", *(densityflow[ZZ]));
             //
             // GridDataReal3D flowintensity(densityflow[XX]);
             // std::transform(oldMorph.access().begin(), oldMorph.access().end(), densityflow[XX].access().begin(), flowintensity.access().begin(),[](real a,real b){return a*b;});
@@ -391,7 +391,7 @@ void DensityMorph::finishAnalysis(int /*nframes*/)
                     }
                 }
             }
-            newDensityDistance = CompareGridDatas(target_, newMorph).getKLSameGrid();
+            newDensityDistance = ComapreGridData(target_, newMorph).getKLSameGrid();
             fprintf(stderr, "\r\t\t\t\t\t\td = %7g , delta = %7g sum = %13g ", newDensityDistance, morphstepscale_, DataVectorMeasure(newMorph).sum()-basesum);
 
         }

@@ -47,10 +47,10 @@
 namespace gmx
 {
 
-void KullbackLeiblerForce::setDensityDifferential(
+const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
         const GridDataReal3D &comparant, const GridDataReal3D &reference) const
 {
-    differential_->setGrid(reference.getGrid().duplicate());
+    differential_.setGrid(reference.getGrid().duplicate());
     auto sumSimulatedDensity     = DataVectorMeasure(comparant).sum();
     auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
                                                          real densitySimulation) {
@@ -61,41 +61,25 @@ void KullbackLeiblerForce::setDensityDifferential(
         };
 
     std::transform(reference.begin(), reference.end(),
-                   comparant.begin(), differential_->begin(),
+                   comparant.begin(), differential_.begin(),
                    densityGradientFunction);
+    return differential_;
 }
 real KullbackLeiblerPotential::densityDensityPotential(
         const GridDataReal3D &reference, const GridDataReal3D &comparant) const
 {
-    return CompareGridDatas(reference, comparant).getKLSameGrid();
+    return ComapreGridData(reference, comparant).getKLSameGrid();
 }
-// real
-// KullbackLeibler::evaluateDensityDensityPotential(
-//         const GridDataReal3D &comparant, const GridDataReal3D &reference,
-//         const RVec &translation,
-//         const Quaternion &orientation)
-// {
-//     if (!comparant.sameGridInAbsTolerance(reference, 1e-10) &&
-//     (norm(translation) > 1e-10) && orientation.norm() > 1e-10)
-//     {
-//         auto centerOfMass = GridDataReal3D(comparant).center_of_mass();
-//         auto interpolated =
-//         GridInterpolator(reference).interpolateLinearly(comparant,
-//         translation, centerOfMass, orientation);
-//         return GridMeasures(reference).getKLSameGrid(*interpolated);
-//     }
-//     return GridMeasures(reference).getKLSameGrid(comparant);
-// };
 
 KullbackLeiblerForce::KullbackLeiblerForce(const DensitySpreader &spreader,
                                            real sigma_differential,
                                            int n_threads, bool spreadSelf)
-    : densityBasedForce {spreader, sigma_differential, n_threads, spreadSelf}
+    : DensityBasedForce {spreader, sigma_differential, n_threads, spreadSelf}
 {}
 
 KullbackLeiblerPotential::KullbackLeiblerPotential(
         const DensitySpreader &spreader, bool spreadSelf)
-    : densityBasedPotential {spreader, spreadSelf}
+    : DensityBasedPotential {spreader, spreadSelf}
 {}
 
 ForceEvaluatorHandle KullbackLeiblerProvider::planForce(

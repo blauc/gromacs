@@ -61,9 +61,7 @@ class PotentialEvaluatorHandle
     public:
         PotentialEvaluatorHandle() = default;
         PotentialEvaluatorHandle(const PotentialEvaluator * evaluator) : evaluator_ {evaluator}
-        {};
-        PotentialEvaluatorHandle(const PotentialEvaluatorHandle &other) : evaluator_ {other.evaluator_}
-        {};
+        {}
         real potential(const std::vector<RVec> &coordinates,
                        const std::vector<real> &weights, const GridDataReal3D &reference) const
         {
@@ -117,6 +115,7 @@ class IStructureDensityForceProvider
         virtual ForceEvaluatorHandle
         planForce(const std::vector<RVec> &coordinates,
                   const std::vector<real> &weights, const GridDataReal3D &reference, const std::string &options) = 0;
+
 };
 
 class IStructureDensityPotentialForceProvider

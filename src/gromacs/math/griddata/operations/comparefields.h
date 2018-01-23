@@ -44,10 +44,10 @@
 namespace gmx
 {
 
-class CompareGridDatas
+class ComapreGridData
 {
     public:
-        CompareGridDatas(const GridDataReal3D &reference, const GridDataReal3D &other);
+        ComapreGridData(const GridDataReal3D &reference, const GridDataReal3D &other);
         real correlate(real threshold = -GMX_REAL_MAX) const;
         real getRelativeKLCrossTermSameGrid( const std::vector<real> &other_reference) const;
         real getRelativeKLCrossTerm(const std::vector<real>    &other_reference) const;
