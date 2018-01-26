@@ -110,7 +110,7 @@ class DensityPotential : public TrajectoryAnalysisModule
         // int                      nFr_ = 0;
         std::string                                         potentialType_;
         std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
-        PotentialEvaluatorHandle                            potentialEvaluator;
+        PotentialEvaluatorHandle                            potentialEvaluator_;
 };
 
 void DensityPotential::initOptions(IOptionsContainer          *options,
@@ -194,6 +194,7 @@ void DensityPotential::optionsFinished(
     // set negative values to zero
     std::for_each(std::begin(*inputdensity_), std::end(*inputdensity_),
                   [](real &value) { value = std::max(value, (real)0.); });
+
     potentialProvider_ = PotentialLibrary().create(potentialType_)();
     potentialFile_     = fopen(fnpotential_.c_str(), "w");
     fprintf(potentialFile_, "time        %s", potentialType_.c_str());
@@ -232,7 +233,7 @@ void DensityPotential::initAfterFirstFrame(
     }
 
     std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-    potentialEvaluator = potentialProvider_->planPotential(
+    potentialEvaluator_ = potentialProvider_->planPotential(
                 rVecCoordinates, weight_, *inputdensity_, optionsstring_);
 }
 
@@ -251,13 +252,13 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
         {
             potential = RigidBodyFit()
                     .fitCoordinates(*inputdensity_, rVecCoordinates, weight_,
-                                    potentialEvaluator)
+                                    potentialEvaluator_)
                     .potential();
         }
         else
         {
-            potential = potentialEvaluator.potential(rVecCoordinates, weight_,
-                                                     *inputdensity_);
+            potential = potentialEvaluator_.potential(rVecCoordinates, weight_,
+                                                      *inputdensity_);
         }
 
         fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);

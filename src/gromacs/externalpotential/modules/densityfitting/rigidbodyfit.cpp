@@ -76,7 +76,7 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
     do
     {
 
-        // auto gradient_translation = gradientTranslation_(reference, x,weights,fitPotentialProvider,translation,center_of_mass_density, orientation);
+        auto gradient_translation = gradientTranslation_(reference, x, weights, fitPotentialProvider, translation, center_of_mass_density, orientation);
         // auto gradient_orientation = gradientOrientation_(reference, x,weights,fitPotentialProvider,translation,center_of_mass_density, orientation);
 
         // update x <- x + alpha * gradient
@@ -103,11 +103,11 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
 };
 
 RigidBodyFitResult::RigidBodyFitResult(const RVec       &translation,
-                                       const RVec       &center_of_rotation,
+                                       const RVec       &centerOfRotation,
                                        const Quaternion &orientation,
                                        const real        bestFitPotential)
-    : translation_ {translation}, center_of_rotation_ {
-    center_of_rotation
+    : translation_ {translation}, centerOfRotation_ {
+    centerOfRotation
 },
 orientation_ {
     orientation

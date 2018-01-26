@@ -52,7 +52,7 @@ class PotentialForceEvaluator;
 class RigidBodyFitResult
 {
     public:
-        RigidBodyFitResult(const RVec &translation, const RVec &center_of_rotation,
+        RigidBodyFitResult(const RVec &translation, const RVec &centerOfRotation,
                            const Quaternion &orientation,
                            const real bestFitPotential);
         RVec translation() const;
@@ -62,7 +62,7 @@ class RigidBodyFitResult
 
     private:
         const RVec       translation_;
-        const RVec       center_of_rotation_;
+        const RVec       centerOfRotation_;
         const Quaternion orientation_;
         const real       potential_;
 };
@@ -75,10 +75,6 @@ class RigidBodyFit
                        const std::vector<real> &weights,
                        const PotentialForceEvaluator &fitPotentialProvider);
 
-        RigidBodyFitResult
-        fitCoordinates(const GridDataReal3D &reference, const std::vector<RVec> &x,
-                       const std::vector<real> &weights,
-                       const PotentialEvaluatorHandle &fitPotentialProvider);
 
     private:
         const real minimial_improvement_ = 1e-10;
@@ -88,14 +84,14 @@ class RigidBodyFit
                              const std::vector<real> &weights,
                              const PotentialEvaluatorHandle &fitPotentialProvider,
                              const RVec &translation,
-                             const RVec &center_of_rotation,
+                             const RVec &centerOfRotation,
                              const Quaternion &orientation);
         Quaternion
         gradientOrientation_(const GridDataReal3D &reference, const std::vector<RVec> &x,
                              const std::vector<real> &weights,
                              const PotentialEvaluatorHandle &fitPotentialProvider,
                              const RVec &translation,
-                             const RVec &center_of_rotation,
+                             const RVec &centerOfRotation,
                              const Quaternion &orientation);
 };
 }      // namespace gmx

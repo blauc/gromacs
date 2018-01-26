@@ -54,8 +54,8 @@ class WholeMoleculeGroup;
 class KullbackLeiblerPotential : public DensityBasedPotential
 {
     public:
-        ~KullbackLeiblerPotential() = default;
         KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf);
+        ~KullbackLeiblerPotential() = default;
 
         real densityDensityPotential(const GridDataReal3D &reference,
                                      const GridDataReal3D &comparant) const override;
@@ -64,8 +64,9 @@ class KullbackLeiblerPotential : public DensityBasedPotential
 class KullbackLeiblerForce : public DensityBasedForce
 {
     public:
-        ~KullbackLeiblerForce() = default;
         KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
+        ~KullbackLeiblerForce() = default;
+
         const GridDataReal3D &densityDifferential(const GridDataReal3D    &reference, const GridDataReal3D    &comparant) const override;
 };
 
