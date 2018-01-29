@@ -116,7 +116,7 @@ PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
     return PotentialEvaluatorHandle(potential_evaluator_.get());
 };
 
-std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle>
+PotentialAndForceHandle
 KullbackLeiblerProvider::plan(const GridDataReal3D &reference,
                               const std::string    &options)
 {
@@ -129,9 +129,9 @@ KullbackLeiblerProvider::plan(const GridDataReal3D &reference,
     potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
                 new KullbackLeiblerPotential(*spreader_));
 
-    return {
-               PotentialEvaluatorHandle(potential_evaluator_.get()),
-               ForceEvaluatorHandle(force_evaluator_.get())
+    return PotentialAndForceHandle {
+               .potentialEvaluator = PotentialEvaluatorHandle(potential_evaluator_.get()),
+               .forceEvaluator     = ForceEvaluatorHandle(force_evaluator_.get())
     };
 }
 

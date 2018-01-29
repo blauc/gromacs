@@ -64,27 +64,29 @@ class KullbackLeiblerPotential : public DensityBasedPotential
 class KullbackLeiblerForce : public DensityBasedForce
 {
     public:
-        KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads);
+        KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential,
+                             int n_threads);
         ~KullbackLeiblerForce() = default;
 
-        const GridDataReal3D &densityDifferential(const GridDataReal3D    &reference, const GridDataReal3D    &comparant) const override;
+        const GridDataReal3D &
+        densityDifferential(const GridDataReal3D &reference,
+                            const GridDataReal3D &comparant) const override;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
 {
     public:
         ~KullbackLeiblerProvider() = default;
-        ForceEvaluatorHandle
-        planForce(const GridDataReal3D &reference, const std::string &options) override;
-        PotentialEvaluatorHandle
-        planPotential(const std::vector<RVec> &coordinates,
-                      const std::vector<real> &weights, const GridDataReal3D &reference,
-                      const std::string &options) override;
+        ForceEvaluatorHandle planForce(const GridDataReal3D &reference,
+                                       const std::string    &options) override;
+        PotentialEvaluatorHandle planPotential(const std::vector<RVec> &coordinates,
+                                               const std::vector<real> &weights,
+                                               const GridDataReal3D    &reference,
+                                               const std::string       &options) override;
         void setCoordinates(const std::vector<RVec> &coordinates,
                             const std::vector<real> &weights) override;
-        std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle> plan(const GridDataReal3D &reference,
-                                                                       const std::string    &options) override;
-
+        PotentialAndForceHandle plan(const GridDataReal3D &reference,
+                                     const std::string    &options) override;
 
     private:
         void log_(const std::string &message);
@@ -95,7 +97,6 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
         std::unique_ptr<IForceEvaluator>     force_evaluator_;
         std::unique_ptr<IPotentialEvaluator> potential_evaluator_;
         std::unique_ptr<DensitySpreader>     spreader_;
-
 };
 /****************************INFO Classes**************************************/
 

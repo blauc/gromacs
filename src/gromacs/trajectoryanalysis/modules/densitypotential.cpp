@@ -110,6 +110,7 @@ class DensityPotential : public TrajectoryAnalysisModule
         // int                      nFr_ = 0;
         std::string                                              potentialType_;
         std::unique_ptr<IStructureDensityPotentialForceProvider> potentialProvider_;
+        PotentialAndForceHandle potentialEvaluator_;
 };
 
 void DensityPotential::initOptions(IOptionsContainer          *options,
@@ -232,8 +233,7 @@ void DensityPotential::initAfterFirstFrame(
     }
 
     std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-    auto              potentialEvaluator_ = potentialProvider_->planPotential(
-                rVecCoordinates, weight_, *inputdensity_, optionsstring_);
+    potentialEvaluator_ = potentialProvider_->plan(*inputdensity_, optionsstring_);
 }
 
 void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
@@ -256,7 +256,7 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
         }
         else
         {
-            potential = potentialEvaluator_.potential(*inputdensity_);
+            potential = potentialEvaluator_.potentialEvaluator.potential(*inputdensity_);
         }
 
         fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);

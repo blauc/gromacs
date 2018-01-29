@@ -119,17 +119,23 @@ class IStructureDensityForceProvider
                                                const std::string    &options) = 0;
 };
 
+struct PotentialAndForceHandle
+{
+    ForceEvaluatorHandle     forceEvaluator;
+    PotentialEvaluatorHandle potentialEvaluator;
+};
+
 class IStructureDensityPotentialForceProvider
     : public IStructureDensityForceProvider,
       public IStructureDensityPotentialProvider
 {
     public:
         virtual void setCoordinates(const std::vector<RVec> &coordinates,
-                                    const std::vector<real> &weights) override;
+                                    const std::vector<real> &weights) = 0;
 
         virtual ~IStructureDensityPotentialForceProvider() = default;
-        virtual std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle> plan(const GridDataReal3D &reference,
-                                                                               const std::string    &options) = 0;
+        virtual PotentialAndForceHandle plan(const GridDataReal3D &reference,
+                                             const std::string    &options) = 0;
 };
 
 }      /* gmx */
