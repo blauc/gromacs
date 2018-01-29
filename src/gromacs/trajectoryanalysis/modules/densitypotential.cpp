@@ -256,8 +256,7 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
         }
         else
         {
-            potential = potentialEvaluator_.potential(rVecCoordinates, weight_,
-                                                      *inputdensity_);
+            potential = potentialEvaluator_.potential(*inputdensity_);
         }
 
         fprintf(potentialFile_, "\n%8g %8g", fr.time, potential);

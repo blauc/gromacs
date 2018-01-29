@@ -82,6 +82,9 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
                       const std::string &options) override;
         void setCoordinates(const std::vector<RVec> &coordinates,
                             const std::vector<real> &weights) override;
+        std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle> plan(const GridDataReal3D &reference,
+                                                                       const std::string    &options) override;
+
 
     private:
         void log_(const std::string &message);

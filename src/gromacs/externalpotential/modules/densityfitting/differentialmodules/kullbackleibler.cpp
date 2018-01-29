@@ -35,14 +35,12 @@
 
 #include "kullbackleibler.h"
 #include "gromacs/fileio/json.h"
-#include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/comparefields.h"
+#include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
 #include "gromacs/utility/gmxomp.h"
 #include <memory>
 #include <string>
-
-
 
 namespace gmx
 {
@@ -54,13 +52,11 @@ KullbackLeiblerPotential::KullbackLeiblerPotential(
     : DensityBasedPotential {spreader}
 {}
 
-
 real KullbackLeiblerPotential::densityDensityPotential(
         const GridDataReal3D &reference, const GridDataReal3D &comparant) const
 {
     return ComapreGridData(reference, comparant).getKLSameGrid();
 }
-
 
 /********************************************************************
  * KullbackLeiblerForce
@@ -76,7 +72,7 @@ const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
         const GridDataReal3D &comparant, const GridDataReal3D &reference) const
 {
     differential_.setGrid(reference.getGrid().duplicate());
-    auto sumSimulatedDensity     = DataVectorMeasure(comparant).sum();
+    auto sumSimulatedDensity = DataVectorMeasure(comparant).sum();
 
     auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
                                                          real densitySimulation) {
@@ -86,9 +82,8 @@ const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
                    : 0;
         };
 
-    std::transform(reference.begin(), reference.end(),
-                   comparant.begin(), differential_.begin(),
-                   densityGradientFunction);
+    std::transform(reference.begin(), reference.end(), comparant.begin(),
+                   differential_.begin(), densityGradientFunction);
     return differential_;
 }
 
@@ -96,8 +91,9 @@ const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
  * KullbackLeiblerProvider
  */
 
-ForceEvaluatorHandle KullbackLeiblerProvider::planForce(const GridDataReal3D &reference,
-                                                        const std::string    &options)
+ForceEvaluatorHandle
+KullbackLeiblerProvider::planForce(const GridDataReal3D &reference,
+                                   const std::string    &options)
 {
     parseOptions_(options);
     spreader_ = std::unique_ptr<DensitySpreader>(
@@ -119,6 +115,25 @@ PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
                 new KullbackLeiblerPotential(*spreader_));
     return PotentialEvaluatorHandle(potential_evaluator_.get());
 };
+
+std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle>
+KullbackLeiblerProvider::plan(const GridDataReal3D &reference,
+                              const std::string    &options)
+{
+    parseOptions_(options);
+    spreader_ = std::unique_ptr<DensitySpreader>(
+                new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
+    force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
+                new KullbackLeiblerForce(*spreader_, sigma_, n_threads_));
+
+    potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
+                new KullbackLeiblerPotential(*spreader_));
+
+    return {
+               PotentialEvaluatorHandle(potential_evaluator_.get()),
+               ForceEvaluatorHandle(force_evaluator_.get())
+    };
+}
 
 void KullbackLeiblerProvider::log_(const std::string &message)
 {

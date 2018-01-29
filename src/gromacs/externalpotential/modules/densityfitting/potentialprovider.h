@@ -128,6 +128,8 @@ class IStructureDensityPotentialForceProvider
                                     const std::vector<real> &weights) override;
 
         virtual ~IStructureDensityPotentialForceProvider() = default;
+        virtual std::pair<PotentialEvaluatorHandle, ForceEvaluatorHandle> plan(const GridDataReal3D &reference,
+                                                                               const std::string    &options) = 0;
 };
 
 }      /* gmx */
