@@ -62,7 +62,7 @@ class FastGaussianGridding;
 class FastGaussianGriddingForce;
 class GaussTransform;
 class IStructureDensityPotentialProvider;
-class PotentialEvaluator;
+class IPotentialEvaluator;
 
 namespace externalpotential
 {

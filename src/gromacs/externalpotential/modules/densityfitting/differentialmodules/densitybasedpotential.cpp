@@ -54,63 +54,40 @@
 namespace gmx
 {
 
-DensityBasedPotential::DensityBasedPotential(const DensitySpreader &spreader,
-                                             bool                   selfSpreading)
-    : spreader_ {spreader}, selfSpreading_ {
-    selfSpreading
-} {}
+DensityBasedPotential::DensityBasedPotential(const DensitySpreader &spreader)
+    : spreader_ {spreader}
+{}
 
-real DensityBasedPotential::potential(const std::vector<RVec>    &coordinates,
-                                      const std::vector<real>    &weights,
-                                      const GridDataReal3D       &reference) const
+real DensityBasedPotential::potential(const GridDataReal3D       &reference) const
 {
-    if (selfSpreading_)
-    {
-        spreader_.zero();
-        return densityDensityPotential(
-                reference, spreader_.spreadLocalAtoms(coordinates, weights));
-    }
-    ;
     return densityDensityPotential(spreader_.getSpreadGrid(), reference);
 };
 
 DensityBasedForce::DensityBasedForce(const DensitySpreader &spreader,
-                                     real sigma_differential, int n_threads,
-                                     bool selfSpreading)
+                                     real sigma_differential, int n_threads
+                                     )
     : sigma_differential_ {sigma_differential},
 n_threads_ {
     n_threads
 }, spreader_ {
     spreader
-}, selfSpreading_ {
-    selfSpreading
 } {};
 
-void DensityBasedForce::force(std::vector<RVec> &force,
-                              const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+void DensityBasedForce::force(std::vector<RVec>    &force,
                               const GridDataReal3D &reference) const
 {
-    if (selfSpreading_)
-    {
-        densityDifferential(spreader_.getSpreadGrid(), reference);
-    }
-    else
-    {
-        densityDifferential(spreader_.spreadLocalAtoms(coordinates, weights),
-                            reference);
-    }
+    densityDifferential(spreader_.getSpreadGrid(), reference);
     const auto &forceGrid =
         ForceDensity(differential_, sigma_differential_).getForce();
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
-    ;
-    for (size_t i = 0; i != coordinates.size(); ++i)
+    for (size_t i = 0; i != coordinates_->size(); ++i)
     {
         auto f = RVec {
-            getLinearInterpolationAt(forceGrid[XX], coordinates[i]),
-            getLinearInterpolationAt(forceGrid[YY], coordinates[i]),
-            getLinearInterpolationAt(forceGrid[ZZ], coordinates[i])
+            getLinearInterpolationAt(forceGrid[XX], coordinates_[i]),
+            getLinearInterpolationAt(forceGrid[YY], coordinates_[i]),
+            getLinearInterpolationAt(forceGrid[ZZ], coordinates_[i])
         };
-        svmul(weights[i], f, force[i]);
+        svmul(weights_[i], f, force[i]);
     }
 }
 //

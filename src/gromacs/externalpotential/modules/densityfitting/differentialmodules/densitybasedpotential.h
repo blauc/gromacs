@@ -54,46 +54,41 @@ namespace gmx
 class DensitySpreader;
 template <int N> class GridWithTranslation;
 
-class DensityBasedPotential : public PotentialEvaluator
+class DensityBasedPotential : public IPotentialEvaluator
 {
     public:
-        explicit DensityBasedPotential(const DensitySpreader &spreader,
-                                       bool                   selfSpreading = true);
+        explicit DensityBasedPotential(const DensitySpreader &spreader);
         ~DensityBasedPotential() = default;
-        real potential(const std::vector<RVec> &coordinates,
-                       const std::vector<real> &weights,
-                       const GridDataReal3D    &reference) const override;
+        real potential(const GridDataReal3D &reference) const override;
         virtual real
         densityDensityPotential(const GridDataReal3D &reference,
                                 const GridDataReal3D &comparant) const = 0;
 
     protected:
         const DensitySpreader &spreader_;
-        const bool             selfSpreading_;
 };
 
-// make a PotentialEvaluator member
-class DensityBasedForce : public ForceEvaluator
+// make a IPotentialEvaluator member
+class DensityBasedForce : public IForceEvaluator
 {
     public:
         explicit DensityBasedForce(const DensitySpreader &spreader,
-                                   real sigma_differential, int n_threads,
-                                   bool selfSpreading = false);
+                                   real sigma_differential, int n_threads);
         ~DensityBasedForce() = default;
 
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
-                   const std::vector<real> &weights,
+                   const std::vector<float> &weights,
                    const GridDataReal3D &reference) const override;
         virtual const GridDataReal3D &
         densityDifferential(const GridDataReal3D &reference,
                             const GridDataReal3D &comparant) const = 0;
 
     protected:
-        mutable GridDataReal3D differential_; //< prevents memory re-aquisition in repeat evaluations
+        mutable GridDataReal3D
+                               differential_; //< prevents memory re-aquisition in repeat evaluations
         const real             sigma_differential_;
         const int              n_threads_;
         const DensitySpreader &spreader_;
-        const bool             selfSpreading_;
 };
 
 }      /* gmx */

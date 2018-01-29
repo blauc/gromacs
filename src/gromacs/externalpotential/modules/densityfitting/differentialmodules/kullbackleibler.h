@@ -54,7 +54,7 @@ class WholeMoleculeGroup;
 class KullbackLeiblerPotential : public DensityBasedPotential
 {
     public:
-        KullbackLeiblerPotential(const DensitySpreader &spreader, bool spreadSelf);
+        KullbackLeiblerPotential(const DensitySpreader &spreader);
         ~KullbackLeiblerPotential() = default;
 
         real densityDensityPotential(const GridDataReal3D &reference,
@@ -64,7 +64,7 @@ class KullbackLeiblerPotential : public DensityBasedPotential
 class KullbackLeiblerForce : public DensityBasedForce
 {
     public:
-        KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads, bool spreadSelf);
+        KullbackLeiblerForce(const DensitySpreader &spreader, real sigma_differential, int n_threads);
         ~KullbackLeiblerForce() = default;
 
         const GridDataReal3D &densityDifferential(const GridDataReal3D    &reference, const GridDataReal3D    &comparant) const override;
@@ -75,12 +75,13 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
     public:
         ~KullbackLeiblerProvider() = default;
         ForceEvaluatorHandle
-        planForce(const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-                  const GridDataReal3D &reference, const std::string &options) override;
+        planForce(const GridDataReal3D &reference, const std::string &options) override;
         PotentialEvaluatorHandle
         planPotential(const std::vector<RVec> &coordinates,
                       const std::vector<real> &weights, const GridDataReal3D &reference,
                       const std::string &options) override;
+        void setCoordinates(const std::vector<RVec> &coordinates,
+                            const std::vector<real> &weights) override;
 
     private:
         void log_(const std::string &message);
@@ -88,9 +89,9 @@ class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
         real sigma_;
         int  n_threads_;
         int  n_sigma_;
-        std::unique_ptr<ForceEvaluator>     force_evaluator_;
-        std::unique_ptr<PotentialEvaluator> potential_evaluator_;
-        std::unique_ptr<DensitySpreader>    spreader_;
+        std::unique_ptr<IForceEvaluator>     force_evaluator_;
+        std::unique_ptr<IPotentialEvaluator> potential_evaluator_;
+        std::unique_ptr<DensitySpreader>     spreader_;
 
 };
 /****************************INFO Classes**************************************/

@@ -35,8 +35,8 @@
 #ifndef GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
 #define GMX_EXTERNALPOTENTIAL_POTENTIALPROVIDER_H
 
-#include "gromacs/math/vectypes.h"
 #include "gromacs/math/griddata/griddata.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/utility/real.h"
 
 #include <memory>
@@ -47,75 +47,76 @@ namespace gmx
 {
 class WholeMoleculeGroup;
 
-class PotentialEvaluator
+class IPotentialEvaluator
 {
     public:
-        virtual ~PotentialEvaluator() = default;
-        virtual real potential(const std::vector<RVec> &coordinates,
-                               const std::vector<real> &weights,
-                               const GridDataReal3D    &reference) const = 0;
+        virtual ~IPotentialEvaluator() = default;
+        virtual real potential(const GridDataReal3D &reference) const = 0;
 };
 
 class PotentialEvaluatorHandle
 {
     public:
         PotentialEvaluatorHandle() = default;
-        PotentialEvaluatorHandle(const PotentialEvaluator * evaluator) : evaluator_ {evaluator}
+        PotentialEvaluatorHandle(const IPotentialEvaluator *evaluator)
+            : evaluator_ {evaluator}
         {}
-        real potential(const std::vector<RVec> &coordinates,
-                       const std::vector<real> &weights, const GridDataReal3D &reference) const
+        real potential(const GridDataReal3D &reference) const
         {
-            return evaluator_->potential(coordinates, weights, reference);
+            return evaluator_->potential(reference);
         };
 
     private:
-        const PotentialEvaluator * evaluator_;
+        const IPotentialEvaluator *evaluator_;
 };
 
 class IStructureDensityPotentialProvider
 {
     public:
         virtual ~IStructureDensityPotentialProvider() = default;
-        virtual PotentialEvaluatorHandle
-        planPotential(const std::vector<RVec> &coordinates,
-                      const std::vector<real> &weights, const GridDataReal3D &reference,
-                      const std::string &options) = 0;
+        virtual void setCoordinates(const std::vector<RVec> &coordinates,
+                                    const std::vector<real> &weights) = 0;
+        virtual PotentialEvaluatorHandle planPotential(
+            const std::vector<RVec> &coordinates, const std::vector<real> &weights,
+            const GridDataReal3D &reference, const std::string &options) = 0;
 };
 
-class ForceEvaluator
+class IForceEvaluator
 {
     public:
-        virtual ~ForceEvaluator() = default;
-        virtual void force(std::vector<RVec>       &force,
-                           const std::vector<RVec> &coordinates,
-                           const std::vector<real> &weights,
-                           const GridDataReal3D    &reference) const = 0;
+        virtual ~IForceEvaluator() = default;
+        virtual void force(std::vector<RVec>        &force,
+                           const std::vector<RVec>  &coordinates_,
+                           const std::vector<float> &weights_,
+                           const GridDataReal3D     &reference) const = 0;
 };
 
 class ForceEvaluatorHandle
 {
     public:
         ForceEvaluatorHandle() = default;
-        ForceEvaluatorHandle(const ForceEvaluator * evaluator ) : evaluator_ {evaluator}
+        ForceEvaluatorHandle(const IForceEvaluator *evaluator)
+            : evaluator_ {evaluator}
         {};
         void force(std::vector<RVec> &force, const std::vector<RVec> &coordinates,
-                   const std::vector<real> &weights, const GridDataReal3D &reference) const
+                   const std::vector<float> &weights,
+                   const GridDataReal3D &reference) const
         {
             evaluator_->force(force, coordinates, weights, reference);
         };
 
     private:
-        const ForceEvaluator *evaluator_;
+        const IForceEvaluator *evaluator_;
 };
 
 class IStructureDensityForceProvider
 {
     public:
         virtual ~IStructureDensityForceProvider() = default;
-        virtual ForceEvaluatorHandle
-        planForce(const std::vector<RVec> &coordinates,
-                  const std::vector<real> &weights, const GridDataReal3D &reference, const std::string &options) = 0;
-
+        virtual void setCoordinates(const std::vector<RVec> &coordinates,
+                                    const std::vector<real> &weights) = 0;
+        virtual ForceEvaluatorHandle planForce(const GridDataReal3D &reference,
+                                               const std::string    &options) = 0;
 };
 
 class IStructureDensityPotentialForceProvider
@@ -123,6 +124,9 @@ class IStructureDensityPotentialForceProvider
       public IStructureDensityPotentialProvider
 {
     public:
+        virtual void setCoordinates(const std::vector<RVec> &coordinates,
+                                    const std::vector<real> &weights) override;
+
         virtual ~IStructureDensityPotentialForceProvider() = default;
 };
 

@@ -61,12 +61,12 @@
 //         plan(const WholeMoleculeGroup &atoms, const GridDataReal3D &reference,
 //              const std::string &options, const RVec &translation = {0, 0, 0},
 //              const Quaternion &orientation = {{1, 0, 0}, 0});
-//         std::unique_ptr<PotentialEvaluator>
+//         std::unique_ptr<IPotentialEvaluator>
 //         planPotential(const std::vector<RVec> &coordinates,
 //                       const std::vector<real> &weights, const GridDataReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});
-//         std::unique_ptr<PotentialEvaluator>
+//         std::unique_ptr<IPotentialEvaluator>
 //         planPotential(const WholeMoleculeGroup &atoms, const GridDataReal3D &reference,
 //                       const std::string &options, const RVec &translation = {0, 0, 0},
 //                       const Quaternion &orientation = {{1, 0, 0}, 0});

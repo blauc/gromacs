@@ -96,21 +96,20 @@ class DensityPotential : public TrajectoryAnalysisModule
     private:
         void frameToForceDensity_(const t_trxframe &fr);
 
-        std::string                                         fnmapinput_;
-        std::string                                         fnpotential_ = std::string("potential.dat");
-        std::string                                         forcedensity_;
-        std::string                                         fnoptions_;
-        std::string                                         optionsstring_;
+        std::string                                              fnmapinput_;
+        std::string                                              fnpotential_ = std::string("potential.dat");
+        std::string                                              forcedensity_;
+        std::string                                              fnoptions_;
+        std::string                                              optionsstring_;
 
-        std::unique_ptr<GridDataReal3D>                     inputdensity_;
+        std::unique_ptr<GridDataReal3D>                          inputdensity_;
         bool bRigidBodyFit_ = true;
-        std::vector<float>                                  weight_;
-        int                                                 every_ = 1;
-        FILE                                               *potentialFile_;
+        std::vector<float>                                       weight_;
+        int                                                      every_ = 1;
+        FILE                                                    *potentialFile_;
         // int                      nFr_ = 0;
-        std::string                                         potentialType_;
-        std::unique_ptr<IStructureDensityPotentialProvider> potentialProvider_;
-        PotentialEvaluatorHandle                            potentialEvaluator_;
+        std::string                                              potentialType_;
+        std::unique_ptr<IStructureDensityPotentialForceProvider> potentialProvider_;
 };
 
 void DensityPotential::initOptions(IOptionsContainer          *options,
@@ -233,7 +232,7 @@ void DensityPotential::initAfterFirstFrame(
     }
 
     std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-    potentialEvaluator_ = potentialProvider_->planPotential(
+    auto              potentialEvaluator_ = potentialProvider_->planPotential(
                 rVecCoordinates, weight_, *inputdensity_, optionsstring_);
 }
 
