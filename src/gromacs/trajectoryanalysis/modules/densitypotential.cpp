@@ -53,6 +53,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/fileio/pdbio.h"
+#include "gromacs/selection/centerofmass.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -121,7 +122,6 @@ void DensityPotential::initOptions(IOptionsContainer          *options,
                                      // for StringOption enumValue
     for (size_t i = 0; i < potentialNames.size(); i++)
     {
-        /* code */
         c_potentialTypes[i] = potentialNames[i].c_str();
     }
     potentialType_ = potentialNames[0];
@@ -246,13 +246,19 @@ void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,
         real              potential;
 
         std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-
+        potentialProvider_->setCoordinates(rVecCoordinates, weight_);
         if (bRigidBodyFit_)
         {
+            rvec             centerOfGeometry;
+            std::vector<int> indices(rVecCoordinates.size());
+            std::iota(indices.begin(), indices.end(), 0);
+            gmx_calc_cog(nullptr, fr.x, indices.size(), indices.data(),
+                         centerOfGeometry);
+
             potential = RigidBodyFit()
                     .fitCoordinates(*inputdensity_, rVecCoordinates, weight_,
-                                    potentialEvaluator_)
-                    .potential();
+                                    potentialEvaluator_, centerOfGeometry)
+                    .potential;
         }
         else
         {

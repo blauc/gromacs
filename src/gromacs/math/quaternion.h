@@ -43,9 +43,9 @@
 #ifndef GMX_MATH_QUATERNION_H_
 #define GMX_MATH_QUATERNION_H_
 
+#include "gromacs/utility/classhelpers.h"
 #include "vectypes.h"
 #include <array>
-#include "gromacs/utility/classhelpers.h"
 
 namespace gmx
 {
@@ -59,6 +59,7 @@ namespace gmx
 class Quaternion
 {
     public:
+        Quaternion() = default;
         Quaternion(const Quaternion &quaternion) = default;
         /*! \brief Four dimensional vector (cos(\phi/2), x_1, x_2, x_3).
          */
@@ -84,14 +85,14 @@ class Quaternion
          */
         void rotate(RVec &x) const;
         void rotate_backwards(RVec &x) const;
-        RVec shiftedAndOriented(const RVec &x, const RVec &centerOfMass, const RVec &shift) const;
+        RVec shiftedAndOriented(const RVec &x, const RVec &centerOfMass,
+                                const RVec &shift) const;
+
     private:
         Quaternion(const QVec &qvec);
         Quaternion(const RVec &x);
-        QVec q_;
+        QVec q_ = {0, 0, 0, 1};
 };
-
-
 }
 
 #endif /* end of include guard: GMX_MATH_QUATERNIONS_H_ */

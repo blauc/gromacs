@@ -39,60 +39,46 @@
 
 #include <vector>
 
+#include "gromacs/math/griddata/griddata.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/math/griddata/griddata.h"
 
 namespace gmx
 {
 
 class PotentialEvaluatorHandle;
-class PotentialForceEvaluator;
+class ForceEvaluatorHandle;
+class PotentialAndForceHandle;
+class IStructureDensityPotentialForceProvider;
 
-class RigidBodyFitResult
-{
-    public:
-        RigidBodyFitResult(const RVec &translation, const RVec &centerOfRotation,
-                           const Quaternion &orientation,
-                           const real bestFitPotential);
-        RVec translation() const;
-        Quaternion orientation() const;
-        RVec centerOfRotation() const;
-        real potential() const;
-
-    private:
-        const RVec       translation_;
-        const RVec       centerOfRotation_;
-        const Quaternion orientation_;
-        const real       potential_;
+struct RigidBodyFitResult {
+    RVec       translation;
+    RVec       centerOfRotation;
+    Quaternion orientation;
+    real       potential;
 };
 
 class RigidBodyFit
 {
     public:
         RigidBodyFitResult
-        fitCoordinates(const GridDataReal3D &reference, const std::vector<RVec> &x,
-                       const std::vector<real> &weights,
-                       const PotentialForceEvaluator &fitPotentialProvider);
-
+        fitCoordinates(const GridDataReal3D          &reference,
+                       const std::vector<RVec>       &coordinates,
+                       const std::vector<float>      &weights,
+                       const PotentialAndForceHandle &fitPotentialProvider,
+                       RVec                           centerOfGeometry);
 
     private:
         const real minimial_improvement_ = 1e-10;
         const int  max_steps_            = 1e5;
-        RVec
-        gradientTranslation_(const GridDataReal3D &reference, const std::vector<RVec> &x,
-                             const std::vector<real> &weights,
-                             const PotentialEvaluatorHandle &fitPotentialProvider,
-                             const RVec &translation,
-                             const RVec &centerOfRotation,
-                             const Quaternion &orientation);
+        RVec       translation_;
+        RVec       centerOfRotation_;
+        Quaternion orientation_;
+        RVec gradientTranslation_(const GridDataReal3D       &reference,
+                                  const ForceEvaluatorHandle &fitPotentialProvider);
         Quaternion
-        gradientOrientation_(const GridDataReal3D &reference, const std::vector<RVec> &x,
-                             const std::vector<real> &weights,
-                             const PotentialEvaluatorHandle &fitPotentialProvider,
-                             const RVec &translation,
-                             const RVec &centerOfRotation,
-                             const Quaternion &orientation);
+        gradientOrientation_(const GridDataReal3D       &reference,
+                             const ForceEvaluatorHandle &fitPotentialProvider);
 };
 }      // namespace gmx
 #endif /* end of include guard: GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H */

@@ -37,47 +37,46 @@
 
 #include "gromacs/externalpotential/modules/densityfitting/potentialprovider.h"
 #include "gromacs/math/griddata/griddata.h"
+#include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
-#include "gromacs/selection/centerofmass.h"
+#include "gromacs/math/griddata/rotatedgrid.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/selection/centerofmass.h"
 
 #include <algorithm>
 namespace gmx
 {
 
 RigidBodyFitResult RigidBodyFit::fitCoordinates(
-        const GridDataReal3D &reference, const std::vector<RVec> &x,
-        const std::vector<real> &weights,
-        const PotentialEvaluatorHandle &fitPotentialProvider)
+        const GridDataReal3D &reference, const std::vector<RVec> &coordinates,
+        const std::vector<float> &weights,
+        const PotentialAndForceHandle &fitPotentialProvider,
+        RVec centerOfGeometry)
 {
-
     // first guess of parameters
-    auto             center_of_mass_density = RealGridDataMeasure(reference).center_of_mass();
-    rvec             center_of_geometry_structure;
-    std::vector<int> indices(x.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    gmx_calc_cog(nullptr, as_rvec_array(x.data()), indices.size(), indices.data(),
-                 center_of_geometry_structure);
+    auto densityCenterOfMass = RealGridDataMeasure(reference).center_of_mass();
+    rvec_sub(densityCenterOfMass, centerOfGeometry, translation_);
 
-    RVec translation;
+    GridDataReal3D                 mobileReference(reference);
+    GridWithTranslationOrientation mobileGrid(reference.getGrid());
+    mobileGrid.setTranslation(
+            {translation_[0], translation_[1], translation_[2]});
+    mobileReference.setGrid(mobileGrid.duplicate());
 
-    rvec_sub(center_of_geometry_structure, center_of_mass_density, translation);
-
-    Quaternion orientation {{
-                                0, 0, 0
-                            }, 0};
-
-    real improvement       = 0;
-    int  step              = 0;
-    // real translation_scale = 0.1;
-    real potential {
-        0
-    };
-    do
+    interpolateLinearly(reference, &mobileReference);
+    real              potential;
+    real              improvement = minimial_improvement_;
+    std::vector<RVec> forces(coordinates.size());
+    for (int step = 0;
+         step < max_steps_ && (improvement >= minimial_improvement_); ++step)
     {
 
-        auto gradient_translation = gradientTranslation_(reference, x, weights, fitPotentialProvider, translation, center_of_mass_density, orientation);
-        // auto gradient_orientation = gradientOrientation_(reference, x,weights,fitPotentialProvider,translation,center_of_mass_density, orientation);
+        // auto gradient_translation = gradientTranslation_(reference,
+        // fitPotentialProvider.forceEvaluator, translation_, densityCenterOfMass,
+        // orientation_);
+        // auto gradient_orientation = gradientOrientation_(reference,
+        // fitPotentialProvider.forceEvaluator,translation_,densityCenterOfMass,
+        // orientation_);
 
         // update x <- x + alpha * gradient
         // calculate potential
@@ -89,37 +88,17 @@ RigidBodyFitResult RigidBodyFit::fitCoordinates(
         // Quaternion orientation_direction;
         // svmul(alpha, gradient_translation, translation_direction);
 
-
-        fitPotentialProvider.potential(x, weights, reference);
-        orientation[0] = 1;
+        improvement = potential - fitPotentialProvider.potentialEvaluator.potential(mobileReference);
+        potential  -= improvement;
         //   calculate potential gradient
         //   line search along potential gradient, until potential improves
     }
-    while ((improvement > minimial_improvement_) && (step < max_steps_));
 
-
-    return RigidBodyFitResult(translation, center_of_mass_density, orientation,
-                              potential);
+    return RigidBodyFitResult {
+               translation_, densityCenterOfMass, orientation_,
+               potential
+    };
 };
-
-RigidBodyFitResult::RigidBodyFitResult(const RVec       &translation,
-                                       const RVec       &centerOfRotation,
-                                       const Quaternion &orientation,
-                                       const real        bestFitPotential)
-    : translation_ {translation}, centerOfRotation_ {
-    centerOfRotation
-},
-orientation_ {
-    orientation
-}, potential_ {
-    bestFitPotential
-} {};
-
-real RigidBodyFitResult::potential() const { return potential_; }
-
-Quaternion RigidBodyFitResult::orientation() const { return orientation_; }
-
-RVec RigidBodyFitResult::translation() const { return translation_; }
 
 //
 // void RigidBodyFit::fitWholeMoleculeGroup(
@@ -151,7 +130,8 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 //                 for (auto q3 : gridPoints)
 //                 {
 //
-//                     fprintf(stderr, "Optimizing Orientation: %3lu / %3lu = ",
+//                     fprintf(stderr, "Optimizing orientation_: %3lu / %3lu =
+//                     ",
 //                     ++currentOrientationNumber, totalNumberOrientations);
 //
 //                     orientation_ = Quaternion(Quaternion::QVec {{q0, q1, q2,
@@ -220,7 +200,7 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 //         unitv(torque_direction, torque_direction);
 //     }
 //
-//     fprintf(input_output()->output_file(), "#\tMinimization in Orientation
+//     fprintf(input_output()->output_file(), "#\tMinimization in orientation_
 //     Space \n"
 //             "#\tMinimization - Torque Vector:\t[ %g %g %g ]\n",
 //             torque_direction[XX], torque_direction[YY],
@@ -266,69 +246,35 @@ RVec RigidBodyFitResult::translation() const { return translation_; }
 //     return succeededReducingDivergence;
 // }
 //
-// RVec RigidBodyFit::fitTranslation()
-// {
-//
-//     const real step_size                  = 0.02;
-//     bool       succededReducingDivergence = false;
-//     // calculate gradient vector
-//     // normalize to step size
-//     // move along gradient vector
-//     // accept translation if new potential better
-//     auto translationBeforeTrial = translation_;
-//     auto spreader_              =
-//     std::unique_ptr<DensitySpreader>(
-//                 new DensitySpreader(reference, n_threads, n_sigma, sigma));
-//     spreadLocalAtoms_(translationgroup);
-//     // MrcFile().write("test.mrc", *simulated_density_);
-//
-//     forceCalculation(translationgroup);
-//     auto force = translationgroup->local_force_sum();
-//     if (mpi_helper() != nullptr)
-//     {
-//         mpi_helper()->sum_reduce_rvec(force);
-//     }
-//
-//     unitv(force, force);
-//     fprintf(input_output()->output_file(),
-//             "#\tMinimization\n"
-//             "#\tMinimization - New direction:\t[ %g %g %g ]\n"
-//             "#\tMinimization - Step size:\t%g nm .\n",
-//             force[XX], force[YY], force[ZZ], step_size);
-//     RVec force_scaled;
-//     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-//     {
-//         svmul(step_size, force, force_scaled);
-//         rvec_inc(translation_, force_scaled);
-//         fprintf(input_output()->output_file(),
-//                 "#\tMinimization - Move attemted to\t[ %g %g %g ]\n",
-//                 force_scaled[XX], force_scaled[YY], force_scaled[ZZ]);
-//     }
-//     if (mpi_helper() != nullptr)
-//     {
-//         mpi_helper()->broadcast(&translation_, 1);
-//     }
-//     auto new_divergence =
-//         std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
-//     if (mpi_helper() == nullptr || mpi_helper()->isMaster())
-//     {
-//
-//         fprintf(input_output()->output_file(),
-//                 "#\tMinimization - Divergence before move: %g , after move:
-//                 %g\n",
-//                 divergenceToCompareTo, new_divergence);
-//
-//         if (new_divergence < divergenceToCompareTo)
-//         {
-//             succededReducingDivergence = true;
-//             divergenceToCompareTo      = new_divergence;
-//         }
-//         else
-//         {
-//             translation_ = translationBeforeTrial;
-//         }
-//     }
-//     return succededReducingDivergence;
-// };
+float RigidBodyFit::fitTranslation()
+{
+
+    const real step_size                  = 0.02;
+    bool       succededReducingDivergence = false;
+    // calculate gradient vector
+    // normalize to step size
+    // move along gradient vector
+    auto translationBeforeTrial = translation_;
+
+    forceCalculation(translationgroup);
+
+    unitv(force, force);
+    RVec force_scaled;
+    svmul(step_size, force, force_scaled);
+    rvec_inc(translation_, force_scaled);
+    auto new_divergence =
+        std::abs(KLDivergenceFromTargetOnMaster(translationgroup));
+
+    if (new_divergence < divergenceToCompareTo)
+    {
+        succededReducingDivergence = true;
+        divergenceToCompareTo      = new_divergence;
+    }
+    else
+    {
+        translation_ = translationBeforeTrial;
+    }
+    return succededReducingDivergence;
+};
 
 } /* gmx */

@@ -32,14 +32,14 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
- #ifndef GMX_MATH_GRIDINTERPOLATOR_H
- #define GMX_MATH_GRIDINTERPOLATOR_H
+#ifndef GMX_MATH_GRIDINTERPOLATOR_H
+#define GMX_MATH_GRIDINTERPOLATOR_H
 
 #include <memory>
 
-#include "gromacs/utility/real.h"
 #include "gromacs/math/griddata/canonicalvectorbasis.h"
 #include "gromacs/math/griddata/griddata.h"
+#include "gromacs/utility/real.h"
 
 namespace gmx
 {
@@ -49,16 +49,23 @@ template <int N> class IGrid;
 #define DIM 3
 #endif
 
-GridDataReal3D interpolateLinearly(const GridDataReal3D &other, const IGrid < DIM>  &targetGrid);
+/*!\brief Overwrite target grid data with intepolated data.
+ */
+void interpolateLinearly(const GridDataReal3D &other,
+                         GridDataReal3D       *targetGrid);
+
+GridDataReal3D interpolateLinearly(const GridDataReal3D &other,
+                                   const IGrid<DIM>     &targetGrid);
 /*! \brief
     Interpolating after shifting and orienting the other grid.
  */
-real getLinearInterpolationAt(const GridDataReal3D &field, const CanonicalVectorBasis<DIM>::NdVector &r);
+real getLinearInterpolationAt(const GridDataReal3D                      &field,
+                              const CanonicalVectorBasis<DIM>::NdVector &r);
 /*! \brief
     Interpolating after shifting and orienting the other grid.
  */
 real getLinearInterpolationAt(const GridDataReal3D &field, const RVec &r);
 
-}       // namespace gmx
+}      // namespace gmx
 
- #endif /* end of include guard: GMX_MATH_GRIDINTERPOLATOR_H */
+#endif /* end of include guard: GMX_MATH_GRIDINTERPOLATOR_H */

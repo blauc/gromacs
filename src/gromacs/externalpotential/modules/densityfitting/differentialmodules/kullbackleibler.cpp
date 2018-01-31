@@ -130,9 +130,15 @@ KullbackLeiblerProvider::plan(const GridDataReal3D &reference,
                 new KullbackLeiblerPotential(*spreader_));
 
     return PotentialAndForceHandle {
-               .potentialEvaluator = PotentialEvaluatorHandle(potential_evaluator_.get()),
-               .forceEvaluator     = ForceEvaluatorHandle(force_evaluator_.get())
+               ForceEvaluatorHandle(force_evaluator_.get()),
+               PotentialEvaluatorHandle(potential_evaluator_.get())
     };
+}
+
+void KullbackLeiblerProvider::setCoordinates(
+        const std::vector<RVec> &coordinates, const std::vector<real> &weights)
+{
+    spreader_->spreadLocalAtoms(coordinates, weights);
 }
 
 void KullbackLeiblerProvider::log_(const std::string &message)

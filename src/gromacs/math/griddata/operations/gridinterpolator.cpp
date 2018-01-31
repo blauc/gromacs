@@ -65,6 +65,32 @@ interpolateLinearly(const GridDataReal3D &other, const IGrid < DIM> &targetGrid)
     return interpolatedData;
 }
 
+
+/*
+ * for each target grid point:
+ *      find rational number grid cell index in input grid
+ *      use fractional part for weights
+ */
+void
+interpolateLinearly(const GridDataReal3D &other, GridDataReal3D *targetGrid)
+{
+    const auto    &extend = targetGrid->getGrid().lattice().extend();
+
+    for (int i_z = 0; i_z < extend[ZZ]; ++i_z)
+    {
+        for (int i_y = 0; i_y < extend[YY]; ++i_y)
+        {
+            for (int i_x = 0; i_x < extend[XX]; ++i_x)
+            {
+                auto r                 = targetGrid->getGrid().multiIndexToCoordinate({{i_x, i_y, i_z}});
+                *(targetGrid->iteratorAtMultiIndex({{i_x, i_y, i_z}})) = getLinearInterpolationAt(other, r);
+            }
+        }
+    }
+
+    return;
+}
+
 real getLinearInterpolationAt(const GridDataReal3D &field, const RVec &r)
 {
     auto iIndexInGrid = field.getGrid().coordinateToFloorMultiIndex({{r[0], r[1], r[2]}});
