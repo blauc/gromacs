@@ -91,7 +91,7 @@ class Quaternion
     private:
         Quaternion(const QVec &qvec);
         Quaternion(const RVec &x);
-        QVec q_ = {0, 0, 0, 1};
+        QVec q_ = {{0, 0, 0, 1}};
 };
 }
 

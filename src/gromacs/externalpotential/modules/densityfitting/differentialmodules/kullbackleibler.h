@@ -59,6 +59,8 @@ class KullbackLeiblerPotential : public DensityBasedPotential
 
         real densityDensityPotential(const GridDataReal3D &reference,
                                      const GridDataReal3D &comparant) const override;
+    private:
+        mutable GridDataReal3D interpolatedComparantGrid_;
 };
 
 class KullbackLeiblerForce : public DensityBasedForce
@@ -71,21 +73,24 @@ class KullbackLeiblerForce : public DensityBasedForce
         const GridDataReal3D &
         densityDifferential(const GridDataReal3D &reference,
                             const GridDataReal3D &comparant) const override;
+
+    private:
+        mutable GridDataReal3D interpolatedComparantGrid_;
 };
 
 class KullbackLeiblerProvider : public IStructureDensityPotentialForceProvider
 {
     public:
         ~KullbackLeiblerProvider() = default;
-        ForceEvaluatorHandle planForce(const GridDataReal3D &reference,
+        ForceEvaluatorHandle planForce(const IGrid<3>       &baseGrid,
                                        const std::string    &options) override;
         PotentialEvaluatorHandle planPotential(const std::vector<RVec> &coordinates,
                                                const std::vector<real> &weights,
-                                               const GridDataReal3D    &reference,
+                                               const IGrid<3>          &baseGrid,
                                                const std::string       &options) override;
         void setCoordinates(const std::vector<RVec> &coordinates,
                             const std::vector<real> &weights) override;
-        PotentialAndForceHandle plan(const GridDataReal3D &reference,
+        PotentialAndForceHandle plan(const IGrid<3>       &baseGrid,
                                      const std::string    &options) override;
 
     private:

@@ -74,6 +74,24 @@ realToComplexFT_ {
     generateFourierTransformGrids_(*(grid.getGrid().duplicate()));
     generateConvolutionDensity_();
     realToComplexFT_.normalize();
+    realToComplexFT_.result(densityGradientFT_);
+    for (int dimension = XX; dimension <= ZZ; ++dimension)
+    {
+        auto iWGaussianK = [](const t_complex &W, const t_complex &gaussianK) {
+                return t_complex {
+                           -gaussianK.re * W.im, gaussianK.re * W.re
+                };
+            };
+
+        std::transform(densityGradientFT_.begin(),
+                       densityGradientFT_.end(),
+                       convolutionDensity_[dimension].begin(),
+                       forcesFT_[dimension].begin(), iWGaussianK);
+
+        complexToRealFTarray_[dimension].result(forces_[dimension]);
+
+    }
+
 };
 
 void ForceDensity::generateFourierTransformGrids_(
@@ -115,22 +133,6 @@ void ForceDensity::generateConvolutionDensity_()
 const std::array<GridDataReal3D, DIM> &
 ForceDensity::getForce()
 {
-    realToComplexFT_.result(densityGradientFT_);
-    for (int dimension = XX; dimension <= ZZ; ++dimension)
-    {
-        auto iWGaussianK = [](const t_complex &W, const t_complex &gaussianK) {
-                return t_complex {
-                           -gaussianK.re * W.im, gaussianK.re * W.re
-                };
-            };
-
-        std::transform(densityGradientFT_.begin(),
-                       densityGradientFT_.end(),
-                       convolutionDensity_[dimension].begin(),
-                       forcesFT_[dimension].begin(), iWGaussianK);
-        complexToRealFTarray_[dimension].result(forces_[dimension]);
-
-    }
     return forces_;
 };
 

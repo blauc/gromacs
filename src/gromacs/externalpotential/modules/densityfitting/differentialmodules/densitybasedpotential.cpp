@@ -78,15 +78,14 @@ void DensityBasedForce::force(std::vector<RVec> &force, const std::vector<RVec> 
                               const GridDataReal3D &reference) const
 {
     densityDifferential(spreader_.getSpreadGrid(), reference);
-    const auto &forceGrid =
-        ForceDensity(differential_, sigma_differential_).getForce();
+    ForceDensity forceDensity(differential_, sigma_differential_);
     // real          prefactor  = k_/(norm_simulated_*sigma_*sigma_);
     for (size_t i = 0; i != coordinates.size(); ++i)
     {
         auto f = RVec {
-            getLinearInterpolationAt(forceGrid[XX], coordinates[i]),
-            getLinearInterpolationAt(forceGrid[YY], coordinates[i]),
-            getLinearInterpolationAt(forceGrid[ZZ], coordinates[i])
+            getLinearInterpolationAt(forceDensity.getForce()[XX], coordinates[i]),
+            getLinearInterpolationAt(forceDensity.getForce()[YY], coordinates[i]),
+            getLinearInterpolationAt(forceDensity.getForce()[ZZ], coordinates[i])
         };
         svmul(weights[i], f, force[i]);
     }

@@ -55,7 +55,13 @@ KullbackLeiblerPotential::KullbackLeiblerPotential(
 real KullbackLeiblerPotential::densityDensityPotential(
         const GridDataReal3D &reference, const GridDataReal3D &comparant) const
 {
-    return ComapreGridData(reference, comparant).getKLSameGrid();
+    if (reference.getGrid() == comparant.getGrid())
+    {
+        return ComapreGridData(reference, comparant).getKLSameGrid();
+    }
+    interpolatedComparantGrid_.setGrid(reference.getGrid().duplicate());
+    interpolateLinearly(comparant, &interpolatedComparantGrid_);
+    return ComapreGridData(reference, interpolatedComparantGrid_).getKLSameGrid();
 }
 
 /********************************************************************
@@ -71,8 +77,20 @@ KullbackLeiblerForce::KullbackLeiblerForce(const DensitySpreader &spreader,
 const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
         const GridDataReal3D &comparant, const GridDataReal3D &reference) const
 {
+    const GridDataReal3D *toCompare;
+    if (reference.getGrid() == comparant.getGrid())
+    {
+        toCompare = &comparant;
+    }
+    else
+    {
+        interpolatedComparantGrid_.setGrid(reference.getGrid().duplicate());
+        interpolateLinearly(comparant, &interpolatedComparantGrid_);
+        toCompare = &interpolatedComparantGrid_;
+    }
+
     differential_.setGrid(reference.getGrid().duplicate());
-    auto sumSimulatedDensity = DataVectorMeasure(comparant).sum();
+    auto sumSimulatedDensity = DataVectorMeasure(*toCompare).sum();
 
     auto densityGradientFunction = [sumSimulatedDensity](real densityExperiment,
                                                          real densitySimulation) {
@@ -82,7 +100,7 @@ const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
                    : 0;
         };
 
-    std::transform(reference.begin(), reference.end(), comparant.begin(),
+    std::transform(reference.begin(), reference.end(), toCompare->begin(),
                    differential_.begin(), densityGradientFunction);
     return differential_;
 }
@@ -92,12 +110,12 @@ const GridDataReal3D &KullbackLeiblerForce::densityDifferential(
  */
 
 ForceEvaluatorHandle
-KullbackLeiblerProvider::planForce(const GridDataReal3D &reference,
+KullbackLeiblerProvider::planForce(const IGrid<3>       &baseGrid,
                                    const std::string    &options)
 {
     parseOptions_(options);
     spreader_ = std::unique_ptr<DensitySpreader>(
-                new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
+                new DensitySpreader(baseGrid, n_threads_, n_sigma_, sigma_));
     force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
                 new KullbackLeiblerForce(*spreader_, sigma_, n_threads_));
     return ForceEvaluatorHandle(force_evaluator_.get());
@@ -105,24 +123,24 @@ KullbackLeiblerProvider::planForce(const GridDataReal3D &reference,
 
 PotentialEvaluatorHandle KullbackLeiblerProvider::planPotential(
         const std::vector<RVec> & /*coordinates*/,
-        const std::vector<real> & /*weights*/, const GridDataReal3D &reference,
+        const std::vector<real> & /*weights*/, const IGrid<3> &baseGrid,
         const std::string &options)
 {
     parseOptions_(options);
     spreader_ = std::unique_ptr<DensitySpreader>(
-                new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
+                new DensitySpreader(baseGrid, n_threads_, n_sigma_, sigma_));
     potential_evaluator_ = std::unique_ptr<KullbackLeiblerPotential>(
                 new KullbackLeiblerPotential(*spreader_));
     return PotentialEvaluatorHandle(potential_evaluator_.get());
 };
 
 PotentialAndForceHandle
-KullbackLeiblerProvider::plan(const GridDataReal3D &reference,
+KullbackLeiblerProvider::plan(const IGrid<3>       &baseGrid,
                               const std::string    &options)
 {
     parseOptions_(options);
     spreader_ = std::unique_ptr<DensitySpreader>(
-                new DensitySpreader(reference.getGrid(), n_threads_, n_sigma_, sigma_));
+                new DensitySpreader(baseGrid, n_threads_, n_sigma_, sigma_));
     force_evaluator_ = std::unique_ptr<KullbackLeiblerForce>(
                 new KullbackLeiblerForce(*spreader_, sigma_, n_threads_));
 

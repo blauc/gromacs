@@ -53,6 +53,7 @@
 #include "gromacs/externalpotential/modules/densityfitting/rigidbodyfit.h"
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/fileio/pdbio.h"
+#include "gromacs/math/griddata/encompassinggrid.h"
 #include "gromacs/selection/centerofmass.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
@@ -232,8 +233,11 @@ void DensityPotential::initAfterFirstFrame(
                 "scattering weights. Setting atom weights to unity.\n");
     }
 
-    std::vector<RVec> rVecCoordinates(fr.x, fr.x + fr.natoms);
-    potentialEvaluator_ = potentialProvider_->plan(*inputdensity_, optionsstring_);
+    auto x1      = inputdensity_->getGrid().multiIndexToCoordinate({0, 0, 0});
+    auto x2      = inputdensity_->getGrid().multiIndexToCoordinate({1, 0, 0});
+    auto spacing = fabs(x1[0]-x2[0]);
+    real margin  = 1.0; //  TODO: fix margin to nSigma * sigma,
+    potentialEvaluator_ = potentialProvider_->plan(encompassingGridFromCoordinates({fr.x, fr.x+fr.natoms}, spacing, margin), optionsstring_);
 }
 
 void DensityPotential::analyzeFrame(int frnr, const t_trxframe &fr,

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,34 +32,35 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \internal \file
- * \brief
- * Declares trajectory analysis module for spreading atom density on a grid.
- *
- * \author Christian Blau <cblau@gwdg.de>
- * \ingroup module_trajectoryanalysis
- */
-#ifndef GMX_TRAJECTORYANALYSIS_MODULES_RIGIDBODYFIT_H
-#define GMX_TRAJECTORYANALYSIS_MODULES_RIGIDBODYFIT_H
 
-#include "gromacs/trajectoryanalysis/analysismodule.h"
-
+ #include "encompassinggrid.h"
 namespace gmx
 {
 
-namespace analysismodules
+GridWithTranslation<DIM> encompassingGridFromCoordinates(const std::vector<RVec> &coordinates, real spacing, real margin)
 {
+    RVec realSpaceExtend = {0., 0., 0.};
+    RVec translation;
 
-class RigidBodyFitInfo
-{
-    public:
-        static const char name[];
-        static const char shortDescription[];
-        static TrajectoryAnalysisModulePointer create();
-};
+    // find the extend of input coordinates
+    for (int i = XX; i <= ZZ; i++)
+    {
+        auto compareIthComponent = [i](RVec a, RVec b) {
+                return a[i] < b[i];
+            };
+        auto minMaxX             =
+            minmax_element(coordinates.begin(), coordinates.end(), compareIthComponent);
+        realSpaceExtend[i] =
+            2 * margin + (*minMaxX.second)[i] - (*minMaxX.first)[i];
+        translation[i] = -margin + (*minMaxX.first)[i];
+    }
 
-} // namespace analysismodules
+    GridWithTranslation<DIM>::MultiIndex extend {{
+                                                     (int)ceil(realSpaceExtend[XX] / spacing), (int)ceil(realSpaceExtend[YY] / spacing), (int)ceil(realSpaceExtend[ZZ] / spacing)
+                                                 }};
 
-} // namespace gmx
+    GridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing, extend[YY] * spacing, extend[ZZ] * spacing}}}, extend, {{roundf(translation[XX] / spacing) * spacing, roundf(translation[YY] / spacing) * spacing, roundf(translation[ZZ] / spacing) * spacing}});
 
-#endif
+    return outputdensitygrid;
+}
+}

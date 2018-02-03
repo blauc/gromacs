@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2017, by the GROMACS development team, led by
+ * Copyright (c) 2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,53 +32,22 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
-#define GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H
 
-#include "gmxpre.h"
+ #ifndef GMX_ENCOMPASSINGGRID_H_
+ #define GMX_ENCOMPASSINGGRID_H_
 
 #include <vector>
+#include "grid.h"
 
-#include "gromacs/math/griddata/griddata.h"
-#include "gromacs/math/quaternion.h"
 #include "gromacs/math/vectypes.h"
-
 namespace gmx
 {
 
-class PotentialEvaluatorHandle;
-class ForceEvaluatorHandle;
-struct PotentialAndForceHandle;
-class IStructureDensityPotentialForceProvider;
+/*!\brief Constructs a new grid that includes all coordinates and a given margin.
+ */
+GridWithTranslation<DIM> encompassingGridFromCoordinates(const std::vector<RVec> &coordinates, real spacing, real margin = 0.);
+}
 
-struct RigidBodyFitResult {
-    RVec       translation;
-    RVec       centerOfRotation;
-    Quaternion orientation;
-    real       potential;
-};
 
-class RigidBodyFit
-{
-    public:
-        RigidBodyFitResult
-        fitCoordinates(const GridDataReal3D          &reference,
-                       const std::vector<RVec>       &coordinates,
-                       const std::vector<float>      &weights,
-                       const PotentialAndForceHandle &fitPotentialProvider,
-                       RVec                           centerOfGeometry);
 
-    private:
-        const real minimial_improvement_ = 1e-10;
-        const int  max_steps_            = 1e5;
-        RVec       translation_;
-        RVec       centerOfRotation_;
-        Quaternion orientation_;
-        RVec gradientTranslation_(const GridDataReal3D       &reference,
-                                  const ForceEvaluatorHandle &fitPotentialProvider);
-        Quaternion
-        gradientOrientation_(const GridDataReal3D       &reference,
-                             const ForceEvaluatorHandle &fitPotentialProvider);
-};
-}      // namespace gmx
-#endif /* end of include guard: GMX_EXTERNALPOTENTIAL_RIGIDBODYFIT_H */
+ #endif /* end of include guard: GMX_ENCOMPASSINGGRID_H_ */

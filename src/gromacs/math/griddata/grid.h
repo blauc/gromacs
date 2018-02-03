@@ -67,6 +67,9 @@ class IGrid
         typedef typename ColumnMajorLattice<N>::MultiIndex MultiIndex;
         //! short-hand notation for reference to grid interface.
         typedef std::unique_ptr < IGrid < N>> IGridPointer;
+        /*! \brief Compares grids.
+         */
+        virtual bool operator==(const IGrid<N> &other) const = 0;
 
         /*! \brief
          * Vector pointing from a gridpoint to coordinate in internal grid coordinates.
@@ -167,7 +170,29 @@ class Grid : public IGrid<N>
             std::swap(lattice_, other.lattice_);
             return *this;
         }
-
+        //! \copydoc IGrid::operator==(const IGrid<N> & other)
+        bool operator==(const IGrid<N> &other) const
+        {
+            if (other.lattice() != this->lattice_)
+            {
+                return false;
+            }
+            if (lattice_.extend() != other.lattice().extend())
+            {
+                return false;
+            }
+            MultiIndex nought;
+            if (multiIndexToCoordinate(nought) != other.multiIndexToCoordinate(nought))
+            {return false; }
+            for (int dimension = 0; dimension < N; ++dimension)
+            {
+                auto basisVector = nought;
+                basisVector[dimension] = 1;
+                if (lattice_.extend()[dimension] > 1 && (multiIndexToCoordinate(basisVector) != other.multiIndexToCoordinate(basisVector)))
+                {return false; }
+            }
+            return true;
+        }
         //! \copydoc IGrid::gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex & i)
         NdVector gridVectorFromGridPointToCoordinate(const NdVector &x, const MultiIndex &i) const override
         {

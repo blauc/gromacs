@@ -90,7 +90,20 @@ template <int N> class ColumnMajorLattice
          * The lattice extend as N-dimensional index.
          */
         const MultiIndex &extend() const { return extend_; };
-
+        /*! \brief
+         * Compare lattices.
+         */
+        bool operator==(const ColumnMajorLattice &other)
+        {
+            return extend_ == other.extend_;
+        }
+        /*! \brief
+         * Lattice are unequal if not equal.
+         */
+        bool operator!=(const ColumnMajorLattice &other)
+        {
+            return !operator==(other);
+        }
         /*! \brief
          * The number of points in the lattice.
          *

@@ -78,7 +78,7 @@ class IStructureDensityPotentialProvider
                                     const std::vector<real> &weights) = 0;
         virtual PotentialEvaluatorHandle planPotential(
             const std::vector<RVec> &coordinates, const std::vector<real> &weights,
-            const GridDataReal3D &reference, const std::string &options) = 0;
+            const IGrid<3> &baseGrid, const std::string &options) = 0;
 };
 
 class IForceEvaluator
@@ -115,7 +115,7 @@ class IStructureDensityForceProvider
         virtual ~IStructureDensityForceProvider() = default;
         virtual void setCoordinates(const std::vector<RVec> &coordinates,
                                     const std::vector<real> &weights) = 0;
-        virtual ForceEvaluatorHandle planForce(const GridDataReal3D &reference,
+        virtual ForceEvaluatorHandle planForce(const IGrid<3>       &baseGrid,
                                                const std::string    &options) = 0;
 };
 
@@ -134,7 +134,7 @@ class IStructureDensityPotentialForceProvider
                                     const std::vector<real> &weights) = 0;
 
         virtual ~IStructureDensityPotentialForceProvider() = default;
-        virtual PotentialAndForceHandle plan(const GridDataReal3D &reference,
+        virtual PotentialAndForceHandle plan(const IGrid<3>       &baseGrid,
                                              const std::string    &options) = 0;
 };
 

@@ -53,6 +53,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/quaternion.h"
 #include "gromacs/math/griddata/rotatedgrid.h"
+#include "gromacs/math/griddata/encompassinggrid.h"
 #include "gromacs/math/griddata/operations/modifygriddata.h"
 #include "gromacs/math/griddata/operations/gridinterpolator.h"
 #include "gromacs/math/griddata/operations/realfieldmeasure.h"
@@ -65,6 +66,7 @@
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 #include "gromacs/utility/exceptions.h"
+
 
 namespace gmx
 {
@@ -194,6 +196,7 @@ void Map::initAnalysis(const TrajectoryAnalysisSettings & /*settings*/,
         }
         gmx_atomprop_destroy(atomprop);
     }
+
     if (bFitFramesToTopStructure_)
     {
         if (top.topology())
@@ -226,63 +229,26 @@ void Map::optionsFinished(TrajectoryAnalysisSettings * /*settings*/)
     }
 }
 
-void Map::set_box_from_frame(const t_trxframe &fr, matrix box,
-                             rvec translation)
-{
-    if ((det(fr.box) > 1e-6) && bUseBox_)
-    {
-        copy_mat(fr.box, box);
-        clear_rvec(translation); // TODO: more user options for setting translation
-        return;
-    }
-
-    fprintf(stderr, "Did not find suitable box for atom in structure file, "
-            "guessing from structure extend.\n");
-    clear_mat(box);
-    const std::vector<RVec> x_RVec(fr.x, fr.x + fr.natoms);
-    for (int i = XX; i <= ZZ; i++)
-    {
-        auto compareIthComponent = [i](RVec a, RVec b) {
-                return a[i] < b[i];
-            };
-        auto minMaxX             =
-            minmax_element(x_RVec.begin(), x_RVec.end(), compareIthComponent);
-        box[i][i] =
-            2 * n_sigma_ * sigma_ + (*minMaxX.second)[i] - (*minMaxX.first)[i];
-        translation[i] = -n_sigma_ * sigma_ + (*minMaxX.first)[i];
-    }
-}
-
-void Map::set_finitegrid_from_box(matrix box, rvec translation)
-{
-    GridWithTranslation<DIM>::MultiIndex extend {{
-                                                     (int)ceil(box[XX][XX] / spacing_), (int)ceil(box[YY][YY] / spacing_), (int)ceil(box[ZZ][ZZ] / spacing_)
-                                                 }};
-    GridWithTranslation<DIM> outputdensitygrid( {{{extend[XX] * spacing_, extend[YY] * spacing_, extend[ZZ] * spacing_}}}, extend, {{roundf(translation[XX] / spacing_) * spacing_, roundf(translation[YY] / spacing_) * spacing_, roundf(translation[ZZ] / spacing_) * spacing_}});
-    outputDensityBuffer_ = GridDataReal3D(outputdensitygrid);
-}
-
 void Map::frameToDensity_(const t_trxframe &fr, int nFr)
 {
     if (nFr == 1)
     {
+        std::unique_ptr < IGrid < DIM>> outputGrid;
         if (fnmapinput_.empty())
         {
             // Guess the extend of the map from the structure
-            matrix box;
-            rvec   translation;
-            set_box_from_frame(fr, box, translation);
-            set_finitegrid_from_box(box, translation);
+            outputGrid = encompassingGridFromCoordinates({fr.x, fr.x+fr.natoms}, spacing_, n_sigma_*sigma_).duplicate();
         }
         else
         {
             // copy the grid properties from reference grid
-            outputDensityBuffer_ = GridDataReal3D(inputdensity_.getGrid());
+            outputGrid  = inputdensity_.getGrid().duplicate();
         }
 
         spreader_ = std::unique_ptr<DensitySpreader>(
-                    new DensitySpreader(outputDensityBuffer_.getGrid(), 1, n_sigma_, sigma_));
+                    new DensitySpreader(*outputGrid, 1, n_sigma_, sigma_));
 
+        outputDensityBuffer_ = GridDataReal3D(*outputGrid);
         ModifyGridData(outputDensityBuffer_).zero();
     }
 
@@ -334,6 +300,10 @@ void Map::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc * /*pbc*/,
 
         if (!fnmapoutput_.empty())
         {
+            if (frnr == 0)
+            {
+                MrcFile().write( fnmapoutput_, outputDensityBuffer_);
+            }
             MrcFile().write( fnmapoutput_.substr(0, fnmapoutput_.size() - 5) + std::to_string(frnr) + ".ccp4", outputDensityBuffer_);
         }
 

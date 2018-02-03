@@ -65,7 +65,7 @@ void MrcMetaData::setEMDBDefaults()
         format_identifier        = "MAP ";
 
         // check endianess
-        #if GMX_INTEGER_BIG_ENDIAN
+        #ifdef GMX_INTEGER_BIG_ENDIAN
         machine_stamp            = 1145110528;
         #else
         machine_stamp            = 4369;
