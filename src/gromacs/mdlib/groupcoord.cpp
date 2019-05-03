@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2008, The GROMACS development team.
- * Copyright (c) 2012,2014,2015,2017,2018, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2017,2018,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,6 +39,7 @@
 #include "groupcoord.h"
 
 #include "gromacs/domdec/ga2la.h"
+#include "gromacs/domdec/localatomset.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/commrec.h"
@@ -266,6 +267,108 @@ extern void communicate_group_positions(
     }
 }
 
+namespace gmx
+{
+
+
+class PeriodicBoundaryShiftCorrector::Impl
+{
+    public:
+        Impl(LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates);
+
+        void updateShifts(const matrix box, ArrayRef<const RVec> x);
+
+        LocalAtomSet           atomSet_;
+
+        std::vector<gmx::IVec> shifts_;
+        std::vector<gmx::RVec> referenceCoordinates_;
+};
+
+PeriodicBoundaryShiftCorrector::Impl::Impl(LocalAtomSet         atomSet,
+                                           ArrayRef<const RVec> referenceCoordinates) :
+    atomSet_(atomSet), shifts_(atomSet.numAtomsLocal())
+{
+    // Pick the local reference coordinates within the atomSet
+    std::transform(
+            std::begin(atomSet_.localIndex()), std::end(atomSet_.localIndex()),
+            std::back_inserter(referenceCoordinates_),
+            [&referenceCoordinates](int index){ return referenceCoordinates[index]; });
+    std::fill(std::begin(shifts_), std::end(shifts_), IVec {0, 0, 0});
+}
+
+PeriodicBoundaryShiftCorrector::PeriodicBoundaryShiftCorrector(
+        LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates) :
+    impl_(new PeriodicBoundaryShiftCorrector::Impl(atomSet, referenceCoordinates))
+{
+}
+
+void PeriodicBoundaryShiftCorrector::Impl::updateShifts(const matrix box, ArrayRef<const RVec> x)
+{
+    /* Get the shifts such that each atom is within closest
+     * distance to its latest position.
+     * If we start with a whole group, and always keep track of
+     * shift changes, the group will stay whole this way */
+    std::fill(std::begin(shifts_), std::end(shifts_), IVec {0, 0, 0});
+    const auto &localIndex = atomSet_.localIndex();
+    for (int atomIndex = 0; atomIndex < ssize(localIndex); atomIndex++)
+    {
+        /* The distance this atom moved since the last time step */
+        /* If this is more than just a bit, it has changed its home pbc box */
+        auto dx = x[localIndex[atomIndex]] - referenceCoordinates_[atomIndex];
+
+        for (int dimension = 0; dimension < DIM; ++dimension)
+        {
+            const RVec shiftVector = box[dimension];
+            while (dx[dimension] < -0.5 * shiftVector[dimension])
+            {
+                dx += shiftVector;
+                shifts_[atomIndex][dimension]++;
+            }
+            while (dx[dimension] >= 0.5 * shiftVector[dimension])
+            {
+                dx -= shiftVector;
+                shifts_[atomIndex][dimension]--;
+            }
+        }
+    }
+}
+
+void PeriodicBoundaryShiftCorrector::updateShifts(const matrix box, ArrayRef<const RVec> x)
+{
+    impl_->updateShifts(box, x);
+}
+
+void PeriodicBoundaryShiftCorrector::applyShifts(const matrix box, ArrayRef<const RVec> x)
+{
+    if (TRICLINIC(box))
+    {
+        std::transform(
+                std::begin(impl_->shifts_), std::end(impl_->shifts_),
+                std::begin(x), std::begin(impl_->referenceCoordinates_),
+                [box](const IVec &shift, const RVec &coordinate){
+                    return RVec {
+                        coordinate[XX] + shift[XX] * box[XX][XX] + shift[YY] * box[YY][XX] + shift[ZZ] * box[ZZ][XX],
+                        coordinate[YY] + shift[YY] * box[YY][YY] + shift[ZZ] * box[ZZ][YY],
+                        coordinate[ZZ] + shift[ZZ] * box[ZZ][ZZ]
+                    };
+                });
+    }
+    else
+    {
+        std::transform(
+                std::begin(impl_->shifts_), std::end(impl_->shifts_),
+                std::begin(x), std::begin(impl_->referenceCoordinates_),
+                [box](const IVec &shift, const RVec &coordinate){
+                    return RVec {
+                        coordinate[XX] + shift[XX] * box[XX][XX],
+                        coordinate[YY] + shift[YY] * box[YY][YY],
+                        coordinate[ZZ] + shift[ZZ] * box[ZZ][ZZ]
+                    };
+                });
+    }
+}
+
+} // namespace gmx
 
 /* Determine the (weighted) sum vector from positions x */
 extern double get_sum_of_positions(rvec x[], real weight[], const int nat, dvec dsumvec)
