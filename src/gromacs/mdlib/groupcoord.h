@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2008, The GROMACS development team.
- * Copyright (c) 2012,2014,2015,2018, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2018,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -50,11 +50,16 @@
 #include <stdio.h>
 
 #include "gromacs/math/vectypes.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/classhelpers.h"
 
 class gmx_ga2la_t;
 struct t_commrec;
-
+namespace gmx
+{
+class LocalAtomSet;
+}
 /*! \brief Select local atoms of a group.
  *
  * Selects the indices of local atoms of a group and stores them in anrs_loc[0..nr_loc].
@@ -129,6 +134,40 @@ extern void communicate_group_positions(const t_commrec *cr, rvec *xcoll, ivec *
                                         const int *anrs_loc, const int *coll_ind, rvec *xcoll_old,
                                         const matrix box);
 
+namespace gmx
+{
+
+/*! \libinternal \brief
+ * Correct periodic boundary shifts for a subset of atoms on the local node and
+ * provide a view to the shift-corrected coordinates.
+ *
+ * Owns the memory for the shift-corrected coordinates.
+ *
+ * Calculating and applying the periodic boundary shift correction are performed
+ * in two seperate steps, because the shift correction is only changeing in
+ * domain decomoposition steps.
+ *
+ * Uses reference coordinates to check if coordinates moved more than a half a
+ * box-lengths. If so, current coordinates are shifted with the box vectors
+ * so they are closer to the reference coordinates than half a box length.
+ */
+class PeriodicBoundaryShiftCorrector
+{
+    public:
+        //! Select the local atom set and reference coordinates
+        PeriodicBoundaryShiftCorrector(LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates);
+        //! Re-calculate the shifts in multiples of box vectors, e.g. after a domain decomposition
+        void updateShifts(const matrix box, ArrayRef<const RVec> x);
+        //! Apply the calculated box-vector shifts to a
+        void applyShifts(const matrix box, ArrayRef<const RVec> x);
+        //! Return a view on the shifted coordinates
+        ArrayRef<const RVec> view() const;
+    private:
+        class Impl;
+        PrivateImplPointer<Impl> impl_;
+};
+
+} // namespace gmx
 /*! \brief Calculates the center of the positions x locally.
  *
  * Calculates the center of mass (if masses are given in the weight array) or
