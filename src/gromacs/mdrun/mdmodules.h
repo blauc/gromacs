@@ -43,6 +43,7 @@
 #ifndef GMX_MDRUN_MDMODULES_H
 #define GMX_MDRUN_MDMODULES_H
 
+#include "gromacs/mdrun/eventtriggers.h"
 #include "gromacs/utility/classhelpers.h"
 
 struct ForceProviders;
@@ -168,6 +169,10 @@ class MDModules
          * to a builder class.
          */
         void add(std::shared_ptr<gmx::IMDModule> module);
+
+        /*! \brief Return a handle to the message publisher.
+         */
+        const MdModuleCallBack &message();
 
     private:
         class Impl;

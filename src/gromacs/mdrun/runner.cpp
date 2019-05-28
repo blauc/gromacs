@@ -98,6 +98,7 @@
 #include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/sighandler.h"
 #include "gromacs/mdlib/stophandler.h"
+#include "gromacs/mdrun/eventtriggers.h"
 #include "gromacs/mdrun/mdmodules.h"
 #include "gromacs/mdrun/simulationcontext.h"
 #include "gromacs/mdrunutility/handlerestart.h"
@@ -952,6 +953,7 @@ int Mdrunner::mdrunner()
                                            &mtop, inputrec,
                                            box, positionsFromStatePointer(globalState.get()),
                                            &atomSets);
+        mdModules_->message() (&atomSets);
         // Note that local state still does not exist yet.
     }
     else
@@ -1247,6 +1249,7 @@ int Mdrunner::mdrunner()
     snew(nrnb, 1);
     if (thisRankHasDuty(cr, DUTY_PP))
     {
+        mdModules_->message() (CommunicationIsSetup {*cr});
         /* Initiate forcerecord */
         fr                 = new t_forcerec;
         fr->forceProviders = mdModules_->initForceProviders();
