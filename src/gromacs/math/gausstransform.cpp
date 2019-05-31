@@ -51,6 +51,8 @@
 
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/mdtypes/commrec.h"
 
 #include "multidimarray.h"
 
@@ -393,6 +395,15 @@ void GaussTransform3D::add(const GaussianSpreadKernelParameters::PositionAndAmpl
 void GaussTransform3D::setZero()
 {
     std::fill(begin(impl_->data_), end(impl_->data_), 0.);
+}
+
+void GaussTransform3D::sumReduce(const t_commrec &commrec)
+{
+    if (PAR(&commrec))
+    {
+        gmx_sumf(impl_->data_.asView().mapping().required_span_size(),
+                 impl_->data_.asView().data(), &commrec);
+    }
 }
 
 const basic_mdspan<const float, dynamicExtents3D> GaussTransform3D::view()

@@ -54,6 +54,8 @@
 
 #include "multidimarray.h"
 
+struct t_commrec;
+
 namespace gmx
 {
 
@@ -194,6 +196,11 @@ class GaussTransform3D
         void setZero();
         //! Return a view on the spread lattice.
         const basic_mdspan<const float, dynamicExtents3D> view();
+        /*! \brief
+         * Sum the values on the spread lattice over all nodes in a parallel setting.
+         * \param[in] commrec the communication record
+         */
+        void sumReduce(const t_commrec &commrec);
 
     private:
         class Impl;
