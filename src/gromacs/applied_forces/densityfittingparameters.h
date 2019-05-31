@@ -42,11 +42,50 @@
 #ifndef GMX_APPLIED_FORCES_DENSITYFITTINGPARAMETERS_H
 #define GMX_APPLIED_FORCES_DENSITYFITTINGPARAMETERS_H
 
+#include "gromacs/applied_forces/densityfittingamplitudelookup.h"
+#include "gromacs/domdec/localatomset.h"
+#include "gromacs/math/coordinatetransformation.h"
+#include "gromacs/math/densityfit.h"
+#include "gromacs/math/densityfittingforce.h"
+#include "gromacs/math/gausstransform.h"
+
 namespace gmx
 {
 
 class DensityFittingParameters
 {
+    public:
+        using reference_density = basic_mdspan<const float, dynamicExtents3D>;
+
+        DensityFittingParameters(const LocalAtomSet                   &atomSet,
+                                 const TranslateAndScale              &transformationToDensityLattice,
+                                 real                                  forceConstant,
+                                 real                                  sigma,
+                                 double                                nSigma,
+                                 reference_density                     referenceDensity,
+                                 const DensityFittingAmplitudeMethod  &amplitudeMethod,
+                                 const DensitySimilarityMeasureMethod &measureMethod);
+
+        DensitySimilarityMeasure makeMeasure() const;
+        GaussTransform3D makeSpreadingTransform() const;
+        DensityFittingForce makeForceEvaluator() const;
+        const LocalAtomSet      &atomSet() const;
+        real forceConstant() const;
+        const TranslateAndScale &transformationToDensityLattice() const;
+        GaussianSpreadKernelParameters::Shape makeSpreadKernel() const;
+        DensityFittingAmplitudeLookup makeAmplitudeLookup() const;
+
+    private:
+
+        LocalAtomSet                   atomSet_;
+        real                           forceConstant_;
+        TranslateAndScale              transformationToDensityLattice_;
+        const reference_density        referenceDensity_;
+        std::vector<real>              amplitudes_;
+        real                           sigma_;
+        double                         nSigma_;
+        DensityFittingAmplitudeMethod  amplitudeMethod_;
+        DensitySimilarityMeasureMethod measureMethod_;
 };
 
 }      // namespace gmx

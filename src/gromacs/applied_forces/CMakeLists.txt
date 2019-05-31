@@ -36,6 +36,7 @@ gmx_add_libgromacs_sources(
     densityfitting.cpp
     densityfittingamplitudelookup.cpp
     densityfittingforceprovider.cpp
+    densityfittingparameters.cpp
     electricfield.cpp
     )
 
