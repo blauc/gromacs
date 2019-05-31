@@ -45,18 +45,30 @@
 #include <memory>
 
 #include "gromacs/mdtypes/iforceprovider.h"
+#include "gromacs/utility/classhelpers.h"
 
 namespace gmx
 {
 class DensityFittingParameters;
 
+/*! \internal \brief
+ * Implements IForceProvider for density-fitting forces.
+ */
 class DensityFittingForceProvider final : public IForceProvider
 {
     public:
-        DensityFittingForceProvider(const DensityFittingParameters &paramters);
+        //! Construct force provider for density fitting from its parameters
+        explicit DensityFittingForceProvider(const DensityFittingParameters &parameters);
+        ~DensityFittingForceProvider();
+        /* \brief Calculate forces that maximise goodness-of-fit with a reference density map
+         * \param[in] forceProviderInput input for force provider
+         * \param[out] forceProviderOutput output for force provider
+         */
         void calculateForces(const ForceProviderInput &forceProviderInput,
                              ForceProviderOutput      *forceProviderOutput) override;
-
+    private:
+        class Impl;
+        PrivateImplPointer<Impl> impl_;
 };
 
 }      // namespace gmx
