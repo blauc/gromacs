@@ -43,19 +43,27 @@
 
 #include "densityfitting.h"
 
+#include "gromacs/domdec/localatomsetmanager.h"
+#include "gromacs/fileio/gmxfio_xdr.h"
+#include "gromacs/fileio/mrcdensitymap.h"
 #include "gromacs/mdtypes/iforceprovider.h"
 #include "gromacs/mdtypes/imdmodule.h"
 #include "gromacs/mdtypes/imdoutputprovider.h"
 #include "gromacs/mdtypes/imdpoptionprovider.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/optionsection.h"
+#include "gromacs/selection/selectionoption.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/enumerationhelpers.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
 #include "gromacs/utility/keyvaluetreetransform.h"
 #include "gromacs/utility/stringutil.h"
 
+#include "gromacs/fileio/mrcdensitymapheader.h"
+#include "gromacs/fileio/gmxfio.h"
+
 #include "densityfittingforceprovider.h"
 #include "densityfittingparameters.h"
-
 namespace gmx
 {
 
@@ -86,6 +94,15 @@ class DensityFittingOptions : public IMdpOptionProvider
         {
             builder->addValue<bool>(inputSectionName_ + "-" + c_activeTag_,
                                     active_);
+            builder->addValue<std::string>(inputSectionName_ + "-" + c_simliarityMeasureTag_,
+                                           similarityMeasure_);
+            builder->addValue<std::string>(inputSectionName_ + "-" +  c_amplitudeMethodTag_,
+                                           c_densityFittingAmplitudeMethodNameMapping.at(amplitudeMethod_) );
+            builder->addValue<std::string>(inputSectionName_ + "-" + c_referenceDensityFileNameTag_, referenceDensityFileName);
+
+            builder->addValue<std::string>(inputSectionName_ + "-" + c_fittingGroupTag_, fitGroup_.name());
+            builder->addValue<float>(inputSectionName_ + "-" + c_forceConstantTag_, forceConstant_);
+            builder->addValue<float>(inputSectionName_ + "-" + c_sigmaTag_, sigma_);
         }
 
         /*! \brief
@@ -94,8 +111,13 @@ class DensityFittingOptions : public IMdpOptionProvider
         void initMdpOptions(IOptionsContainerWithSections *options) override
         {
             auto section = options->addSection(OptionSection(inputSectionName_.c_str()));
-            section.addOption(
-                    BooleanOption(c_activeTag_.c_str()).store(&active_));
+            section.addOption(BooleanOption(c_activeTag_.c_str()).store(&active_));
+            section.addOption(StringOption(c_simliarityMeasureTag_.c_str()).enumValue({"inner-product"}).store(&similarityMeasure_));
+            section.addOption(EnumOption<DensityFittingAmplitudeMethod>(c_amplitudeMethodTag_.c_str()).enumValue(c_densityFittingAmplitudeMethodNames).store(&amplitudeMethod_));
+            section.addOption(StringOption(c_referenceDensityFileNameTag_.c_str()).store(&referenceDensityFileName));
+            section.addOption(SelectionOption(c_fittingGroupTag_.c_str()).store(&fitGroup_).onlyAtoms().onlyStatic());
+            section.addOption(FloatOption(c_forceConstantTag_.c_str()).store(&forceConstant_));
+            section.addOption(FloatOption(c_sigmaTag_.c_str()).store(&sigma_));
         }
 
         //! Report if this set of options is active
@@ -107,17 +129,55 @@ class DensityFittingOptions : public IMdpOptionProvider
         //! Process input options to parameters, including input file reading.
         DensityFittingParameters buildParameters()
         {
+            GMX_ASSERT(atomSet != nullptr, "Atom set needs to be set before initializing force provider");
+            // TranslateAndScale transformationToDensityLattice_;
+            t_fileio                                   *mrcFile = gmx_fio_open(referenceDensityFileName.c_str(), "r");
+            FileIOXdrSerializer                         serializer(mrcFile);
+            mapReader_ = std::make_unique<MrcDensityMapOfFloatReader>(&serializer);
+            TranslateAndScale                           transformationToDensityLattice = getCoordinateTransformationToLattice(mapReader_->header());
+            dynamicExtents3D                            ext = getDynamicExtents3D(mapReader_->header());
+            basic_mdspan<const float, dynamicExtents3D> referenceDensity(mapReader_->data().data(), ext);
             // read map to mrc-header and data vector
             // convert mrcheader and data vector to grid data
-            return {};
+            return {*atomSet, transformationToDensityLattice, forceConstant_, sigma_, nSigma_, referenceDensity, amplitudeMethod_, similarityMeasure_};
+        }
+
+        void buildAtomSets(LocalAtomSetManager *atomSets)
+        {
+            *atomSet = atomSets->add(fitGroup_.atomIndices());
         }
 
     private:
+        std::unique_ptr<LocalAtomSet>                 atomSet;
+        std::unique_ptr < MrcDensityMapOfFloatReader> mapReader_;
         //! The name of the density-fitting module
-        const std::string     inputSectionName_ = "density-guided-simulation";
+        const std::string inputSectionName_ = "density-guided-simulation";
 
-        const std::string     c_activeTag_             = "active";
-        bool                  active_                  = false;
+        //! Forces are only calculated if density guided simulation is active
+        const std::string c_activeTag_      = "active";
+        bool              active_           = false;
+
+        //! The type of the fitting potential
+        const std::string             c_simliarityMeasureTag_ = "similarity-measure";
+        std::string                   similarityMeasure_;
+
+        const std::string             c_amplitudeMethodTag_ = "amplitude-weight";
+        DensityFittingAmplitudeMethod amplitudeMethod_;
+
+        const std::string             c_fittingGroupTag_ = "group";
+        Selection                     fitGroup_;
+
+        const std::string             c_referenceDensityFileNameTag_ = "reference";
+        std::string                   referenceDensityFileName;
+
+        const std::string             c_forceConstantTag_ = "force-constant";
+        real                          forceConstant_;
+
+        const std::string             c_sigmaTag_ = "sigma";
+        real sigma_;
+
+        const real                    nSigma_ = 5.;
+
 };
 
 /*! \internal
@@ -146,6 +206,10 @@ class DensityFitting final : public IMDModule,
             }
         }
 
+        void notify(LocalAtomSetManager * atomSets)
+        {
+            densityFittingOptions_.buildAtomSets(atomSets);
+        }
         //! This MDModule provides its own output
         IMDOutputProvider *outputProvider() override { return this; }
 
