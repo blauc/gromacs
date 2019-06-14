@@ -46,7 +46,6 @@
 #include "gromacs/domdec/localatomsetmanager.h"
 #include "gromacs/fileio/gmxfio_xdr.h"
 #include "gromacs/fileio/mrcdensitymap.h"
-#include "gromacs/mdrun/eventtriggers.h"
 #include "gromacs/mdlib/broadcaststructs.h"
 #include "gromacs/mdtypes/iforceprovider.h"
 #include "gromacs/mdtypes/imdmodule.h"
@@ -287,34 +286,34 @@ class DensityFitting final : public IMDModule
             }
         }
 
-        void notify(LocalAtomSetManager * atomSets)
+        void callback(LocalAtomSetManager * atomSets)
         {
             densityFittingOptions_.buildAtomSets(atomSets);
         }
 
-        void notify(GlobalCoordinatesProvidedOnMaster coordinatesOnMaster)
+        void callback(GlobalCoordinatesProvidedOnMaster coordinatesOnMaster)
         {
             densityFittingOptions_.setCoordinates(coordinatesOnMaster.coordinates);
         }
 
-        void notify(SelectionCollection * selectionCollection)
+        void callback(SelectionCollection * selectionCollection)
         {
             densityFittingOptions_.buildSelection(selectionCollection);
         }
 
-        void notify(int ePBC)
+        void callback(PeriodicBoundaryConditionOptionIsSetup pbc)
         {
-            densityFittingOptions_.setPbc(ePBC);
+            densityFittingOptions_.setPbc(pbc.ePBC_);
         }
 
-        void notify(const t_commrec &commrec)
+        void callback(CommunicationIsSetup communicationSetup)
         {
-            densityFittingOptions_.setCommrec(commrec);
+            densityFittingOptions_.setCommrec(communicationSetup.communicationRecord_);
         }
 
-        void notify(const matrix &box)
+        void callback(BoxIsSetup boxSetup)
         {
-            densityFittingOptions_.setBox(box);
+            densityFittingOptions_.setBox(boxSetup.box_);
         }
         //! This MDModule provides its own output
         IMDOutputProvider *outputProvider() override { return &densityFittingOutputProvider_; }
@@ -330,9 +329,16 @@ class DensityFitting final : public IMDModule
 
 }   // namespace
 
-std::unique_ptr<IMDModule> createDensityFittingModule()
+std::unique_ptr<IMDModule> createDensityFittingModule(MdModuleCallBack * mdModuleMessageTriggers)
 {
-    return std::unique_ptr<IMDModule>(new DensityFitting());
+    auto densityFittingModule = std::make_unique<DensityFitting>();
+    mdModuleMessageTriggers->subscribe<LocalAtomSetManager *>(densityFittingModule.get());
+    mdModuleMessageTriggers->subscribe<GlobalCoordinatesProvidedOnMaster>(densityFittingModule.get());
+    mdModuleMessageTriggers->subscribe<SelectionCollection *>(densityFittingModule.get());
+    mdModuleMessageTriggers->subscribe<PeriodicBoundaryConditionOptionIsSetup>(densityFittingModule.get());
+    mdModuleMessageTriggers->subscribe<CommunicationIsSetup>(densityFittingModule.get());
+    mdModuleMessageTriggers->subscribe<BoxIsSetup>(densityFittingModule.get());
+    return std::move(densityFittingModule);
 }
 
 } // namespace gmx
