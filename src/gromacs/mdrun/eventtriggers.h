@@ -219,7 +219,8 @@ using MdModuleCallBack = detail::registerCallBack<
             SelectionCollection *,
             GlobalCoordinatesProvidedOnMaster,
             PeriodicBoundaryConditionOptionIsSetup,
-            BoxIsSetup>::type;
+            BoxIsSetup
+            >::type;
 
 } // namespace gmx
 
