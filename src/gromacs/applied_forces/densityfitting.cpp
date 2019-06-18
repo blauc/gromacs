@@ -46,6 +46,8 @@
 #include "gromacs/domdec/localatomsetmanager.h"
 #include "gromacs/fileio/gmxfio_xdr.h"
 #include "gromacs/fileio/mrcdensitymap.h"
+#include "gromacs/mdrun/eventtriggers.h"
+#include "gromacs/mdlib/broadcaststructs.h"
 #include "gromacs/mdtypes/iforceprovider.h"
 #include "gromacs/mdtypes/imdmodule.h"
 #include "gromacs/mdtypes/imdoutputprovider.h"
@@ -53,7 +55,9 @@
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/optionsection.h"
 #include "gromacs/selection/selectionoption.h"
+#include "gromacs/selection/selectioncollection.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/enumerationhelpers.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
 #include "gromacs/utility/keyvaluetreetransform.h"
@@ -69,6 +73,16 @@ namespace gmx
 
 namespace
 {
+
+t_trxframe makeTrxFrameFromCoordinates(ArrayRef<const RVec> coordinates)
+{
+    t_trxframe frame;
+    clear_trxframe(&frame, true);
+    frame.bX     = true;
+    frame.natoms = coordinates.ssize();
+    frame.x      = const_cast<rvec *>(as_rvec_array(coordinates.data()));
+    return frame;
+}
 
 /*! \internal
  * \brief Input data storage for density fitting
@@ -115,7 +129,7 @@ class DensityFittingOptions : public IMdpOptionProvider
             section.addOption(StringOption(c_simliarityMeasureTag_.c_str()).enumValue({"inner-product"}).store(&similarityMeasure_));
             section.addOption(EnumOption<DensityFittingAmplitudeMethod>(c_amplitudeMethodTag_.c_str()).enumValue(c_densityFittingAmplitudeMethodNames).store(&amplitudeMethod_));
             section.addOption(StringOption(c_referenceDensityFileNameTag_.c_str()).store(&referenceDensityFileName));
-            section.addOption(SelectionOption(c_fittingGroupTag_.c_str()).store(&fitGroup_).onlyAtoms().onlyStatic());
+            section.addOption(StringOption(c_fittingGroupTag_.c_str()).store(&fitGroupString_));
             section.addOption(FloatOption(c_forceConstantTag_.c_str()).store(&forceConstant_));
             section.addOption(FloatOption(c_sigmaTag_.c_str()).store(&sigma_));
         }
@@ -144,12 +158,62 @@ class DensityFittingOptions : public IMdpOptionProvider
 
         void buildAtomSets(LocalAtomSetManager *atomSets)
         {
-            *atomSet = atomSets->add(fitGroup_.atomIndices());
+            GMX_ASSERT(fitGroup_ != nullptr, "Fit group selection needs to be built before atom sets.");
+            GMX_ASSERT(fitGroup_->size() == 1, "Density guided simulations may only have one selection group. Use the merge functionality in the selection syntax.");
+            *atomSet = atomSets->add(fitGroup_->front().atomIndices());
+        }
+
+        void buildSelection(SelectionCollection * selectionCollection)
+        {
+            GMX_ASSERT(pbc_ != nullptr, "Periodic boundaries need to be set before selection.");
+            GMX_ASSERT(box_ != nullptr, "Box needs to be set before selection.");
+            GMX_ASSERT(inputCoordinates_ != nullptr, "Needs to receive input coordinates before building selection.");
+
+            *fitGroup_ = selectionCollection->parseFromString(fitGroupString_);
+            selectionCollection->compile();
+
+            t_trxframe frame = makeTrxFrameFromCoordinates(*inputCoordinates_);
+            t_pbc      pbcOptions;
+            set_pbc(&pbcOptions, *pbc_, *box_);
+            selectionCollection->evaluate(&frame, &pbcOptions);
+        }
+
+        void setCoordinates(ArrayRef<const RVec> x)
+        {
+            GMX_ASSERT(commrec_ != nullptr, "Communication record needs to be set before setting coordinates.");
+
+            int nAtoms = ssize(x);
+            inputCoordinates_->resize(x.size());
+            std::copy(x.begin(), x.end(), std::begin(*inputCoordinates_));
+            gmx_bcast(sizeof(nAtoms), &nAtoms, commrec_.get());
+            nblock_abc(commrec_.get(), nAtoms, inputCoordinates_.get());
+
+        }
+
+        void setPbc(int pbc)
+        {
+            *pbc_ = pbc;
+        }
+
+        void setBox(const matrix &box)
+        {
+            copy_mat(box, *box_);
+        }
+
+        void setCommrec(const t_commrec &commrec)
+        {
+            *commrec_ = commrec;
         }
 
     private:
-        std::unique_ptr<LocalAtomSet>                 atomSet;
-        std::unique_ptr < MrcDensityMapOfFloatReader> mapReader_;
+
+        std::unique_ptr<t_commrec>                  commrec_;
+        std::unique_ptr < std::vector < RVec>> inputCoordinates_;
+        std::unique_ptr<int>                        pbc_;
+        std::unique_ptr<matrix>                     box_;
+
+        std::unique_ptr<LocalAtomSet>               atomSet;
+        std::unique_ptr<MrcDensityMapOfFloatReader> mapReader_;
         //! The name of the density-fitting module
         const std::string inputSectionName_ = "density-guided-simulation";
 
@@ -164,8 +228,9 @@ class DensityFittingOptions : public IMdpOptionProvider
         const std::string             c_amplitudeMethodTag_ = "amplitude-weight";
         DensityFittingAmplitudeMethod amplitudeMethod_;
 
-        const std::string             c_fittingGroupTag_ = "group";
-        Selection                     fitGroup_;
+        std::unique_ptr<SelectionList> fitGroup_;
+        const std::string              c_fittingGroupTag_ = "group";
+        std::string                    fitGroupString_;
 
         const std::string             c_referenceDensityFileNameTag_ = "reference";
         std::string                   referenceDensityFileName;
@@ -222,14 +287,31 @@ class DensityFitting final : public IMDModule
         {
             densityFittingOptions_.buildAtomSets(atomSets);
         }
-        //! This MDModule provides its own output
-        IMDOutputProvider *outputProvider() override { return this; }
 
-        //! Initialize output
-        void initOutput(FILE * /*fplog*/, int /*nfile*/, const t_filenm /*fnm*/[],
-                        bool /*bAppendFiles*/, const gmx_output_env_t * /*oenv*/) override
-        {}
+        void notify(GlobalCoordinatesProvidedOnMaster coordinatesOnMaster)
+        {
+            densityFittingOptions_.setCoordinates(coordinatesOnMaster.coordinates);
+        }
 
+        void notify(SelectionCollection * selectionCollection)
+        {
+            densityFittingOptions_.buildSelection(selectionCollection);
+        }
+
+        void notify(int ePBC)
+        {
+            densityFittingOptions_.setPbc(ePBC);
+        }
+
+        void notify(const t_commrec &commrec)
+        {
+            densityFittingOptions_.setCommrec(commrec);
+        }
+
+        void notify(const matrix &box)
+        {
+            densityFittingOptions_.setBox(box);
+        }
         //! This MDModule provides its own output
         IMDOutputProvider *outputProvider() override { return &densityFittingOutputProvider_; }
 
