@@ -48,6 +48,7 @@
 #include "gromacs/options/options.h"
 #include "gromacs/options/optionsection.h"
 #include "gromacs/options/treesupport.h"
+#include "gromacs/selection/selectioncollection.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/utility/keyvaluetree.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
@@ -105,6 +106,9 @@ class MDModules::Impl : public IMDOutputProvider
 
         //! Manages resources and notifies the MD modules when available
         MdModuleCallBack MdModuleMessageTriggers_;
+
+        //! Provides selection syntax to modules
+        SelectionCollection selections;
 };
 
 MDModules::MDModules() : impl_(new Impl)
@@ -176,6 +180,14 @@ void MDModules::add(std::shared_ptr<gmx::IMDModule> module)
 const MdModuleCallBack &MDModules::message()
 {
     return impl_->MdModuleMessageTriggers_;
+}
+
+void MDModules::initSelections(gmx_mtop_t * mtop)
+{
+    impl_->selections.setOutputPosType("atom");
+    impl_->selections.setReferencePosType("atom");
+    impl_->selections.setTopology(mtop, -1);
+    impl_->MdModuleMessageTriggers_(&(impl_->selections));
 }
 
 } // namespace gmx

@@ -47,6 +47,9 @@
 #include <functional>
 #include <vector>
 
+#include "gromacs/math/vectypes.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 
 struct t_commrec;
@@ -55,16 +58,39 @@ namespace gmx
 {
 
 class LocalAtomSetManager;
+class SelectionCollection;
 
 /*! \libinternal \brief
- * \brief Signals that the communication record is set up and provides self record.
+ * Signals that the communication record is set up and provides self record.
  */
 struct CommunicationIsSetup
 {
     //! The communication record that is set up.
-    const t_commrec &communicationRecord;
+    const t_commrec &communicationRecord_;
 };
 
+/*!\libinternal \brief
+ * Signals that periodic boundary option is chosen and provides it.
+ */
+struct PeriodicBoundaryConditionOptionIsSetup
+{
+    int ePBC_; // the periodic boundary options
+};
+
+struct BoxIsSetup
+{
+    BoxIsSetup(const matrix box)
+    {
+        copy_mat(box, box_);
+    }
+    matrix box_; // the box
+};
+
+/*!\libinternal \brief Provid coordinates of input structure.*/
+struct GlobalCoordinatesProvidedOnMaster
+{
+    ArrayRef<const RVec> coordinates;
+};
 /* \libinternal \brief
  * Extents base event notify with new event notify and routine to add event listeners.
  *
@@ -189,8 +215,11 @@ struct registerCallBack<CurrentMessage, Messages...>
 //! Registers the event triggers that might occur for MDModules
 using MdModuleCallBack = detail::registerCallBack<
             CommunicationIsSetup,
-            LocalAtomSetManager *
-            >::type;
+            LocalAtomSetManager *,
+            SelectionCollection *,
+            GlobalCoordinatesProvidedOnMaster,
+            PeriodicBoundaryConditionOptionIsSetup,
+            BoxIsSetup>::type;
 
 } // namespace gmx
 

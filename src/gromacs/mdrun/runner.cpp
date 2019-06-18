@@ -773,6 +773,7 @@ int Mdrunner::mdrunner()
 
     // TODO: Error handling
     mdModules_->assignOptionsToModules(*inputrec->params, nullptr);
+    mdModules_->initSelections(&mtop);
 
     if (fplog != nullptr)
     {
@@ -1250,6 +1251,9 @@ int Mdrunner::mdrunner()
     if (thisRankHasDuty(cr, DUTY_PP))
     {
         mdModules_->message() (CommunicationIsSetup {*cr});
+        mdModules_->message() (GlobalCoordinatesProvidedOnMaster {positionsFromStatePointer(globalState.get())});
+        mdModules_->message() (PeriodicBoundaryConditionOptionIsSetup {inputrec->ePBC});
+        mdModules_->message() (BoxIsSetup {box});
         /* Initiate forcerecord */
         fr                 = new t_forcerec;
         fr->forceProviders = mdModules_->initForceProviders();

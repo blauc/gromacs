@@ -49,6 +49,7 @@
 struct ForceProviders;
 
 struct t_inputrec;
+struct gmx_mtop_t;
 
 namespace gmx
 {
@@ -170,6 +171,10 @@ class MDModules
          */
         void add(std::shared_ptr<gmx::IMDModule> module);
 
+        /*! \brief Initialize selections with topology data.
+         * \param[in] mtop the topology data
+         */
+        void initSelections(gmx_mtop_t * mtop);
         /*! \brief Return a handle to the message publisher.
          */
         const MdModuleCallBack &message();
