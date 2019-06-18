@@ -62,70 +62,130 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringcompare.h"
 
+#include "gromacs/selection/selectionoptionmanager.h"
+#include "gromacs/selection/selectioncollection.h"
+#include "gromacs/selection/selectionoption.h"
+
 #include "testutils/testasserts.h"
 #include "testutils/testmatchers.h"
+#include "testutils/testfilemanager.h"
+
+#include "gromacs/trajectory/trajectoryframe.h"
+#include "gromacs/topology/atoms.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/confio.h"
+#include "gromacs/selection/tests/toputils.h"
 
 namespace gmx
 {
 
+namespace test
+{
 namespace
 {
 
-TEST(DensityFittingTest, Options)
+// TEST(DensityFittingTest, Options)
+// {
+//     auto densityFittingModule(gmx::createDensityFittingModule());
+
+//     // Prepare MDP inputs
+//     gmx::KeyValueTreeBuilder mdpValueBuilder;
+//     mdpValueBuilder.rootObject().addValue("density-guided-simulation-active", "yes");
+//     KeyValueTreeObject       densityFittingMdpValues = mdpValueBuilder.build();
+
+//     // set up options
+//     gmx::Options densityFittingModuleOptions;
+//     densityFittingModule->mdpOptionProvider()->initMdpOptions(&densityFittingModuleOptions);
+
+//     // Add rules to transform mdp inputs to densityFittingModule data
+//     gmx::KeyValueTreeTransformer transform;
+//     transform.rules()->addRule().keyMatchType("/", gmx::StringCompareType::CaseAndDashInsensitive);
+//     densityFittingModule->mdpOptionProvider()->initMdpTransform(transform.rules());
+
+//     // Execute the transform on the mdpValues
+//     auto transformedMdpValues = transform.transform(densityFittingMdpValues, nullptr);
+//     gmx::assignOptionsFromKeyValueTree(&densityFittingModuleOptions, transformedMdpValues.object(), nullptr);
+
+//     // Build the force provider, once all input data is gathered
+//     ForceProviders densityFittingForces;
+//     densityFittingModule->initForceProviders(&densityFittingForces);
+
+//     // Build a minimal simulation system.
+//     t_mdatoms               mdAtoms;
+//     mdAtoms.homenr = 1;
+//     PaddedVector<gmx::RVec> x             = {{0, 0, 0}};
+//     matrix                  simulationBox = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+//     const double            t             = 0.0;
+//     t_commrec              *cr            = init_commrec();
+//     gmx::ForceProviderInput forceProviderInput(x, mdAtoms, t, simulationBox, *cr);
+
+//     // The forces that the force-provider is to update
+//     PaddedVector<gmx::RVec>  f = {{0, 0, 0}};
+//     gmx::ForceWithVirial     forceWithVirial(f, false);
+
+//     gmx_enerdata_t           energyData(1, 0);
+//     gmx::ForceProviderOutput forceProviderOutput(&forceWithVirial, &energyData);
+
+//     // update the forces
+//     densityFittingForces.calculateForces(forceProviderInput, &forceProviderOutput);
+
+//     // check that calculated forces match expected forces
+//     std::vector<RVec> expectedForce = {{0, 0, 0}};
+//     EXPECT_THAT(expectedForce, Pointwise(test::RVecEq(test::defaultFloatTolerance()),
+//                                          forceProviderOutput.forceWithVirial_.force_));
+
+//     // clean up C-style commrec, so this test leaks no memory
+//     // \todo remove once commrec manages its own memory
+//     done_commrec(cr);
+// }
+
+
+TEST(DensityFittingTest, TestOptions)
 {
-    auto densityFittingModule(gmx::createDensityFittingModule());
+    t_trxframe frame;
+    clear_trxframe(&frame, true);
+    gmx_mtop_t mtop;
+    {
 
-    // Prepare MDP inputs
-    gmx::KeyValueTreeBuilder mdpValueBuilder;
-    mdpValueBuilder.rootObject().addValue("density-guided-simulation-active", "yes");
-    KeyValueTreeObject       densityFittingMdpValues = mdpValueBuilder.build();
+        bool    fullTopology;
+        int     ePBC;
+        rvec   *xtop = nullptr;
+        matrix  box;
 
-    // set up options
-    gmx::Options densityFittingModuleOptions;
-    densityFittingModule->mdpOptionProvider()->initMdpOptions(&densityFittingModuleOptions);
+        readConfAndTopology(
+                gmx::test::TestFileManager::getInputFilePath("../../selection/tests/simple.gro").c_str(),
+                &fullTopology, &mtop, &ePBC, &xtop, nullptr, box);
 
-    // Add rules to transform mdp inputs to densityFittingModule data
-    gmx::KeyValueTreeTransformer transform;
-    transform.rules()->addRule().keyMatchType("/", gmx::StringCompareType::CaseAndDashInsensitive);
-    densityFittingModule->mdpOptionProvider()->initMdpTransform(transform.rules());
+        frame.natoms = mtop.natoms;
+        frame.bX     = true;
+        snew(frame.x, frame.natoms);
+        std::memcpy(frame.x, xtop, sizeof(*frame.x) * frame.natoms);
+        frame.bBox   = true;
+        copy_mat(box, frame.box);
 
-    // Execute the transform on the mdpValues
-    auto transformedMdpValues = transform.transform(densityFittingMdpValues, nullptr);
-    gmx::assignOptionsFromKeyValueTree(&densityFittingModuleOptions, transformedMdpValues.object(), nullptr);
+        sfree(xtop);
+    }
 
-    // Build the force provider, once all input data is gathered
-    ForceProviders densityFittingForces;
-    densityFittingModule->initForceProviders(&densityFittingForces);
+    SelectionCollection selections;
+    selections.setOutputPosType("atom");
+    selections.setReferencePosType("atom");
+    selections.setTopology(&mtop, -1);
 
-    // Build a minimal simulation system.
-    t_mdatoms               mdAtoms;
-    mdAtoms.homenr = 1;
-    PaddedVector<gmx::RVec> x             = {{0, 0, 0}};
-    matrix                  simulationBox = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-    const double            t             = 0.0;
-    t_commrec              *cr            = init_commrec();
-    gmx::ForceProviderInput forceProviderInput(x, mdAtoms, t, simulationBox, *cr);
+    auto selected = selections.parseFromString("all");
+    selections.compile();
 
-    // The forces that the force-provider is to update
-    PaddedVector<gmx::RVec>  f = {{0, 0, 0}};
-    gmx::ForceWithVirial     forceWithVirial(f, false);
+    selections.evaluate(&frame, nullptr);
+    for (auto index : selected[0].atomIndices())
+    {
+        fprintf(stderr, "\n %d \n", index);
+    }
 
-    gmx_enerdata_t           energyData(1, 0);
-    gmx::ForceProviderOutput forceProviderOutput(&forceWithVirial, &energyData);
 
-    // update the forces
-    densityFittingForces.calculateForces(forceProviderInput, &forceProviderOutput);
-
-    // check that calculated forces match expected forces
-    std::vector<RVec> expectedForce = {{0, 0, 0}};
-    EXPECT_THAT(expectedForce, Pointwise(test::RVecEq(test::defaultFloatTolerance()),
-                                         forceProviderOutput.forceWithVirial_.force_));
-
-    // clean up C-style commrec, so this test leaks no memory
-    // \todo remove once commrec manages its own memory
-    done_commrec(cr);
 }
 
 } // namespace
+
+} // namespace test
 
 } // namespace gmx
