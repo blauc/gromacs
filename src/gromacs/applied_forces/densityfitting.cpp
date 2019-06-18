@@ -180,14 +180,26 @@ class DensityFittingOptions : public IMdpOptionProvider
 
 };
 
+/*! \brief Class that handles the output to files for density guided simulations.
+ */
+class DensityFittingOutputProvider final : public IMDOutputProvider
+{
+    public:
+        //! Initialize output
+        void initOutput(FILE * /*fplog*/, int /*nfile*/, const t_filenm /*fnm*/[],
+                        bool /*bAppendFiles*/, const gmx_output_env_t * /*oenv*/) override
+        {}
+        //! Finalizes output from a simulation run.
+        void finishOutput() override {}
+};
+
 /*! \internal
  * \brief Density fitting
  *
  * Class that implements the density fitting forces and potential
  * \note the virial calculation is not yet implemented
  */
-class DensityFitting final : public IMDModule,
-                             public IMDOutputProvider
+class DensityFitting final : public IMDModule
 {
     public:
         DensityFitting() = default;
@@ -218,12 +230,14 @@ class DensityFitting final : public IMDModule,
                         bool /*bAppendFiles*/, const gmx_output_env_t * /*oenv*/) override
         {}
 
-        //! Finalizes output from a simulation run.
-        void finishOutput() override {}
+        //! This MDModule provides its own output
+        IMDOutputProvider *outputProvider() override { return &densityFittingOutputProvider_; }
 
     private:
+        //! The output provider
+        DensityFittingOutputProvider                 densityFittingOutputProvider_;
         //! The options provided for density fitting
-        DensityFittingOptions densityFittingOptions_;
+        DensityFittingOptions                        densityFittingOptions_;
         //! Object that evaluates the forces
         std::unique_ptr<DensityFittingForceProvider> forceProvider_;
 };
