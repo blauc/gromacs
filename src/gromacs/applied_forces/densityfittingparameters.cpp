@@ -68,9 +68,9 @@ measureMethod_ {
 {
 }
 
-std::unique_ptr<DensitySimilarityMeasure> DensityFittingParameters::makeMeasure() const
+DensitySimilarityMeasure DensityFittingParameters::makeMeasure() const
 {
-    return std::make_unique<DensitySimilarityMeasure>(measureMethod_, referenceDensity_);
+    return DensitySimilarityMeasure(measureMethod_, referenceDensity_);
 }
 
 const LocalAtomSet &DensityFittingParameters::atomSet() const

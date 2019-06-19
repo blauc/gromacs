@@ -66,7 +66,7 @@ class DensityFittingParameters
                                  const DensityFittingAmplitudeMethod  &amplitudeMethod,
                                  const DensitySimilarityMeasureMethod &measureMethod);
 
-        std::unique_ptr<DensitySimilarityMeasure> makeMeasure() const;
+        DensitySimilarityMeasure makeMeasure() const;
         GaussTransform3D makeSpreadingTransform() const;
         DensityFittingForce makeForceEvaluator() const;
         const LocalAtomSet      &atomSet() const;
@@ -77,15 +77,15 @@ class DensityFittingParameters
 
     private:
 
-        LocalAtomSet                  atomSet_;
-        real                          forceConstant_;
-        TranslateAndScale             transformationToDensityLattice_;
-        const reference_density       referenceDensity_;
-        std::vector<real>             amplitudes_;
-        real                          sigma_;
-        double                        nSigma_;
-        DensityFittingAmplitudeMethod amplitudeMethod_;
-        std::string                   measureName_;
+        LocalAtomSet                   atomSet_;
+        real                           forceConstant_;
+        TranslateAndScale              transformationToDensityLattice_;
+        const reference_density        referenceDensity_;
+        std::vector<real>              amplitudes_;
+        real                           sigma_;
+        double                         nSigma_;
+        DensityFittingAmplitudeMethod  amplitudeMethod_;
+        DensitySimilarityMeasureMethod measureMethod_;
 };
 
 }      // namespace gmx
