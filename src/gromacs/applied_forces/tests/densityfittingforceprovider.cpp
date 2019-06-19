@@ -99,7 +99,7 @@ class DensityFittingForceProviderTest : public ::testing::Test
             TranslateAndScale intoLatticeTransform = {scale, translation};
             return {
                        densityFittingAtoms, intoLatticeTransform, forceConstant_,
-                       sigma, nSigma, referenceDensityGenerator.view(), DensityFittingAmplitudeMethod::unity, "inner-product"
+                       sigma, nSigma, referenceDensityGenerator.view(), DensityFittingAmplitudeMethod::Unity, DensitySimilarityMeasureMethod::innerProduct
             };
         }
 

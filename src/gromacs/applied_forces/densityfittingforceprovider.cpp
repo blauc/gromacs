@@ -100,7 +100,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
     std::transform(std::cbegin(parameters_.atomSet().localIndex()),
                    std::cend(parameters_.atomSet().localIndex()),
                    std::begin(transformedCoordinates_),
-                   [ &x = forceProviderInput.x_](int index) { return x[index]; });
+                   [x = forceProviderInput.x_](int index) { return x[index]; });
     const auto amplitudes = densityFittingAmplitudeLookup_(forceProviderInput.mdatoms_, parameters_.atomSet().localIndex());
     // transform local atom coordinates to density grid coordinates
     parameters_.transformationToDensityLattice() (transformedCoordinates_);

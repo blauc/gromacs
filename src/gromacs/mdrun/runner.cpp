@@ -773,7 +773,6 @@ int Mdrunner::mdrunner()
 
     // TODO: Error handling
     mdModules_->assignOptionsToModules(*inputrec->params, nullptr);
-    mdModules_->initSelections(&mtop);
 
     if (fplog != nullptr)
     {
@@ -954,7 +953,6 @@ int Mdrunner::mdrunner()
                                            &mtop, inputrec,
                                            box, positionsFromStatePointer(globalState.get()),
                                            &atomSets);
-        mdModules_->message() (&atomSets);
         // Note that local state still does not exist yet.
     }
     else
@@ -1254,6 +1252,10 @@ int Mdrunner::mdrunner()
         mdModules_->message() (GlobalCoordinatesProvidedOnMaster {positionsFromStatePointer(globalState.get())});
         mdModules_->message() (PeriodicBoundaryConditionOptionIsSetup {inputrec->ePBC});
         mdModules_->message() (BoxIsSetup {box});
+
+        mdModules_->initSelections(&mtop);
+        mdModules_->message() (&atomSets);
+
         /* Initiate forcerecord */
         fr                 = new t_forcerec;
         fr->forceProviders = mdModules_->initForceProviders();

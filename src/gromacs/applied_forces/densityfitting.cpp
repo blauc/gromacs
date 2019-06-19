@@ -41,6 +41,8 @@
  */
 #include "gmxpre.h"
 
+#include <cstdio>
+
 #include "densityfitting.h"
 
 #include "gromacs/domdec/localatomsetmanager.h"
@@ -59,9 +61,11 @@
 #include "gromacs/topology/topology.h"
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/enumerationhelpers.h"
+#include "gromacs/utility/inmemoryserializer.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
 #include "gromacs/utility/keyvaluetreetransform.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/strconvert.h"
 #include "gromacs/pbcutil/pbc.h"
 
 #include "gromacs/fileio/mrcdensitymapheader.h"
@@ -81,6 +85,7 @@ t_trxframe makeTrxFrameFromCoordinates(ArrayRef<const RVec> coordinates)
 {
     t_trxframe frame;
     clear_trxframe(&frame, true);
+    frame.bIndex = false;
     frame.bX     = true;
     frame.natoms = coordinates.ssize();
     frame.x      = const_cast<rvec *>(as_rvec_array(coordinates.data()));
@@ -97,8 +102,18 @@ class DensityFittingOptions : public IMdpOptionProvider
         { }
 
         //! From IMdpOptionProvider
-        void initMdpTransform(IKeyValueTreeTransformRules * /*transform*/ ) override
-        {}
+        void initMdpTransform(IKeyValueTreeTransformRules * rules) override
+        {
+            const auto &stringIdentity = [](std::string string){return string; };
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_activeTag_).to<bool>("/" + inputSectionName_ +"/" + c_activeTag_).transformWith(&fromStdString<bool>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_similarityMeasureTag_).to<std::string>("/" + inputSectionName_ + "/" + c_similarityMeasureTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_amplitudeMethodTag_).to<std::string>("/" + inputSectionName_ + "/" + c_amplitudeMethodTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_fittingGroupTag_).to<std::string>("/" + inputSectionName_ + "/" + c_fittingGroupTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_referenceDensityFileNameTag_).to<std::string>("/" + inputSectionName_ + "/" + c_referenceDensityFileNameTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_sigmaTag_).to<float>("/" + inputSectionName_ +"/" + c_sigmaTag_).transformWith(&fromStdString<float>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_forceConstantTag_).to<float>("/" + inputSectionName_ +"/" + c_forceConstantTag_).transformWith(&fromStdString<float>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_everyNStepsTag_).to<int>("/" + inputSectionName_ + "/" + c_everyNStepsTag_).transformWith(&fromStdString<int>);
+        }
 
         /*! \brief
          * Build mdp parameters for density fitting to be output after pre-processing.
@@ -111,18 +126,23 @@ class DensityFittingOptions : public IMdpOptionProvider
         {
             builder->addValue<bool>(inputSectionName_ + "-" +
                                     c_activeTag_, active_);
-            builder->addValue<std::string>(inputSectionName_ + "-" +
-                                           c_similarityMeasureTag_, similarityMeasure_);
-            builder->addValue<std::string>(inputSectionName_ + "-" +
-                                           c_amplitudeMethodTag_, c_densityFittingAmplitudeMethodNames[static_cast<int>(amplitudeMethod_)]);
-            builder->addValue<std::string>(inputSectionName_ + "-" +
-                                           c_referenceDensityFileNameTag_, referenceDensityFileName);
-            builder->addValue<std::string>(inputSectionName_ + "-" +
-                                           c_fittingGroupTag_, fitGroupString_);
-            builder->addValue<float>(inputSectionName_ + "-" +
-                                     c_forceConstantTag_, forceConstant_);
-            builder->addValue<float>(inputSectionName_ + "-" +
-                                     c_sigmaTag_, sigma_);
+            if (active_)
+            {
+                builder->addValue<std::string>(inputSectionName_ + "-" +
+                                               c_similarityMeasureTag_, c_densitySimilarityMeasureMethodNames[static_cast<int>(similarityMeasure_)]);
+                builder->addValue<std::string>(inputSectionName_ + "-" +
+                                               c_amplitudeMethodTag_, c_densityFittingAmplitudeMethodNames[static_cast<int>(amplitudeMethod_)]);
+                builder->addValue<std::string>(inputSectionName_ + "-" +
+                                               c_referenceDensityFileNameTag_, referenceDensityFileName);
+                builder->addValue<std::string>(inputSectionName_ + "-" +
+                                               c_fittingGroupTag_, fitGroupString_);
+                builder->addValue<float>(inputSectionName_ + "-" +
+                                         c_forceConstantTag_, forceConstant_);
+                builder->addValue<float>(inputSectionName_ + "-" +
+                                         c_everyNStepsTag_, everyNSteps_);
+                builder->addValue<float>(inputSectionName_ + "-" +
+                                         c_sigmaTag_, sigma_);
+            }
         }
 
         /*! \brief
@@ -132,11 +152,17 @@ class DensityFittingOptions : public IMdpOptionProvider
         {
             auto section = options->addSection(OptionSection(inputSectionName_.c_str()));
             section.addOption(BooleanOption(c_activeTag_.c_str()).store(&active_));
-            section.addOption(StringOption(c_similarityMeasureTag_.c_str()).enumValue({"inner-product"}).store(&similarityMeasure_));
-            section.addOption(EnumOption<DensityFittingAmplitudeMethod>(c_amplitudeMethodTag_.c_str()).enumValue(c_densityFittingAmplitudeMethodNames).store(&amplitudeMethod_));
+            section.addOption(EnumOption<DensitySimilarityMeasureMethod>(c_similarityMeasureTag_.c_str()).enumValue(c_densitySimilarityMeasureMethodNames).store(&similarityMeasure_));
+            const char *ampNames[c_densityFittingAmplitudeMethodNames.size()];
+            for (size_t i = 0; i < c_densityFittingAmplitudeMethodNames.size(); ++i)
+            {
+                ampNames[i] = c_densityFittingAmplitudeMethodNames[i].c_str();
+            }
+            section.addOption(EnumOption<DensityFittingAmplitudeMethod>(c_amplitudeMethodTag_.c_str()).enumValue(ampNames).store(&amplitudeMethod_));
             section.addOption(StringOption(c_referenceDensityFileNameTag_.c_str()).store(&referenceDensityFileName));
             section.addOption(StringOption(c_fittingGroupTag_.c_str()).store(&fitGroupString_));
             section.addOption(FloatOption(c_forceConstantTag_.c_str()).store(&forceConstant_));
+            section.addOption(IntegerOption(c_everyNStepsTag_.c_str()).store(&everyNSteps_));
             section.addOption(FloatOption(c_sigmaTag_.c_str()).store(&sigma_));
         }
 
@@ -149,35 +175,44 @@ class DensityFittingOptions : public IMdpOptionProvider
         //! Process input options to parameters, including input file reading.
         DensityFittingParameters buildParameters()
         {
-            GMX_ASSERT(atomSet != nullptr, "Atom set needs to be set before initializing force provider");
-            t_fileio                                   *mrcFile = gmx_fio_open(referenceDensityFileName.c_str(), "r");
-            FileIOXdrSerializer                         serializer(mrcFile);
+            GMX_ASSERT(atomSet_ != nullptr, "Atom set needs to be set before initializing force provider");
+
+            FILE * mrcFile = gmx_fio_fopen(referenceDensityFileName.c_str(), "r");
+            //Determine file size
+            fseek(mrcFile, 0, SEEK_END);
+            auto                 referenceDensityFileSize = ftell(mrcFile);
+            fseek(mrcFile, 0, SEEK_SET);
+            std::vector<char>    referenceDensityFileBuffer(referenceDensityFileSize);
+            fread(referenceDensityFileBuffer.data(), sizeof(char), referenceDensityFileBuffer.size(), mrcFile);
+            InMemoryDeserializer serializer(referenceDensityFileBuffer, false);
             mapReader_ = std::make_unique<MrcDensityMapOfFloatReader>(&serializer);
             TranslateAndScale                           transformationToDensityLattice = getCoordinateTransformationToLattice(mapReader_->header());
             dynamicExtents3D                            ext = getDynamicExtents3D(mapReader_->header());
             basic_mdspan<const float, dynamicExtents3D> referenceDensity(mapReader_->data().data(), ext);
-            return {*atomSet, transformationToDensityLattice, forceConstant_, sigma_, nSigma_, referenceDensity, amplitudeMethod_, similarityMeasure_};
+            gmx_fio_fclose(mrcFile);
+
+            return {*atomSet_, transformationToDensityLattice, forceConstant_, sigma_, nSigma_, referenceDensity, amplitudeMethod_, similarityMeasure_};
         }
 
         void buildAtomSets(LocalAtomSetManager *atomSets)
         {
             GMX_ASSERT(fitGroup_ != nullptr, "Fit group selection needs to be built before atom sets.");
             GMX_ASSERT(fitGroup_->size() == 1, "Density guided simulations may only have one selection group. Use the merge functionality in the selection syntax.");
-            *atomSet = atomSets->add(fitGroup_->front().atomIndices());
+            atomSet_ = std::make_unique<LocalAtomSet>(atomSets->add(fitGroup_->front().atomIndices()));
         }
 
         void buildSelection(SelectionCollection * selectionCollection)
         {
             GMX_ASSERT(pbc_ != nullptr, "Periodic boundaries need to be set before selection.");
-            GMX_ASSERT(box_ != nullptr, "Box needs to be set before selection.");
             GMX_ASSERT(inputCoordinates_ != nullptr, "Needs to receive input coordinates before building selection.");
 
-            *fitGroup_ = selectionCollection->parseFromString(fitGroupString_);
+            fitGroup_ = std::make_unique<SelectionList>(selectionCollection->parseFromString(fitGroupString_));
+
             selectionCollection->compile();
 
             t_trxframe frame = makeTrxFrameFromCoordinates(*inputCoordinates_);
             t_pbc      pbcOptions;
-            set_pbc(&pbcOptions, *pbc_, *box_);
+            set_pbc(&pbcOptions, *pbc_, box_);
             selectionCollection->evaluate(&frame, &pbcOptions);
         }
 
@@ -186,26 +221,31 @@ class DensityFittingOptions : public IMdpOptionProvider
             GMX_ASSERT(commrec_ != nullptr, "Communication record needs to be set before setting coordinates.");
 
             int nAtoms = ssize(x);
+            inputCoordinates_ = std::make_unique < std::vector < RVec>>();
             inputCoordinates_->resize(x.size());
             std::copy(x.begin(), x.end(), std::begin(*inputCoordinates_));
-            gmx_bcast(sizeof(nAtoms), &nAtoms, commrec_.get());
-            nblock_abc(commrec_.get(), nAtoms, inputCoordinates_.get());
+            if (PAR(commrec_.get()))
+            {
+                gmx_bcast(sizeof(nAtoms), &nAtoms, commrec_.get());
+                nblock_abc(commrec_.get(), nAtoms, inputCoordinates_.get());
+            }
 
         }
 
         void setPbc(int pbc)
         {
+            pbc_  = std::make_unique<int>();
             *pbc_ = pbc;
         }
 
         void setBox(const matrix &box)
         {
-            copy_mat(box, *box_);
+            copy_mat(box, box_);
         }
 
         void setCommrec(const t_commrec &commrec)
         {
-            *commrec_ = commrec;
+            commrec_ = std::make_unique<t_commrec>(commrec);
         }
 
     private:
@@ -213,9 +253,9 @@ class DensityFittingOptions : public IMdpOptionProvider
         std::unique_ptr<t_commrec>                  commrec_;
         std::unique_ptr < std::vector < RVec>> inputCoordinates_;
         std::unique_ptr<int>                        pbc_;
-        std::unique_ptr<matrix>                     box_;
+        matrix                                      box_;
 
-        std::unique_ptr<LocalAtomSet>               atomSet;
+        std::unique_ptr<LocalAtomSet>               atomSet_;
         std::unique_ptr<MrcDensityMapOfFloatReader> mapReader_;
         //! The name of the density-fitting module
         const std::string inputSectionName_ = "density-guided-simulation";
@@ -226,23 +266,26 @@ class DensityFittingOptions : public IMdpOptionProvider
 
         //! The type of the fitting potential
         const std::string              c_similarityMeasureTag_ = "similarity-measure";
-        std::string                    similarityMeasure_;
+        DensitySimilarityMeasureMethod similarityMeasure_      = DensitySimilarityMeasureMethod::innerProduct;
 
         const std::string              c_amplitudeMethodTag_ = "amplitude-weight";
-        DensityFittingAmplitudeMethod  amplitudeMethod_;
+        DensityFittingAmplitudeMethod  amplitudeMethod_      = DensityFittingAmplitudeMethod::Unity;
+
+        const std::string              c_everyNStepsTag_ = "every-n-steps";
+        int everyNSteps_;
 
         std::unique_ptr<SelectionList> fitGroup_;
         const std::string              c_fittingGroupTag_ = "group";
-        std::string                    fitGroupString_;
+        std::string                    fitGroupString_    = "all";
 
         const std::string              c_referenceDensityFileNameTag_ = "reference";
         std::string                    referenceDensityFileName       = "reference.mrc";
 
         const std::string              c_forceConstantTag_ = "force-constant";
-        float                          forceConstant_;
+        float                          forceConstant_      = 1e10;
 
         const std::string              c_sigmaTag_ = "sigma";
-        float sigma_;
+        float sigma_ = 0.2;
 
         const real                    nSigma_ = 5.;
 
@@ -280,8 +323,9 @@ class DensityFitting final : public IMDModule
         {
             if (densityFittingOptions_.active())
             {
-                const auto &parameters = densityFittingOptions_.buildParameters();
-                forceProvider_ = std::make_unique<DensityFittingForceProvider>(parameters);
+
+                parameters_    = std::make_unique<DensityFittingParameters>(densityFittingOptions_.buildParameters());
+                forceProvider_ = std::make_unique<DensityFittingForceProvider>(*parameters_);
                 forceProviders->addForceProvider(forceProvider_.get());
             }
         }
@@ -323,6 +367,8 @@ class DensityFitting final : public IMDModule
         DensityFittingOutputProvider                 densityFittingOutputProvider_;
         //! The options provided for density fitting
         DensityFittingOptions                        densityFittingOptions_;
+        //! The parameters for the density fitting
+        std::unique_ptr<DensityFittingParameters>    parameters_;
         //! Object that evaluates the forces
         std::unique_ptr<DensityFittingForceProvider> forceProvider_;
 };

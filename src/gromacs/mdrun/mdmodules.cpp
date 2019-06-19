@@ -93,6 +93,9 @@ class MDModules::Impl : public IMDOutputProvider
             densityFitting_->outputProvider()->finishOutput();
         }
 
+        //! Manages resources and notifies the MD modules when available
+        MdModuleCallBack                MdModuleMessageTriggers_;
+
         std::unique_ptr<IMDModule>      field_;
         std::unique_ptr<ForceProviders> forceProviders_;
         std::unique_ptr<IMDModule>      imd_;
@@ -109,9 +112,6 @@ class MDModules::Impl : public IMDOutputProvider
          * \todo include field_ in modules_
          */
         std::vector< std::shared_ptr<IMDModule> > modules_;
-
-        //! Manages resources and notifies the MD modules when available
-        MdModuleCallBack MdModuleMessageTriggers_;
 
         //! Provides selection syntax to modules
         SelectionCollection selections;
