@@ -70,7 +70,7 @@ class DensityFittingForceProvider::Impl
 
         const DensityFittingParameters            &parameters_;
         GaussTransform3D                           gaussTransform_;
-        std::unique_ptr<IDensitySimilarityMeasure> measure_;
+        DensitySimilarityMeasure                   measure_;
         DensityFittingForce                        densityFittingForce_;
         DensityFittingAmplitudeLookup              densityFittingAmplitudeLookup_;
         std::vector<RVec>                          transformedCoordinates_; //< the local atom coordinates transformed into the grid coordinate system
@@ -118,7 +118,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
     gaussTransform_.sumReduce(forceProviderInput.cr_);
 
     // calculate grid derivative
-    const auto &densityDerivative = measure_->gradient(gaussTransform_.view());
+    const auto &densityDerivative = measure_.gradient(gaussTransform_.view());
     // calculate forces
     std::transform(
             std::begin(transformedCoordinates_),
@@ -142,7 +142,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
     }
     // calculate corresponding potential energy
     forceProviderOutput->enerd_.term[F_COM_PULL] +=
-        parameters_.forceConstant() * measure_->similarity(gaussTransform_.view());
+        parameters_.forceConstant() * measure_.similarity(gaussTransform_.view());
 }
 
 /********************************************************************
