@@ -48,7 +48,9 @@
 
 struct ForceProviders;
 
+struct t_commrec;
 struct t_inputrec;
+struct gmx_mtop_t;
 
 namespace gmx
 {
@@ -72,6 +74,7 @@ struct CommunicationIsSetup
 };
 
 
+class SelectionCollection;
 /*! \libinternal \brief
  * Manages the collection of all modules used for mdrun.
  *
@@ -108,7 +111,9 @@ class MDModules
         ~MDModules();
 
         //! Register callback function types for MDModules
-        using notifier_type = registerMdModuleNotification<CommunicationIsSetup, LocalAtomSetManager * >::type;
+        using notifier_type = registerMdModuleCallBack<CommunicationIsSetup,
+                                                       LocalAtomSetManager *,
+                                                       SelectionCollection *>::type;
 
         /*! \brief
          * Initializes a transform from mdp values to sectioned options.
@@ -183,6 +188,15 @@ class MDModules
          * to a builder class.
          */
         void add(std::shared_ptr<gmx::IMDModule> module);
+
+        /*! \brief Initialize selections with topology data.
+         * Allows static selections on atoms and standard groups than can
+         * be derived from the topology.
+         * Callback MDModules and enable them to use a SelectionCollection.
+         *
+         * \param[in] mtop the topology data
+         */
+        void buildAndProvideSelectionCollection(gmx_mtop_t * mtop);
 
         /*! \brief Return a handle to the callbacks.
          */

@@ -48,6 +48,8 @@
 #include "gromacs/options/options.h"
 #include "gromacs/options/optionsection.h"
 #include "gromacs/options/treesupport.h"
+#include "gromacs/selection/indexutil.h"
+#include "gromacs/selection/selectioncollection.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/utility/keyvaluetree.h"
 #include "gromacs/utility/keyvaluetreebuilder.h"
@@ -105,6 +107,17 @@ class MDModules::Impl : public IMDOutputProvider
 
         //! Manages resources and notifies the MD modules when available
         MDModules::notifier_type notifier_;
+
+        //! Provides selection syntax to modules
+        SelectionCollection selections;
+
+        /*! \brief Storing a raw pointer here, because the gmx_ana_indexgrps_t
+         * is an opaque type that is needed by the SelectionCollection to
+         * provide generic index groups like 'Protein'.
+         * \todo re-structure gmx_ana_indexgrps_t groups and remove raw pointer
+         * storage
+         */
+        gmx_ana_indexgrps_t *indexGroups_ = nullptr;
 };
 
 MDModules::MDModules() : impl_(new Impl)
@@ -113,6 +126,11 @@ MDModules::MDModules() : impl_(new Impl)
 
 MDModules::~MDModules()
 {
+    if (impl_->indexGroups_ != nullptr)
+    {
+        // \todo remove this once gmx_ana_indexgrps_t is restructured
+        gmx_ana_indexgrps_free(impl_->indexGroups_);
+    }
 }
 
 void MDModules::initMdpTransform(IKeyValueTreeTransformRules *rules)
@@ -176,6 +194,16 @@ void MDModules::add(std::shared_ptr<gmx::IMDModule> module)
 const MDModules::notifier_type &MDModules::notifier()
 {
     return impl_->notifier_;
+}
+
+void MDModules::buildAndProvideSelectionCollection(gmx_mtop_t *mtop)
+{
+    impl_->selections.setOutputPosType("atom");
+    impl_->selections.setReferencePosType("atom");
+    gmx_ana_indexgrps_init(&impl_->indexGroups_, mtop, nullptr);
+    impl_->selections.setIndexGroups(impl_->indexGroups_);
+    impl_->selections.setTopology(mtop, -1);
+    impl_->notifier_.notify(&(impl_->selections));
 }
 
 } // namespace gmx
