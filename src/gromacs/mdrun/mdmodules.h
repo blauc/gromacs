@@ -73,8 +73,37 @@ struct CommunicationIsSetup
     const t_commrec &communicationRecord_;
 };
 
+/*!\libinternal \brief Provid coordinates of input structure.*/
+struct GlobalCoordinatesProvidedOnMaster
+{
+    //! The global coordinates
+    ArrayRef<const RVec> coordinates;
+};
 
 class SelectionCollection;
+
+/*!\libinternal \brief
+ * Signals that periodic boundary option is chosen and provides it.
+ */
+struct PeriodicBoundaryConditionOptionIsSetup
+{
+    //! the periodic boundary options
+    int ePBC_;
+};
+
+/*!\libinternal \brief
+ * Signals that simulation box is set up and provides the box
+ */
+struct BoxIsSetup
+{
+    //! Copy the box matrix
+    explicit BoxIsSetup(const matrix box)
+    {
+        copy_mat(box, box_);
+    }
+    matrix box_; // the box
+};
+
 /*! \libinternal \brief
  * Manages the collection of all modules used for mdrun.
  *
@@ -112,8 +141,12 @@ class MDModules
 
         //! Register callback function types for MDModules
         using notifier_type = registerMdModuleCallBack<CommunicationIsSetup,
-                                                       LocalAtomSetManager *,
-                                                       SelectionCollection *>::type;
+                                                    LocalAtomSetManager *,
+                                                    GlobalCoordinatesProvidedOnMaster,
+                                                    PeriodicBoundaryConditionOptionIsSetup,
+                                                    SelectionCollection *,
+                                                    BoxIsSetup
+                                                    >::type;
 
         /*! \brief
          * Initializes a transform from mdp values to sectioned options.
