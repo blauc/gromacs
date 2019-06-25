@@ -97,8 +97,18 @@ class DensityFittingOptions : public IMdpOptionProvider
         { }
 
         //! From IMdpOptionProvider
-        void initMdpTransform(IKeyValueTreeTransformRules * /*transform*/ ) override
-        {}
+        void initMdpTransform(IKeyValueTreeTransformRules * rules) override
+        {
+            const auto &stringIdentity = [](std::string string){return string; };
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_activeTag_).to<bool>("/" + inputSectionName_ +"/" + c_activeTag_).transformWith(&fromStdString<bool>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_similarityMeasureTag_).to<std::string>("/" + inputSectionName_ + "/" + c_similarityMeasureTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_amplitudeMethodTag_).to<std::string>("/" + inputSectionName_ + "/" + c_amplitudeMethodTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_fittingGroupTag_).to<std::string>("/" + inputSectionName_ + "/" + c_fittingGroupTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_referenceDensityFileNameTag_).to<std::string>("/" + inputSectionName_ + "/" + c_referenceDensityFileNameTag_).transformWith(stringIdentity);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_sigmaTag_).to<float>("/" + inputSectionName_ +"/" + c_sigmaTag_).transformWith(&fromStdString<float>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_forceConstantTag_).to<float>("/" + inputSectionName_ +"/" + c_forceConstantTag_).transformWith(&fromStdString<float>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_everyNStepsTag_).to<int>("/" + inputSectionName_ + "/" + c_everyNStepsTag_).transformWith(&fromStdString<int>);
+        }
 
         /*! \brief
          * Build mdp parameters for density fitting to be output after pre-processing.
