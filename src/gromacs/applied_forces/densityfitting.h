@@ -36,7 +36,7 @@
 #define GMX_APPLIED_FORCES_DENSITYFITTING_H
 
 #include <memory>
-#include "gromacs/mdrun/eventtriggers.h"
+#include "gromacs/mdrun/mdmodules.h"
 
 namespace gmx
 {
@@ -48,7 +48,7 @@ class IMDModule;
  * Fitting an all-atom structure into an experimental cryo-EM density map is a
  * typical application.
  */
-std::unique_ptr<IMDModule> createDensityFittingModule(MdModuleCallBack * mdModuleMessageTriggers);
+std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::call_backs * mdModuleMessageTriggers);
 
 } // namespace gmx
 

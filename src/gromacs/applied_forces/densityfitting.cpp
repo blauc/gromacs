@@ -339,7 +339,7 @@ class DensityFitting final : public IMDModule
 
 }   // namespace
 
-std::unique_ptr<IMDModule> createDensityFittingModule(MdModuleCallBack * mdModuleMessageTriggers)
+std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::call_backs *mdModuleMessageTriggers)
 {
     auto densityFittingModule = std::make_unique<DensityFitting>();
     mdModuleMessageTriggers->subscribe<LocalAtomSetManager *>(densityFittingModule.get());

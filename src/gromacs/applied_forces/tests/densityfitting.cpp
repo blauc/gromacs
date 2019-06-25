@@ -48,6 +48,7 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/paddedvector.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdrun/mdmodules.h"
 #include "gromacs/mdtypes/enerdata.h"
 #include "gromacs/mdtypes/forceoutput.h"
 #include "gromacs/mdtypes/iforceprovider.h"
@@ -73,7 +74,8 @@ namespace
 
 TEST(DensityFittingTest, Options)
 {
-    auto densityFittingModule(gmx::createDensityFittingModule());
+    MDModules::call_backs callbacks;
+    auto densityFittingModule(gmx::createDensityFittingModule(&callbacks));
 
     // Prepare MDP inputs
     gmx::KeyValueTreeBuilder mdpValueBuilder;
