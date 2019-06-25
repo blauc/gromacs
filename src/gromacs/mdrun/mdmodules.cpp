@@ -64,7 +64,7 @@ class MDModules::Impl : public IMDOutputProvider
 {
     public:
         //! Manages resources and notifies the MD modules when available
-        MDModules::call_backs mdModuleCallBacks_;
+        MDModules::notifier_type notifier_;
 
         Impl()
             : field_(createElectricFieldModule()),
@@ -112,9 +112,6 @@ class MDModules::Impl : public IMDOutputProvider
          * \todo include field_ in modules_
          */
         std::vector< std::shared_ptr<IMDModule> > modules_;
-
-        //! Manages resources and notifies the MD modules when available
-        MDModules::notifier_type notifier_;
 
         //! Provides selection syntax to modules
         SelectionCollection selections;
