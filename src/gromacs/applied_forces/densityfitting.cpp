@@ -290,8 +290,9 @@ class DensityFitting final : public IMDModule
         {
             if (densityFittingOptions_.active())
             {
-                const auto &parameters = densityFittingOptions_.buildParameters();
-                forceProvider_ = std::make_unique<DensityFittingForceProvider>(parameters);
+
+                parameters_    = std::make_unique<DensityFittingParameters>(densityFittingOptions_.buildParameters());
+                forceProvider_ = std::make_unique<DensityFittingForceProvider>(*parameters_);
                 forceProviders->addForceProvider(forceProvider_.get());
             }
         }
@@ -333,6 +334,8 @@ class DensityFitting final : public IMDModule
         DensityFittingOutputProvider                 densityFittingOutputProvider_;
         //! The options provided for density fitting
         DensityFittingOptions                        densityFittingOptions_;
+        //! The parameters for the density fitting
+        std::unique_ptr<DensityFittingParameters>    parameters_;
         //! Object that evaluates the forces
         std::unique_ptr<DensityFittingForceProvider> forceProvider_;
 };
