@@ -63,12 +63,14 @@ namespace gmx
 class MDModules::Impl : public IMDOutputProvider
 {
     public:
+        //! Manages resources and notifies the MD modules when available
+        MDModules::call_backs mdModuleCallBacks_;
 
         Impl()
             : field_(createElectricFieldModule()),
               imd_(createInteractiveMolecularDynamicsModule()),
               swapCoordinates_(createSwapCoordinatesModule()),
-              densityFitting_(createDensityFittingModule(&MdModuleMessageTriggers_))
+              densityFitting_(createDensityFittingModule(&mdModuleCallBacks_))
         {
         }
 

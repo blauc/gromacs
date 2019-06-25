@@ -46,6 +46,9 @@
 #include "gromacs/mdrun/mdmodulenotification.h"
 #include "gromacs/utility/classhelpers.h"
 
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/arrayref.h"
+
 struct ForceProviders;
 
 struct t_commrec;
