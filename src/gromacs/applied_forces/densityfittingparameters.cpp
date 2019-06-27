@@ -45,7 +45,8 @@ DensityFittingParameters::DensityFittingParameters(const LocalAtomSet           
                                                    double                                nSigma,
                                                    reference_density                     referenceDensity,
                                                    const DensityFittingAmplitudeMethod  &amplitudeMethod,
-                                                   const DensitySimilarityMeasureMethod &measureMethod
+                                                   const DensitySimilarityMeasureMethod &measureMethod,
+                                                   int                                   everyNSteps
                                                    ) : atomSet_ {atomSet}, forceConstant_ {
     forceConstant
 },
@@ -64,6 +65,9 @@ sigma_ {
 },
 measureMethod_ {
     measureMethod
+},
+everyNSteps_ {
+    everyNSteps
 }
 {
 }
@@ -112,6 +116,11 @@ GaussianSpreadKernelParameters::Shape DensityFittingParameters::makeSpreadKernel
 GaussTransform3D DensityFittingParameters::makeSpreadingTransform() const
 {
     return {referenceDensity_.extents(), makeSpreadKernel()};
+}
+
+int DensityFittingParameters::everyNSteps() const
+{
+    return everyNSteps_;
 }
 
 } // namespace gmx

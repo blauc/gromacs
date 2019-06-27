@@ -75,6 +75,7 @@ class DensityFittingForceProvider::Impl
         DensityFittingAmplitudeLookup              densityFittingAmplitudeLookup_;
         std::vector<RVec>                          transformedCoordinates_; //< the local atom coordinates transformed into the grid coordinate system
         std::vector<RVec>                          forces_;
+        int currentStep_;
 };
 
 DensityFittingForceProvider::Impl::Impl(const DensityFittingParameters &parameters) : parameters_(parameters),
@@ -82,13 +83,24 @@ DensityFittingForceProvider::Impl::Impl(const DensityFittingParameters &paramete
                                                                                       measure_ {parameters_.makeMeasure()},
 densityFittingForce_(parameters_.makeForceEvaluator()),
 densityFittingAmplitudeLookup_(parameters_.makeAmplitudeLookup()),
-transformedCoordinates_(parameters_.atomSet().numAtomsLocal())
+transformedCoordinates_(parameters_.atomSet().numAtomsLocal()),
+currentStep_(0)
 {
 }
 
 void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput &forceProviderInput,
                                                         ForceProviderOutput      *forceProviderOutput)
 {
+    ++currentStep_;
+    if (currentStep_ % parameters_.everyNSteps() != 0)
+    {
+        return;
+    }
+    else
+    {
+        currentStep_ = 0;
+    }
+
     // do nothing if there are no density fitting atoms on this node
     if (parameters_.atomSet().numAtomsLocal() == 0)
     {
@@ -137,7 +149,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
     for (const auto localAtomIndex : parameters_.atomSet().localIndex())
     {
         forceProviderOutput->forceWithVirial_.force_[localAtomIndex] +=
-            parameters_.forceConstant() * *densfitForceIterator;
+            parameters_.forceConstant() * parameters_.everyNSteps() * *densfitForceIterator;
         ++densfitForceIterator;
     }
     // calculate corresponding potential energy

@@ -64,7 +64,8 @@ class DensityFittingParameters
                                  double                                nSigma,
                                  reference_density                     referenceDensity,
                                  const DensityFittingAmplitudeMethod  &amplitudeMethod,
-                                 const DensitySimilarityMeasureMethod &measureMethod);
+                                 const DensitySimilarityMeasureMethod &measureMethod,
+                                 int                                   everyNSteps);
 
         DensitySimilarityMeasure makeMeasure() const;
         GaussTransform3D makeSpreadingTransform() const;
@@ -74,6 +75,7 @@ class DensityFittingParameters
         const TranslateAndScale &transformationToDensityLattice() const;
         GaussianSpreadKernelParameters::Shape makeSpreadKernel() const;
         DensityFittingAmplitudeLookup makeAmplitudeLookup() const;
+        int everyNSteps() const;
 
     private:
 
@@ -86,6 +88,7 @@ class DensityFittingParameters
         double                         nSigma_;
         DensityFittingAmplitudeMethod  amplitudeMethod_;
         DensitySimilarityMeasureMethod measureMethod_;
+        int everyNSteps_;
 };
 
 }      // namespace gmx

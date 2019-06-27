@@ -192,7 +192,17 @@ class DensityFittingOptions : public IMdpOptionProvider
             basic_mdspan<const float, dynamicExtents3D> referenceDensity(mapReader_->data().data(), ext);
             gmx_fio_fclose(mrcFile);
 
-            return {*atomSet_, transformationToDensityLattice, forceConstant_, sigma_, nSigma_, referenceDensity, amplitudeMethod_, similarityMeasure_};
+            return {
+                       *atomSet_,
+                       transformationToDensityLattice,
+                       forceConstant_,
+                       sigma_,
+                       nSigma_,
+                       referenceDensity,
+                       amplitudeMethod_,
+                       similarityMeasure_,
+                       everyNSteps_
+            };
         }
 
         void buildAtomSets(LocalAtomSetManager *atomSets)
