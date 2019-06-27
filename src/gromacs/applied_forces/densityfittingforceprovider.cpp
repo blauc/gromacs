@@ -107,7 +107,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
         return;
     }
     forces_.resize(parameters_.atomSet().numAtomsLocal());
-
+    transformedCoordinates_.resize(parameters_.atomSet().numAtomsLocal());
     // pick and copy atom coordinates
     std::transform(std::cbegin(parameters_.atomSet().localIndex()),
                    std::cend(parameters_.atomSet().localIndex()),
