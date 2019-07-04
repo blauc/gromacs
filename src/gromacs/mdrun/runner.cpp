@@ -1242,9 +1242,9 @@ int Mdrunner::mdrunner()
     if (thisRankHasDuty(cr, DUTY_PP))
     {
         mdModules_->notifier().notify(CommunicationIsSetup {*cr});
-        mdModules_->notifier().notify(GlobalCoordinatesProvidedOnMaster {positionsFromStatePointer(globalState.get())});
         mdModules_->notifier().notify(PeriodicBoundaryConditionOptionIsSetup {inputrec->ePBC});
         mdModules_->notifier().notify(BoxIsSetup {box});
+        mdModules_->notifier().notify(GlobalCoordinatesProvidedOnMaster {positionsFromStatePointer(globalState.get())});
 
         mdModules_->buildAndProvideSelectionCollection(&mtop);
         mdModules_->notifier().notify(&atomSets);

@@ -371,6 +371,7 @@ class DensityFitting final : public IMDModule
         {
             densityFittingOptions_.setBox(boxSetup.box_);
         }
+
         //! This MDModule provides its own output
         IMDOutputProvider *outputProvider() override { return &densityFittingOutputProvider_; }
 

@@ -144,22 +144,29 @@ namespace gmx
  * Owns the memory for the shift-corrected coordinates.
  *
  * Calculating and applying the periodic boundary shift correction are performed
- * in two seperate steps, because the shift correction is only changeing in
+ * in two seperate steps, because the shift correction is only changing in
  * domain decomoposition steps.
  *
  * Uses reference coordinates to check if coordinates moved more than a half a
- * box-lengths. If so, current coordinates are shifted with the box vectors
+ * box-length. If so, current coordinates are shifted with the box vectors
  * so they are closer to the reference coordinates than half a box length.
  */
 class PeriodicBoundaryShiftCorrector
 {
     public:
-        //! Select the local atom set and reference coordinates
-        PeriodicBoundaryShiftCorrector(LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates);
+        /*!\brief Select the local atom set and global reference coordinates.
+         * \note we need the global reference coordinates, because the reference
+         *       coordinates available locally will change with each new domain decomposition step
+         */
+        PeriodicBoundaryShiftCorrector(LocalAtomSet atomSet);
         //! Re-calculate the shifts in multiples of box vectors, e.g. after a domain decomposition
         void updateShifts(const matrix box, ArrayRef<const RVec> x);
         //! Apply the calculated box-vector shifts to a
         void applyShifts(const matrix box, ArrayRef<const RVec> x);
+        /*! \brief Update references when coordinates have changed over nodes.
+         * \param[in] cr the communication record
+         */
+        void updateReferences(ArrayRef<const RVec> localReferenceCoordinates, const t_commrec &cr);
         //! Return a view on the shifted coordinates
         ArrayRef<const RVec> view() const;
     private:

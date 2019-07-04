@@ -274,32 +274,46 @@ namespace gmx
 class PeriodicBoundaryShiftCorrector::Impl
 {
     public:
-        Impl(LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates);
+        Impl(LocalAtomSet atomSet);
 
         void updateShifts(const matrix box, ArrayRef<const RVec> x);
-
+        void updateReferences(ArrayRef<const RVec> x, const t_commrec &cr);
         LocalAtomSet           atomSet_;
 
         std::vector<gmx::IVec> shifts_;
         std::vector<gmx::RVec> referenceCoordinates_;
 };
 
-PeriodicBoundaryShiftCorrector::Impl::Impl(LocalAtomSet         atomSet,
-                                           ArrayRef<const RVec> referenceCoordinates) :
-    atomSet_(atomSet), shifts_(atomSet.numAtomsLocal())
+PeriodicBoundaryShiftCorrector::Impl::Impl(LocalAtomSet         atomSet) :
+    atomSet_(atomSet), shifts_(atomSet.numAtomsGlobal(), IVec {0, 0, 0}
+                               ), referenceCoordinates_(atomSet.numAtomsGlobal())
 {
-    // Pick the local reference coordinates within the atomSet
-    std::transform(
-            std::begin(atomSet_.localIndex()), std::end(atomSet_.localIndex()),
-            std::back_inserter(referenceCoordinates_),
-            [&referenceCoordinates](int index){ return referenceCoordinates[index]; });
-    std::fill(std::begin(shifts_), std::end(shifts_), IVec {0, 0, 0});
 }
 
-PeriodicBoundaryShiftCorrector::PeriodicBoundaryShiftCorrector(
-        LocalAtomSet atomSet, ArrayRef<const RVec> referenceCoordinates) :
-    impl_(new PeriodicBoundaryShiftCorrector::Impl(atomSet, referenceCoordinates))
+PeriodicBoundaryShiftCorrector::PeriodicBoundaryShiftCorrector( LocalAtomSet atomSet) :
+    impl_(new PeriodicBoundaryShiftCorrector::Impl(atomSet))
 {
+}
+
+void PeriodicBoundaryShiftCorrector::Impl::updateReferences(ArrayRef<const RVec> localReferenceCoordinates, const t_commrec &cr)
+{
+    referenceCoordinates_.resize(atomSet_.numAtomsGlobal());
+    /* Zero out the groups' global position array */
+    std::fill(std::begin(referenceCoordinates_), std::end(referenceCoordinates_), RVec {0, 0, 0});
+    // Pick the localReference coordinates within the atomSet from this node
+    auto collectiveIndex = atomSet_.collectiveIndex().begin();
+    for (const auto localIndex : atomSet_.localIndex())
+    {
+        referenceCoordinates_[*collectiveIndex] = localReferenceCoordinates[localIndex];
+        ++collectiveIndex;
+    }
+    ;
+
+    if (PAR(&cr))
+    {
+        /* Add the arrays from all nodes together */
+        gmx_sum(referenceCoordinates_.size()*3, *as_rvec_array(referenceCoordinates_.data()), &cr);
+    }
 }
 
 void PeriodicBoundaryShiftCorrector::Impl::updateShifts(const matrix box, ArrayRef<const RVec> x)
@@ -309,12 +323,13 @@ void PeriodicBoundaryShiftCorrector::Impl::updateShifts(const matrix box, ArrayR
      * If we start with a whole group, and always keep track of
      * shift changes, the group will stay whole this way */
     std::fill(std::begin(shifts_), std::end(shifts_), IVec {0, 0, 0});
-    const auto &localIndex = atomSet_.localIndex();
+    const auto &collectiveIndex = atomSet_.collectiveIndex();
+    const auto &localIndex      = atomSet_.localIndex();
     for (int atomIndex = 0; atomIndex < ssize(localIndex); atomIndex++)
     {
         /* The distance this atom moved since the last time step */
         /* If this is more than just a bit, it has changed its home pbc box */
-        auto dx = x[localIndex[atomIndex]] - referenceCoordinates_[atomIndex];
+        auto dx = x[localIndex[atomIndex]] - referenceCoordinates_[collectiveIndex[atomIndex]];
 
         for (int dimension = 0; dimension < DIM; ++dimension)
         {
@@ -322,15 +337,20 @@ void PeriodicBoundaryShiftCorrector::Impl::updateShifts(const matrix box, ArrayR
             while (dx[dimension] < -0.5 * shiftVector[dimension])
             {
                 dx += shiftVector;
-                shifts_[atomIndex][dimension]++;
+                shifts_[collectiveIndex[atomIndex]][dimension]++;
             }
             while (dx[dimension] >= 0.5 * shiftVector[dimension])
             {
                 dx -= shiftVector;
-                shifts_[atomIndex][dimension]--;
+                shifts_[collectiveIndex[atomIndex]][dimension]--;
             }
         }
     }
+}
+
+void PeriodicBoundaryShiftCorrector::updateReferences(ArrayRef<const RVec> localReferenceCoordinates, const t_commrec &cr)
+{
+    impl_->updateReferences(localReferenceCoordinates, cr);
 }
 
 void PeriodicBoundaryShiftCorrector::updateShifts(const matrix box, ArrayRef<const RVec> x)
