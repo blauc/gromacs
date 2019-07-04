@@ -51,6 +51,7 @@
 #include "gromacs/math/gausstransform.h"
 #include "gromacs/mdtypes/enerdata.h"
 #include "gromacs/mdtypes/forceoutput.h"
+#include "gromacs/fileio/gmxfio.h"
 
 #include "gromacs/applied_forces/densityfittingparameters.h"
 
@@ -65,7 +66,7 @@ class DensityFittingForceProvider::Impl
     public:
         //! \copydoc DensityFittingForceProvider(const DensityFittingParameters &parameters)
         Impl(const DensityFittingParameters &parameters);
-
+        ~Impl();
         void calculateForces(const ForceProviderInput &forceProviderInput, ForceProviderOutput *forceProviderOutput);
 
         const DensityFittingParameters            &parameters_;
@@ -75,8 +76,20 @@ class DensityFittingForceProvider::Impl
         DensityFittingAmplitudeLookup              densityFittingAmplitudeLookup_;
         std::vector<RVec>                          transformedCoordinates_; //< the local atom coordinates transformed into the grid coordinate system
         std::vector<RVec>                          forces_;
-        int currentStep_;
+        int    currentStep_;
+        FILE * outputFile_;
 };
+
+DensityFittingForceProvider::Impl::~Impl()
+{
+    {
+        if (parameters_.isMaster_)
+        {
+
+            gmx_fio_fclose(outputFile_);
+        }
+    }
+}
 
 DensityFittingForceProvider::Impl::Impl(const DensityFittingParameters &parameters) : parameters_(parameters),
                                                                                       gaussTransform_(parameters_.makeSpreadingTransform()),
@@ -86,6 +99,11 @@ densityFittingAmplitudeLookup_(parameters_.makeAmplitudeLookup()),
 transformedCoordinates_(parameters_.atomSet().numAtomsLocal()),
 currentStep_(0)
 {
+    if (parameters_.isMaster_)
+    {
+        outputFile_ = gmx_fio_fopen("fit.dat", "w");
+        fprintf(outputFile_, "time\tsimilarity\tenergy\n");
+    }
 }
 
 void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput &forceProviderInput,
@@ -152,9 +170,15 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
             parameters_.forceConstant() * parameters_.everyNSteps() * *densfitForceIterator;
         ++densfitForceIterator;
     }
+    const auto similarity = measure_.similarity(gaussTransform_.view());
+    const auto energy     = -parameters_.forceConstant() * similarity;
+    if (parameters_.isMaster_)
+    {
+        fprintf(outputFile_, "%20.10g\t%20.10g\t%20.10g\n", forceProviderInput.t_, similarity, energy);
+    }
+
     // calculate corresponding potential energy
-    forceProviderOutput->enerd_.term[F_COM_PULL] +=
-        parameters_.forceConstant() * measure_.similarity(gaussTransform_.view());
+    forceProviderOutput->enerd_.term[F_COM_PULL] += energy;
 }
 
 /********************************************************************
@@ -162,7 +186,8 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
  */
 
 DensityFittingForceProvider::~DensityFittingForceProvider()
-{}
+{
+}
 
 DensityFittingForceProvider::DensityFittingForceProvider(const DensityFittingParameters &parameters) :
     impl_(new Impl(parameters))

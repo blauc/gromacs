@@ -65,7 +65,9 @@ class DensityFittingParameters
                                  reference_density                     referenceDensity,
                                  const DensityFittingAmplitudeMethod  &amplitudeMethod,
                                  const DensitySimilarityMeasureMethod &measureMethod,
-                                 int                                   everyNSteps);
+                                 int                                   everyNSteps,
+                                 bool                                  isMaster
+                                 );
 
         DensitySimilarityMeasure makeMeasure() const;
         GaussTransform3D makeSpreadingTransform() const;
@@ -76,6 +78,7 @@ class DensityFittingParameters
         GaussianSpreadKernelParameters::Shape makeSpreadKernel() const;
         DensityFittingAmplitudeLookup makeAmplitudeLookup() const;
         int everyNSteps() const;
+        bool isMaster_;
 
     private:
 

@@ -201,7 +201,8 @@ class DensityFittingOptions : public IMdpOptionProvider
                        referenceDensity,
                        amplitudeMethod_,
                        similarityMeasure_,
-                       everyNSteps_
+                       everyNSteps_,
+                       MASTER(commrec_.get())
             };
         }
 

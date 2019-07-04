@@ -46,8 +46,11 @@ DensityFittingParameters::DensityFittingParameters(const LocalAtomSet           
                                                    reference_density                     referenceDensity,
                                                    const DensityFittingAmplitudeMethod  &amplitudeMethod,
                                                    const DensitySimilarityMeasureMethod &measureMethod,
-                                                   int                                   everyNSteps
-                                                   ) : atomSet_ {atomSet}, forceConstant_ {
+                                                   int                                   everyNSteps,
+                                                   bool                                  isMaster
+                                                   ) : isMaster_ {isMaster}, atomSet_ {
+    atomSet
+}, forceConstant_ {
     forceConstant
 },
 transformationToDensityLattice_ {
