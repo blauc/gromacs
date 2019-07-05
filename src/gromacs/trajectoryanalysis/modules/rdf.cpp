@@ -484,7 +484,8 @@ Rdf::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
         clear_rvec(boxForVolume[ZZ]);
         boxForVolume[ZZ][ZZ] = 1;
     }
-    const real inverseVolume = 1.0 / det(boxForVolume);
+    // const real inverseVolume = 1.0 / det(boxForVolume);
+    const real sphereVolume = (4.0 / 3.0) * M_PI * rmax2_ * rmax_ - (4.0 / 3.0) * M_PI * cut2_ * cutoff_;
 
     nh.startFrame(frnr, fr.time);
     // Compute the normalization factor for the number of reference positions.
@@ -524,6 +525,7 @@ Rdf::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
     {
         dh.selectDataSet(g);
 
+        int numberOfPairs = 0;
         if (bSurface)
         {
             // Special loop for surface calculation, where a separate neighbor
@@ -557,6 +559,7 @@ Rdf::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
                     {
                         dh.setPoint(0, std::sqrt(r2));
                         dh.finishPointSet();
+                        ++numberOfPairs;
                     }
                 }
             }
@@ -570,18 +573,20 @@ Rdf::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
             while (pairSearch.findNextPair(&pair))
             {
                 const real r2 = pair.distance2();
-                if (r2 > cut2_)
+                if (r2 > cut2_ && r2 <= rmax2_)
                 {
                     // TODO: Consider whether the histogramming could be done with
                     // less overhead (after first measuring the overhead).
                     dh.setPoint(0, std::sqrt(r2));
                     dh.finishPointSet();
+                    ++numberOfPairs;
                 }
             }
         }
         // Normalization factor for the number density (only used without
         // -surf, but does not hurt to populate otherwise).
-        nh.setPoint(g + 1, sel[g].posCount() * inverseVolume);
+        // nh.setPoint(g + 1, sel[g].posCount() * inverseVolume);
+        nh.setPoint(g + 1, numberOfPairs / refSel.posCount() * sphereVolume);
     }
     dh.finishFrame();
     nh.finishFrame();
