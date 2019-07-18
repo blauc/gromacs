@@ -74,8 +74,8 @@ namespace
 
 TEST(DensityFittingTest, Options)
 {
-    MDModules::call_backs callbacks;
-    auto densityFittingModule(gmx::createDensityFittingModule(&callbacks));
+    MDModules::notifier_type notifier;
+    auto densityFittingModule(gmx::createDensityFittingModule(&notifier));
 
     // Prepare MDP inputs
     gmx::KeyValueTreeBuilder mdpValueBuilder;

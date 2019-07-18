@@ -48,7 +48,7 @@ class IMDModule;
  * Fitting an all-atom structure into an experimental cryo-EM density map is a
  * typical application.
  */
-std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::call_backs * mdModuleMessageTriggers);
+std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::notifier_type * mdModuleNotifier);
 
 } // namespace gmx
 

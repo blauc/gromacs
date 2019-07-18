@@ -143,13 +143,13 @@ class MDModules
         ~MDModules();
 
         //! Register callback function types for MDModules
-        using notifier_type = registerMdModuleCallBack<CommunicationIsSetup,
-                                                    LocalAtomSetManager *,
-                                                    GlobalCoordinatesProvidedOnMaster,
-                                                    PeriodicBoundaryConditionOptionIsSetup,
-                                                    SelectionCollection *,
-                                                    BoxIsSetup
-                                                    >::type;
+        using notifier_type = registerMdModuleNotification<CommunicationIsSetup,
+                                                           LocalAtomSetManager *,
+                                                           GlobalCoordinatesProvidedOnMaster,
+                                                           PeriodicBoundaryConditionOptionIsSetup,
+                                                           SelectionCollection *,
+                                                           BoxIsSetup
+                                                           >::type;
 
         /*! \brief
          * Initializes a transform from mdp values to sectioned options.

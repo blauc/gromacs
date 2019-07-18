@@ -70,7 +70,7 @@ class MDModules::Impl : public IMDOutputProvider
             : field_(createElectricFieldModule()),
               imd_(createInteractiveMolecularDynamicsModule()),
               swapCoordinates_(createSwapCoordinatesModule()),
-              densityFitting_(createDensityFittingModule(&mdModuleCallBacks_))
+              densityFitting_(createDensityFittingModule(&notifier_))
         {
         }
 

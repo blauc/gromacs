@@ -389,15 +389,15 @@ class DensityFitting final : public IMDModule
 
 }   // namespace
 
-std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::call_backs *mdModuleMessageTriggers)
+std::unique_ptr<IMDModule> createDensityFittingModule(MDModules::notifier_type *mdModuleNotifier)
 {
     auto densityFittingModule = std::make_unique<DensityFitting>();
-    mdModuleMessageTriggers->subscribe<LocalAtomSetManager *>(densityFittingModule.get());
-    mdModuleMessageTriggers->subscribe<GlobalCoordinatesProvidedOnMaster>(densityFittingModule.get());
-    mdModuleMessageTriggers->subscribe<SelectionCollection *>(densityFittingModule.get());
-    mdModuleMessageTriggers->subscribe<PeriodicBoundaryConditionOptionIsSetup>(densityFittingModule.get());
-    mdModuleMessageTriggers->subscribe<CommunicationIsSetup>(densityFittingModule.get());
-    mdModuleMessageTriggers->subscribe<BoxIsSetup>(densityFittingModule.get());
+    mdModuleNotifier->subscribe([&densityFittingModule](LocalAtomSetManager * manager){densityFittingModule->callback(manager); });
+    mdModuleNotifier->subscribe([&densityFittingModule](GlobalCoordinatesProvidedOnMaster coordinates){densityFittingModule->callback(coordinates); });
+    mdModuleNotifier->subscribe([&densityFittingModule](SelectionCollection * collection){densityFittingModule->callback(collection); });
+    mdModuleNotifier->subscribe([&densityFittingModule](PeriodicBoundaryConditionOptionIsSetup argument){densityFittingModule->callback(argument); });
+    mdModuleNotifier->subscribe([&densityFittingModule](CommunicationIsSetup argument){densityFittingModule->callback(argument); });
+    mdModuleNotifier->subscribe([&densityFittingModule](BoxIsSetup argument){densityFittingModule->callback(argument); });
     return std::move(densityFittingModule);
 }
 
