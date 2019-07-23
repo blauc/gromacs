@@ -38,6 +38,7 @@ add_library(mdrun_test_objlib OBJECT
     energyreader.cpp
     energycomparison.cpp
     moduletest.cpp
+    mdmodulenotification.cpp
     terminationhelper.cpp
     trajectorycomparison.cpp
     trajectoryreader.cpp
