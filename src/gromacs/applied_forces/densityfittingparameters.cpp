@@ -47,7 +47,8 @@ DensityFittingParameters::DensityFittingParameters(const LocalAtomSet           
                                                    const DensityFittingAmplitudeMethod  &amplitudeMethod,
                                                    const DensitySimilarityMeasureMethod &measureMethod,
                                                    int                                   everyNSteps,
-                                                   bool                                  isMaster
+                                                   bool                                  isMaster,
+                                                   int                                   adaptiveForceConstantLagTime
                                                    ) : isMaster_ {isMaster}, atomSet_ {
     atomSet
 }, forceConstant_ {
@@ -71,6 +72,9 @@ measureMethod_ {
 },
 everyNSteps_ {
     everyNSteps
+},
+adaptiveForceConstantLagTime_ {
+    adaptiveForceConstantLagTime
 }
 {
 }
@@ -124,6 +128,11 @@ GaussTransform3D DensityFittingParameters::makeSpreadingTransform() const
 int DensityFittingParameters::everyNSteps() const
 {
     return everyNSteps_;
+}
+
+int DensityFittingParameters::adaptiveForceConstantLagTime() const
+{
+    return adaptiveForceConstantLagTime_;
 }
 
 } // namespace gmx

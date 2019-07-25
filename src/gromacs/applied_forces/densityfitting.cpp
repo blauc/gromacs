@@ -113,6 +113,7 @@ class DensityFittingOptions : public IMdpOptionProvider
             rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_sigmaTag_).to<float>("/" + inputSectionName_ +"/" + c_sigmaTag_).transformWith(&fromStdString<float>);
             rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_forceConstantTag_).to<float>("/" + inputSectionName_ +"/" + c_forceConstantTag_).transformWith(&fromStdString<float>);
             rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_everyNStepsTag_).to<int>("/" + inputSectionName_ + "/" + c_everyNStepsTag_).transformWith(&fromStdString<int>);
+            rules->addRule().from<std::string>("/" + inputSectionName_ + "-" + c_adaptiveForceConstantLagTimeTag_).to<int>("/" + inputSectionName_ + "/" + c_adaptiveForceConstantLagTimeTag_).transformWith(&fromStdString<int>);
         }
 
         /*! \brief
@@ -138,8 +139,11 @@ class DensityFittingOptions : public IMdpOptionProvider
                                                c_fittingGroupTag_, fitGroupString_);
                 builder->addValue<float>(inputSectionName_ + "-" +
                                          c_forceConstantTag_, forceConstant_);
-                builder->addValue<float>(inputSectionName_ + "-" +
-                                         c_everyNStepsTag_, everyNSteps_);
+                builder->addValue<int>(inputSectionName_ + "-" +
+                                       c_everyNStepsTag_, everyNSteps_);
+                builder->addValue<int>(inputSectionName_ + "-" +
+                                       c_adaptiveForceConstantLagTimeTag_,
+                                       adaptiveForceConstantLagTime_);
                 builder->addValue<float>(inputSectionName_ + "-" +
                                          c_sigmaTag_, sigma_);
             }
@@ -163,6 +167,7 @@ class DensityFittingOptions : public IMdpOptionProvider
             section.addOption(StringOption(c_fittingGroupTag_.c_str()).store(&fitGroupString_));
             section.addOption(FloatOption(c_forceConstantTag_.c_str()).store(&forceConstant_));
             section.addOption(IntegerOption(c_everyNStepsTag_.c_str()).store(&everyNSteps_));
+            section.addOption(IntegerOption(c_adaptiveForceConstantLagTimeTag_.c_str()).store(&adaptiveForceConstantLagTime_));
             section.addOption(FloatOption(c_sigmaTag_.c_str()).store(&sigma_));
         }
 
@@ -202,7 +207,8 @@ class DensityFittingOptions : public IMdpOptionProvider
                        amplitudeMethod_,
                        similarityMeasure_,
                        everyNSteps_,
-                       MASTER(commrec_.get())
+                       MASTER(commrec_.get()),
+                       adaptiveForceConstantLagTime_
             };
         }
 
@@ -301,6 +307,9 @@ class DensityFittingOptions : public IMdpOptionProvider
         float sigma_ = 0.2;
 
         const real                    nSigma_ = 5.;
+
+        const std::string             c_adaptiveForceConstantLagTimeTag_ = "adaptive-force-scaling-lag";
+        int adaptiveForceConstantLagTime_ = 25;
 
 };
 

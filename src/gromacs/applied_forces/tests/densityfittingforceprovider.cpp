@@ -102,7 +102,7 @@ class DensityFittingForceProviderTest : public ::testing::Test
                        sigma, nSigma, referenceDensityGenerator.view(),
                        DensityFittingAmplitudeMethod::Unity,
                        DensitySimilarityMeasureMethod::innerProduct,
-                       everyNSteps_, true
+                       everyNSteps_, true, 10
             };
         }
 

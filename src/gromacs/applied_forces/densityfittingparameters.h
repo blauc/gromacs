@@ -66,7 +66,8 @@ class DensityFittingParameters
                                  const DensityFittingAmplitudeMethod  &amplitudeMethod,
                                  const DensitySimilarityMeasureMethod &measureMethod,
                                  int                                   everyNSteps,
-                                 bool                                  isMaster
+                                 bool                                  isMaster,
+                                 int                                   adaptiveForceConstantLagTime
                                  );
 
         DensitySimilarityMeasure makeMeasure() const;
@@ -79,6 +80,7 @@ class DensityFittingParameters
         DensityFittingAmplitudeLookup makeAmplitudeLookup() const;
         int everyNSteps() const;
         bool isMaster_;
+        int adaptiveForceConstantLagTime() const;
 
     private:
 
@@ -92,6 +94,7 @@ class DensityFittingParameters
         DensityFittingAmplitudeMethod  amplitudeMethod_;
         DensitySimilarityMeasureMethod measureMethod_;
         int everyNSteps_;
+        int adaptiveForceConstantLagTime_;
 };
 
 }      // namespace gmx

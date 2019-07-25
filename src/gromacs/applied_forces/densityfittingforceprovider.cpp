@@ -78,6 +78,8 @@ class DensityFittingForceProvider::Impl
         std::vector<RVec>                          forces_;
         int    currentStep_;
         FILE * outputFile_;
+        real   effectiveForceConstat_;
+        real   runningAverageSimilarity_;
 };
 
 DensityFittingForceProvider::Impl::~Impl()
@@ -97,12 +99,12 @@ DensityFittingForceProvider::Impl::Impl(const DensityFittingParameters &paramete
 densityFittingForce_(parameters_.makeForceEvaluator()),
 densityFittingAmplitudeLookup_(parameters_.makeAmplitudeLookup()),
 transformedCoordinates_(parameters_.atomSet().numAtomsLocal()),
-currentStep_(0)
+currentStep_(0), effectiveForceConstat_(parameters_.forceConstant() * parameters_.everyNSteps()), runningAverageSimilarity_(0)
 {
     if (parameters_.isMaster_)
     {
         outputFile_ = gmx_fio_fopen("fit.dat", "w");
-        fprintf(outputFile_, "time\tsimilarity\tenergy\n");
+        fprintf(outputFile_, "time\tsimilarity\tenergy\tforce-constant\tavg-similarity\n");
     }
 }
 
@@ -167,14 +169,35 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
     for (const auto localAtomIndex : parameters_.atomSet().localIndex())
     {
         forceProviderOutput->forceWithVirial_.force_[localAtomIndex] +=
-            parameters_.forceConstant() * parameters_.everyNSteps() * *densfitForceIterator;
+            effectiveForceConstat_ * *densfitForceIterator;
         ++densfitForceIterator;
     }
     const auto similarity = measure_.similarity(gaussTransform_.view());
-    const auto energy     = -parameters_.forceConstant() * similarity;
+    const auto energy     = -similarity * effectiveForceConstat_ / static_cast<real>(parameters_.everyNSteps());
+    if (parameters_.adaptiveForceConstantLagTime() != 0)
+    {
+        if (runningAverageSimilarity_ != 0)
+        {
+            double scale = 1.0/static_cast<real>(parameters_.adaptiveForceConstantLagTime());
+            double newRunningAverageSimilarity_ = (1-scale) * runningAverageSimilarity_ + scale * similarity;
+            if (newRunningAverageSimilarity_ < runningAverageSimilarity_)
+            {
+                effectiveForceConstat_ *= 1.01;
+            }
+            else
+            {
+                effectiveForceConstat_ /= 1.01;
+            }
+            runningAverageSimilarity_ = newRunningAverageSimilarity_;
+        }
+        else
+        {
+            runningAverageSimilarity_ = similarity;
+        }
+    }
     if (parameters_.isMaster_)
     {
-        fprintf(outputFile_, "%20.10g\t%20.10g\t%20.10g\n", forceProviderInput.t_, similarity, energy);
+        fprintf(outputFile_, "%20.10g\t%20.10g\t%20.10g\t%20.10g\t%20.10g\n", forceProviderInput.t_, similarity, energy, effectiveForceConstat_, runningAverageSimilarity_);
     }
 
     // calculate corresponding potential energy
