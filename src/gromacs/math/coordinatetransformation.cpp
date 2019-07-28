@@ -135,6 +135,7 @@ class TranslateAndScale::Impl
     public:
         Impl(const RVec &scale, const RVec &translation);
         void transform(ArrayRef<RVec> coordinates) const;
+        void inverseIgnoringZeroScale(ArrayRef<RVec> coordinates) const;
         RVec scale_;
         RVec translation_;
 };
@@ -157,6 +158,15 @@ void TranslateAndScale::Impl::transform(ArrayRef<RVec> coordinates) const
     }
 }
 
+void TranslateAndScale::Impl::inverseIgnoringZeroScale(ArrayRef<RVec> coordinates) const
+{
+    auto scalingTransform = ScaleCoordinates(scale_);
+    scalingTransform.inverseIgnoringZeroScale(coordinates);
+    for (auto &coordinate : coordinates)
+    {
+        coordinate     -= translation_;
+    }
+}
 
 /********************************************************************
  * TranslateAndScale
@@ -170,6 +180,11 @@ TranslateAndScale::TranslateAndScale(const RVec &scale, const RVec &translation)
 void TranslateAndScale::operator()(ArrayRef<RVec> coordinates) const
 {
     impl_->transform(coordinates);
+}
+
+void TranslateAndScale::inverseIgnoringZeroScale(ArrayRef<RVec> coordinates) const
+{
+    impl_->inverseIgnoringZeroScale(coordinates);
 }
 
 ScaleCoordinates TranslateAndScale::scaleOperationOnly() const

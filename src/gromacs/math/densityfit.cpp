@@ -135,6 +135,67 @@ std::unique_ptr<DensitySimilarityMeasureImpl> DensitySimilarityInnerProduct::clo
     return std::make_unique<DensitySimilarityInnerProduct>(referenceDensity_);
 }
 
+/*! \internal \brief
+ * Implementation for DensitySimilarityCrossEntropy.
+ * The similarity measure itself is documented in DensitySimilarityMeasureMethod::CrossEntropy.
+ */
+class DensitySimilarityCrossEntropy final : public DensitySimilarityMeasureImpl
+{
+    public:
+        //! Construct similarity measure by setting the reference density
+        DensitySimilarityCrossEntropy(density referenceDensity);        density gradient(density comparedDensity) override;
+        //! Clone this
+        std::unique_ptr<DensitySimilarityMeasureImpl> clone() override;
+        //! The similarity between reference density and compared density
+        float similarity(density comparedDensity) override;
+    private:
+        //! A view on the reference density
+        const density referenceDensity_;
+        //! Stores the gradient of the similarity measure in memory
+        MultiDimArray<std::vector<float>, dynamicExtents3D> gradient_;
+        double selfEntropy_;
+};
+
+DensitySimilarityCrossEntropy::DensitySimilarityCrossEntropy(density referenceDensity) :
+    referenceDensity_ {referenceDensity },
+gradient_ {
+    referenceDensity.extents()
+}
+{
+    selfEntropy_ = std::accumulate(begin(referenceDensity_), end(referenceDensity_), 0., [](auto sum, auto value){return sum+value > 0 ? value*log(value) : 0; });
+}
+
+float DensitySimilarityCrossEntropy::similarity(density comparedDensity)
+{
+    if (comparedDensity.extents() != referenceDensity_.extents())
+    {
+        GMX_THROW(RangeError("Reference density and compared density need to have same extents."));
+    }
+    return std::inner_product(begin(referenceDensity_), end(referenceDensity_), begin(comparedDensity), 0., std::plus<>(),
+                              [this](auto x, auto y){return (x > 0) && (y > 0) ? x*log(y)-selfEntropy_ : 0.; });
+}
+
+DensitySimilarityMeasure::density DensitySimilarityCrossEntropy::gradient(density comparedDensity)
+{
+    if (comparedDensity.extents() != referenceDensity_.extents())
+    {
+        GMX_THROW(RangeError("Reference density and compared density need to have same extents."));
+    }
+    std::transform(begin(referenceDensity_), end(referenceDensity_),
+                   begin(comparedDensity),
+                   begin(gradient_),
+                   [](auto ref, auto comp){
+                       return (ref > 0) && (comp > 0) ? ref/comp : 0;
+                   });
+
+    return gradient_.asConstView();
+}
+
+std::unique_ptr<DensitySimilarityMeasureImpl> DensitySimilarityCrossEntropy::clone()
+{
+    return std::make_unique<DensitySimilarityCrossEntropy>(referenceDensity_);
+}
+
 }   // namespace
 
 
@@ -146,7 +207,9 @@ DensitySimilarityMeasure::DensitySimilarityMeasure(DensitySimilarityMeasureMetho
         case DensitySimilarityMeasureMethod::innerProduct:
             impl_ = std::make_unique<DensitySimilarityInnerProduct>(referenceDensity);
             break;
-
+        case DensitySimilarityMeasureMethod::crossEntropy:
+            impl_ = std::make_unique<DensitySimilarityCrossEntropy>(referenceDensity);
+            break;
         default:
             break;
     }

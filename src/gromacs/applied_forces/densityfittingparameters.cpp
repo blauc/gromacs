@@ -48,7 +48,8 @@ DensityFittingParameters::DensityFittingParameters(const LocalAtomSet           
                                                    const DensitySimilarityMeasureMethod &measureMethod,
                                                    int                                   everyNSteps,
                                                    bool                                  isMaster,
-                                                   int                                   adaptiveForceConstantLagTime
+                                                   int                                   adaptiveForceConstantLagTime,
+                                                   int                                   pbc
                                                    ) : isMaster_ {isMaster}, atomSet_ {
     atomSet
 }, forceConstant_ {
@@ -75,6 +76,8 @@ everyNSteps_ {
 },
 adaptiveForceConstantLagTime_ {
     adaptiveForceConstantLagTime
+}, pbc_ {
+    pbc
 }
 {
 }
@@ -133,6 +136,19 @@ int DensityFittingParameters::everyNSteps() const
 int DensityFittingParameters::adaptiveForceConstantLagTime() const
 {
     return adaptiveForceConstantLagTime_;
+}
+
+int DensityFittingParameters::pbc() const
+{
+    return pbc_;
+}
+
+RVec DensityFittingParameters::referenceDensityCenter() const
+{
+    RVec           extent  = {static_cast<real>(referenceDensity_.extent(XX))/2, static_cast<real>(referenceDensity_.extent(YY))/2, static_cast<real>(referenceDensity_.extent(ZZ))/2};
+    ArrayRef<RVec> arr(&extent, &extent+1);
+    transformationToDensityLattice_.inverseIgnoringZeroScale(arr);
+    return extent;
 }
 
 } // namespace gmx

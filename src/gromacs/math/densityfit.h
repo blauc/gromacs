@@ -61,12 +61,13 @@ enum class DensitySimilarityMeasureMethod
      * \f]
      */
     innerProduct,
+    crossEntropy,
     count,
 };
 
 //! Name the methods that may be used to evaluate similarity between densities
 const char * const c_densitySimilarityMeasureMethodNames[static_cast<int>(DensitySimilarityMeasureMethod::count)]
-    = {"inner-product"};
+    = {"inner-product", "cross-entropy"};
 
 /* Forward declaration of implementation class outside class to allow
  * choose implementation class during construction of the DensitySimilarityMeasure*/

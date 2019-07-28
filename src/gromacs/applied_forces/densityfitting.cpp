@@ -42,6 +42,7 @@
 #include "gmxpre.h"
 
 #include <cstdio>
+#include <numeric>
 
 #include "densityfitting.h"
 
@@ -194,7 +195,10 @@ class DensityFittingOptions : public IMdpOptionProvider
             mapReader_ = std::make_unique<MrcDensityMapOfFloatReader>(&serializer);
             TranslateAndScale                           transformationToDensityLattice = getCoordinateTransformationToLattice(mapReader_->header());
             dynamicExtents3D                            ext = getDynamicExtents3D(mapReader_->header());
-            basic_mdspan<const float, dynamicExtents3D> referenceDensity(mapReader_->data().data(), ext);
+            const auto sum = std::accumulate(std::begin(mapReader_->data()), std::end(mapReader_->data()), 0.);
+            normalizedReferenceDensity_.resize(ext);
+            std::transform(std::begin(mapReader_->data()), std::end(mapReader_->data()), begin(normalizedReferenceDensity_),
+                           [norm = 1 / sum](auto voxel) { return norm * voxel; });
             gmx_fio_fclose(mrcFile);
 
             return {
@@ -203,12 +207,13 @@ class DensityFittingOptions : public IMdpOptionProvider
                        forceConstant_,
                        sigma_,
                        nSigma_,
-                       referenceDensity,
+                       normalizedReferenceDensity_.asConstView(),
                        amplitudeMethod_,
                        similarityMeasure_,
                        everyNSteps_,
                        MASTER(commrec_.get()),
-                       adaptiveForceConstantLagTime_
+                       adaptiveForceConstantLagTime_,
+                       *pbc_
             };
         }
 
@@ -253,8 +258,7 @@ class DensityFittingOptions : public IMdpOptionProvider
 
         void setPbc(int pbc)
         {
-            pbc_  = std::make_unique<int>();
-            *pbc_ = pbc;
+            pbc_  = std::make_unique<int>(pbc);
         }
 
         void setBox(const matrix &box)
@@ -269,13 +273,14 @@ class DensityFittingOptions : public IMdpOptionProvider
 
     private:
 
-        std::unique_ptr<t_commrec>                  commrec_;
+        std::unique_ptr<t_commrec>                          commrec_;
         std::unique_ptr < std::vector < RVec>> inputCoordinates_;
-        std::unique_ptr<int>                        pbc_;
-        matrix                                      box_;
+        std::unique_ptr<int>                                pbc_;
+        matrix                                              box_;
 
-        std::unique_ptr<LocalAtomSet>               atomSet_;
-        std::unique_ptr<MrcDensityMapOfFloatReader> mapReader_;
+        std::unique_ptr<LocalAtomSet>                       atomSet_;
+        std::unique_ptr<MrcDensityMapOfFloatReader>         mapReader_;
+        MultiDimArray<std::vector<float>, dynamicExtents3D> normalizedReferenceDensity_;
         //! The name of the density-fitting module
         const std::string inputSectionName_ = "density-guided-simulation";
 

@@ -67,7 +67,8 @@ class DensityFittingParameters
                                  const DensitySimilarityMeasureMethod &measureMethod,
                                  int                                   everyNSteps,
                                  bool                                  isMaster,
-                                 int                                   adaptiveForceConstantLagTime
+                                 int                                   adaptiveForceConstantLagTime,
+                                 int                                   pbc
                                  );
 
         DensitySimilarityMeasure makeMeasure() const;
@@ -81,6 +82,8 @@ class DensityFittingParameters
         int everyNSteps() const;
         bool isMaster_;
         int adaptiveForceConstantLagTime() const;
+        RVec referenceDensityCenter() const;
+        int pbc() const;
 
     private:
 
@@ -95,6 +98,7 @@ class DensityFittingParameters
         DensitySimilarityMeasureMethod measureMethod_;
         int everyNSteps_;
         int adaptiveForceConstantLagTime_;
+        int pbc_;
 };
 
 }      // namespace gmx

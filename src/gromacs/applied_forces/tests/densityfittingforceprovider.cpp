@@ -102,7 +102,7 @@ class DensityFittingForceProviderTest : public ::testing::Test
                        sigma, nSigma, referenceDensityGenerator.view(),
                        DensityFittingAmplitudeMethod::Unity,
                        DensitySimilarityMeasureMethod::innerProduct,
-                       everyNSteps_, true, 10
+                       everyNSteps_, true, 10, pbc
             };
         }
 
@@ -121,6 +121,7 @@ class DensityFittingForceProviderTest : public ::testing::Test
         std::vector<RVec>                     coordinates_              = {{0, 0, 0}, {5, 5, 5}, {4, 4, 4}, {6, 4, 4}, {4, 6, 4}, {4, 4, 6}, {6, 6, 6}, {10, 10, 10}};
         real                                  forceConstant_            = 1e8;
         int everyNSteps_ = 1;
+        int pbc          = 0;
 };
 
 TEST_F(DensityFittingForceProviderTest, CanConstruct)

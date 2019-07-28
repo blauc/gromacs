@@ -44,14 +44,18 @@
 #include "densityfittingforceprovider.h"
 
 #include <algorithm>
+#include <numeric>
 #include <vector>
 
 #include "gromacs/applied_forces/densityfittingamplitudelookup.h"
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/math/densityfit.h"
 #include "gromacs/math/gausstransform.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/enerdata.h"
 #include "gromacs/mdtypes/forceoutput.h"
-#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/pbcutil/pbc.h"
 
 #include "gromacs/applied_forces/densityfittingparameters.h"
 
@@ -80,16 +84,15 @@ class DensityFittingForceProvider::Impl
         FILE * outputFile_;
         real   effectiveForceConstat_;
         real   runningAverageSimilarity_;
+        bool   normalizeSimulatedDensityToOne_;
 };
 
 DensityFittingForceProvider::Impl::~Impl()
 {
+    if (parameters_.isMaster_)
     {
-        if (parameters_.isMaster_)
-        {
 
-            gmx_fio_fclose(outputFile_);
-        }
+        gmx_fio_fclose(outputFile_);
     }
 }
 
@@ -99,7 +102,8 @@ DensityFittingForceProvider::Impl::Impl(const DensityFittingParameters &paramete
 densityFittingForce_(parameters_.makeForceEvaluator()),
 densityFittingAmplitudeLookup_(parameters_.makeAmplitudeLookup()),
 transformedCoordinates_(parameters_.atomSet().numAtomsLocal()),
-currentStep_(0), effectiveForceConstat_(parameters_.forceConstant() * parameters_.everyNSteps()), runningAverageSimilarity_(0)
+currentStep_(0), effectiveForceConstat_(parameters_.forceConstant() * parameters_.everyNSteps()), runningAverageSimilarity_(0),
+normalizeSimulatedDensityToOne_(true)
 {
     if (parameters_.isMaster_)
     {
@@ -133,7 +137,30 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
                    std::cend(parameters_.atomSet().localIndex()),
                    std::begin(transformedCoordinates_),
                    [x = forceProviderInput.x_](int index) { return x[index]; });
-    const auto amplitudes = densityFittingAmplitudeLookup_(forceProviderInput.mdatoms_, parameters_.atomSet().localIndex());
+
+    t_pbc pbc;
+    set_pbc(&pbc, parameters_.pbc(), forceProviderInput.box_);
+    std::transform(std::begin(transformedCoordinates_),
+                   std::end(transformedCoordinates_),
+                   std::begin(transformedCoordinates_),
+                   [boxCenter = parameters_.referenceDensityCenter(), &pbc](auto x) {
+                       rvec dx;
+                       pbc_dx(&pbc, x, boxCenter, dx);
+                       rvec_add(boxCenter, dx, x);
+                       return boxCenter+dx;
+                   });
+
+    auto amplitudes = densityFittingAmplitudeLookup_(forceProviderInput.mdatoms_, parameters_.atomSet().localIndex());
+    if (normalizeSimulatedDensityToOne_)
+    {
+        double sum = std::accumulate(std::begin(amplitudes), std::end(amplitudes), 0.);
+        if (PAR(&forceProviderInput.cr_))
+        {
+            gmx_sumd(1, &sum, &forceProviderInput.cr_);
+        }
+        std::transform(std::begin(amplitudes), std::end(amplitudes), std::begin(amplitudes),
+                       [norm = 1./sum](auto &amplitude) { return norm * amplitude; });
+    }
     // transform local atom coordinates to density grid coordinates
     parameters_.transformationToDensityLattice() (transformedCoordinates_);
 

@@ -109,6 +109,11 @@ class TranslateAndScale
          */
         void operator()(ArrayRef<RVec> coordinates) const;
 
+        /*! \brief Perform the inverse coordinate transformation on input coordinates.
+         * \param[in] coordinates to be transformed
+         */
+        void inverseIgnoringZeroScale(ArrayRef<RVec> coordinates) const;
+
         /*! \brief Returns the scaling operation, discarding the translation.
          */
         ScaleCoordinates scaleOperationOnly() const;
