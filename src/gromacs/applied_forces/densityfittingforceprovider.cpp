@@ -209,11 +209,7 @@ void DensityFittingForceProvider::Impl::calculateForces(const ForceProviderInput
             double newRunningAverageSimilarity_ = (1-scale) * runningAverageSimilarity_ + scale * similarity;
             if (newRunningAverageSimilarity_ < runningAverageSimilarity_)
             {
-                effectiveForceConstat_ *= 1.01;
-            }
-            else
-            {
-                effectiveForceConstat_ /= 1.01;
+                effectiveForceConstat_ *= 1.0 + scale/2.0;
             }
             runningAverageSimilarity_ = newRunningAverageSimilarity_;
         }
