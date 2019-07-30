@@ -72,7 +72,7 @@ measureMethod_ {
     measureMethod
 },
 everyNSteps_ {
-    everyNSteps
+    everyNSteps > 1 ? everyNSteps : 1
 },
 adaptiveForceConstantLagTime_ {
     adaptiveForceConstantLagTime

@@ -172,7 +172,7 @@ float DensitySimilarityCrossEntropy::similarity(density comparedDensity)
         GMX_THROW(RangeError("Reference density and compared density need to have same extents."));
     }
     return std::inner_product(begin(referenceDensity_), end(referenceDensity_), begin(comparedDensity), 0., std::plus<>(),
-                              [this](auto x, auto y){return (x > 0) && (y > 0) ? x*log(y)-selfEntropy_ : 0.; });
+                              [this](auto ref, auto comp){return (ref > 0) && (comp > 0) ? ref*log(comp)-selfEntropy_ : 0.; });
 }
 
 DensitySimilarityMeasure::density DensitySimilarityCrossEntropy::gradient(density comparedDensity)
