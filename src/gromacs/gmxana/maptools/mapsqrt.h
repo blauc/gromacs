@@ -32,12 +32,19 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "gromacs/gmxana/maptools/mapcompare.h"
-#include "gromacs/gmxana/maptools/mapconvert.h"
-#include "gromacs/gmxana/maptools/mapcreate.h"
-#include "gromacs/gmxana/maptools/mapdiff.h"
-#include "gromacs/gmxana/maptools/mapinfo.h"
-#include "gromacs/gmxana/maptools/maplog.h"
-#include "gromacs/gmxana/maptools/mapmul.h"
-#include "gromacs/gmxana/maptools/mapnorm.h"
-#include "gromacs/gmxana/maptools/mapsqrt.h"
+#ifndef GMX_GMXANA_MAPSQRT_H
+#define GMX_GMXANA_MAPSQRT_H
+
+#include "gromacs/commandline/cmdlineoptionsmodule.h"
+
+namespace gmx {
+
+struct mapsqrtInfo {
+  static const char name[];
+  static const char shortDescription[];
+  static ICommandLineOptionsModulePointer create();
+};
+
+} // namespace gmx
+
+#endif /* end of include guard: GMX_GMXANA_MAPLOG_H */
