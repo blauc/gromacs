@@ -53,90 +53,16 @@
 
 // #include "testutils/testfilemanager.h"
 
-namespace gmx
-{
+namespace gmx {
 
-namespace test
-{
+namespace test {
 
-namespace internal
-{
+namespace internal {
 
-namespace
-{
+namespace {} // namespace
 
-TEST(CanonicalVectorBasisTest, canConstruct)
-{
-    CanonicalVectorBasis<1>({1});
-    CanonicalVectorBasis<3>({3, -2, 1});
-}
+} // namespace internal
 
-TEST(CanonicalVectorBasisTest, throwsWhenZero)
-{
-    EXPECT_THROW_GMX(CanonicalVectorBasis<1>({0}), gmx::RangeError);
-    EXPECT_THROW_GMX(CanonicalVectorBasis<3>({1, 0, 4}), gmx::RangeError);
-}
+} // namespace test
 
-TEST(CanonicalVectorBasisTest, identityMapping)
-{
-    CanonicalVectorBasis<1>           basis({1});
-    CanonicalVectorBasis<1>::NdVector x {
-        {
-            1
-        }
-    };
-    ASSERT_EQ(x[0], (basis.transformFromBasis(x))[0]);
-
-    CanonicalVectorBasis<3>           basis3d({1, 1, 1});
-    CanonicalVectorBasis<3>::NdVector x3d {
-        {
-            1, 1, 1
-        }
-    };
-    ASSERT_THAT(x3d, testing::ContainerEq(basis3d.transformFromBasis(x3d)));
-    ASSERT_THAT(x3d, testing::ContainerEq(basis3d.transformIntoBasis(x3d)));
-
-}
-
-TEST(CanonicalVectorBasisTest, transformIntoIsInverseTransformFrom)
-{
-    CanonicalVectorBasis<3>           basis3d({-1.5, -1, 7.3});
-    CanonicalVectorBasis<3>::NdVector x3d {
-        {
-            1.1, -5.2, 1.4
-        }
-    };
-    auto transformedIntoAndFrom = basis3d.transformIntoBasis(basis3d.transformFromBasis(x3d));
-    auto actual                 = std::begin(transformedIntoAndFrom);
-    for (const auto &x : x3d)
-    {
-        ASSERT_FLOAT_EQ(x, *actual);
-        ++actual;
-    }
-}
-
-TEST(CanonicalVectorBasisTest, transformFromIsInverseTransformInto)
-{
-    CanonicalVectorBasis<3>           basis3d({-1.5, -1, 7.3});
-    CanonicalVectorBasis<3>::NdVector x3d {
-        {
-            1.1, -5.2, 1.4
-        }
-    };
-    auto transformedIntoAndFrom = basis3d.transformFromBasis(basis3d.transformIntoBasis(x3d));
-    auto actual                 = std::begin(transformedIntoAndFrom);
-    for (const auto &x : x3d)
-    {
-        ASSERT_FLOAT_EQ(x, *actual);
-        ++actual;
-    }
-}
-
-
-} // namespace
-
-} // internal
-
-} // test
-
-} // gmx
+} // namespace gmx

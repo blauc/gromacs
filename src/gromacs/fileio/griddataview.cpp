@@ -44,138 +44,158 @@
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/griddataio.h"
 #include "gromacs/fileio/mrcmetadata.h"
+#include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/xplor.h"
 #include "gromacs/math/container/containermeasure.h"
 #include "gromacs/math/griddata/griddata.h"
 
-namespace gmx
-{
+namespace gmx {
 
-GridDataFloat3D gridDataFromXplor(const XplorData &xplor)
-{
-    RVec                                resolution;
-    Grid<DIM>::NdVector                 translation;
-    MdFloatVector<DIM>                  cellLength;
-    bounds<DIM> extend;
-    for (size_t i = 0; i < DIM; i++)
-    {
-        extend[i]      = xplor.crs_end[i] - xplor.crs_start[i] + 1;
-        resolution[i]  = xplor.cell_length[i] / xplor.extend[i];
-        cellLength[i]  = (extend[i]) * resolution[i];
-        // origin of the lattice
-        translation[i] = xplor.crs_start[i] * resolution[i];
-    }
+GridDataFloat3D gridDataFromXplor(const XplorData &xplor) {
+  RVec resolution;
+  Grid<DIM>::NdVector translation;
+  MdFloatVector<DIM> cellLength;
+  bounds<DIM> extend;
+  for (size_t i = 0; i < DIM; i++) {
+    extend[i] = xplor.crs_end[i] - xplor.crs_start[i] + 1;
+    resolution[i] = xplor.cell_length[i] / xplor.extend[i];
+    cellLength[i] = (extend[i]) * resolution[i];
+    // origin of the lattice
+    translation[i] = xplor.crs_start[i] * resolution[i];
+  }
 
-    CanonicalVectorBasis<DIM>  cell(cellLength);
+  CanonicalVectorBasis<DIM> cell(cellLength);
 
-    GridDataFloat3D            result({cell, extend, translation});
-    std::copy(std::begin(xplor.data), std::end(xplor.data), std::begin(result));
+  GridDataFloat3D result({cell, extend, translation});
+  std::copy(std::begin(xplor.data), std::end(xplor.data), std::begin(result));
 
-    return result;
+  return result;
 }
 
-Grid<DIM> cellFromXplor(const XplorData &xplor)
-{
-    CanonicalVectorBasis<DIM> cell(MdFloatVector<DIM>({xplor.cell_length[XX], xplor.cell_length[YY], xplor.cell_length[ZZ]}));
-    return Grid<DIM>(cell, {xplor.extend[XX], xplor.extend[YY], xplor.extend[ZZ]});
+Grid<DIM> cellFromXplor(const XplorData &xplor) {
+  CanonicalVectorBasis<DIM> cell(MdFloatVector<DIM>(
+      {xplor.cell_length[XX], xplor.cell_length[YY], xplor.cell_length[ZZ]}));
+  return Grid<DIM>(cell,
+                   {xplor.extend[XX], xplor.extend[YY], xplor.extend[ZZ]});
 }
 
 XplorData xplorFromGridData(const GridDataFloat3D &map,
-                            std::array<int, DIM> cellExtend)
-{
-    XplorData              xplor;
-    bool                   cellExtendIsValid =
-        std::all_of(std::begin(cellExtend), std::end(cellExtend),
-                    [](int i) { return i != 0; });
-    xplor.cell_angles = {90., 90., 90};
+                            std::array<int, DIM> cellExtend) {
+  XplorData xplor;
+  bool cellExtendIsValid =
+      std::all_of(std::begin(cellExtend), std::end(cellExtend),
+                  [](int i) { return i != 0; });
+  xplor.cell_angles = {90., 90., 90};
 
-    /* With valid cell extend, set up the unit cell from grid resolution and unit
-     * cell lengths
-     * The cell and the griddata from gromacs may have different extends
-     */
-    if (cellExtendIsValid)
-    {
-        for (size_t dim = XX; dim < DIM; ++dim)
-        {
-            xplor.cell_length[dim] = map.getGrid().unitCell()[dim] * cellExtend[dim];
-        }
-        xplor.extend = cellExtend;
+  /* With valid cell extend, set up the unit cell from grid resolution and unit
+   * cell lengths
+   * The cell and the griddata from gromacs may have different extends
+   */
+  if (cellExtendIsValid) {
+    for (size_t dim = XX; dim < DIM; ++dim) {
+      xplor.cell_length[dim] = map.getGrid().unitCell()[dim] * cellExtend[dim];
     }
-    else
-    {
-        for (size_t dim = XX; dim < DIM; ++dim)
-        {
-            xplor.cell_length[dim] = map.getGrid().cell()[dim];
-            xplor.extend[dim]      =     static_cast<int>(map.getGrid().lattice()[XX]);
-        }
+    xplor.extend = cellExtend;
+  } else {
+    for (size_t dim = XX; dim < DIM; ++dim) {
+      xplor.cell_length[dim] = map.getGrid().cell()[dim];
+      xplor.extend[dim] = static_cast<int>(map.getGrid().lattice()[XX]);
     }
+  }
 
-    auto originCoordinate = map.getGrid().multiIndexToCoordinate({{0, 0, 0}});
-    for (size_t dim = XX; dim < DIM; ++dim)
-    {
-        xplor.crs_start[dim] = originCoordinate[dim] / map.getGrid().unitCell()[dim];
-    }
-    for (int dimension = XX; dimension <= ZZ; ++dimension)
-    {
-        xplor.crs_end[dimension] = xplor.crs_start[dimension] +
-            map.getGrid().lattice()[dimension] - 1;
-    }
+  auto originCoordinate = map.getGrid().multiIndexToCoordinate({{0, 0, 0}});
+  for (size_t dim = XX; dim < DIM; ++dim) {
+    xplor.crs_start[dim] =
+        originCoordinate[dim] / map.getGrid().unitCell()[dim];
+  }
+  for (int dimension = XX; dimension <= ZZ; ++dimension) {
+    xplor.crs_end[dimension] =
+        xplor.crs_start[dimension] + map.getGrid().lattice()[dimension] - 1;
+  }
 
-    xplor.mean_value = containermeasure::mean(map);
-    xplor.rms_value  = containermeasure::rms(map);
+  xplor.mean_value = containermeasure::mean(map);
+  xplor.rms_value = containermeasure::rms(map);
 
-    std::copy(std::begin(map), std::end(map), std::back_inserter(xplor.data));
-    return xplor;
+  std::copy(std::begin(map), std::end(map), std::back_inserter(xplor.data));
+  return xplor;
 }
 
+namespace {
 
-MapConverter::MapConverter(std::string filename)
-{
-    const auto &extension = filename.substr(filename.find_last_of(".") + 1);
-    if (extension == "ccp4" || extension == "map" || extension == "mrc")
-    {
-        grid_ = MrcFile().read(filename);
+void pdbFromGridData(const GridDataFloat3D &grid, FILE *outputfile) {
+  const char *space = " ";
+  for (int x = 0; x != grid.getGrid().lattice()[XX]; ++x) {
+    for (int y = 0; y != grid.getGrid().lattice()[YY]; ++y) {
+      for (int z = 0; z != grid.getGrid().lattice()[ZZ]; ++z) {
+        const auto coordinate =
+            grid.getGrid().multiIndexToCoordinate({x, y, z});
+        gmx_fprintf_pdb_atomline(outputfile, epdbATOM, 0, "V", ' ', "VOX", ' ',
+                                 0, ' ', coordinate[XX], coordinate[YY],
+                                 coordinate[ZZ], 1, grid[{x, y, z}], space);
+      }
     }
-    if (extension == "xplor")
-    {
-        auto outputfile = gmx_fio_fopen(filename.c_str(), "r");
-        grid_ = gridDataFromXplor(XplorData(outputfile));
-        gmx_fio_fclose(outputfile);
-    }
+  }
 }
 
-void MapConverter::MapConverter::to(std::string filename)
-{
-    const auto &extension = filename.substr(filename.find_last_of(".") + 1);
-    if (extension == "ccp4" || extension == "map" || extension == "mrc")
-    {
-        MrcFile().write(filename, grid_);
+void dumpFromGridData(const GridDataFloat3D &grid, FILE *outputfile) {
+  for (int x = 0; x != grid.getGrid().lattice()[XX]; ++x) {
+    for (int y = 0; y != grid.getGrid().lattice()[YY]; ++y) {
+      for (int z = 0; z != grid.getGrid().lattice()[ZZ]; ++z) {
+        const auto coordinate =
+            grid.getGrid().multiIndexToCoordinate({x, y, z});
+        fprintf(outputfile, "%14.7g %14.7g %14.7g %14.7g\n", coordinate[XX],
+                coordinate[YY], coordinate[ZZ], grid[{x, y, z}]);
+      }
     }
-    if (extension == "xplor" || extension == "dat")
-    {
-        auto outputfile = gmx_fio_fopen(filename.c_str(), "w");
-        if (extension == "xplor")
-        {
-            xplorFromGridData(grid_).write(outputfile);
-        }
-        if (extension == "dat")
-        {
-            const auto textDump = MrcMetaData().fromGrid(grid_.getGrid()).set_grid_stats(grid_).to_string();
-            fprintf(outputfile, "%s", textDump.c_str());
-        }
-        gmx_fio_fclose(outputfile);
-    }
+  }
 }
 
-MapConverter::MapConverter(const GridDataFloat3D &grid)
-{
-    grid_ = grid;
+} // namespace
+
+MapConverter::MapConverter(std::string filename) {
+  const auto &extension = filename.substr(filename.find_last_of(".") + 1);
+  if (extension == "ccp4" || extension == "map" || extension == "mrc") {
+    grid_ = MrcFile().read(filename);
+  }
+  if (extension == "xplor") {
+    auto outputfile = gmx_fio_fopen(filename.c_str(), "r");
+    grid_ = gridDataFromXplor(XplorData(outputfile));
+    gmx_fio_fclose(outputfile);
+  }
 }
+
+void MapConverter::MapConverter::to(std::string filename) {
+  const auto &extension = filename.substr(filename.find_last_of(".") + 1);
+  if (extension == "ccp4" || extension == "map" || extension == "mrc") {
+    MrcFile().write(filename, grid_);
+    return;
+  }
+
+  auto outputfile = gmx_fio_fopen(filename.c_str(), "w");
+
+  if (extension == "xplor") {
+    xplorFromGridData(grid_).write(outputfile);
+  }
+  if (extension == "dat") {
+    const auto textDump = MrcMetaData()
+                              .fromGrid(grid_.getGrid())
+                              .set_grid_stats(grid_)
+                              .to_string();
+    fprintf(outputfile, "%s", textDump.c_str());
+  }
+  if (extension == "pdb") {
+    pdbFromGridData(grid_, outputfile);
+  }
+  if (extension == "dump") {
+    dumpFromGridData(grid_, outputfile);
+  }
+
+  gmx_fio_fclose(outputfile);
+}
+
+MapConverter::MapConverter(const GridDataFloat3D &grid) { grid_ = grid; }
 
 MapConverter::MapConverter() = default;
 
-const GridDataFloat3D &MapConverter::map()
-{
-    return grid_;
-}
-}
+const GridDataFloat3D &MapConverter::map() { return grid_; }
+} // namespace gmx

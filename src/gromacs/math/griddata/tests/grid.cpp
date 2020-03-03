@@ -53,104 +53,115 @@
 
 // #include "testutils/testfilemanager.h"
 
-namespace gmx
-{
+namespace gmx {
 
-namespace test
-{
+namespace test {
 
-namespace internal
-{
+namespace internal {
 
-namespace
-{
+namespace {
 
-TEST(GridTest, canConstructandCopy)
-{
-    auto g1 = Grid<1>(CanonicalVectorBasis<1>({1}), {1});
-    auto g2 = g1;
-    ASSERT_EQ(g2, g1);
-    auto g3(g1);
-    ASSERT_EQ(g3, g1);
+TEST(GridTest, canConstructandCopy) {
+  auto g1 = Grid<1>(CanonicalVectorBasis<1>({1}), {1});
+  auto g2 = g1;
+  ASSERT_EQ(g2, g1);
+  auto g3(g1);
+  ASSERT_EQ(g3, g1);
 }
 
-TEST(GridTest, coordinateToFloorMultiIndex)
-{
-    auto grid = Grid<3>(CanonicalVectorBasis<3>({1, 0.5, 0.25}), {10, 40, 80});
-    std::vector<CanonicalVectorBasis<3>::NdVector> toIndex        = {{{0, 0, 0}}, {{0, 0.49, 0}}, {{0, 10, 0}}, {{0, 0, -2}}, {{-0.12, 0.3, 2.1}}};
-    std::vector < offset < 3>> expectedResult = {{0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
-    auto currExpected = std::begin(expectedResult);
-    for (const auto x : toIndex)
-    {
-        ASSERT_EQ((*currExpected)[0], grid.coordinateToFloorMultiIndex(x)[0]);
-        ASSERT_EQ((*currExpected)[1], grid.coordinateToFloorMultiIndex(x)[1]);
-        ASSERT_EQ((*currExpected)[2], grid.coordinateToFloorMultiIndex(x)[2]);
-        ++currExpected;
-    }
+TEST(GridTest, coordinateToFloorMultiIndex) {
+  auto grid = Grid<3>(CanonicalVectorBasis<3>({1, 0.5, 0.25}), {10, 40, 80});
+  std::vector<MdFloatVector<3>> toIndex = {{{0, 0, 0}},
+                                           {{0, 0.49, 0}},
+                                           {{0, 10, 0}},
+                                           {{0, 0, -2}},
+                                           {{-0.12, 0.3, 2.1}}};
+  std::vector<offset<3>> expectedResult = {
+      {0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
+  auto currExpected = std::begin(expectedResult);
+  for (const auto x : toIndex) {
+    ASSERT_EQ((*currExpected)[0], grid.coordinateToFloorMultiIndex(x)[0]);
+    ASSERT_EQ((*currExpected)[1], grid.coordinateToFloorMultiIndex(x)[1]);
+    ASSERT_EQ((*currExpected)[2], grid.coordinateToFloorMultiIndex(x)[2]);
+    ++currExpected;
+  }
 }
 
-TEST(GridTest, multiIndexToCoordinate)
-{
-    auto grid = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
-    std::vector < offset < 3>> toCoordinate   = {{0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
-    std::vector<CanonicalVectorBasis<3>::NdVector> expectedResult = {{{0, 0, 0}}, {{0, 0.24375001, 0}}, {{0, 5, 0}}, {{0, 0, -4}}, {{0.2, 0.15, 4.2}}};
-    auto currExpected = std::begin(expectedResult);
-    for (const auto i : toCoordinate)
-    {
-        ASSERT_FLOAT_EQ((*currExpected)[0], grid.multiIndexToCoordinate(i)[0]);
-        ASSERT_FLOAT_EQ((*currExpected)[1], grid.multiIndexToCoordinate(i)[1]);
-        ASSERT_FLOAT_EQ((*currExpected)[2], grid.multiIndexToCoordinate(i)[2]);
-        ++currExpected;
-    }
+TEST(GridTest, multiIndexToCoordinate) {
+  auto grid = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
+  std::vector<offset<3>> toCoordinate = {
+      {0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
+  std::vector<MdFloatVector<3>> expectedResult = {{{0, 0, 0}},
+                                                  {{0, 0.24375001, 0}},
+                                                  {{0, 5, 0}},
+                                                  {{0, 0, -4}},
+                                                  {{0.2, 0.15, 4.2}}};
+  auto currExpected = std::begin(expectedResult);
+  for (const auto i : toCoordinate) {
+    ASSERT_FLOAT_EQ((*currExpected)[0], grid.multiIndexToCoordinate(i)[0]);
+    ASSERT_FLOAT_EQ((*currExpected)[1], grid.multiIndexToCoordinate(i)[1]);
+    ASSERT_FLOAT_EQ((*currExpected)[2], grid.multiIndexToCoordinate(i)[2]);
+    ++currExpected;
+  }
 }
 
-TEST(GridTest, gridVectorFromGridPointToCoordinate)
-{
-    auto grid1DUnitSpacing = Grid<1>(CanonicalVectorBasis<1>({1}), {1});
-    ASSERT_FLOAT_EQ(0.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate({{0.1}}, {{0}})[0]);
-    ASSERT_FLOAT_EQ(1.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate({{1.1}}, {{0}})[0]);
-    ASSERT_FLOAT_EQ(-1.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate({{-1.1}}, {{0}})[0]);
-    ASSERT_FLOAT_EQ(-2.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate({{-1.1}}, {{1}})[0]);
+TEST(GridTest, gridVectorFromGridPointToCoordinate) {
+  auto grid1DUnitSpacing = Grid<1>(CanonicalVectorBasis<1>({1}), {1});
+  ASSERT_FLOAT_EQ(0.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate(
+                           {{0.1}}, {{0}})[0]);
+  ASSERT_FLOAT_EQ(1.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate(
+                           {{1.1}}, {{0}})[0]);
+  ASSERT_FLOAT_EQ(-1.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate(
+                            {{-1.1}}, {{0}})[0]);
+  ASSERT_FLOAT_EQ(-2.1, grid1DUnitSpacing.gridVectorFromGridPointToCoordinate(
+                            {{-1.1}}, {{1}})[0]);
 
-    auto grid1DTenthSpacing = Grid<1>(CanonicalVectorBasis<1>({1}), {10});
-    ASSERT_FLOAT_EQ(1., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate({{0.1}}, {{0}})[0]);
-    ASSERT_FLOAT_EQ(10., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate({{1.1}}, {{1}})[0]);
-    ASSERT_FLOAT_EQ(-11., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate({{-1.1}}, {{0}})[0]);
-    ASSERT_FLOAT_EQ(-12., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate({{-1.1}}, {{1}})[0]);
+  auto grid1DTenthSpacing = Grid<1>(CanonicalVectorBasis<1>({1}), {10});
+  ASSERT_FLOAT_EQ(1., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate(
+                          {{0.1}}, {{0}})[0]);
+  ASSERT_FLOAT_EQ(10., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate(
+                           {{1.1}}, {{1}})[0]);
+  ASSERT_FLOAT_EQ(-11., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate(
+                            {{-1.1}}, {{0}})[0]);
+  ASSERT_FLOAT_EQ(-12., grid1DTenthSpacing.gridVectorFromGridPointToCoordinate(
+                            {{-1.1}}, {{1}})[0]);
 
-    auto grid = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
-    std::vector < offset < DIM>> gridIndex       = {{0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
-    std::vector<CanonicalVectorBasis<3>::NdVector> spaceCoordinate = {{{0, 0, 0}}, {{0, 0.24375001, 0}}, {{0, 5, 0}}, {{0, 0, -4}}, {{0.2, 0.15, 4.2}}};
-    auto currCoordinate = std::begin(spaceCoordinate);
-    for (const auto i : gridIndex)
-    {
-        ASSERT_FLOAT_EQ(0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[0]);
-        ASSERT_FLOAT_EQ(0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[1]);
-        ASSERT_FLOAT_EQ(0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[2]);
-        ++currCoordinate;
-    }
+  auto grid = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
+  std::vector<offset<DIM>> gridIndex = {
+      {0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
+  std::vector<MdFloatVector<3>> spaceCoordinate = {{{0, 0, 0}},
+                                                   {{0, 0.24375001, 0}},
+                                                   {{0, 5, 0}},
+                                                   {{0, 0, -4}},
+                                                   {{0.2, 0.15, 4.2}}};
+  auto currCoordinate = std::begin(spaceCoordinate);
+  for (const auto i : gridIndex) {
+    ASSERT_FLOAT_EQ(
+        0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[0]);
+    ASSERT_FLOAT_EQ(
+        0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[1]);
+    ASSERT_FLOAT_EQ(
+        0, grid.gridVectorFromGridPointToCoordinate(*currCoordinate, i)[2]);
+    ++currCoordinate;
+  }
 }
 
-TEST(GridTest, duplicateBehavesAsExpected)
-{
-    auto grid          = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
-    auto gridDuplicate = grid;
-    std::vector < offset < DIM>> gridIndex       = {{0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
-    std::vector<CanonicalVectorBasis<3>::NdVector> spaceCoordinate = {{{0, 0, 0}}, {{0, 0.24375001, 0}}, {{0, 5, 0}}, {{0, 0, -4}}, {{0.2, 0.15, 4.2}}};
-    auto currCoordinate = std::begin(spaceCoordinate);
-    for (const auto i : gridIndex)
-    {
-        ASSERT_FLOAT_EQ(0, gridDuplicate->gridVectorFromGridPointToCoordinate(*currCoordinate, i)[0]);
-        ASSERT_FLOAT_EQ(0, gridDuplicate->gridVectorFromGridPointToCoordinate(*currCoordinate, i)[1]);
-        ASSERT_FLOAT_EQ(0, gridDuplicate->gridVectorFromGridPointToCoordinate(*currCoordinate, i)[2]);
-        ++currCoordinate;
-    }
+TEST(GridTest, duplicateBehavesAsExpected) {
+  auto grid = Grid<3>(CanonicalVectorBasis<3>({-1, 0.25, 0.5}), {10, 40, 80});
+  auto gridDuplicate = grid;
+  std::vector<offset<DIM>> gridIndex = {
+      {0, 0, 0}, {0, 39, 0}, {0, 800, 0}, {0, 0, -640}, {-2, 24, 672}};
+  std::vector<MdFloatVector<3>> spaceCoordinate = {{{0, 0, 0}},
+                                                   {{0, 0.24375001, 0}},
+                                                   {{0, 5, 0}},
+                                                   {{0, 0, -4}},
+                                                   {{0.2, 0.15, 4.2}}};
 }
 
 } // namespace
 
-} // internal
+} // namespace internal
 
-} // test
+} // namespace test
 
-} // gmx
+} // namespace gmx
