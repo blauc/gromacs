@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2019, by the GROMACS development team, led by
+ * Copyright (c) 2019,2020, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,7 +51,6 @@ struct gmx_mtop_t;
 struct gmx_membed_t;
 struct gmx_multisim_t;
 struct gmx_output_env_t;
-struct gmx_vsite_t;
 struct gmx_wallcycle;
 struct gmx_walltime_accounting;
 struct ObservablesHistory;
@@ -79,6 +78,7 @@ class MDLogger;
 class MDAtoms;
 class StopHandlerBuilder;
 struct MdrunOptions;
+class VirtualSitesHandler;
 
 /*! \internal
  * \brief The Simulator interface
@@ -108,7 +108,7 @@ public:
                const gmx_output_env_t*             oenv,
                const MdrunOptions&                 mdrunOptions,
                StartingBehavior                    startingBehavior,
-               gmx_vsite_t*                        vsite,
+               VirtualSitesHandler*                vsite,
                Constraints*                        constr,
                gmx_enfrot*                         enforcedRotation,
                BoxDeformation*                     deform,
@@ -190,9 +190,9 @@ protected:
     //! Contains command-line options to mdrun.
     const MdrunOptions& mdrunOptions;
     //! Whether the simulation will start afresh, or restart with/without appending.
-    StartingBehavior startingBehavior;
+    const StartingBehavior startingBehavior;
     //! Handles virtual sites.
-    gmx_vsite_t* vsite;
+    VirtualSitesHandler* vsite;
     //! Handles constraints.
     Constraints* constr;
     //! Handles enforced rotation.
@@ -212,7 +212,7 @@ protected:
     //! The coordinate-swapping session.
     t_swap* swap;
     //! Full system topology.
-    gmx_mtop_t* top_global;
+    const gmx_mtop_t* top_global;
     //! Helper struct for force calculations.
     t_fcdata* fcd;
     //! Full simulation state (only non-nullptr on master rank).

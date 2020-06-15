@@ -70,7 +70,7 @@ DomDecHelper::DomDecHelper(bool                               isVerbose,
                            t_nrnb*                            nrnb,
                            gmx_wallcycle*                     wcycle,
                            t_forcerec*                        fr,
-                           gmx_vsite_t*                       vsite,
+                           VirtualSitesHandler*               vsite,
                            ImdSession*                        imdSession,
                            pull_t*                            pull_work) :
     nextNSStep_(-1),
@@ -138,8 +138,7 @@ void DomDecHelper::run(Step step, Time gmx_unused time)
     {
         // TODO: Correcting the box is done here (if using DD) or in ForceElement (non-DD simulations).
         //       Think about unifying this responsibility, could this be done in one place?
-        t_graph* graph = nullptr;
-        if (correct_box(fplog_, step, localState->box, graph))
+        if (correct_box(fplog_, step, localState->box))
         {
             isMasterState = true;
         }

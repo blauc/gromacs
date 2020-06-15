@@ -53,14 +53,19 @@
 
 #include "pme_gpu_program_impl.h"
 
-PmeGpuProgram::PmeGpuProgram(const DeviceInformation& deviceInfo, const DeviceContext& deviceContext) :
-    impl_(std::make_unique<PmeGpuProgramImpl>(deviceInfo, deviceContext))
+PmeGpuProgram::PmeGpuProgram(const DeviceContext& deviceContext) :
+    impl_(std::make_unique<PmeGpuProgramImpl>(deviceContext))
 {
 }
 
 PmeGpuProgram::~PmeGpuProgram() = default;
 
-PmeGpuProgramStorage buildPmeGpuProgram(const DeviceInformation& deviceInfo, const DeviceContext& deviceContext)
+int PmeGpuProgram::warpSize() const
 {
-    return std::make_unique<PmeGpuProgram>(deviceInfo, deviceContext);
+    return impl_->warpSize();
+}
+
+PmeGpuProgramStorage buildPmeGpuProgram(const DeviceContext& deviceContext)
+{
+    return std::make_unique<PmeGpuProgram>(deviceContext);
 }

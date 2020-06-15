@@ -88,15 +88,15 @@ void applySettleGpu(SettleTestData*  testData,
 
     DeviceInformation   deviceInfo;
     const DeviceContext deviceContext(deviceInfo);
-    const DeviceStream deviceStream(deviceInfo, deviceContext, DeviceStreamPriority::Normal, false);
+    const DeviceStream  deviceStream(deviceContext, DeviceStreamPriority::Normal, false);
 
     auto settleGpu = std::make_unique<SettleGpu>(testData->mtop_, deviceContext, deviceStream);
 
-    settleGpu->set(*testData->idef_, testData->mdatoms_);
+    settleGpu->set(*testData->idef_);
     PbcAiuc pbcAiuc;
     setPbcAiuc(pbc.ndim_ePBC, pbc.box, &pbcAiuc);
 
-    int numAtoms = testData->mdatoms_.homenr;
+    int numAtoms = testData->numAtoms_;
 
     float3 *d_x, *d_xp, *d_v;
 

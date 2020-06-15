@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2019, by the GROMACS development team, led by
+# Copyright (c) 2019,2020, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -37,17 +37,17 @@
 # simplest use case is to allow the `setup.py` file to invoke skbuild to
 # configure and run CMake. CMake could be invoked directly by the user or a
 # parent package, but the Python distribution would not be packaged automatically.
-# Reference https://redmine.gromacs.org/issues/2896 for additional discussion.
-cmake_minimum_required(VERSION 3.9.6)
+# Reference https://gitlab.com/gromacs/gromacs/-/issues/2896 for additional discussion.
+cmake_minimum_required(VERSION 3.13.0)
 
 # This needs to be set before project() in order to pick up toolchain files
 #list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake)
 
-# OS X deployment target should be >=10.9 for modern C++ compatibility.
+# OS X deployment target should be >=10.14 for modern C++ compatibility.
 # Reference https://scikit-build.readthedocs.io/en/latest/generators.html#macosx
 # and https://github.com/MacPython/wiki/wiki/Spinning-wheels
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9 CACHE STRING
-    "OS X deployment target below 10.9 does not use modern standard library"
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.14 CACHE STRING
+    "OS X deployment target below 10.14 does not use modern standard library"
     FORCE)
 set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING
     "OS X should build Python package for 64-bit architecture"
@@ -61,7 +61,7 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(GMXAPI_MASTER_PROJECT ON)
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Only interpret if() arguments as variables or keywords when unquoted.
@@ -112,7 +112,7 @@ option(GMXAPI_USE_BUNDLED_PYBIND
 if(GMXAPI_USE_BUNDLED_PYBIND)
     add_subdirectory(external/pybind)
 else()
-    # Reference https://redmine.gromacs.org/issues/2896
+    # Reference https://gitlab.com/gromacs/gromacs/-/issues/2896
     find_package(pybind11 2.2 REQUIRED)
 endif()
 
@@ -164,7 +164,7 @@ else()
     target_link_libraries(_gmxapi PRIVATE Gromacs::gmxapi)
 
     # TODO: Determine packaging and installation cases and implementation.
-    # Reference https://redmine.gromacs.org/issues/2896 for additional discussion.
+    # Reference https://gitlab.com/gromacs/gromacs/-/issues/2896 for additional discussion.
     # Currently, CMake should be run by scikit-build through setup.py for proper Python packaging.
     # We don't want to install by default in the outer scope of the GROMACS
     # CMake procedure because we could end up trying to install to a system directory
@@ -176,7 +176,7 @@ else()
     # source distribution archive to be installed in the GROMACS installation
     # destination. We can use the build directory as the working directory for
     # easier clean-up, as well.
-    # TODO: (ref issue #2896) Build and install 'sdist' with GROMACS.
+    # TODO: (ref Issue #2896) Build and install 'sdist' with GROMACS.
 
     # However, we can still produce an importable package for documentation builds and
     # basic testing in ${CMAKE_CURRENT_BINARY_DIR}/gmxapi_staging

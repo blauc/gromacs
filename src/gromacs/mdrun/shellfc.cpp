@@ -70,7 +70,6 @@
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/state.h"
-#include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_lookup.h"
@@ -538,7 +537,7 @@ gmx_shellfc_t* init_shell_flexcon(FILE* fplog, const gmx_mtop_t* mtop, int nflex
     return shfc;
 }
 
-void make_local_shells(const t_commrec* cr, const t_mdatoms* md, gmx_shellfc_t* shfc)
+void gmx::make_local_shells(const t_commrec* cr, const t_mdatoms* md, gmx_shellfc_t* shfc)
 {
     int           a0, a1;
     gmx_domdec_t* dd = nullptr;
@@ -869,11 +868,16 @@ static void init_adir(gmx_shellfc_t*            shfc,
             }
         }
     }
-    constr->apply(FALSE, FALSE, step, 0, 1.0, xCurrent, shfc->adir_xnold.arrayRefWithPadding(), {},
-                  box, lambda[efptBONDED], &(dvdlambda[efptBONDED]), {}, nullptr,
+    bool needsLogging  = false;
+    bool computeEnergy = false;
+    bool computeVirial = false;
+    constr->apply(needsLogging, computeEnergy, step, 0, 1.0, xCurrent,
+                  shfc->adir_xnold.arrayRefWithPadding(), {}, box, lambda[efptBONDED],
+                  &(dvdlambda[efptBONDED]), {}, computeVirial, nullptr,
                   gmx::ConstraintVariable::Positions);
-    constr->apply(FALSE, FALSE, step, 0, 1.0, xCurrent, shfc->adir_xnew.arrayRefWithPadding(), {},
-                  box, lambda[efptBONDED], &(dvdlambda[efptBONDED]), {}, nullptr,
+    constr->apply(needsLogging, computeEnergy, step, 0, 1.0, xCurrent,
+                  shfc->adir_xnew.arrayRefWithPadding(), {}, box, lambda[efptBONDED],
+                  &(dvdlambda[efptBONDED]), {}, computeVirial, nullptr,
                   gmx::ConstraintVariable::Positions);
 
     for (n = 0; n < end; n++)
@@ -887,9 +891,9 @@ static void init_adir(gmx_shellfc_t*            shfc,
     }
 
     /* Project the acceleration on the old bond directions */
-    constr->apply(FALSE, FALSE, step, 0, 1.0, xOld, shfc->adir_xnew.arrayRefWithPadding(), acc_dir,
-                  box, lambda[efptBONDED], &(dvdlambda[efptBONDED]), {}, nullptr,
-                  gmx::ConstraintVariable::Deriv_FlexCon);
+    constr->apply(needsLogging, computeEnergy, step, 0, 1.0, xOld, shfc->adir_xnew.arrayRefWithPadding(),
+                  acc_dir, box, lambda[efptBONDED], &(dvdlambda[efptBONDED]), {}, computeVirial,
+                  nullptr, gmx::ConstraintVariable::Deriv_FlexCon);
 }
 
 void relax_shell_flexcon(FILE*                         fplog,
@@ -918,13 +922,12 @@ void relax_shell_flexcon(FILE*                         fplog,
                          const t_mdatoms*              md,
                          t_nrnb*                       nrnb,
                          gmx_wallcycle_t               wcycle,
-                         t_graph*                      graph,
                          gmx_shellfc_t*                shfc,
                          t_forcerec*                   fr,
                          gmx::MdrunScheduleWorkload*   runScheduleWork,
                          double                        t,
                          rvec                          mu_tot,
-                         const gmx_vsite_t*            vsite,
+                         gmx::VirtualSitesHandler*     vsite,
                          const DDBalanceRegionHandler& ddBalanceRegionHandler)
 {
     real Epot[2], df[2];
@@ -942,8 +945,6 @@ void relax_shell_flexcon(FILE*                         fplog,
     const int         number_steps = inputrec->niter;
     ArrayRef<t_shell> shells       = shfc->shells;
     const int         nflexcon     = shfc->nflexcon;
-
-    const InteractionDefinitions& idef = top->idef;
 
     if (DOMAINDECOMP(cr))
     {
@@ -989,17 +990,6 @@ void relax_shell_flexcon(FILE*                         fplog,
          */
         put_atoms_in_box_omp(fr->pbcType, box, x.subArray(0, md->homenr),
                              gmx_omp_nthreads_get(emntDefault));
-
-        if (graph)
-        {
-            mk_mshift(fplog, graph, fr->pbcType, box, as_rvec_array(x.data()));
-        }
-    }
-
-    /* After this all coordinate arrays will contain whole charge groups */
-    if (graph)
-    {
-        shift_self(graph, box, as_rvec_array(x.data()));
     }
 
     if (nflexcon)
@@ -1024,12 +1014,6 @@ void relax_shell_flexcon(FILE*                         fplog,
         predict_shells(fplog, x, v, inputrec->delta_t, shells, md->massT, nullptr, bInit);
     }
 
-    /* do_force expected the charge groups to be in the box */
-    if (graph)
-    {
-        unshift_self(graph, box, as_rvec_array(x.data()));
-    }
-
     /* Calculate the forces first time around */
     if (gmx_debug_at)
     {
@@ -1038,7 +1022,7 @@ void relax_shell_flexcon(FILE*                         fplog,
     int shellfc_flags = force_flags | (bVerbose ? GMX_FORCE_ENERGY : 0);
     do_force(fplog, cr, ms, inputrec, nullptr, enforcedRotation, imdSession, pull_work, mdstep,
              nrnb, wcycle, top, box, xPadded, hist, forceWithPadding[Min], force_vir, md, enerd,
-             fcd, lambda, graph, fr, runScheduleWork, vsite, mu_tot, t, nullptr,
+             fcd, lambda, fr, runScheduleWork, vsite, mu_tot, t, nullptr,
              (bDoNS ? GMX_FORCE_NS : 0) | shellfc_flags, ddBalanceRegionHandler);
 
     sf_dir = 0;
@@ -1101,9 +1085,7 @@ void relax_shell_flexcon(FILE*                         fplog,
     {
         if (vsite)
         {
-            construct_vsites(vsite, as_rvec_array(pos[Min].data()), inputrec->delta_t,
-                             as_rvec_array(v.data()), idef.iparams, idef.il, fr->pbcType,
-                             fr->bMolPBC, cr, box);
+            vsite->construct(pos[Min], inputrec->delta_t, v, box);
         }
 
         if (nflexcon)
@@ -1118,12 +1100,6 @@ void relax_shell_flexcon(FILE*                         fplog,
         /* New positions, Steepest descent */
         shell_pos_sd(pos[Min], pos[Try], force[Min], shells, count);
 
-        /* do_force expected the charge groups to be in the box */
-        if (graph)
-        {
-            unshift_self(graph, box, as_rvec_array(pos[Try].data()));
-        }
-
         if (gmx_debug_at)
         {
             pr_rvecs(debug, 0, "RELAX: pos[Min]  ", as_rvec_array(pos[Min].data()), homenr);
@@ -1132,8 +1108,8 @@ void relax_shell_flexcon(FILE*                         fplog,
         /* Try the new positions */
         do_force(fplog, cr, ms, inputrec, nullptr, enforcedRotation, imdSession, pull_work, 1, nrnb,
                  wcycle, top, box, posWithPadding[Try], hist, forceWithPadding[Try], force_vir, md,
-                 enerd, fcd, lambda, graph, fr, runScheduleWork, vsite, mu_tot, t, nullptr,
-                 shellfc_flags, ddBalanceRegionHandler);
+                 enerd, fcd, lambda, fr, runScheduleWork, vsite, mu_tot, t, nullptr, shellfc_flags,
+                 ddBalanceRegionHandler);
         sum_epot(&(enerd->grpp), enerd->term);
         if (gmx_debug_at)
         {

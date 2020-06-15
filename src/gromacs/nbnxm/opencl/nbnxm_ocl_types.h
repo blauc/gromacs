@@ -53,6 +53,7 @@
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/nbnxm/gpu_types_common.h"
 #include "gromacs/nbnxm/nbnxm.h"
+#include "gromacs/nbnxm/nbnxm_gpu.h"
 #include "gromacs/nbnxm/pairlist.h"
 #include "gromacs/utility/enumerationhelpers.h"
 #include "gromacs/utility/fatalerror.h"
@@ -76,52 +77,6 @@ struct gmx_wallclock_gpu_nbnxn_t;
 /*! @{ */
 const int c_oclPruneKernelJ4ConcurrencyDEFAULT = GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY_DEFAULT;
 /*! @} */
-
-/*! \brief Electrostatic OpenCL kernel flavors.
- *
- *  Types of electrostatics implementations available in the OpenCL non-bonded
- *  force kernels. These represent both the electrostatics types implemented
- *  by the kernels (cut-off, RF, and Ewald - a subset of what's defined in
- *  enums.h) as well as encode implementation details analytical/tabulated
- *  and single or twin cut-off (for Ewald kernels).
- *  Note that the cut-off and RF kernels have only analytical flavor and unlike
- *  in the CPU kernels, the tabulated kernels are ATM Ewald-only.
- *
- *  The row-order of pointers to different electrostatic kernels defined in
- *  nbnxn_cuda.cu by the nb_*_kfunc_ptr function pointer table
- *  should match the order of enumerated types below.
- */
-enum eelOcl
-{
-    eelOclCUT,
-    eelOclRF,
-    eelOclEWALD_TAB,
-    eelOclEWALD_TAB_TWIN,
-    eelOclEWALD_ANA,
-    eelOclEWALD_ANA_TWIN,
-    eelOclNR
-};
-
-/*! \brief VdW OpenCL kernel flavors.
- *
- * The enumerates values correspond to the LJ implementations in the OpenCL non-bonded
- * kernels.
- *
- * The column-order of pointers to different electrostatic kernels defined in
- * nbnxn_cuda.cu by the nb_*_kfunc_ptr function pointer table
- * should match the order of enumerated types below.
- */
-enum evdwOcl
-{
-    evdwOclCUT,
-    evdwOclCUTCOMBGEOM,
-    evdwOclCUTCOMBLB,
-    evdwOclFSWITCH,
-    evdwOclPSWITCH,
-    evdwOclEWALDGEOM,
-    evdwOclEWALDLB,
-    evdwOclNR
-};
 
 /*! \brief Pruning kernel flavors.
  *
@@ -164,28 +119,28 @@ typedef struct cl_atomdata
     int nalloc;
 
     //! float4 buffer with atom coordinates + charges, size natoms
-    cl_mem xq;
+    DeviceBuffer<float> xq;
 
     //! float3 buffer with force output array, size natoms
-    cl_mem f;
+    DeviceBuffer<float> f;
 
     //! LJ energy output, size 1
-    cl_mem e_lj;
+    DeviceBuffer<float> e_lj;
     //! Electrostatics energy input, size 1
-    cl_mem e_el;
+    DeviceBuffer<float> e_el;
 
     //! float3 buffer with shift forces
-    cl_mem fshift;
+    DeviceBuffer<float> fshift;
 
     //! number of atom types
     int ntypes;
     //! int buffer with atom type indices, size natoms
-    cl_mem atom_types;
+    DeviceBuffer<int> atom_types;
     //! float2 buffer with sqrt(c6),sqrt(c12), size natoms
-    cl_mem lj_comb;
+    DeviceBuffer<float> lj_comb;
 
     //! float3 buffer with shifts values
-    cl_mem shift_vec;
+    DeviceBuffer<float> shift_vec;
 
     //! true if the shift vector has been uploaded
     bool bShiftVecUploaded;
@@ -197,9 +152,9 @@ typedef struct cl_atomdata
 typedef struct cl_nbparam
 {
 
-    //! type of electrostatics, takes values from #eelOcl
+    //! type of electrostatics, takes values from #eelType
     int eeltype;
-    //! type of VdW impl., takes values from #evdwOcl
+    //! type of VdW impl., takes values from #evdwType
     int vdwtype;
 
     //! charge multiplication factor
@@ -248,7 +203,7 @@ typedef struct cl_nbparam
     //! table scale/spacing
     float coulomb_tab_scale;
     //! pointer to the table in the device memory
-    cl_mem coulomb_tab_climg2d;
+    DeviceBuffer<float> coulomb_tab_climg2d;
 } cl_nbparam_t;
 
 /*! \internal
@@ -259,9 +214,9 @@ typedef struct cl_nbparam
 typedef struct cl_nbparam_params
 {
 
-    //! type of electrostatics, takes values from #eelCu
+    //! type of electrostatics, takes values from #eelType
     int eeltype;
-    //! type of VdW impl., takes values from #evdwCu
+    //! type of VdW impl., takes values from #evdwType
     int vdwtype;
 
     //! charge multiplication factor
@@ -319,18 +274,21 @@ typedef struct Nbnxm::gpu_timers_t cl_timers_t;
  */
 struct NbnxmGpu
 {
-    //! OpenCL device information
-    const DeviceInformation* deviceInfo = nullptr;
+    /* \brief OpenCL device context
+     *
+     * \todo Make it constant reference, once NbnxmGpu is a proper class.
+     */
+    const DeviceContext* deviceContext_;
     //! OpenCL runtime data (context, kernels)
     struct gmx_device_runtime_data_t* dev_rundata = nullptr;
 
     /**< Pointers to non-bonded kernel functions
      * organized similar with nb_kfunc_xxx arrays in nbnxn_ocl.cpp */
     ///@{
-    cl_kernel kernel_noener_noprune_ptr[eelOclNR][evdwOclNR] = { { nullptr } };
-    cl_kernel kernel_ener_noprune_ptr[eelOclNR][evdwOclNR]   = { { nullptr } };
-    cl_kernel kernel_noener_prune_ptr[eelOclNR][evdwOclNR]   = { { nullptr } };
-    cl_kernel kernel_ener_prune_ptr[eelOclNR][evdwOclNR]     = { { nullptr } };
+    cl_kernel kernel_noener_noprune_ptr[eelTypeNR][evdwTypeNR] = { { nullptr } };
+    cl_kernel kernel_ener_noprune_ptr[eelTypeNR][evdwTypeNR]   = { { nullptr } };
+    cl_kernel kernel_noener_prune_ptr[eelTypeNR][evdwTypeNR]   = { { nullptr } };
+    cl_kernel kernel_ener_prune_ptr[eelTypeNR][evdwTypeNR]     = { { nullptr } };
     ///@}
     //! prune kernels, ePruneKind defined the kernel kinds
     cl_kernel kernel_pruneonly[ePruneNR] = { nullptr };
@@ -361,7 +319,7 @@ struct NbnxmGpu
     nb_staging_t nbst;
 
     //! local and non-local GPU queues
-    gmx::EnumerationArray<Nbnxm::InteractionLocality, DeviceStream> deviceStreams;
+    gmx::EnumerationArray<Nbnxm::InteractionLocality, const DeviceStream*> deviceStreams;
 
     /*! \brief Events used for synchronization */
     /*! \{ */

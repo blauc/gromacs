@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  *
- * \brief Implements the DeviceContext for OpenCL
+ * \brief Implements the DeviceStream for CPU builds.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  *
@@ -46,8 +46,7 @@
 
 DeviceStream::DeviceStream() = default;
 
-void DeviceStream::init(const DeviceInformation& /* deviceInfo */,
-                        const DeviceContext& /* deviceContext */,
+void DeviceStream::init(const DeviceContext& /* deviceContext */,
                         DeviceStreamPriority /* priority */,
                         const bool /* useTiming */)
 {
@@ -55,4 +54,10 @@ void DeviceStream::init(const DeviceInformation& /* deviceInfo */,
 
 DeviceStream::~DeviceStream() = default;
 
-void DeviceStream::synchronize() const {}
+// NOLINTNEXTLINE readability-convert-member-functions-to-static
+bool DeviceStream::isValid() const
+{
+    return false;
+}
+
+void DeviceStream::synchronize() const {};

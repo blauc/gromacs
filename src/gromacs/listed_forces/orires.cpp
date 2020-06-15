@@ -54,14 +54,17 @@
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/ishift.h"
-#include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
+
+using gmx::ArrayRef;
+using gmx::RVec;
 
 // TODO This implementation of ensemble orientation restraints is nasty because
 // a user can't just do multi-sim with single-sim orientation restraints.
@@ -382,6 +385,7 @@ real calc_orires_dev(const gmx_multisim_t* ms,
                      const t_iatom         forceatoms[],
                      const t_iparams       ip[],
                      const t_mdatoms*      md,
+                     ArrayRef<const RVec>  xWholeMolecules,
                      const rvec            x[],
                      const t_pbc*          pbc,
                      t_fcdata*             fcd,
@@ -445,7 +449,7 @@ real calc_orires_dev(const gmx_multisim_t* ms,
     {
         if (md->cORF[i] == 0)
         {
-            copy_rvec(x[i], xtmp[j]);
+            copy_rvec(xWholeMolecules[i], xtmp[j]);
             mref[j] = md->massT[i];
             for (int d = 0; d < DIM; d++)
             {
@@ -648,7 +652,6 @@ real orires(int             nfa,
             rvec4           f[],
             rvec            fshift[],
             const t_pbc*    pbc,
-            const t_graph*  g,
             real gmx_unused lambda,
             real gmx_unused* dvdlambda,
             const t_mdatoms gmx_unused* md,
@@ -656,7 +659,6 @@ real orires(int             nfa,
             int gmx_unused* global_atom_index)
 {
     int                 ex, power, ki = CENTRAL;
-    ivec                dt;
     real                r2, invr, invr2, fc, smooth_fc, dev, devins, pfac;
     rvec                r, Sr, fij;
     real                vtot;
@@ -731,12 +733,6 @@ real orires(int             nfa,
             for (int i = 0; i < DIM; i++)
             {
                 fij[i] = -pfac * dev * (4 * Sr[i] - 2 * (2 + power) * invr2 * iprod(Sr, r) * r[i]);
-            }
-
-            if (g)
-            {
-                ivec_sub(SHIFT_IVEC(g, ai), SHIFT_IVEC(g, aj), dt);
-                ki = IVEC2IS(dt);
             }
 
             for (int i = 0; i < DIM; i++)

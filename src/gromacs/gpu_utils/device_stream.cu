@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  *
- * \brief Implements the DeviceContext for OpenCL
+ * \brief Implements the DeviceStream for CUDA.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  *
@@ -54,8 +54,7 @@ DeviceStream::DeviceStream()
     stream_ = nullptr;
 }
 
-void DeviceStream::init(const DeviceInformation& /* deviceInfo */,
-                        const DeviceContext& /* deviceContext */,
+void DeviceStream::init(const DeviceContext& /* deviceContext */,
                         DeviceStreamPriority priority,
                         const bool /* useTiming */)
 {
@@ -96,7 +95,7 @@ void DeviceStream::init(const DeviceInformation& /* deviceInfo */,
 
 DeviceStream::~DeviceStream()
 {
-    if (stream_)
+    if (isValid())
     {
         cudaError_t stat = cudaStreamDestroy(stream_);
         GMX_RELEASE_ASSERT(stat == cudaSuccess,
@@ -110,6 +109,11 @@ DeviceStream::~DeviceStream()
 cudaStream_t DeviceStream::stream() const
 {
     return stream_;
+}
+
+bool DeviceStream::isValid() const
+{
+    return (stream_ != nullptr);
 }
 
 void DeviceStream::synchronize() const

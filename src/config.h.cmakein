@@ -136,6 +136,9 @@
 /* Enable code that requires AVX-512 instruction support, without GMX_SIMD=AVX_512 */
 #cmakedefine01 SIMD_AVX_512_CXX_SUPPORTED
 
+/* Whether NBNXM and other SIMD kernels should be compiled */
+#cmakedefine01 GMX_USE_SIMD_KERNELS
+
 /* Whether a double-precision configuration may target accuracy equivalent to single precision */
 #cmakedefine01 GMX_RELAXED_DOUBLE_PRECISION
 
@@ -181,18 +184,6 @@
 
 /* Use if we cannot rename checkpoints */
 #cmakedefine01 GMX_NO_RENAME
-
-/* Use (modified) Gamess-UK for QM-MM calculations */
-#cmakedefine01 GMX_QMMM_GAMESS
-
-/* Use (modified) Gaussian0x for QM-MM calculations */
-#cmakedefine01 GMX_QMMM_GAUSSIAN
-
-/* Use (modified) Mopac 7 for QM-MM calculations */
-#cmakedefine01 GMX_QMMM_MOPAC
-
-/* Use ORCA for QM-MM calculations */
-#cmakedefine01 GMX_QMMM_ORCA
 
 /* Use sub-counters */
 #cmakedefine01 GMX_CYCLE_SUBCOUNTERS

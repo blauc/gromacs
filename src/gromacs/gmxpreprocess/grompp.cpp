@@ -80,7 +80,6 @@
 #include "gromacs/mdlib/compute_io.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/perf_est.h"
-#include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdrun/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
@@ -1132,7 +1131,7 @@ static int nrdf_internal(const t_atoms* atoms)
     }
     switch (nmass)
     {
-        case 0: nrdf = 0; break;
+        case 0: // Fall through intended
         case 1: nrdf = 0; break;
         case 2: nrdf = 1; break;
         default: nrdf = nmass * 3 - 6; break;
@@ -1624,7 +1623,7 @@ static void set_verlet_buffer(const gmx_mtop_t*    mtop,
     ir->rlist = calcVerletBufferSize(*mtop, det(box), *ir, ir->nstlist, ir->nstlist - 1,
                                      buffer_temp, listSetup4x4);
 
-    const int n_nonlin_vsite = countNonlinearVsites(*mtop);
+    const int n_nonlin_vsite = gmx::countNonlinearVsites(*mtop);
     if (n_nonlin_vsite > 0)
     {
         std::string warningMessage = gmx::formatString(
@@ -1771,7 +1770,6 @@ int gmx_grompp(int argc, char* argv[])
     double                               reppow;
     const char*                          mdparin;
     bool                                 bNeedVel, bGenVel;
-    gmx_bool                             have_atomnumber;
     gmx_output_env_t*                    oenv;
     gmx_bool                             bVerbose = FALSE;
     warninp*                             wi;
@@ -1957,25 +1955,6 @@ int gmx_grompp(int argc, char* argv[])
     if (EI_SD(ir->eI) && ir->etc != etcNO)
     {
         warning_note(wi, "Temperature coupling is ignored with SD integrators.");
-    }
-
-    /* If we are doing QM/MM, check that we got the atom numbers */
-    have_atomnumber = TRUE;
-    for (gmx::index i = 0; i < gmx::ssize(atypes); i++)
-    {
-        have_atomnumber = have_atomnumber && (atypes.atomNumberFromAtomType(i) >= 0);
-    }
-    if (!have_atomnumber && ir->bQMMM)
-    {
-        warning_error(
-                wi,
-                "\n"
-                "It appears as if you are trying to run a QM/MM calculation, but the force\n"
-                "field you are using does not contain atom numbers fields. This is an\n"
-                "optional field (introduced in GROMACS 3.3) for general runs, but mandatory\n"
-                "for QM/MM. The good news is that it is easy to add - put the atom number as\n"
-                "an integer just before the mass column in ffXXXnb.itp.\n"
-                "NB: United atoms have the same atom numbers as normal ones.\n\n");
     }
 
     /* Check for errors in the input now, since they might cause problems
@@ -2227,20 +2206,9 @@ int gmx_grompp(int argc, char* argv[])
         pr_symtab(debug, 0, "After close", &sys.symtab);
     }
 
-    /* make exclusions between QM atoms and remove charges if needed */
-    if (ir->bQMMM)
-    {
-        generate_qmexcl(&sys, ir, wi, GmxQmmmMode::GMX_QMMM_ORIGINAL, logger);
-        if (ir->QMMMscheme != eQMMMschemeoniom)
-        {
-            std::vector<int> qmmmAtoms = qmmmAtomIndices(*ir, sys);
-            removeQmmmAtomCharges(&sys, qmmmAtoms);
-        }
-    }
-
     if (ir->eI == eiMimic)
     {
-        generate_qmexcl(&sys, ir, wi, GmxQmmmMode::GMX_QMMM_MIMIC, logger);
+        generate_qmexcl(&sys, ir, logger);
     }
 
     if (ftp2bSet(efTRN, NFILE, fnm))
@@ -2416,6 +2384,8 @@ int gmx_grompp(int argc, char* argv[])
     gmx::write_IMDgroup_to_file(ir->bIMD, ir, &state, &sys, NFILE, fnm);
 
     sfree(opts->define);
+    sfree(opts->wall_atomtype[0]);
+    sfree(opts->wall_atomtype[1]);
     sfree(opts->include);
     sfree(opts);
     for (auto& mol : mi)

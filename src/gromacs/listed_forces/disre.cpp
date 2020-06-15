@@ -58,7 +58,6 @@
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/ishift.h"
-#include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
@@ -71,7 +70,10 @@
 void init_disres(FILE*                 fplog,
                  const gmx_mtop_t*     mtop,
                  t_inputrec*           ir,
-                 const t_commrec*      cr,
+                 DisResRunMode         disResRunMode,
+                 DDRole                ddRole,
+                 NumRanks              numRanks,
+                 MPI_Comm              communicator,
                  const gmx_multisim_t* ms,
                  t_fcdata*             fcd,
                  t_state*              state,
@@ -117,10 +119,10 @@ void init_disres(FILE*                 fplog,
     {
         /* We store the r^-6 time averages in an array that is indexed
          * with the local disres iatom index, so this doesn't work with DD.
-         * Note that DD is not initialized yet here, so we check for PAR(cr),
+         * Note that DD is not initialized yet here, so we check that we are on multiple ranks,
          * but there are probably also issues with e.g. NM MPI parallelization.
          */
-        if (cr && PAR(cr))
+        if ((disResRunMode == DisResRunMode::MDRun) && (numRanks == NumRanks::Multiple))
         {
             gmx_fatal(FARGS,
                       "Time-averaged distance restraints are not supported with MPI "
@@ -169,7 +171,7 @@ void init_disres(FILE*                 fplog,
         }
     }
 
-    if (cr && PAR(cr) && ir->nstdisreout > 0)
+    if ((disResRunMode == DisResRunMode::MDRun) && (numRanks == NumRanks::Multiple) && ir->nstdisreout > 0)
     {
         /* With DD we currently only have local pair information available */
         gmx_fatal(FARGS,
@@ -219,7 +221,7 @@ void init_disres(FILE*                 fplog,
     dd->Rtav_6 = &(dd->Rt_6[dd->nres]);
 
     ptr = getenv("GMX_DISRE_ENSEMBLE_SIZE");
-    if (cr && ms != nullptr && ptr != nullptr && !bIsREMD)
+    if ((disResRunMode == DisResRunMode::MDRun) && ms != nullptr && ptr != nullptr && !bIsREMD)
     {
 #if GMX_MPI
         dd->nsystems = 0;
@@ -231,11 +233,11 @@ void init_disres(FILE*                 fplog,
         /* This check is only valid on MASTER(cr), so probably
          * ensemble-averaged distance restraints are broken on more
          * than one processor per simulation system. */
-        if (MASTER(cr))
+        if (ddRole == DDRole::Master)
         {
             check_multi_int(fplog, ms, dd->nsystems, "the number of systems per ensemble", FALSE);
         }
-        gmx_bcast_sim(sizeof(int), &dd->nsystems, cr);
+        gmx_bcast(sizeof(int), &dd->nsystems, communicator);
 
         /* We use to allow any value of nsystems which was a divisor
          * of ms->nsim. But this required an extra communicator which
@@ -257,6 +259,8 @@ void init_disres(FILE*                 fplog,
             }
             fprintf(fplog, "\n");
         }
+#else
+        GMX_UNUSED_VALUE(communicator);
 #endif
     }
     else
@@ -286,7 +290,7 @@ void init_disres(FILE*                 fplog,
          * checks from appropriate processes (since check_multi_int is
          * too broken to check whether the communication will
          * succeed...) */
-        if (cr && ms && dd->nsystems > 1 && MASTER(cr))
+        if ((disResRunMode == DisResRunMode::MDRun) && ms && dd->nsystems > 1 && (ddRole == DDRole::Master))
         {
             check_multi_int(fplog, ms, fcd->disres.nres, "the number of distance restraints", FALSE);
         }
@@ -403,7 +407,7 @@ void calc_disres_R_6(const t_commrec*      cr,
 
         if (DOMAINDECOMP(cr))
         {
-            gmx_bcast(2 * dd->nres, dd->Rt_6, cr);
+            gmx_bcast(2 * dd->nres, dd->Rt_6, cr->mpi_comm_mygroup);
         }
     }
 
@@ -423,7 +427,6 @@ real ta_disres(int             nfa,
                rvec4           f[],
                rvec            fshift[],
                const t_pbc*    pbc,
-               const t_graph*  g,
                real gmx_unused lambda,
                real gmx_unused* dvdlambda,
                const t_mdatoms gmx_unused* md,
@@ -440,7 +443,6 @@ real ta_disres(int             nfa,
     real          tav_viol_Rtav7, instant_viol_Rtav7;
     real          up1, up2, low;
     gmx_bool      bConservative, bMixed, bViolation;
-    ivec          dt;
     t_disresdata* dd;
     int           dr_weighting;
     gmx_bool      dr_bMixed;
@@ -618,12 +620,6 @@ real ta_disres(int             nfa,
             }
 
             fk_scal = f_scal * weight_rt_1;
-
-            if (g)
-            {
-                ivec_sub(SHIFT_IVEC(g, ai), SHIFT_IVEC(g, aj), dt);
-                ki = IVEC2IS(dt);
-            }
 
             for (int m = 0; m < DIM; m++)
             {

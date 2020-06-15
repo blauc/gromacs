@@ -55,7 +55,6 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vecdump.h"
 #include "gromacs/mdlib/forcerec_threading.h"
-#include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/rf_util.h"
 #include "gromacs/mdlib/wall.h"
 #include "gromacs/mdtypes/commrec.h"
@@ -68,12 +67,14 @@
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/mdtypes/simulation_workload.h"
 #include "gromacs/pbcutil/ishift.h"
-#include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+
+using gmx::ArrayRef;
+using gmx::RVec;
 
 static void clearEwaldThreadOutput(ewald_corr_thread_t* ewc_t)
 {
@@ -100,36 +101,30 @@ static void reduceEwaldThreadOuput(int nthreads, ewald_corr_thread_t* ewc_t)
     }
 }
 
-void do_force_lowlevel(t_forcerec*                         fr,
-                       const t_inputrec*                   ir,
-                       const InteractionDefinitions&       idef,
-                       const t_commrec*                    cr,
-                       const gmx_multisim_t*               ms,
-                       t_nrnb*                             nrnb,
-                       gmx_wallcycle_t                     wcycle,
-                       const t_mdatoms*                    md,
-                       gmx::ArrayRefWithPadding<gmx::RVec> coordinates,
-                       history_t*                          hist,
-                       gmx::ForceOutputs*                  forceOutputs,
-                       gmx_enerdata_t*                     enerd,
-                       t_fcdata*                           fcd,
-                       const matrix                        box,
-                       const real*                         lambda,
-                       const t_graph*                      graph,
-                       const rvec*                         mu_tot,
-                       const gmx::StepWorkload&            stepWork,
-                       const DDBalanceRegionHandler&       ddBalanceRegionHandler)
+void do_force_lowlevel(t_forcerec*                          fr,
+                       const t_inputrec*                    ir,
+                       const InteractionDefinitions&        idef,
+                       const t_commrec*                     cr,
+                       const gmx_multisim_t*                ms,
+                       t_nrnb*                              nrnb,
+                       gmx_wallcycle_t                      wcycle,
+                       const t_mdatoms*                     md,
+                       gmx::ArrayRefWithPadding<const RVec> coordinates,
+                       ArrayRef<const RVec>                 xWholeMolecules,
+                       history_t*                           hist,
+                       gmx::ForceOutputs*                   forceOutputs,
+                       gmx_enerdata_t*                      enerd,
+                       t_fcdata*                            fcd,
+                       const matrix                         box,
+                       const real*                          lambda,
+                       const rvec*                          mu_tot,
+                       const gmx::StepWorkload&             stepWork,
+                       const DDBalanceRegionHandler&        ddBalanceRegionHandler)
 {
     // TODO: Replace all uses of x by const coordinates
-    rvec* x = as_rvec_array(coordinates.paddedArrayRef().data());
+    const rvec* x = as_rvec_array(coordinates.paddedArrayRef().data());
 
     auto& forceWithVirial = forceOutputs->forceWithVirial();
-
-    /* do QMMM first if requested */
-    if (fr->bQMMM)
-    {
-        enerd->term[F_EQM] = calculate_QMMM(cr, &forceOutputs->forceWithShiftForces(), fr->qr);
-    }
 
     /* Call the short range functions all in one go. */
 
@@ -143,33 +138,6 @@ void do_force_lowlevel(t_forcerec*                         fr,
         for (auto& dhdl : enerd->dhdlLambda)
         {
             dhdl += dvdl_walls;
-        }
-    }
-
-    /* Shift the coordinates. Must be done before listed forces and PPPM,
-     * but is also necessary for SHAKE and update, therefore it can NOT
-     * go when no listed forces have to be evaluated.
-     *
-     * The shifting and PBC code is deliberately not timed, since with
-     * the Verlet scheme it only takes non-zero time with triclinic
-     * boxes, and even then the time is around a factor of 100 less
-     * than the next smallest counter.
-     */
-
-
-    /* Here sometimes we would not need to shift with NBFonly,
-     * but we do so anyhow for consistency of the returned coordinates.
-     */
-    if (graph)
-    {
-        shift_self(graph, box, x);
-        if (TRICLINIC(box))
-        {
-            inc_nrnb(nrnb, eNR_SHIFTX, 2 * graph->nnodes);
-        }
-        else
-        {
-            inc_nrnb(nrnb, eNR_SHIFTX, graph->nnodes);
         }
     }
 
@@ -187,8 +155,8 @@ void do_force_lowlevel(t_forcerec*                         fr,
             set_pbc_dd(&pbc, fr->pbcType, DOMAINDECOMP(cr) ? cr->dd->numCells : nullptr, TRUE, box);
         }
 
-        do_force_listed(wcycle, box, ir->fepvals, cr, ms, idef, x, hist, forceOutputs, fr, &pbc,
-                        graph, enerd, nrnb, lambda, md, fcd,
+        do_force_listed(wcycle, box, ir->fepvals, cr, ms, idef, x, xWholeMolecules, hist,
+                        forceOutputs, fr, &pbc, enerd, nrnb, lambda, md, fcd,
                         DOMAINDECOMP(cr) ? cr->dd->globalAtomIndices.data() : nullptr, stepWork);
     }
 

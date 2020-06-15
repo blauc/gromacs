@@ -50,7 +50,6 @@
 #include <ctime>
 
 #include <algorithm>
-
 #include <cfenv>
 
 #include "gromacs/commandline/filenm.h"
@@ -223,7 +222,7 @@ void LegacySimulator::do_tpi()
 
     gmx_mtop_generate_local_top(*top_global, &top, inputrec->efep != efepNO);
 
-    SimulationGroups* groups = &top_global->groups;
+    const SimulationGroups* groups = &top_global->groups;
 
     bCavity = (inputrec->eI == eiTPIC);
     if (bCavity)
@@ -678,7 +677,9 @@ void LegacySimulator::do_tpi()
                                   -1, fr->cginfo, x, 0, nullptr);
 
                 /* TODO: Avoid updating all atoms at every bNS step */
-                fr->nbv->setAtomProperties(*mdatoms, fr->cginfo);
+                fr->nbv->setAtomProperties(gmx::constArrayRefFromArray(mdatoms->typeA, mdatoms->nr),
+                                           gmx::constArrayRefFromArray(mdatoms->chargeA, mdatoms->nr),
+                                           fr->cginfo);
 
                 fr->nbv->constructPairlist(InteractionLocality::Local, top.excls, step, nrnb);
 
@@ -741,12 +742,7 @@ void LegacySimulator::do_tpi()
             clear_mat(vir);
             clear_mat(pres);
 
-            /* Calc energy (no forces) on new positions.
-             * Since we only need the intermolecular energy
-             * and the RF exclusion terms of the inserted molecule occur
-             * within a single charge group we can pass NULL for the graph.
-             * This also avoids shifts that would move charge groups
-             * out of the box. */
+            /* Calc energy (no forces) on new positions. */
             /* Make do_force do a single node force calculation */
             cr->nnodes = 1;
 
@@ -759,7 +755,7 @@ void LegacySimulator::do_tpi()
             do_force(fplog, cr, ms, inputrec, nullptr, nullptr, imdSession, pull_work, step, nrnb,
                      wcycle, &top, state_global->box, state_global->x.arrayRefWithPadding(),
                      &state_global->hist, f.arrayRefWithPadding(), force_vir, mdatoms, enerd, fcd,
-                     state_global->lambda, nullptr, fr, runScheduleWork, nullptr, mu_tot, t, nullptr,
+                     state_global->lambda, fr, runScheduleWork, nullptr, mu_tot, t, nullptr,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY | (bStateChanged ? GMX_FORCE_STATECHANGED : 0),
                      DDBalanceRegionHandler(nullptr));
             std::feclearexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);

@@ -406,68 +406,6 @@ typedef struct gmx_mtop_ilistloop_all
     int               a_offset;
 } t_gmx_mtop_ilist_all;
 
-gmx_mtop_ilistloop_all_t gmx_mtop_ilistloop_all_init(const gmx_mtop_t* mtop)
-{
-    struct gmx_mtop_ilistloop_all* iloop;
-
-    snew(iloop, 1);
-
-    iloop->mtop     = mtop;
-    iloop->mblock   = 0;
-    iloop->mol      = -1;
-    iloop->a_offset = 0;
-
-    return iloop;
-}
-
-static void gmx_mtop_ilistloop_all_destroy(gmx_mtop_ilistloop_all_t iloop)
-{
-    sfree(iloop);
-}
-
-const InteractionLists* gmx_mtop_ilistloop_all_next(gmx_mtop_ilistloop_all_t iloop, int* atnr_offset)
-{
-
-    if (iloop == nullptr)
-    {
-        gmx_incons(
-                "gmx_mtop_ilistloop_all_next called without calling gmx_mtop_ilistloop_all_init");
-    }
-
-    if (iloop->mol >= 0)
-    {
-        iloop->a_offset += iloop->mtop->moleculeBlockIndices[iloop->mblock].numAtomsPerMolecule;
-    }
-
-    iloop->mol++;
-
-    /* Inter-molecular interactions, if present, are indexed with
-     * iloop->mblock == iloop->mtop->nmolblock, thus we should separately
-     * check for this value in this conditional.
-     */
-    if (iloop->mblock == iloop->mtop->molblock.size()
-        || iloop->mol >= iloop->mtop->molblock[iloop->mblock].nmol)
-    {
-        iloop->mblock++;
-        iloop->mol = 0;
-        if (iloop->mblock >= iloop->mtop->molblock.size())
-        {
-            if (iloop->mblock == iloop->mtop->molblock.size() && iloop->mtop->bIntermolecularInteractions)
-            {
-                *atnr_offset = 0;
-                return iloop->mtop->intermolecular_ilist.get();
-            }
-
-            gmx_mtop_ilistloop_all_destroy(iloop);
-            return nullptr;
-        }
-    }
-
-    *atnr_offset = iloop->a_offset;
-
-    return &iloop->mtop->moltype[iloop->mtop->molblock[iloop->mblock].type].ilist;
-}
-
 int gmx_mtop_ftype_count(const gmx_mtop_t* mtop, int ftype)
 {
     gmx_mtop_ilistloop_t iloop;
@@ -1093,6 +1031,32 @@ gmx::RangePartitioning gmx_mtop_molecules(const gmx_mtop_t& mtop)
     }
 
     return mols;
+}
+
+std::vector<gmx::Range<int>> atomRangeOfEachResidue(const gmx_moltype_t& moltype)
+{
+    std::vector<gmx::Range<int>> atomRanges;
+    int                          currentResidueNumber = moltype.atoms.atom[0].resind;
+    int                          startAtom            = 0;
+    // Go through all atoms in a molecule to store first and last atoms in each residue.
+    for (int i = 0; i < moltype.atoms.nr; i++)
+    {
+        int residueOfThisAtom = moltype.atoms.atom[i].resind;
+        if (residueOfThisAtom != currentResidueNumber)
+        {
+            // This atom belongs to the next residue, so record the range for the previous residue,
+            // remembering that end points to one place past the last atom.
+            int endAtom = i;
+            atomRanges.emplace_back(startAtom, endAtom);
+            // Prepare for the current residue
+            startAtom            = endAtom;
+            currentResidueNumber = residueOfThisAtom;
+        }
+    }
+    // special treatment for last residue in this molecule.
+    atomRanges.emplace_back(startAtom, moltype.atoms.nr);
+
+    return atomRanges;
 }
 
 /*! \brief Creates and returns a deprecated t_block struct with molecule indices

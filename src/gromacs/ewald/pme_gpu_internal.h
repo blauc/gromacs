@@ -49,13 +49,14 @@
 #include "gromacs/fft/fft.h" // for the gmx_fft_direction enum
 #include "gromacs/gpu_utils/devicebuffer_datatype.h"
 #include "gromacs/gpu_utils/gpu_macros.h" // for the GPU_FUNC_ macros
-#include "gromacs/utility/arrayref.h"
 
 #include "pme_gpu_types_host.h"
 #include "pme_output.h"
 
-class GpuEventSynchronizer;
+class DeviceContext;
 struct DeviceInformation;
+class DeviceStream;
+class GpuEventSynchronizer;
 struct gmx_hw_info_t;
 struct gmx_gpu_opt_t;
 struct gmx_pme_t; // only used in pme_gpu_reinit
@@ -70,8 +71,10 @@ struct t_complex;
 
 namespace gmx
 {
+template<typename>
+class ArrayRef;
 class MDLogger;
-}
+} // namespace gmx
 
 //! Type of spline data
 enum class PmeSplineDataType
@@ -97,14 +100,6 @@ enum class GridOrdering
  * determines a minimum divisior of the size of the memory allocated.
  */
 int pme_gpu_get_atom_data_block_size();
-
-/*! \libinternal \brief
- * Returns the number of atoms per chunk in the atom spline theta/dtheta data layout.
- *
- * \param[in] pmeGpu            The PME GPU structure.
- * \returns   Number of atoms in a single GPU atom spline data chunk.
- */
-int pme_gpu_get_atoms_per_warp(const PmeGpu* pmeGpu);
 
 /*! \libinternal \brief
  * Synchronizes the current computation, waiting for the GPU kernels/transfers to finish.
@@ -308,14 +303,6 @@ void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu);
 void pme_gpu_sync_spread_grid(const PmeGpu* pmeGpu);
 
 /*! \libinternal \brief
- * Does the one-time GPU-framework specific PME initialization.
- * For CUDA, the PME stream is created with the highest priority.
- *
- * \param[in] pmeGpu  The PME GPU structure.
- */
-void pme_gpu_init_internal(PmeGpu* pmeGpu);
-
-/*! \libinternal \brief
  * Initializes the CUDA FFT structures.
  *
  * \param[in] pmeGpu  The PME GPU structure.
@@ -393,13 +380,6 @@ GPU_FUNC_QUALIFIER void pme_gpu_set_kernelparam_coordinates(const PmeGpu* GPU_FU
  * \returns                  Pointer to force data
  */
 GPU_FUNC_QUALIFIER void* pme_gpu_get_kernelparam_forces(const PmeGpu* GPU_FUNC_ARGUMENT(pmeGpu))
-        GPU_FUNC_TERM_WITH_RETURN(nullptr);
-
-/*! \brief Return pointer to GPU stream.
- * \param[in] pmeGpu         The PME GPU structure.
- * \returns                  Pointer to stream object.
- */
-GPU_FUNC_QUALIFIER const DeviceStream* pme_gpu_get_stream(const PmeGpu* GPU_FUNC_ARGUMENT(pmeGpu))
         GPU_FUNC_TERM_WITH_RETURN(nullptr);
 
 /*! \brief Return pointer to the sync object triggered after the PME force calculation completion
@@ -492,44 +472,6 @@ GPU_FUNC_QUALIFIER void pme_gpu_update_input_box(PmeGpu*      GPU_FUNC_ARGUMENT(
  */
 void pme_gpu_finish_computation(const PmeGpu* pmeGpu);
 
-//! A binary enum for spline data layout transformation
-enum class PmeLayoutTransform
-{
-    GpuToHost,
-    HostToGpu
-};
-
-/*! \libinternal \brief
- * Rearranges the atom spline data between the GPU and host layouts.
- * Only used for test purposes so far, likely to be horribly slow.
- *
- * \param[in]  pmeGpu     The PME GPU structure.
- * \param[out] atc        The PME CPU atom data structure (with a single-threaded layout).
- * \param[in]  type       The spline data type (values or derivatives).
- * \param[in]  dimIndex   Dimension index.
- * \param[in]  transform  Layout transform type
- */
-GPU_FUNC_QUALIFIER void pme_gpu_transform_spline_atom_data(const PmeGpu* GPU_FUNC_ARGUMENT(pmeGpu),
-                                                           const PmeAtomComm* GPU_FUNC_ARGUMENT(atc),
-                                                           PmeSplineDataType GPU_FUNC_ARGUMENT(type),
-                                                           int GPU_FUNC_ARGUMENT(dimIndex),
-                                                           PmeLayoutTransform GPU_FUNC_ARGUMENT(transform)) GPU_FUNC_TERM;
-
-/*! \libinternal \brief
- * Gets a unique index to an element in a spline parameter buffer (theta/dtheta),
- * which is laid out for GPU spread/gather kernels. The index is wrt the execution block,
- * in range(0, atomsPerBlock * order * DIM).
- * This is a wrapper, only used in unit tests.
- * \param[in] order            PME order
- * \param[in] splineIndex      Spline contribution index (from 0 to \p order - 1)
- * \param[in] dimIndex         Dimension index (from 0 to 2)
- * \param[in] atomIndex        Atom index wrt the block.
- * \param[in] atomsPerWarp     Number of atoms processed by a warp.
- *
- * \returns Index into theta or dtheta array using GPU layout.
- */
-int getSplineParamFullIndex(int order, int splineIndex, int dimIndex, int atomIndex, int atomsPerWarp);
-
 /*! \libinternal \brief
  * Get the normal/padded grid dimensions of the real-space PME grid on GPU. Only used in tests.
  *
@@ -544,13 +486,16 @@ GPU_FUNC_QUALIFIER void pme_gpu_get_real_grid_sizes(const PmeGpu* GPU_FUNC_ARGUM
 /*! \libinternal \brief
  * (Re-)initializes the PME GPU data at the beginning of the run or on DLB.
  *
- * \param[in,out] pme             The PME structure.
- * \param[in]     deviceInfo      The GPU device information structure.
- * \param[in]     pmeGpuProgram   The PME GPU program data
+ * \param[in,out] pme            The PME structure.
+ * \param[in]     deviceContext  The GPU context.
+ * \param[in]     deviceStream   The GPU stream.
+ * \param[in,out] pmeGpuProgram  The handle to the program/kernel data created outside (e.g. in unit tests/runner)
+ *
  * \throws gmx::NotImplementedError if this generally valid PME structure is not valid for GPU runs.
  */
-GPU_FUNC_QUALIFIER void pme_gpu_reinit(gmx_pme_t*               GPU_FUNC_ARGUMENT(pme),
-                                       const DeviceInformation* GPU_FUNC_ARGUMENT(deviceInfo),
+GPU_FUNC_QUALIFIER void pme_gpu_reinit(gmx_pme_t*           GPU_FUNC_ARGUMENT(pme),
+                                       const DeviceContext* GPU_FUNC_ARGUMENT(deviceContext),
+                                       const DeviceStream*  GPU_FUNC_ARGUMENT(deviceStream),
                                        const PmeGpuProgram* GPU_FUNC_ARGUMENT(pmeGpuProgram)) GPU_FUNC_TERM;
 
 /*! \libinternal \brief

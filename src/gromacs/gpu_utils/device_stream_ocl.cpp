@@ -54,11 +54,9 @@ DeviceStream::DeviceStream()
     stream_ = nullptr;
 }
 
-void DeviceStream::init(const DeviceInformation& deviceInfo,
-                        const DeviceContext&     deviceContext,
-                        DeviceStreamPriority /* priority */,
-                        const bool useTiming)
+void DeviceStream::init(const DeviceContext& deviceContext, DeviceStreamPriority /* priority */, const bool useTiming)
 {
+    const DeviceInformation&    deviceInfo      = deviceContext.deviceInfo();
     cl_command_queue_properties queueProperties = useTiming ? CL_QUEUE_PROFILING_ENABLE : 0;
     cl_device_id                deviceId        = deviceInfo.oclDeviceId;
     cl_int                      clError;
@@ -73,7 +71,7 @@ void DeviceStream::init(const DeviceInformation& deviceInfo,
 
 DeviceStream::~DeviceStream()
 {
-    if (stream_)
+    if (isValid())
     {
         cl_int clError = clReleaseCommandQueue(stream_);
         GMX_RELEASE_ASSERT(
@@ -86,6 +84,11 @@ DeviceStream::~DeviceStream()
 cl_command_queue DeviceStream::stream() const
 {
     return stream_;
+}
+
+bool DeviceStream::isValid() const
+{
+    return (stream_ != nullptr);
 }
 
 void DeviceStream::synchronize() const

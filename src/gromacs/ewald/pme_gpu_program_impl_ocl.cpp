@@ -53,16 +53,17 @@
 #include "pme_gpu_types_host.h"
 #include "pme_grid.h"
 
-PmeGpuProgramImpl::PmeGpuProgramImpl(const DeviceInformation& deviceInfo, const DeviceContext& deviceContext) :
+PmeGpuProgramImpl::PmeGpuProgramImpl(const DeviceContext& deviceContext) :
     deviceContext_(deviceContext)
 {
+    const DeviceInformation& deviceInfo = deviceContext.deviceInfo();
     // kernel parameters
-    warpSize = gmx::ocl::getDeviceWarpSize(deviceContext_.context(), deviceInfo.oclDeviceId);
+    warpSize_ = gmx::ocl::getDeviceWarpSize(deviceContext_.context(), deviceInfo.oclDeviceId);
     // TODO: for Intel ideally we'd want to set these based on the compiler warp size
     // but given that we've done no tuning for Intel iGPU, this is as good as anything.
-    spreadWorkGroupSize = std::min(c_spreadMaxWarpsPerBlock * warpSize, deviceInfo.maxWorkGroupSize);
-    solveMaxWorkGroupSize = std::min(c_solveMaxWarpsPerBlock * warpSize, deviceInfo.maxWorkGroupSize);
-    gatherWorkGroupSize = std::min(c_gatherMaxWarpsPerBlock * warpSize, deviceInfo.maxWorkGroupSize);
+    spreadWorkGroupSize = std::min(c_spreadMaxWarpsPerBlock * warpSize_, deviceInfo.maxWorkGroupSize);
+    solveMaxWorkGroupSize = std::min(c_solveMaxWarpsPerBlock * warpSize_, deviceInfo.maxWorkGroupSize);
+    gatherWorkGroupSize = std::min(c_gatherMaxWarpsPerBlock * warpSize_, deviceInfo.maxWorkGroupSize);
 
     compileKernels(deviceInfo);
 }
@@ -90,20 +91,24 @@ PmeGpuProgramImpl::~PmeGpuProgramImpl()
  * On Intel the exec width/warp is decided at compile-time and can be
  * smaller than the minimum order^2 required in spread/gather ATM which
  * we need to check for.
+ *
+ * Due to the one thread per atom and order=4 implementation
+ * constraints, order^2 threads should execute without synchronization
+ * needed.
  */
 static void checkRequiredWarpSize(cl_kernel kernel, const char* kernelName, const DeviceInformation& deviceInfo)
 {
     if (deviceInfo.deviceVendor == DeviceVendor::Intel)
     {
-        size_t kernelWarpSize = gmx::ocl::getKernelWarpSize(kernel, deviceInfo.oclDeviceId);
-
-        if (kernelWarpSize < c_pmeSpreadGatherMinWarpSize)
+        int       kernelWarpSize    = gmx::ocl::getKernelWarpSize(kernel, deviceInfo.oclDeviceId);
+        const int minKernelWarpSize = c_pmeGpuOrder * c_pmeGpuOrder;
+        if (kernelWarpSize < minKernelWarpSize)
         {
             const std::string errorString = gmx::formatString(
                     "PME OpenCL kernels require >=%d execution width, but the %s kernel "
-                    "has been compiled for the device %s to a %zu width and therefore it can not "
+                    "has been compiled for the device %s to a %d width and therefore it can not "
                     "execute correctly.",
-                    c_pmeSpreadGatherMinWarpSize, kernelName, deviceInfo.device_name, kernelWarpSize);
+                    minKernelWarpSize, kernelName, deviceInfo.device_name, kernelWarpSize);
             GMX_THROW(gmx::InternalError(errorString));
         }
     }
@@ -137,7 +142,7 @@ void PmeGpuProgramImpl::compileKernels(const DeviceInformation& deviceInfo)
                 "-DDIM=%d -DXX=%d -DYY=%d -DZZ=%d "
                 // decomposition parameter placeholders
                 "-DwrapX=true -DwrapY=true ",
-                warpSize, c_pmeGpuOrder, c_pmeSpreadGatherThreadsPerAtom,
+                warpSize_, c_pmeGpuOrder, c_pmeGpuOrder * c_pmeGpuOrder,
                 static_cast<float>(c_pmeMaxUnitcellShift), static_cast<int>(c_skipNeutralAtoms),
                 c_virialAndEnergyCount, spreadWorkGroupSize, solveMaxWorkGroupSize,
                 gatherWorkGroupSize, DIM, XX, YY, ZZ);

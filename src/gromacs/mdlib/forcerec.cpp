@@ -38,6 +38,8 @@
 
 #include "forcerec.h"
 
+#include "config.h"
+
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -69,9 +71,9 @@
 #include "gromacs/mdlib/forcerec_threading.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/mdlib/md_support.h"
-#include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/rf_util.h"
 #include "gromacs/mdlib/wall.h"
+#include "gromacs/mdlib/wholemoleculetransform.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/fcdata.h"
 #include "gromacs/mdtypes/forcerec.h"
@@ -97,6 +99,20 @@
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strconvert.h"
+
+ForceHelperBuffers::ForceHelperBuffers(bool haveDirectVirialContributions) :
+    haveDirectVirialContributions_(haveDirectVirialContributions)
+{
+    shiftForces_.resize(SHIFTS);
+}
+
+void ForceHelperBuffers::resize(int numAtoms)
+{
+    if (haveDirectVirialContributions_)
+    {
+        forceBufferForDirectVirialContributions_.resize(numAtoms);
+    }
+}
 
 static std::vector<real> mk_nbfp(const gmx_ffparams_t* idef, gmx_bool bBHAM)
 {
@@ -600,15 +616,7 @@ void forcerec_set_ranges(t_forcerec* fr, int natoms_force, int natoms_force_cons
     fr->natoms_force        = natoms_force;
     fr->natoms_force_constr = natoms_force_constr;
 
-    if (fr->natoms_force_constr > fr->nalloc_force)
-    {
-        fr->nalloc_force = over_alloc_dd(fr->natoms_force_constr);
-    }
-
-    if (fr->haveDirectVirialContributions)
-    {
-        fr->forceBufferForDirectVirialContributions.resize(natoms_f_novirsum);
-    }
+    fr->forceHelperBuffers->resize(natoms_f_novirsum);
 }
 
 static real cutoff_inf(real cutoff)
@@ -715,6 +723,7 @@ static void initVdwEwaldParameters(FILE* fp, const t_inputrec* ir, interaction_c
  * both accuracy requirements, when relevant.
  */
 static void init_ewald_f_table(const interaction_const_t& ic,
+                               const real                 tableExtensionLength,
                                EwaldCorrectionTables*     coulombTables,
                                EwaldCorrectionTables*     vdwTables)
 {
@@ -726,7 +735,18 @@ static void init_ewald_f_table(const interaction_const_t& ic,
      */
     const real tableScale = ewald_spline3_table_scale(ic, useCoulombTable, useVdwTable);
 
-    const int tableSize = static_cast<int>(ic.rcoulomb * tableScale) + 2;
+    real tableLen = ic.rcoulomb;
+    if (useCoulombTable && tableExtensionLength > 0.0)
+    {
+        /* TODO: Ideally this should also check if couple-intramol == no, but that isn't
+         * stored in ir. Grompp puts that info into an opts structure that doesn't make it into the tpr.
+         * The alternative is to look through all the exclusions and check if they come from
+         * couple-intramol == no. Meanwhile, always having larger tables should only affect
+         * memory consumption, not speed (barring cache issues).
+         */
+        tableLen = ic.rcoulomb + tableExtensionLength;
+    }
+    const int tableSize = static_cast<int>(tableLen * tableScale) + 2;
 
     if (useCoulombTable)
     {
@@ -740,14 +760,15 @@ static void init_ewald_f_table(const interaction_const_t& ic,
     }
 }
 
-void init_interaction_const_tables(FILE* fp, interaction_const_t* ic)
+void init_interaction_const_tables(FILE* fp, interaction_const_t* ic, const real tableExtensionLength)
 {
-    if (EEL_PME_EWALD(ic->eeltype))
+    if (EEL_PME_EWALD(ic->eeltype) || EVDW_PME(ic->vdwtype))
     {
-        init_ewald_f_table(*ic, ic->coulombEwaldTables.get(), nullptr);
+        init_ewald_f_table(*ic, tableExtensionLength, ic->coulombEwaldTables.get(),
+                           ic->vdwEwaldTables.get());
         if (fp != nullptr)
         {
-            fprintf(fp, "Initialized non-bonded Coulomb Ewald tables, spacing: %.2e size: %zu\n\n",
+            fprintf(fp, "Initialized non-bonded Ewald tables, spacing: %.2e size: %zu\n\n",
                     1 / ic->coulombEwaldTables->scale, ic->coulombEwaldTables->tableF.size());
         }
     }
@@ -808,6 +829,7 @@ static void init_interaction_const(FILE*                 fp,
     ic->cutoff_scheme = ir->cutoff_scheme;
 
     ic->coulombEwaldTables = std::make_unique<EwaldCorrectionTables>();
+    ic->vdwEwaldTables     = std::make_unique<EwaldCorrectionTables>();
 
     /* Lennard-Jones */
     ic->vdwtype         = ir->vdwtype;
@@ -918,48 +940,6 @@ static void init_interaction_const(FILE*                 fp,
     *interaction_const = ic;
 }
 
-bool areMoleculesDistributedOverPbc(const t_inputrec& ir, const gmx_mtop_t& mtop, const gmx::MDLogger& mdlog)
-{
-    bool areMoleculesDistributedOverPbc = false;
-
-    if (ir.pbcType != PbcType::No)
-    {
-        /* Not making molecules whole is faster in most cases,
-         * but with orientation restraints or non-tinfoil boundary
-         * conditions we need whole molecules.
-         */
-        const bool useEwaldSurfaceCorrection = (EEL_PME_EWALD(ir.coulombtype) && ir.epsilon_surface != 0);
-        areMoleculesDistributedOverPbc =
-                (gmx_mtop_ftype_count(mtop, F_ORIRES) == 0 && !useEwaldSurfaceCorrection);
-
-        if (getenv("GMX_USE_GRAPH") != nullptr)
-        {
-            areMoleculesDistributedOverPbc = false;
-
-            GMX_LOG(mdlog.warning)
-                    .asParagraph()
-                    .appendText(
-                            "GMX_USE_GRAPH is set, using the graph for bonded "
-                            "interactions");
-
-            if (mtop.bIntermolecularInteractions)
-            {
-                GMX_LOG(mdlog.warning)
-                        .asParagraph()
-                        .appendText(
-                                "WARNING: Molecules linked by intermolecular interactions "
-                                "have to reside in the same periodic image, otherwise "
-                                "artifacts will occur!");
-            }
-        }
-
-        GMX_RELEASE_ASSERT(areMoleculesDistributedOverPbc || !mtop.bIntermolecularInteractions,
-                           "We need to use PBC within molecules with inter-molecular interactions");
-    }
-
-    return areMoleculesDistributedOverPbc;
-}
-
 void init_forcerec(FILE*                            fp,
                    const gmx::MDLogger&             mdlog,
                    t_forcerec*                      fr,
@@ -973,8 +953,8 @@ void init_forcerec(FILE*                            fp,
                    gmx::ArrayRef<const std::string> tabbfnm,
                    real                             print_force)
 {
-    /* By default we turn SIMD kernels on, but it might be turned off further down... */
-    fr->use_simd_kernels = TRUE;
+    /* The CMake default turns SIMD kernels on, but it might be turned off further down... */
+    fr->use_simd_kernels = GMX_USE_SIMD_KERNELS;
 
     if (check_box(ir->pbcType, box))
     {
@@ -1087,25 +1067,30 @@ void init_forcerec(FILE*                            fp,
     {
         const bool useEwaldSurfaceCorrection =
                 (EEL_PME_EWALD(ir->coulombtype) && ir->epsilon_surface != 0);
+        const bool haveOrientationRestraints = (gmx_mtop_ftype_count(mtop, F_ORIRES) > 0);
         if (!DOMAINDECOMP(cr))
         {
-            fr->bMolPBC = areMoleculesDistributedOverPbc(*ir, *mtop, mdlog);
-            // The assert below is equivalent to fcd->orires.nr != gmx_mtop_ftype_count(mtop, F_ORIRES)
-            GMX_RELEASE_ASSERT(!fr->bMolPBC || fcd->orires.nr == 0,
-                               "Molecules broken over PBC exist in a simulation including "
-                               "orientation restraints. "
-                               "This likely means that the global topology and the force constant "
-                               "data have gotten out of sync.");
+            fr->bMolPBC = true;
+
+            if (useEwaldSurfaceCorrection || haveOrientationRestraints)
+            {
+                fr->wholeMoleculeTransform =
+                        std::make_unique<gmx::WholeMoleculeTransform>(*mtop, ir->pbcType);
+            }
         }
         else
         {
             fr->bMolPBC = dd_bonded_molpbc(cr->dd, fr->pbcType);
 
-            if (useEwaldSurfaceCorrection && !dd_moleculesAreAlwaysWhole(*cr->dd))
+            /* With Ewald surface correction it is useful to support e.g. running water
+             * in parallel with update groups.
+             * With orientation restraints there is no sensible use case supported with DD.
+             */
+            if ((useEwaldSurfaceCorrection && !dd_moleculesAreAlwaysWhole(*cr->dd)) || haveOrientationRestraints)
             {
                 gmx_fatal(FARGS,
-                          "You requested dipole correction (epsilon_surface > 0), but molecules "
-                          "are broken "
+                          "You requested Ewald surface correction or orientation restraints, "
+                          "but molecules are broken "
                           "over periodic boundary conditions by the domain decomposition. "
                           "Run without domain decomposition instead.");
             }
@@ -1113,8 +1098,7 @@ void init_forcerec(FILE*                            fp,
 
         if (useEwaldSurfaceCorrection)
         {
-            GMX_RELEASE_ASSERT((!DOMAINDECOMP(cr) && !fr->bMolPBC)
-                                       || (DOMAINDECOMP(cr) && dd_moleculesAreAlwaysWhole(*cr->dd)),
+            GMX_RELEASE_ASSERT(!DOMAINDECOMP(cr) || dd_moleculesAreAlwaysWhole(*cr->dd),
                                "Molecules can not be broken by PBC with epsilon_surface > 0");
         }
     }
@@ -1130,7 +1114,7 @@ void init_forcerec(FILE*                            fp,
 
     /* fr->ic is used both by verlet and group kernels (to some extent) now */
     init_interaction_const(fp, &fr->ic, ir, mtop, systemHasNetCharge);
-    init_interaction_const_tables(fp, fr->ic);
+    init_interaction_const_tables(fp, fr->ic, ir->tabext);
 
     const interaction_const_t* ic = fr->ic;
 
@@ -1151,7 +1135,6 @@ void init_forcerec(FILE*                            fp,
         case eelSWITCH:
         case eelSHIFT:
         case eelUSER:
-        case eelENCADSHIFT:
         case eelPMESWITCH:
         case eelPMEUSER:
         case eelPMEUSERSWITCH:
@@ -1184,10 +1167,7 @@ void init_forcerec(FILE*                            fp,
 
         case evdwSWITCH:
         case evdwSHIFT:
-        case evdwUSER:
-        case evdwENCADSHIFT:
-            fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_CUBICSPLINETABLE;
-            break;
+        case evdwUSER: fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_CUBICSPLINETABLE; break;
 
         default: gmx_fatal(FARGS, "Unsupported vdw interaction: %s", evdw_names[ic->vdwtype]);
     }
@@ -1216,17 +1196,16 @@ void init_forcerec(FILE*                            fp,
     /* 1-4 interaction electrostatics */
     fr->fudgeQQ = mtop->ffparams.fudgeQQ;
 
-    fr->haveDirectVirialContributions =
+    const bool haveDirectVirialContributions =
             (EEL_FULL(ic->eeltype) || EVDW_PME(ic->vdwtype) || fr->forceProviders->hasForceProvider()
              || gmx_mtop_ftype_count(mtop, F_POSRES) > 0 || gmx_mtop_ftype_count(mtop, F_FBPOSRES) > 0
              || ir->nwall > 0 || ir->bPull || ir->bRot || ir->bIMD);
+    fr->forceHelperBuffers = std::make_unique<ForceHelperBuffers>(haveDirectVirialContributions);
 
     if (fr->shift_vec == nullptr)
     {
         snew(fr->shift_vec, SHIFTS);
     }
-
-    fr->shiftForces.resize(SHIFTS);
 
     if (fr->nbfp.empty())
     {
@@ -1327,30 +1306,9 @@ void init_forcerec(FILE*                            fp,
     }
 
     // QM/MM initialization if requested
-    fr->bQMMM = ir->bQMMM;
-    if (fr->bQMMM)
+    if (ir->bQMMM)
     {
-        // Initialize QM/MM if supported
-        if (GMX_QMMM)
-        {
-            GMX_LOG(mdlog.info)
-                    .asParagraph()
-                    .appendText(
-                            "Large parts of the QM/MM support is deprecated, and may be removed in "
-                            "a future "
-                            "version. Please get in touch with the developers if you find the "
-                            "support useful, "
-                            "as help is needed if the functionality is to continue to be "
-                            "available.");
-            fr->qr = mk_QMMMrec();
-            init_QMMMrec(cr, mtop, ir, fr);
-        }
-        else
-        {
-            gmx_incons(
-                    "QM/MM was requested, but is only available when GROMACS "
-                    "is configured with QM/MM support");
-        }
+        gmx_incons("QM/MM was requested, but is no longer available in GROMACS");
     }
 
     /* Set all the static charge group info */

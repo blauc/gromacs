@@ -48,9 +48,8 @@
 # of configure time, because 1) some of the version variables are only
 # available during build time, and 2) we don't want to do all the Sphinx setup
 # during configuration to save some time when not building the content.
-# All the generated values get put into conf-vars.py (generated from
-# conf-vars.py.cmakein), which in turn is included by the Sphinx configuration
-# file conf.py.
+# All of the generated values get put into conf.py (generated from
+# conf.cmakein.py).
 
 set(SOURCE_MD5SUM "unknown" CACHE STRING
     "MD5 sum of the source tarball, normally used only for the pre-release webpage build")
@@ -328,11 +327,11 @@ if (SPHINX_FOUND)
     set(SPHINX_SOURCE_FILES
         index.rst
         download.rst
-        conf.py
         links.dat
         dev-manual/build-system.rst
         dev-manual/change-management.rst
         dev-manual/commitstyle.rst
+        dev-manual/containers.rst
         dev-manual/documentation-generation.rst
         dev-manual/contribute.rst
         dev-manual/doxygen.rst
@@ -375,6 +374,7 @@ if (SPHINX_FOUND)
         release-notes/2021/major/miscellaneous.rst
         release-notes/2020/2020.1.rst
         release-notes/2020/2020.2.rst
+        release-notes/2020/2020.3.rst
         release-notes/2020/major/highlights.rst
         release-notes/2020/major/features.rst
         release-notes/2020/major/performance.rst
@@ -484,7 +484,7 @@ if (SPHINX_FOUND)
         set(IMAGE_CONVERT_STRING "impossible")
     endif()
 
-    set(SPHINX_CONFIG_VARS_FILE ${SPHINX_INPUT_DIR}/conf-vars.py)
+    set(SPHINX_CONFIG_FILE ${SPHINX_INPUT_DIR}/conf.py)
     if (GMX_PYTHON_PACKAGE)
         set(GMXAPI_PYTHON_STAGING_DIR ${CMAKE_BINARY_DIR}/python_packaging/src/gmxapi_staging)
         # TODO: Resolve circular reference. We would like to get the CMake build-time directory for
@@ -494,23 +494,29 @@ if (SPHINX_FOUND)
         # in this context?
     endif ()
 
-    gmx_configure_version_file(conf-vars.py.cmakein ${SPHINX_CONFIG_VARS_FILE}
+    gmx_configure_version_file(
+        conf.cmakein.py ${SPHINX_CONFIG_FILE}
         EXTRA_VARS
-            SPHINX_EXTENSION_PATH RELENG_PATH
-            IMAGE_CONVERT_STRING
+            CMAKE_MINIMUM_REQUIRED_VERSION
             EXPECTED_DOXYGEN_VERSION
             EXPECTED_SPHINX_VERSION
-            CMAKE_MINIMUM_REQUIRED_VERSION REQUIRED_CUDA_VERSION
-            REQUIRED_OPENCL_MIN_VERSION
-            REQUIRED_CUDA_COMPUTE_CAPABILITY REGRESSIONTEST_VERSION
-            SOURCE_MD5SUM REGRESSIONTEST_MD5SUM_STRING
-            GMX_TNG_MINIMUM_REQUIRED_VERSION
+            GMX_ADMIN_DIR
             GMX_LMFIT_REQUIRED_VERSION
             GMX_MANUAL_DOI_STRING
+            GMX_TNG_MINIMUM_REQUIRED_VERSION
             GMX_SOURCE_DOI_STRING
             GMXAPI_PYTHON_STAGING_DIR
+            IMAGE_CONVERT_STRING
+            REGRESSIONTEST_VERSION
+            REQUIRED_CUDA_COMPUTE_CAPABILITY
+            REQUIRED_CUDA_VERSION
+            REQUIRED_OPENCL_MIN_VERSION
+            REGRESSIONTEST_MD5SUM_STRING
+            RELENG_PATH
+            SOURCE_MD5SUM
+            SPHINX_EXTENSION_PATH
         COMMENT "Configuring Sphinx configuration file")
-    gmx_add_sphinx_input_file(${SPHINX_CONFIG_VARS_FILE})
+    gmx_add_sphinx_input_file(${SPHINX_CONFIG_FILE})
     gmx_add_sphinx_source_files(FILES ${SPHINX_SOURCE_FILES})
     if (EXISTS ${RELENG_PATH}/docs/FileList.cmake)
         include(${RELENG_PATH}/docs/FileList.cmake)
@@ -699,7 +705,7 @@ set(HTML_BUILD_NOT_POSSIBLE_REASON)
 set(HTML_BUILD_WARNINGS)
 
 # Next, turn it off if any of the preconditions are unsatisified
-if (NOT PythonInterp_FOUND)
+if (NOT Python3_Interpreter_FOUND)
     set(HTML_BUILD_IS_POSSIBLE OFF)
     set(HTML_BUILD_NOT_POSSIBLE_REASON "Python is required")
 elseif (NOT SPHINX_FOUND)

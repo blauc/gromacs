@@ -49,6 +49,7 @@
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh"
 #include "gromacs/gpu_utils/cudautils.cuh"
 #include "gromacs/gpu_utils/devicebuffer.h"
+#include "gromacs/gpu_utils/devicebuffer_datatype.h"
 #include "gromacs/gpu_utils/gputraits.cuh"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/nbnxm/gpu_types_common.h"
@@ -74,52 +75,6 @@ const int c_cudaPruneKernelJ4Concurrency = GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
 /* Convenience defines */
 /*! \brief cluster size = number of atoms per cluster. */
 static constexpr int c_clSize = c_nbnxnGpuClusterSize;
-
-/*! \brief Electrostatic CUDA kernel flavors.
- *
- *  Types of electrostatics implementations available in the CUDA non-bonded
- *  force kernels. These represent both the electrostatics types implemented
- *  by the kernels (cut-off, RF, and Ewald - a subset of what's defined in
- *  enums.h) as well as encode implementation details analytical/tabulated
- *  and single or twin cut-off (for Ewald kernels).
- *  Note that the cut-off and RF kernels have only analytical flavor and unlike
- *  in the CPU kernels, the tabulated kernels are ATM Ewald-only.
- *
- *  The row-order of pointers to different electrostatic kernels defined in
- *  nbnxn_cuda.cu by the nb_*_kfunc_ptr function pointer table
- *  should match the order of enumerated types below.
- */
-enum eelCu
-{
-    eelCuCUT,
-    eelCuRF,
-    eelCuEWALD_TAB,
-    eelCuEWALD_TAB_TWIN,
-    eelCuEWALD_ANA,
-    eelCuEWALD_ANA_TWIN,
-    eelCuNR
-};
-
-/*! \brief VdW CUDA kernel flavors.
- *
- * The enumerates values correspond to the LJ implementations in the CUDA non-bonded
- * kernels.
- *
- * The column-order of pointers to different electrostatic kernels defined in
- * nbnxn_cuda.cu by the nb_*_kfunc_ptr function pointer table
- * should match the order of enumerated types below.
- */
-enum evdwCu
-{
-    evdwCuCUT,
-    evdwCuCUTCOMBGEOM,
-    evdwCuCUTCOMBLB,
-    evdwCuFSWITCH,
-    evdwCuPSWITCH,
-    evdwCuEWALDGEOM,
-    evdwCuEWALDLB,
-    evdwCuNR
-};
 
 /* All structs prefixed with "cu_" hold data used in GPU calculations and
  * are passed to the kernels, except cu_timers_t. */
@@ -158,27 +113,27 @@ struct cu_atomdata
     int nalloc;
 
     //! atom coordinates + charges, size natoms
-    float4* xq;
+    DeviceBuffer<float4> xq;
     //! force output array, size natoms
-    float3* f;
+    DeviceBuffer<float3> f;
 
     //! LJ energy output, size 1
-    float* e_lj;
+    DeviceBuffer<float> e_lj;
     //! Electrostatics energy input, size 1
-    float* e_el;
+    DeviceBuffer<float> e_el;
 
     //! shift forces
-    float3* fshift;
+    DeviceBuffer<float3> fshift;
 
     //! number of atom types
     int ntypes;
     //! atom type indices, size natoms
-    int* atom_types;
+    DeviceBuffer<int> atom_types;
     //! sqrt(c6),sqrt(c12) size natoms
-    float2* lj_comb;
+    DeviceBuffer<float2> lj_comb;
 
     //! shifts
-    float3* shift_vec;
+    DeviceBuffer<float3> shift_vec;
     //! true if the shift vector has been uploaded
     bool bShiftVecUploaded;
 };
@@ -189,9 +144,9 @@ struct cu_atomdata
 struct cu_nbparam
 {
 
-    //! type of electrostatics, takes values from #eelCu
+    //! type of electrostatics, takes values from #eelType
     int eeltype;
-    //! type of VdW impl., takes values from #evdwCu
+    //! type of VdW impl., takes values from #evdwType
     int vdwtype;
 
     //! charge multiplication factor
@@ -266,8 +221,11 @@ class GpuEventSynchronizer;
  */
 struct NbnxmGpu
 {
-    /*! \brief CUDA device information */
-    const DeviceInformation* deviceInfo = nullptr;
+    /*! \brief GPU device context.
+     *
+     * \todo Make it constant reference, once NbnxmGpu is a proper class.
+     */
+    const DeviceContext* deviceContext_;
     /*! \brief true if doing both local/non-local NB work on GPU */
     bool bUseTwoStreams = false;
     /*! \brief atom data */
@@ -303,7 +261,7 @@ struct NbnxmGpu
     /*! \brief staging area where fshift/energies get downloaded */
     nb_staging_t nbst;
     /*! \brief local and non-local GPU streams */
-    gmx::EnumerationArray<Nbnxm::InteractionLocality, DeviceStream> deviceStreams;
+    gmx::EnumerationArray<Nbnxm::InteractionLocality, const DeviceStream*> deviceStreams;
 
     /*! \brief Events used for synchronization */
     /*! \{ */

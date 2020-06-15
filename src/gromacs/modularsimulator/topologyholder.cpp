@@ -50,25 +50,26 @@
 
 namespace gmx
 {
-TopologyHolder::TopologyHolder(const gmx_mtop_t& globalTopology,
-                               const t_commrec*  cr,
-                               const t_inputrec* inputrec,
-                               t_forcerec*       fr,
-                               MDAtoms*          mdAtoms,
-                               Constraints*      constr,
-                               gmx_vsite_t*      vsite) :
+TopologyHolder::TopologyHolder(const gmx_mtop_t&    globalTopology,
+                               const t_commrec*     cr,
+                               const t_inputrec*    inputrec,
+                               t_forcerec*          fr,
+                               MDAtoms*             mdAtoms,
+                               Constraints*         constr,
+                               VirtualSitesHandler* vsite) :
     globalTopology_(globalTopology),
     localTopology_(std::make_unique<gmx_localtop_t>(globalTopology.ffparams))
 {
     if (!DOMAINDECOMP(cr))
     {
-        t_graph* graph = nullptr;
         // Generate and initialize new topology
         // Note that most of the data needed for the constructor is used here -
         // this function should probably be simplified sooner or later.
-        mdAlgorithmsSetupAtomData(cr, inputrec, globalTopology, localTopology_.get(), fr, &graph,
+        // Note: Legacy mdrun resizes the force buffer in mdAlgorithmsSetupAtomData()
+        //       TopologyHolder has no access to the forces, so we are passing a nullptr
+        //       TODO: Find a unique approach to resizing the forces in modular simulator (#3461)
+        mdAlgorithmsSetupAtomData(cr, inputrec, globalTopology, localTopology_.get(), fr, nullptr,
                                   mdAtoms, constr, vsite, nullptr);
-        GMX_RELEASE_ASSERT(graph == nullptr, "Graph is not implemented for the modular simulator.");
     }
 }
 

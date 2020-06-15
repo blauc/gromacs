@@ -69,7 +69,7 @@ struct DeviceInformation;
  * This also doesn't manage cuFFT/clFFT kernels, which depend on the PME grid dimensions.
  *
  * TODO: pass cl_context to the constructor and not create it inside.
- * See also Redmine #2522.
+ * See also Issue #2522.
  */
 struct PmeGpuProgramImpl
 {
@@ -94,7 +94,7 @@ struct PmeGpuProgramImpl
      * For CUDA, this is a static value that comes from gromacs/gpu_utils/cuda_arch_utils.cuh;
      * for OpenCL, we have to query it dynamically.
      */
-    size_t warpSize;
+    size_t warpSize_;
 
     //@{
     /**
@@ -146,9 +146,12 @@ struct PmeGpuProgramImpl
 
     PmeGpuProgramImpl() = delete;
     //! Constructor for the given device
-    explicit PmeGpuProgramImpl(const DeviceInformation& deviceInfo, const DeviceContext& deviceContext);
+    explicit PmeGpuProgramImpl(const DeviceContext& deviceContext);
     ~PmeGpuProgramImpl();
     GMX_DISALLOW_COPY_AND_ASSIGN(PmeGpuProgramImpl);
+
+    //! Return the warp size for which the kernels were compiled
+    int warpSize() const { return warpSize_; }
 
 private:
     // Compiles kernels, if supported. Called by the constructor.
