@@ -45,6 +45,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <stdexcept>
 
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
@@ -52,6 +53,7 @@
 #include "gromacs/fileio/mrcdensitymap.h"
 #include "gromacs/math/fsc.h"
 #include "gromacs/math/densityfit.h"
+#include "gromacs/math/coordinatetransformation.h"
 
 namespace gmx
 {
@@ -113,18 +115,42 @@ int MapCompare::run()
     auto                               refData = readReference.densityDataCopy();
     MrcDensityMapOfFloatFromFileReader readComparison(fnComparisonMap_);
     auto                               compdata = readComparison.densityDataCopy();
-    auto                               x        = compdata.asView();
 
+    normalizeMap(refData);
+    normalizeMap(compdata);
 
-    std::vector<DensitySimilarityMeasure> measure_;
+    std::vector<DensitySimilarityMeasure> measure;
     for (const auto& method : EnumerationWrapper<DensitySimilarityMeasureMethod>{})
     {
-        measure_.emplace_back(method, refData);
+        measure.emplace_back(method, refData);
     }
-    voxelsize FourierShellCorrelation fsc(refData.asConstView(), voxelsize, numFscShells_);
+
+    RVec unitVector = { 1, 0, 0 };
+    readReference.transformationToDensityLattice().scaleOperationOnly().inverseIgnoringZeroScale(
+            { &unitVector, &unitVector + 1 });
+
+    FourierShellCorrelation fsc(refData.asConstView(), unitVector[0], numFscShells_);
 
     const FourierShellCorrelationCurve& curve = fsc.fscCurve(compdata.asConstView());
-    fscAverage(curve);
+
+    const size_t fscAvgIndexTwoTimesPixelsize =
+            static_cast<size_t>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
+    fprintf(stderr, " pixelsize: %12.5g, spacing: %12.5g, index: %d", unitVector[0], fsc.spacing(),
+            fscAvgIndexTwoTimesPixelsize);
+    const auto fscAverageCurve = fscAverage(curve);
+    if (fscAvgIndexTwoTimesPixelsize > fscAverageCurve.size())
+    {
+        throw std::range_error(
+                "FSC curve not long enough to evaluate fscavg score at 2 * pixelsize.");
+    }
+
+    auto resultsFile = fopen(fnResults_.c_str(), "w");
+    fprintf(resultsFile, "inner-product\trelative-entropy\tcross-correlation\tfscavg\n");
+    fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t", measure[0].similarity(compdata),
+            measure[1].similarity(compdata), measure[2].similarity(compdata));
+    fprintf(resultsFile, "%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize]);
+    fclose(resultsFile);
+    return EXIT_SUCCESS;
 }
 
 } // namespace

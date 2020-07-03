@@ -34,18 +34,19 @@
  */
 /*! \internal \file
  *
- * \brief Implements routines in mapcompare.h .
+ * \brief
  *
  * \author Christian Blau <blau@kth.se>
+ * \ingroup
  */
 
-#include "gmxpre.h"
+#ifndef GMX_MAPCOMPARE_H
+#define GMX_MAPCOMPARE_H
 
 #include "gromacs/commandline/cmdlineoptionsmodule.h"
 
 namespace gmx
 {
-
 class MapCompareInfo
 {
 public:
@@ -55,3 +56,4 @@ public:
 };
 
 } // namespace gmx
+#endif
