@@ -135,7 +135,7 @@ int MapCompare::run()
 
     const size_t fscAvgIndexTwoTimesPixelsize =
             static_cast<size_t>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
-    fprintf(stderr, " pixelsize: %12.5g, spacing: %12.5g, index: %d", unitVector[0], fsc.spacing(),
+    fprintf(stderr, " pixelsize: %12.5g, spacing: %12.5g, index: %lu", unitVector[0], fsc.spacing(),
             fscAvgIndexTwoTimesPixelsize);
     const auto fscAverageCurve = fscAverage(curve);
     if (fscAvgIndexTwoTimesPixelsize > fscAverageCurve.size())
