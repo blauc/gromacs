@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2019, by the GROMACS development team, led by
+ * Copyright (c) 2019,2020, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,11 +32,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \libinternal \file
+/*! \internal \file
  * \brief Declares the propagator element for the modular simulator
  *
  * \author Pascal Merz <pascal.merz@me.com>
  * \ingroup module_modularsimulator
+ *
+ * This header is only used within the modular simulator module
  */
 
 #ifndef GMX_MODULARSIMULATOR_PROPAGATOR_H
@@ -105,7 +107,7 @@ typedef std::function<void(Step)> PropagatorCallback;
 //! Pointer to generic callback to the propagator
 typedef std::unique_ptr<PropagatorCallback> PropagatorCallbackPtr;
 
-/*! \libinternal
+/*! \internal
  * \brief Propagator element
  *
  * The propagator element can, through templating, cover the different
@@ -113,9 +115,6 @@ typedef std::unique_ptr<PropagatorCallback> PropagatorCallbackPtr;
  * functions, and having only the inner-most operations in the static
  * functions allows to have performance comparable to fused update elements
  * while keeping easily re-orderable single instructions.
- *
- * \todo: Get rid of updateVelocities2() once we don't require identical
- *        reproduction of do_md() results.
  *
  * @tparam algorithm  The integration types
  */
@@ -166,18 +165,18 @@ private:
     StatePropagatorData* statePropagatorData_;
 
     //! Whether we're doing single-value velocity scaling
-    bool doSingleVelocityScaling;
+    bool doSingleVelocityScaling_;
     //! Wether we're doing group-wise velocity scaling
-    bool doGroupVelocityScaling;
+    bool doGroupVelocityScaling_;
     //! The vector of velocity scaling values
     std::vector<real> velocityScaling_;
     //! The next velocity scaling step
     Step scalingStepVelocity_;
 
     //! The diagonal of the PR scaling matrix
-    rvec diagPR;
+    rvec diagPR_;
     //! The full PR scaling matrix
-    matrix matrixPR;
+    matrix matrixPR_;
     //! The next PR scaling step
     Step scalingStepPR_;
 
