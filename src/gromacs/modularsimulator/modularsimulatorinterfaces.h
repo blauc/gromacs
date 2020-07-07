@@ -44,12 +44,14 @@
  *
  * \author Pascal Merz <pascal.merz@me.com>
  */
-/*! \libinternal \file
+/*! \internal \file
  * \brief
  * Declares the main interfaces used by the modular simulator
  *
  * \author Pascal Merz <pascal.merz@me.com>
  * \ingroup module_modularsimulator
+ *
+ * This header is only used within the modular simulator module
  */
 #ifndef GMX_MODULARSIMULATOR_MODULARSIMULATORINTERFACES_H
 #define GMX_MODULARSIMULATOR_MODULARSIMULATORINTERFACES_H
@@ -70,6 +72,7 @@ class SignallerBuilder;
 class NeighborSearchSignaller;
 class LastStepSignaller;
 class LoggingSignaller;
+class TrajectorySignaller;
 class EnergySignaller;
 
 //! \addtogroup module_modularsimulator
@@ -91,7 +94,7 @@ typedef std::function<void(SimulatorRunFunctionPtr)> RegisterRunFunction;
 //! Pointer to the function type that allows to register run functions
 typedef std::unique_ptr<RegisterRunFunction> RegisterRunFunctionPtr;
 
-/*! \libinternal
+/*! \internal
  * \brief The general interface for elements of the modular simulator
  *
  * Setup and teardown are run once at the beginning of the simulation
@@ -120,7 +123,7 @@ public:
     virtual ~ISimulatorElement() = default;
 };
 
-/*! \libinternal
+/*! \internal
  * \brief The general Signaller interface
  *
  * Signallers are run at the beginning of Simulator steps, informing
@@ -142,7 +145,7 @@ public:
     //! Function run before every step of scheduling
     virtual void signal(Step, Time) = 0;
     //! Method guaranteed to be called after construction, before simulator run
-    virtual void signallerSetup() = 0;
+    virtual void setup() = 0;
     //! Standard virtual destructor
     virtual ~ISignaller() = default;
 };
@@ -152,7 +155,7 @@ typedef std::function<void(Step, Time)> SignallerCallback;
 //! Pointer to the function type that can be registered to signallers for callback
 typedef std::unique_ptr<SignallerCallback> SignallerCallbackPtr;
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for clients of the NeighborSearchSignaller
  *
  * Defining registerNSCallback allows clients to register an arbitrary callback
@@ -174,7 +177,7 @@ protected:
     virtual SignallerCallbackPtr registerNSCallback() = 0;
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for clients of the LastStepSignaller
  *
  * Defining registerLastStepCallback allows clients to register an arbitrary callback
@@ -196,7 +199,7 @@ protected:
     virtual SignallerCallbackPtr registerLastStepCallback() = 0;
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for clients of the LoggingSignaller
  *
  * Defining registerLoggingCallback allows clients to register an arbitrary callback
@@ -226,7 +229,7 @@ enum class EnergySignallerEvent
     FreeEnergyCalculationStep
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for clients of the EnergySignaller
  *
  * Defining registerEnergyCallback allows clients to register an arbitrary callback
@@ -255,7 +258,7 @@ enum class TrajectoryEvent
     EnergyWritingStep
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for signaller clients of the TrajectoryElement
  *
  * Defining registerTrajectorySignallerCallback allows clients to register an arbitrary
@@ -266,8 +269,8 @@ class ITrajectorySignallerClient
 public:
     //! @cond
     // (doxygen doesn't like these...)
-    //! Allow builder of TrajectoryElement to ask for callback registration
-    friend class TrajectoryElementBuilder;
+    //! Allow builder of TrajectorySignaller to ask for callback registration
+    friend class SignallerBuilder<TrajectorySignaller>;
     //! @endcond
     //! Standard virtual destructor
     virtual ~ITrajectorySignallerClient() = default;
@@ -289,7 +292,7 @@ typedef std::function<void(gmx_mdoutf*, Step, Time, bool, bool)> ITrajectoryWrit
 //! Pointer to the function type for trajectory writing clients
 typedef std::unique_ptr<ITrajectoryWriterCallback> ITrajectoryWriterCallbackPtr;
 
-/*! \libinternal
+/*! \internal
  * \brief Interface for writer clients of the TrajectoryElement
  *
  * Defining registerTrajectoryWriterCallback allows clients to register an arbitrary
@@ -318,7 +321,7 @@ protected:
     virtual ITrajectoryWriterCallbackPtr registerTrajectoryWriterCallback(TrajectoryEvent) = 0;
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Client requiring read access to the local topology
  *
  */
@@ -338,7 +341,7 @@ protected:
     virtual void setTopology(const gmx_localtop_t*) = 0;
 };
 
-/*! \libinternal
+/*! \internal
  * \brief Client that needs to store data during checkpointing
  *
  * The current checkpointing helper uses the legacy t_state object to collect
