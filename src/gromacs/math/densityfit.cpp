@@ -470,6 +470,9 @@ DensitySimilarityMeasure::DensitySimilarityMeasure(DensitySimilarityMeasureMetho
         case DensitySimilarityMeasureMethod::crossCorrelation:
             impl_ = std::make_unique<DensitySimilarityCrossCorrelation>(referenceDensity);
             break;
+        case DensitySimilarityMeasureMethod::jensenShannonDivergence:
+            impl_ = std::make_unique<DensitySimilarityJensenShannon>(referenceDensity);
+            break;
         default: GMX_THROW(NotImplementedError("Similarity measure not implemented."));
     }
 }
