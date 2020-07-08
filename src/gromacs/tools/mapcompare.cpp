@@ -105,7 +105,7 @@ void MapCompare::optionsFinished() {}
 
 void normalizeMap(gmx::basic_mdspan<float, gmx::dynamicExtents3D, gmx::layout_right> data)
 {
-    const auto norm = std::accumulate(begin(data), end(data), 0.);
+    const auto norm = std::abs(std::accumulate(begin(data), end(data), 0.));
     std::transform(begin(data), end(data), begin(data), [norm](float value) { return value / norm; });
 }
 
@@ -145,10 +145,12 @@ int MapCompare::run()
     }
 
     auto resultsFile = fopen(fnResults_.c_str(), "w");
-    fprintf(resultsFile, "inner-product\trelative-entropy\tcross-correlation\tfscavg\n");
-    fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t", measure[0].similarity(compdata),
-            measure[1].similarity(compdata), measure[2].similarity(compdata));
-    fprintf(resultsFile, "%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize]);
+    fprintf(resultsFile, "inner-product\trelative-entropy\tcross-correlation\tjensen-shannon\tfscavg-two-pixelsize\tfscavg-four-pixelsize\n");
+    fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t%15.5g", measure[0].similarity(compdata),
+            measure[1].similarity(compdata), measure[2].similarity(compdata),
+            measure[3].similarity(compdata));
+    fprintf(resultsFile, "%15.5g\t15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
+            fscAverageCurve[fscAvgIndexTwoTimesPixelsize / 2]);
     fclose(resultsFile);
     return EXIT_SUCCESS;
 }
