@@ -220,7 +220,7 @@ real jensenShannonAtVoxel(real reference, real comparison)
 {
     if ((reference > 0) && (comparison > 0))
     {
-        return log(2) - 0.5 * (reference * std::log(2.0 * reference / (comparison + reference)) +
+        return 0.5 * (reference * std::log(2.0 * reference / (comparison + reference)) +
             comparison * std::log(2.0 * comparison / (comparison + reference)));
     }
     return 0.;
@@ -272,8 +272,8 @@ real DensitySimilarityJensenShannon::similarity(density comparedDensity) const
     {
         GMX_THROW(RangeError("Reference density and compared density need to have same extents."));
     }
-    return std::inner_product(begin(referenceDensity_), end(referenceDensity_),
-                              begin(comparedDensity), 0., std::plus<>(), jensenShannonAtVoxel);
+    return log(2) - std::inner_product(begin(referenceDensity_), end(referenceDensity_),
+                                     begin(comparedDensity), 0., std::plus<>(), jensenShannonAtVoxel);
 }
 
 DensitySimilarityMeasure::density DensitySimilarityJensenShannon::gradient(density comparedDensity)
