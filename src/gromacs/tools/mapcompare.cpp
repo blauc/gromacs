@@ -149,7 +149,7 @@ int MapCompare::run()
     fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t%15.5g", measure[0].similarity(compdata),
             measure[1].similarity(compdata), measure[2].similarity(compdata),
             measure[3].similarity(compdata));
-    fprintf(resultsFile, "%15.5g\t15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
+    fprintf(resultsFile, "%15.5g\t%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
             fscAverageCurve[fscAvgIndexTwoTimesPixelsize / 2]);
     fclose(resultsFile);
     return EXIT_SUCCESS;
