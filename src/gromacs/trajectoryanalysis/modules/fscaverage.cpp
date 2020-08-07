@@ -73,7 +73,7 @@
 #include "gromacs/topology/atoms.h"
 
 #include "gromacs/mdtypes/mdatom.h"
-#include "gromacs/applied_forces/densityfittingoptions.h"
+#include "gromacs/applied_forces/densityfitting/densityfittingoptions.h"
 
 
 namespace gmx
