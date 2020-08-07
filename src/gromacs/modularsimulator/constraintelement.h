@@ -51,8 +51,8 @@
 namespace gmx
 {
 class Constraints;
-class EnergyElement;
-class FreeEnergyPerturbationElement;
+class EnergyData;
+class FreeEnergyPerturbationData;
 class StatePropagatorData;
 
 /*! \internal
@@ -75,14 +75,14 @@ class ConstraintsElement final :
 {
 public:
     //! Constructor
-    ConstraintsElement(Constraints*                   constr,
-                       StatePropagatorData*           statePropagatorData,
-                       EnergyElement*                 energyElement,
-                       FreeEnergyPerturbationElement* freeEnergyPerturbationElement,
-                       bool                           isMaster,
-                       FILE*                          fplog,
-                       const t_inputrec*              inputrec,
-                       const t_mdatoms*               mdAtoms);
+    ConstraintsElement(Constraints*                constr,
+                       StatePropagatorData*        statePropagatorData,
+                       EnergyData*                 energyData,
+                       FreeEnergyPerturbationData* freeEnergyPerturbationData,
+                       bool                        isMaster,
+                       FILE*                       fplog,
+                       const t_inputrec*           inputrec,
+                       const t_mdatoms*            mdAtoms);
 
     /*! \brief Register constraining function for step / time
      *
@@ -126,12 +126,13 @@ private:
     //! Whether we're master rank
     const bool isMasterRank_;
 
+    // TODO: Clarify relationship to data objects and find a more robust alternative to raw pointers (#3583)
     //! Pointer to the micro state
     StatePropagatorData* statePropagatorData_;
-    //! Pointer to the energy element
-    EnergyElement* energyElement_;
-    //! Pointer to the free energy perturbation element
-    FreeEnergyPerturbationElement* freeEnergyPerturbationElement_;
+    //! Pointer to the energy data
+    EnergyData* energyData_;
+    //! Pointer to the free energy perturbation data
+    FreeEnergyPerturbationData* freeEnergyPerturbationData_;
 
     // Access to ISimulator data
     //! Handles constraints.

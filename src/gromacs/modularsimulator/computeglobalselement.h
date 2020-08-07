@@ -47,7 +47,7 @@
 #include "gromacs/mdlib/simulationsignal.h"
 #include "gromacs/mdlib/vcm.h"
 
-#include "energyelement.h"
+#include "energydata.h"
 #include "modularsimulatorinterfaces.h"
 #include "statepropagatordata.h"
 #include "topologyholder.h"
@@ -58,7 +58,7 @@ struct t_nrnb;
 
 namespace gmx
 {
-class FreeEnergyPerturbationElement;
+class FreeEnergyPerturbationData;
 class MDAtoms;
 class MDLogger;
 
@@ -106,22 +106,22 @@ class ComputeGlobalsElement final :
 {
 public:
     //! Constructor
-    ComputeGlobalsElement(StatePropagatorData*           statePropagatorData,
-                          EnergyElement*                 energyElement,
-                          FreeEnergyPerturbationElement* freeEnergyPerturbationElement,
-                          SimulationSignals*             signals,
-                          int                            nstglobalcomm,
-                          FILE*                          fplog,
-                          const MDLogger&                mdlog,
-                          t_commrec*                     cr,
-                          const t_inputrec*              inputrec,
-                          const MDAtoms*                 mdAtoms,
-                          t_nrnb*                        nrnb,
-                          gmx_wallcycle*                 wcycle,
-                          t_forcerec*                    fr,
-                          const gmx_mtop_t*              global_top,
-                          Constraints*                   constr,
-                          bool                           hasReadEkinState);
+    ComputeGlobalsElement(StatePropagatorData*        statePropagatorData,
+                          EnergyData*                 energyData,
+                          FreeEnergyPerturbationData* freeEnergyPerturbationData,
+                          SimulationSignals*          signals,
+                          int                         nstglobalcomm,
+                          FILE*                       fplog,
+                          const MDLogger&             mdlog,
+                          t_commrec*                  cr,
+                          const t_inputrec*           inputrec,
+                          const MDAtoms*              mdAtoms,
+                          t_nrnb*                     nrnb,
+                          gmx_wallcycle*              wcycle,
+                          t_forcerec*                 fr,
+                          const gmx_mtop_t*           global_top,
+                          Constraints*                constr,
+                          bool                        hasReadEkinState);
 
     //! Destructor
     ~ComputeGlobalsElement() override;
@@ -210,14 +210,15 @@ private:
     //! Global reduction struct
     gmx_global_stat* gstat_;
 
+    // TODO: Clarify relationship to data objects and find a more robust alternative to raw pointers (#3583)
     //! Pointer to the microstate
     StatePropagatorData* statePropagatorData_;
-    //! Pointer to the energy element (needed for the tensors and mu_tot)
-    EnergyElement* energyElement_;
+    //! Pointer to the energy data (needed for the tensors and mu_tot)
+    EnergyData* energyData_;
     //! Pointer to the local topology (only needed for checkNumberOfBondedInteractions)
     const gmx_localtop_t* localTopology_;
-    //! Pointer to the free energy perturbation element
-    FreeEnergyPerturbationElement* freeEnergyPerturbationElement_;
+    //! Pointer to the free energy perturbation data
+    FreeEnergyPerturbationData* freeEnergyPerturbationData_;
 
     //! Center of mass motion removal
     t_vcm vcm_;

@@ -73,11 +73,12 @@ struct ArrayRefIter :
     // This default constructor does not initialize it_
     constexpr ArrayRefIter() noexcept {}
     constexpr explicit ArrayRefIter(T* it) noexcept : it_(it) {}
-    template<class T2 = T, class = std::enable_if_t<std::is_const_v<T2>>>
+    // TODO: Use std::is_const_v when CUDA 11 is a requirement.
+    template<class T2 = T, class = std::enable_if_t<std::is_const<T2>::value>>
     constexpr ArrayRefIter(ArrayRefIter<std::remove_const_t<T2>> it) noexcept : it_(&*it)
     {
     }
-
+    constexpr T*            data() const noexcept { return it_; }
     constexpr T&            operator*() const noexcept { return *it_; }
     constexpr ArrayRefIter& operator+=(std::ptrdiff_t i) noexcept
     {
@@ -175,8 +176,10 @@ public:
      *
      * This constructor is not explicit to allow directly passing
      * a container to a method that takes ArrayRef.
+     *
+     * \todo Use std::is_convertible_v when CUDA 11 is a requirement.
      */
-    template<typename U, typename = std::enable_if_t<std::is_convertible_v<typename std::remove_reference_t<U>::pointer, pointer>>>
+    template<typename U, typename = std::enable_if_t<std::is_convertible<typename std::remove_reference_t<U>::pointer, pointer>::value>>
     ArrayRef(U&& o) : begin_(o.data()), end_(o.data() + o.size())
     {
     }
@@ -267,12 +270,12 @@ public:
         return begin_[n];
     }
     //! Returns the first element.
-    reference front() const { return *begin_; }
+    reference front() const { return *(begin_); }
     //! Returns the first element.
     reference back() const { return *(end_ - 1); }
 
     //! Returns a raw pointer to the contents of the array.
-    pointer data() const { return &*begin_; }
+    pointer data() const { return begin_.data(); }
 
     /*! \brief
      * Swaps referenced memory with the other object.
@@ -311,9 +314,11 @@ ArrayRef<const T> constArrayRefFromArray(const T* begin, size_t size)
  * Create ArrayRef from container with type deduction
  *
  * \see ArrayRef
+ *
+ * \todo Use std::is_const_v when CUDA 11 is a requirement.
  */
 template<typename T>
-ArrayRef<std::conditional_t<std::is_const_v<T>, const typename T::value_type, typename T::value_type>>
+ArrayRef<std::conditional_t<std::is_const<T>::value, const typename T::value_type, typename T::value_type>>
 makeArrayRef(T& c)
 {
     return c;

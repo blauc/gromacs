@@ -77,9 +77,9 @@
 #include "compositesimulatorelement.h"
 #include "computeglobalselement.h"
 #include "constraintelement.h"
-#include "energyelement.h"
+#include "energydata.h"
 #include "forceelement.h"
-#include "freeenergyperturbationelement.h"
+#include "freeenergyperturbationdata.h"
 #include "parrinellorahmanbarostat.h"
 #include "propagator.h"
 #include "signallers.h"
@@ -92,9 +92,11 @@ namespace gmx
 {
 void ModularSimulator::run()
 {
-    GMX_LOG(mdlog.info).asParagraph().appendText("Using the modular simulator.");
+    GMX_LOG(legacySimulatorData_->mdlog.info)
+            .asParagraph()
+            .appendText("Using the modular simulator.");
 
-    ModularSimulatorAlgorithmBuilder algorithmBuilder(compat::make_not_null(this));
+    ModularSimulatorAlgorithmBuilder algorithmBuilder(compat::make_not_null(legacySimulatorData_.get()));
     auto                             algorithm = algorithmBuilder.build();
 
     while (const auto* task = algorithm.getNextTask())
@@ -108,17 +110,21 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildForces
         SignallerBuilder<NeighborSearchSignaller>* neighborSearchSignallerBuilder,
         SignallerBuilder<EnergySignaller>*         energySignallerBuilder,
         StatePropagatorData*                       statePropagatorDataPtr,
-        EnergyElement*                             energyElementPtr,
-        FreeEnergyPerturbationElement*             freeEnergyPerturbationElement,
+        EnergyData*                                energyDataPtr,
+        FreeEnergyPerturbationData*                freeEnergyPerturbationDataPtr,
         TopologyHolder*                            topologyHolder)
 {
-    const bool isVerbose    = mdrunOptions.verbose;
-    const bool isDynamicBox = inputrecDynamicBox(inputrec);
+    const bool isVerbose    = legacySimulatorData_->mdrunOptions.verbose;
+    const bool isDynamicBox = inputrecDynamicBox(legacySimulatorData_->inputrec);
 
     auto forceElement = std::make_unique<ForceElement>(
-            statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElement, isVerbose,
-            isDynamicBox, fplog, cr, inputrec, mdAtoms, nrnb, fr, wcycle, runScheduleWork, vsite,
-            imdSession, pull_work, constr, top_global, enforcedRotation);
+            statePropagatorDataPtr, energyDataPtr, freeEnergyPerturbationDataPtr, isVerbose, isDynamicBox,
+            legacySimulatorData_->fplog, legacySimulatorData_->cr, legacySimulatorData_->inputrec,
+            legacySimulatorData_->mdAtoms, legacySimulatorData_->nrnb, legacySimulatorData_->fr,
+            legacySimulatorData_->wcycle, legacySimulatorData_->runScheduleWork,
+            legacySimulatorData_->vsite, legacySimulatorData_->imdSession,
+            legacySimulatorData_->pull_work, legacySimulatorData_->constr,
+            legacySimulatorData_->top_global, legacySimulatorData_->enforcedRotation);
     topologyHolder->registerClient(forceElement.get());
     neighborSearchSignallerBuilder->registerSignallerClient(compat::make_not_null(forceElement.get()));
     energySignallerBuilder->registerSignallerClient(compat::make_not_null(forceElement.get()));
@@ -129,21 +135,23 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildForces
 
 std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegrator(
         SignallerBuilder<NeighborSearchSignaller>* neighborSearchSignallerBuilder,
+        SignallerBuilder<LastStepSignaller>*       lastStepSignallerBuilder,
         SignallerBuilder<EnergySignaller>*         energySignallerBuilder,
         SignallerBuilder<LoggingSignaller>*        loggingSignallerBuilder,
         SignallerBuilder<TrajectorySignaller>*     trajectorySignallerBuilder,
+        TrajectoryElementBuilder*                  trajectoryElementBuilder,
         std::vector<ICheckpointHelperClient*>*     checkpointClients,
         CheckBondedInteractionsCallbackPtr*        checkBondedInteractionsCallback,
         compat::not_null<StatePropagatorData*>     statePropagatorDataPtr,
-        compat::not_null<EnergyElement*>           energyElementPtr,
-        FreeEnergyPerturbationElement*             freeEnergyPerturbationElementPtr,
+        compat::not_null<EnergyData*>              energyDataPtr,
+        FreeEnergyPerturbationData*                freeEnergyPerturbationDataPtr,
         bool                                       hasReadEkinState,
         TopologyHolder*                            topologyHolder,
         SimulationSignals*                         signals)
 {
     auto forceElement = buildForces(neighborSearchSignallerBuilder, energySignallerBuilder,
-                                    statePropagatorDataPtr, energyElementPtr,
-                                    freeEnergyPerturbationElementPtr, topologyHolder);
+                                    statePropagatorDataPtr, energyDataPtr,
+                                    freeEnergyPerturbationDataPtr, topologyHolder);
 
     // list of elements owned by the simulator composite object
     std::vector<std::unique_ptr<ISimulatorElement>> elementsOwnershipList;
@@ -151,13 +159,14 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
     std::vector<compat::not_null<ISimulatorElement*>> elementCallList;
 
     std::function<void()> needToCheckNumberOfBondedInteractions;
-    if (inputrec->eI == eiMD)
+    if (legacySimulatorData_->inputrec->eI == eiMD)
     {
-        auto computeGlobalsElement =
-                std::make_unique<ComputeGlobalsElement<ComputeGlobalsAlgorithm::LeapFrog>>(
-                        statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElementPtr,
-                        signals, nstglobalcomm_, fplog, mdlog, cr, inputrec, mdAtoms, nrnb, wcycle,
-                        fr, top_global, constr, hasReadEkinState);
+        auto computeGlobalsElement = std::make_unique<ComputeGlobalsElement<ComputeGlobalsAlgorithm::LeapFrog>>(
+                statePropagatorDataPtr, energyDataPtr, freeEnergyPerturbationDataPtr, signals,
+                nstglobalcomm_, legacySimulatorData_->fplog, legacySimulatorData_->mdlog,
+                legacySimulatorData_->cr, legacySimulatorData_->inputrec, legacySimulatorData_->mdAtoms,
+                legacySimulatorData_->nrnb, legacySimulatorData_->wcycle, legacySimulatorData_->fr,
+                legacySimulatorData_->top_global, legacySimulatorData_->constr, hasReadEkinState);
         topologyHolder->registerClient(computeGlobalsElement.get());
         energySignallerBuilder->registerSignallerClient(compat::make_not_null(computeGlobalsElement.get()));
         trajectorySignallerBuilder->registerSignallerClient(
@@ -167,44 +176,60 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
                 computeGlobalsElement->getCheckNumberOfBondedInteractionsCallback();
 
         auto propagator = std::make_unique<Propagator<IntegrationStep::LeapFrog>>(
-                inputrec->delta_t, statePropagatorDataPtr, mdAtoms, wcycle);
+                legacySimulatorData_->inputrec->delta_t, statePropagatorDataPtr,
+                legacySimulatorData_->mdAtoms, legacySimulatorData_->wcycle);
 
         addToCallListAndMove(std::move(forceElement), elementCallList, elementsOwnershipList);
-        addToCallList(statePropagatorDataPtr, elementCallList); // we have a full microstate at time t here!
-        if (inputrec->etc == etcVRESCALE)
+        auto stateElement = compat::make_not_null(statePropagatorDataPtr->element());
+        trajectoryElementBuilder->registerWriterClient(stateElement);
+        trajectorySignallerBuilder->registerSignallerClient(stateElement);
+        lastStepSignallerBuilder->registerSignallerClient(stateElement);
+        checkpointClients->emplace_back(stateElement);
+        // we have a full microstate at time t here!
+        addToCallList(stateElement, elementCallList);
+        if (legacySimulatorData_->inputrec->etc == etcVRESCALE)
         {
             // TODO: With increased complexity of the propagator, this will need further development,
             //       e.g. using propagators templated for velocity propagation policies and a builder
-            propagator->setNumVelocityScalingVariables(inputrec->opts.ngtc);
+            propagator->setNumVelocityScalingVariables(legacySimulatorData_->inputrec->opts.ngtc);
             auto thermostat = std::make_unique<VRescaleThermostat>(
-                    inputrec->nsttcouple, -1, false, inputrec->ld_seed, inputrec->opts.ngtc,
-                    inputrec->delta_t * inputrec->nsttcouple, inputrec->opts.ref_t, inputrec->opts.tau_t,
-                    inputrec->opts.nrdf, energyElementPtr, propagator->viewOnVelocityScaling(),
-                    propagator->velocityScalingCallback(), state_global, cr, inputrec->bContinuation);
+                    legacySimulatorData_->inputrec->nsttcouple, -1, false,
+                    legacySimulatorData_->inputrec->ld_seed, legacySimulatorData_->inputrec->opts.ngtc,
+                    legacySimulatorData_->inputrec->delta_t * legacySimulatorData_->inputrec->nsttcouple,
+                    legacySimulatorData_->inputrec->opts.ref_t,
+                    legacySimulatorData_->inputrec->opts.tau_t, legacySimulatorData_->inputrec->opts.nrdf,
+                    energyDataPtr, propagator->viewOnVelocityScaling(),
+                    propagator->velocityScalingCallback(), legacySimulatorData_->state_global,
+                    legacySimulatorData_->cr, legacySimulatorData_->inputrec->bContinuation);
             checkpointClients->emplace_back(thermostat.get());
-            energyElementPtr->setVRescaleThermostat(thermostat.get());
+            energyDataPtr->setVRescaleThermostat(thermostat.get());
             addToCallListAndMove(std::move(thermostat), elementCallList, elementsOwnershipList);
         }
 
         std::unique_ptr<ParrinelloRahmanBarostat> prBarostat = nullptr;
-        if (inputrec->epc == epcPARRINELLORAHMAN)
+        if (legacySimulatorData_->inputrec->epc == epcPARRINELLORAHMAN)
         {
             // Building the PR barostat here since it needs access to the propagator
             // and we want to be able to move the propagator object
             prBarostat = std::make_unique<ParrinelloRahmanBarostat>(
-                    inputrec->nstpcouple, -1, inputrec->delta_t * inputrec->nstpcouple,
-                    inputrec->init_step, propagator->viewOnPRScalingMatrix(),
-                    propagator->prScalingCallback(), statePropagatorDataPtr, energyElementPtr,
-                    fplog, inputrec, mdAtoms, state_global, cr, inputrec->bContinuation);
-            energyElementPtr->setParrinelloRahamnBarostat(prBarostat.get());
+                    legacySimulatorData_->inputrec->nstpcouple, -1,
+                    legacySimulatorData_->inputrec->delta_t * legacySimulatorData_->inputrec->nstpcouple,
+                    legacySimulatorData_->inputrec->init_step, propagator->viewOnPRScalingMatrix(),
+                    propagator->prScalingCallback(), statePropagatorDataPtr, energyDataPtr,
+                    legacySimulatorData_->fplog, legacySimulatorData_->inputrec,
+                    legacySimulatorData_->mdAtoms, legacySimulatorData_->state_global,
+                    legacySimulatorData_->cr, legacySimulatorData_->inputrec->bContinuation);
+            energyDataPtr->setParrinelloRahamnBarostat(prBarostat.get());
             checkpointClients->emplace_back(prBarostat.get());
         }
         addToCallListAndMove(std::move(propagator), elementCallList, elementsOwnershipList);
-        if (constr)
+        if (legacySimulatorData_->constr)
         {
             auto constraintElement = std::make_unique<ConstraintsElement<ConstraintVariable::Positions>>(
-                    constr, statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElementPtr,
-                    MASTER(cr), fplog, inputrec, mdAtoms->mdatoms());
+                    legacySimulatorData_->constr, statePropagatorDataPtr, energyDataPtr,
+                    freeEnergyPerturbationDataPtr, MASTER(legacySimulatorData_->cr),
+                    legacySimulatorData_->fplog, legacySimulatorData_->inputrec,
+                    legacySimulatorData_->mdAtoms->mdatoms());
             auto constraintElementPtr = compat::make_not_null(constraintElement.get());
             energySignallerBuilder->registerSignallerClient(constraintElementPtr);
             trajectorySignallerBuilder->registerSignallerClient(constraintElementPtr);
@@ -214,19 +239,29 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
         }
 
         addToCallListAndMove(std::move(computeGlobalsElement), elementCallList, elementsOwnershipList);
-        addToCallList(energyElementPtr, elementCallList); // we have the energies at time t here!
+        auto energyElement = compat::make_not_null(energyDataPtr->element());
+        trajectoryElementBuilder->registerWriterClient(energyElement);
+        trajectorySignallerBuilder->registerSignallerClient(energyElement);
+        energySignallerBuilder->registerSignallerClient(energyElement);
+        checkpointClients->emplace_back(energyElement);
+        // we have the energies at time t here!
+        addToCallList(energyElement, elementCallList);
         if (prBarostat)
         {
             addToCallListAndMove(std::move(prBarostat), elementCallList, elementsOwnershipList);
         }
     }
-    else if (inputrec->eI == eiVV)
+    else if (legacySimulatorData_->inputrec->eI == eiVV)
     {
         auto computeGlobalsElement =
                 std::make_unique<ComputeGlobalsElement<ComputeGlobalsAlgorithm::VelocityVerlet>>(
-                        statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElementPtr,
-                        signals, nstglobalcomm_, fplog, mdlog, cr, inputrec, mdAtoms, nrnb, wcycle,
-                        fr, &topologyHolder->globalTopology(), constr, hasReadEkinState);
+                        statePropagatorDataPtr, energyDataPtr, freeEnergyPerturbationDataPtr,
+                        signals, nstglobalcomm_, legacySimulatorData_->fplog,
+                        legacySimulatorData_->mdlog, legacySimulatorData_->cr,
+                        legacySimulatorData_->inputrec, legacySimulatorData_->mdAtoms,
+                        legacySimulatorData_->nrnb, legacySimulatorData_->wcycle,
+                        legacySimulatorData_->fr, &topologyHolder->globalTopology(),
+                        legacySimulatorData_->constr, hasReadEkinState);
         topologyHolder->registerClient(computeGlobalsElement.get());
         energySignallerBuilder->registerSignallerClient(compat::make_not_null(computeGlobalsElement.get()));
         trajectorySignallerBuilder->registerSignallerClient(
@@ -236,32 +271,40 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
                 computeGlobalsElement->getCheckNumberOfBondedInteractionsCallback();
 
         auto propagatorVelocities = std::make_unique<Propagator<IntegrationStep::VelocitiesOnly>>(
-                inputrec->delta_t * 0.5, statePropagatorDataPtr, mdAtoms, wcycle);
+                legacySimulatorData_->inputrec->delta_t * 0.5, statePropagatorDataPtr,
+                legacySimulatorData_->mdAtoms, legacySimulatorData_->wcycle);
         auto propagatorVelocitiesAndPositions =
                 std::make_unique<Propagator<IntegrationStep::VelocityVerletPositionsAndVelocities>>(
-                        inputrec->delta_t, statePropagatorDataPtr, mdAtoms, wcycle);
+                        legacySimulatorData_->inputrec->delta_t, statePropagatorDataPtr,
+                        legacySimulatorData_->mdAtoms, legacySimulatorData_->wcycle);
 
         addToCallListAndMove(std::move(forceElement), elementCallList, elementsOwnershipList);
 
         std::unique_ptr<ParrinelloRahmanBarostat> prBarostat = nullptr;
-        if (inputrec->epc == epcPARRINELLORAHMAN)
+        if (legacySimulatorData_->inputrec->epc == epcPARRINELLORAHMAN)
         {
             // Building the PR barostat here since it needs access to the propagator
             // and we want to be able to move the propagator object
             prBarostat = std::make_unique<ParrinelloRahmanBarostat>(
-                    inputrec->nstpcouple, -1, inputrec->delta_t * inputrec->nstpcouple,
-                    inputrec->init_step, propagatorVelocities->viewOnPRScalingMatrix(),
-                    propagatorVelocities->prScalingCallback(), statePropagatorDataPtr, energyElementPtr,
-                    fplog, inputrec, mdAtoms, state_global, cr, inputrec->bContinuation);
-            energyElementPtr->setParrinelloRahamnBarostat(prBarostat.get());
+                    legacySimulatorData_->inputrec->nstpcouple, -1,
+                    legacySimulatorData_->inputrec->delta_t * legacySimulatorData_->inputrec->nstpcouple,
+                    legacySimulatorData_->inputrec->init_step,
+                    propagatorVelocities->viewOnPRScalingMatrix(),
+                    propagatorVelocities->prScalingCallback(), statePropagatorDataPtr,
+                    energyDataPtr, legacySimulatorData_->fplog, legacySimulatorData_->inputrec,
+                    legacySimulatorData_->mdAtoms, legacySimulatorData_->state_global,
+                    legacySimulatorData_->cr, legacySimulatorData_->inputrec->bContinuation);
+            energyDataPtr->setParrinelloRahamnBarostat(prBarostat.get());
             checkpointClients->emplace_back(prBarostat.get());
         }
         addToCallListAndMove(std::move(propagatorVelocities), elementCallList, elementsOwnershipList);
-        if (constr)
+        if (legacySimulatorData_->constr)
         {
             auto constraintElement = std::make_unique<ConstraintsElement<ConstraintVariable::Velocities>>(
-                    constr, statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElementPtr,
-                    MASTER(cr), fplog, inputrec, mdAtoms->mdatoms());
+                    legacySimulatorData_->constr, statePropagatorDataPtr, energyDataPtr,
+                    freeEnergyPerturbationDataPtr, MASTER(legacySimulatorData_->cr),
+                    legacySimulatorData_->fplog, legacySimulatorData_->inputrec,
+                    legacySimulatorData_->mdAtoms->mdatoms());
             energySignallerBuilder->registerSignallerClient(compat::make_not_null(constraintElement.get()));
             trajectorySignallerBuilder->registerSignallerClient(
                     compat::make_not_null(constraintElement.get()));
@@ -271,30 +314,42 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
             addToCallListAndMove(std::move(constraintElement), elementCallList, elementsOwnershipList);
         }
         addToCallList(compat::make_not_null(computeGlobalsElement.get()), elementCallList);
-        addToCallList(statePropagatorDataPtr, elementCallList); // we have a full microstate at time t here!
-        if (inputrec->etc == etcVRESCALE)
+        auto stateElement = compat::make_not_null(statePropagatorDataPtr->element());
+        trajectoryElementBuilder->registerWriterClient(stateElement);
+        trajectorySignallerBuilder->registerSignallerClient(stateElement);
+        lastStepSignallerBuilder->registerSignallerClient(stateElement);
+        checkpointClients->emplace_back(stateElement);
+        // we have a full microstate at time t here!
+        addToCallList(stateElement, elementCallList);
+        if (legacySimulatorData_->inputrec->etc == etcVRESCALE)
         {
             // TODO: With increased complexity of the propagator, this will need further development,
             //       e.g. using propagators templated for velocity propagation policies and a builder
-            propagatorVelocitiesAndPositions->setNumVelocityScalingVariables(inputrec->opts.ngtc);
+            propagatorVelocitiesAndPositions->setNumVelocityScalingVariables(
+                    legacySimulatorData_->inputrec->opts.ngtc);
             auto thermostat = std::make_unique<VRescaleThermostat>(
-                    inputrec->nsttcouple, 0, true, inputrec->ld_seed, inputrec->opts.ngtc,
-                    inputrec->delta_t * inputrec->nsttcouple, inputrec->opts.ref_t,
-                    inputrec->opts.tau_t, inputrec->opts.nrdf, energyElementPtr,
-                    propagatorVelocitiesAndPositions->viewOnVelocityScaling(),
-                    propagatorVelocitiesAndPositions->velocityScalingCallback(), state_global, cr,
-                    inputrec->bContinuation);
+                    legacySimulatorData_->inputrec->nsttcouple, 0, true,
+                    legacySimulatorData_->inputrec->ld_seed, legacySimulatorData_->inputrec->opts.ngtc,
+                    legacySimulatorData_->inputrec->delta_t * legacySimulatorData_->inputrec->nsttcouple,
+                    legacySimulatorData_->inputrec->opts.ref_t,
+                    legacySimulatorData_->inputrec->opts.tau_t, legacySimulatorData_->inputrec->opts.nrdf,
+                    energyDataPtr, propagatorVelocitiesAndPositions->viewOnVelocityScaling(),
+                    propagatorVelocitiesAndPositions->velocityScalingCallback(),
+                    legacySimulatorData_->state_global, legacySimulatorData_->cr,
+                    legacySimulatorData_->inputrec->bContinuation);
             checkpointClients->emplace_back(thermostat.get());
-            energyElementPtr->setVRescaleThermostat(thermostat.get());
+            energyDataPtr->setVRescaleThermostat(thermostat.get());
             addToCallListAndMove(std::move(thermostat), elementCallList, elementsOwnershipList);
         }
         addToCallListAndMove(std::move(propagatorVelocitiesAndPositions), elementCallList,
                              elementsOwnershipList);
-        if (constr)
+        if (legacySimulatorData_->constr)
         {
             auto constraintElement = std::make_unique<ConstraintsElement<ConstraintVariable::Positions>>(
-                    constr, statePropagatorDataPtr, energyElementPtr, freeEnergyPerturbationElementPtr,
-                    MASTER(cr), fplog, inputrec, mdAtoms->mdatoms());
+                    legacySimulatorData_->constr, statePropagatorDataPtr, energyDataPtr,
+                    freeEnergyPerturbationDataPtr, MASTER(legacySimulatorData_->cr),
+                    legacySimulatorData_->fplog, legacySimulatorData_->inputrec,
+                    legacySimulatorData_->mdAtoms->mdatoms());
             energySignallerBuilder->registerSignallerClient(compat::make_not_null(constraintElement.get()));
             trajectorySignallerBuilder->registerSignallerClient(
                     compat::make_not_null(constraintElement.get()));
@@ -304,7 +359,13 @@ std::unique_ptr<ISimulatorElement> ModularSimulatorAlgorithmBuilder::buildIntegr
             addToCallListAndMove(std::move(constraintElement), elementCallList, elementsOwnershipList);
         }
         addToCallListAndMove(std::move(computeGlobalsElement), elementCallList, elementsOwnershipList);
-        addToCallList(energyElementPtr, elementCallList); // we have the energies at time t here!
+        auto energyElement = compat::make_not_null(energyDataPtr->element());
+        trajectoryElementBuilder->registerWriterClient(energyElement);
+        trajectorySignallerBuilder->registerSignallerClient(energyElement);
+        energySignallerBuilder->registerSignallerClient(energyElement);
+        checkpointClients->emplace_back(energyElement);
+        // we have the energies at time t here!
+        addToCallList(energyElement, elementCallList);
         if (prBarostat)
         {
             addToCallListAndMove(std::move(prBarostat), elementCallList, elementsOwnershipList);
@@ -509,11 +570,21 @@ bool ModularSimulator::isInputCompatible(bool                             exitOn
     return isInputCompatible;
 }
 
+ModularSimulator::ModularSimulator(std::unique_ptr<LegacySimulatorData> legacySimulatorData) :
+    legacySimulatorData_(std::move(legacySimulatorData))
+{
+    checkInputForDisabledFunctionality();
+}
+
 void ModularSimulator::checkInputForDisabledFunctionality()
 {
-    isInputCompatible(true, inputrec, mdrunOptions.rerun, *top_global, ms, replExParams,
-                      &fr->listedForces->fcdata(), opt2bSet("-ei", nfile, fnm), membed != nullptr);
-    if (observablesHistory->edsamHistory)
+    isInputCompatible(true, legacySimulatorData_->inputrec,
+                      legacySimulatorData_->mdrunOptions.rerun, *legacySimulatorData_->top_global,
+                      legacySimulatorData_->ms, legacySimulatorData_->replExParams,
+                      &legacySimulatorData_->fr->listedForces->fcdata(),
+                      opt2bSet("-ei", legacySimulatorData_->nfile, legacySimulatorData_->fnm),
+                      legacySimulatorData_->membed != nullptr);
+    if (legacySimulatorData_->observablesHistory->edsamHistory)
     {
         gmx_fatal(FARGS,
                   "The checkpoint is from a run with essential dynamics sampling, "

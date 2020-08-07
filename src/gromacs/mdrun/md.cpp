@@ -122,7 +122,7 @@
 #include "gromacs/mdtypes/simulation_workload.h"
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/mdtypes/state_propagator_data_gpu.h"
-#include "gromacs/modularsimulator/energyelement.h"
+#include "gromacs/modularsimulator/energydata.h"
 #include "gromacs/nbnxm/gpu_data_mgmt.h"
 #include "gromacs/nbnxm/nbnxm.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -253,7 +253,9 @@ void gmx::LegacySimulator::do_md()
                   "Either specify the -ei option to mdrun, or do not use this checkpoint file.");
     }
 
-    initialize_lambdas(fplog, *ir, MASTER(cr), &state_global->fep_state, state_global->lambda, lam0);
+    int*                fep_state = MASTER(cr) ? &state_global->fep_state : nullptr;
+    gmx::ArrayRef<real> lambda    = MASTER(cr) ? state_global->lambda : gmx::ArrayRef<real>();
+    initialize_lambdas(fplog, *ir, MASTER(cr), fep_state, lambda, lam0);
     Update     upd(*ir, deform);
     const bool doSimulatedAnnealing = initSimulatedAnnealing(ir, &upd);
     const bool useReplicaExchange   = (replExParams.exchangeInterval > 0);
@@ -448,7 +450,7 @@ void gmx::LegacySimulator::do_md()
 
     if (MASTER(cr))
     {
-        EnergyElement::initializeEnergyHistory(startingBehavior, observablesHistory, &energyOutput);
+        EnergyData::initializeEnergyHistory(startingBehavior, observablesHistory, &energyOutput);
     }
 
     preparePrevStepPullCom(ir, pull_work, mdatoms->massT, state, state_global, cr,
@@ -718,38 +720,9 @@ void gmx::LegacySimulator::do_md()
     step     = ir->init_step;
     step_rel = 0;
 
-    // TODO extract this to new multi-simulation module
     if (MASTER(cr) && isMultiSim(ms) && !useReplicaExchange)
     {
-        if (!multisim_int_all_are_equal(ms, ir->nsteps))
-        {
-            GMX_LOG(mdlog.warning)
-                    .appendText(
-                            "Note: The number of steps is not consistent across multi "
-                            "simulations,\n"
-                            "but we are proceeding anyway!");
-        }
-        if (!multisim_int_all_are_equal(ms, ir->init_step))
-        {
-            if (simulationsShareState)
-            {
-                if (MASTER(cr))
-                {
-                    gmx_fatal(FARGS,
-                              "The initial step is not consistent across multi simulations which "
-                              "share the state");
-                }
-                gmx_barrier(cr->mpi_comm_mygroup);
-            }
-            else
-            {
-                GMX_LOG(mdlog.warning)
-                        .appendText(
-                                "Note: The initial step is not consistent across multi "
-                                "simulations,\n"
-                                "but we are proceeding anyway!");
-            }
-        }
+        logInitialMultisimStatus(ms, cr, mdlog, simulationsShareState, ir->nsteps, ir->init_step);
     }
 
     /* and stop now if we should */
