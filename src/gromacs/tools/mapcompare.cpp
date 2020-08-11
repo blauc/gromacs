@@ -76,6 +76,8 @@ private:
     std::string fnComparisonMap_ = "comp.mrc";
     std::string fnResults_       = "out.xvg";
     int         numFscShells_    = 61;
+    real fscAvgCutoff_   = 0.4;
+    bool normalizeMaps_ = false;
 };
 
 void MapCompare::initOptions(IOptionsContainer* options, ICommandLineOptionsModuleSettings* settings)
@@ -99,6 +101,12 @@ void MapCompare::initOptions(IOptionsContainer* options, ICommandLineOptionsModu
                                .store(&fnResults_)
                                .defaultBasename("similarity")
                                .description("Similarity between maps."));
+
+    options->addOption(RealOption("fscavgcutoff")
+                               .store(&fscAvgCutoff_)
+                               .description("Maximum resolution for fsc avg calculation in nm."));
+    options->addOption(
+            BooleanOption("normalize").store(&normalizeMaps_).description("Normalize maps to one before calculating similarity."));
 }
 
 void MapCompare::optionsFinished() {}
@@ -116,8 +124,11 @@ int MapCompare::run()
     MrcDensityMapOfFloatFromFileReader readComparison(fnComparisonMap_);
     auto                               compdata = readComparison.densityDataCopy();
 
-    normalizeMap(refData);
-    normalizeMap(compdata);
+    if (normalizeMaps_)
+    {
+        normalizeMap(refData);
+        normalizeMap(compdata);
+    }
 
     std::vector<DensitySimilarityMeasure> measure;
     for (const auto& method : EnumerationWrapper<DensitySimilarityMeasureMethod>{})
@@ -135,22 +146,38 @@ int MapCompare::run()
 
     const size_t fscAvgIndexTwoTimesPixelsize =
             static_cast<size_t>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
+            
+    size_t fscAvgIndexCutoff =
+            static_cast<size_t>(std::floor(1.0 / (fscAvgCutoff_ * fsc.spacing())) - 1);
+
+    if (fscAvgIndexCutoff < 0)
+    {
+        throw std::range_error(
+                "Required cutoff too small - did you use AA instead of nm?");
+    }
+
     fprintf(stderr, " pixelsize: %12.5g, spacing: %12.5g, index: %lu", unitVector[0], fsc.spacing(),
             fscAvgIndexTwoTimesPixelsize);
     const auto fscAverageCurve = fscAverage(curve);
-    if (fscAvgIndexTwoTimesPixelsize > fscAverageCurve.size())
+    if (fscAverageCurve.size() < fscAvgIndexTwoTimesPixelsize)
     {
         throw std::range_error(
                 "FSC curve not long enough to evaluate fscavg score at 2 * pixelsize.");
     }
+    if (fscAverageCurve.size()  < fscAvgIndexCutoff) {
+        throw std::range_error(
+                "FSC curve not long enough to evaluate fscavg score at required index.");
+    }
+
+
 
     auto resultsFile = fopen(fnResults_.c_str(), "w");
-    fprintf(resultsFile, "inner-product\trelative-entropy\tcross-correlation\tjensen-shannon\tfscavg-two-pixelsize\tfscavg-four-pixelsize\n");
+    fprintf(resultsFile, "inner-product\trelative-entropy\tcross-correlation\tjensen-shannon\tfscavg-two-pixelsize\tfscavg-four-pixelsize\tfscavg-user\n");
     fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t%15.5g", measure[0].similarity(compdata),
             measure[1].similarity(compdata), measure[2].similarity(compdata),
             measure[3].similarity(compdata));
     fprintf(resultsFile, "%15.5g\t%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
-            fscAverageCurve[fscAvgIndexTwoTimesPixelsize / 2]);
+            fscAverageCurve[fscAvgIndexTwoTimesPixelsize / 2], fscAverageCurve[fscAvgIndexCutoff]);
     fclose(resultsFile);
     return EXIT_SUCCESS;
 }
