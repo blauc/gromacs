@@ -148,7 +148,7 @@ int MapCompare::run()
             static_cast<int>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
             
     int fscAvgIndexCutoff =
-            static_cast<int>(std::round(1.0 / (fscAvgCutoff_ * fsc.spacing()));
+            static_cast<int>(std::round(1.0 / (fscAvgCutoff_ * fsc.spacing())));
 
     if (fscAvgIndexCutoff < 0)
     {
