@@ -144,11 +144,11 @@ int MapCompare::run()
 
     const FourierShellCorrelationCurve& curve = fsc.fscCurve(compdata.asConstView());
 
-    const size_t fscAvgIndexTwoTimesPixelsize =
-            static_cast<size_t>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
+    const int fscAvgIndexTwoTimesPixelsize =
+            static_cast<int>(std::floor(1.0 / (2.0 * unitVector[0] * fsc.spacing())) - 1);
             
-    size_t fscAvgIndexCutoff =
-            static_cast<size_t>(std::floor(1.0 / (fscAvgCutoff_ * fsc.spacing())) - 1);
+    int fscAvgIndexCutoff =
+            static_cast<int>(std::round(1.0 / (fscAvgCutoff_ * fsc.spacing()));
 
     if (fscAvgIndexCutoff < 0)
     {
@@ -156,8 +156,9 @@ int MapCompare::run()
                 "Required cutoff too small - did you use AA instead of nm?");
     }
 
-    fprintf(stderr, " pixelsize: %12.5g, spacing: %12.5g, index: %lu", unitVector[0], fsc.spacing(),
-            fscAvgIndexTwoTimesPixelsize);
+    fprintf(stderr,
+            "\n pixelsize: %12.5g, spacing: %12.5g, index 2*pixelsize: %lu, user-index: %lu \n",
+            unitVector[0], fsc.spacing(), fscAvgIndexTwoTimesPixelsize, fscAvgIndexCutoff);
     const auto fscAverageCurve = fscAverage(curve);
     if (fscAverageCurve.size() < fscAvgIndexTwoTimesPixelsize)
     {
@@ -176,7 +177,7 @@ int MapCompare::run()
     fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\t%15.5g", measure[0].similarity(compdata),
             measure[1].similarity(compdata), measure[2].similarity(compdata),
             measure[3].similarity(compdata));
-    fprintf(resultsFile, "%15.5g\t%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
+    fprintf(resultsFile, "%15.5g\t%15.5g\t%15.5g\n", fscAverageCurve[fscAvgIndexTwoTimesPixelsize],
             fscAverageCurve[fscAvgIndexTwoTimesPixelsize / 2], fscAverageCurve[fscAvgIndexCutoff]);
     fclose(resultsFile);
     return EXIT_SUCCESS;
